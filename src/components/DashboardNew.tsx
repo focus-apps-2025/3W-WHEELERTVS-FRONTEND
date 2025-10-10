@@ -89,8 +89,54 @@ export default function DashboardNew() {
     ? `https://servicerequests.netlify.app/${tenant.slug}`
     : null;
 
+  // Debug logging
+  console.log("Dashboard - Tenant:", tenant);
+  console.log("Dashboard - Customer Portal URL:", customerPortalUrl);
+
   return (
     <div className="min-h-screen bg-white p-6">
+      {/* Tenant Info Banner */}
+      {tenant && (
+        <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                Your Tenant Information
+              </h3>
+              <div className="flex items-center space-x-4 text-sm">
+                <div>
+                  <span className="text-gray-600">Business Name:</span>{" "}
+                  <span className="font-medium text-gray-900">
+                    {tenant.businessName}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Tenant ID:</span>{" "}
+                  <span className="font-medium text-gray-900">
+                    {tenant.slug}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {customerPortalUrl && (
+              <div className="text-right">
+                <p className="text-xs text-gray-600 mb-1">
+                  Customer Portal URL:
+                </p>
+                <a
+                  href={customerPortalUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                >
+                  {customerPortalUrl}
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         {statsCards.map((stat, index) => (
