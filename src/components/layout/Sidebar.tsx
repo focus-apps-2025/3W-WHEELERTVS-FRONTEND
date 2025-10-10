@@ -97,12 +97,12 @@ export default function Sidebar() {
       path: "/system/management",
       description: "Configure shop settings and preferences",
     },
-    {
-      title: "Email System",
-      icon: Mail,
-      path: "/mail/test",
-      description: "Test and configure email notifications",
-    },
+    // {
+    //   title: "Email System",
+    //   icon: Mail,
+    //   path: "/mail/test",
+    //   description: "Test and configure email notifications",
+    // },
   ];
 
   // Determine which menu items to show based on user role
