@@ -1,0 +1,234 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-white text-primary-600 font-sans antialiased text-sm;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply text-primary-600 font-medium text-base;
+  }
+
+  h1 {
+    @apply text-lg;
+  }
+
+  button {
+    @apply font-medium text-sm;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-all duration-200 font-medium;
+  }
+
+  .btn-secondary {
+    @apply bg-white text-primary-600 px-4 py-2 rounded-lg hover:bg-primary-50 transition-all duration-200 font-medium;
+  }
+
+  .input-field {
+    @apply w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-primary-600 bg-white transition-all duration-200 border-0 shadow-sm;
+  }
+
+  /* Floating label styles */
+  .input-field:focus + label,
+  .input-field:not(:placeholder-shown) + label {
+    @apply transform -translate-y-2 scale-90 px-2 bg-white;
+  }
+
+  .card {
+    @apply bg-white rounded-lg;
+  }
+
+  .sidebar-item {
+    @apply flex items-center px-4 py-3 text-primary-600 hover:bg-primary-50 transition-colors duration-200 cursor-pointer;
+  }
+
+  .sidebar-item.active {
+    @apply bg-primary-50 text-primary-700;
+  }
+
+  /* Text truncation utilities */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .line-clamp-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-neutral-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-neutral-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-neutral-400;
+}
+
+/* Smooth transitions */
+* {
+  transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out,
+    color 0.2s ease-in-out;
+}
+
+/* Professional styling adjustments */
+.font-bold,
+.font-black,
+.font-extrabold {
+  font-weight: 500 !important;
+}
+
+/* Remove default browser borders and outlines for cleaner look */
+input[type="text"],
+input[type="email"],
+input[type="url"],
+input[type="tel"],
+input[type="number"],
+input[type="password"],
+input[type="date"],
+input[type="time"],
+textarea,
+select {
+  border: none !important;
+  outline: none !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+  background-color: #ffffff !important;
+  color: #1e3a8a !important;
+}
+
+/* Ensure radio and checkbox inputs are visible */
+input[type="radio"],
+input[type="checkbox"] {
+  accent-color: #1e3a8a !important;
+  background-color: #ffffff !important;
+}
+
+/* Ensure labels and spans have proper text color */
+label,
+label span {
+  color: #1e3a8a !important;
+}
+
+/* Globally remove ALL dark theme classes */
+.dark\:bg-gray-800,
+.dark\:bg-gray-700,
+.dark\:bg-gray-700\/50,
+.dark\:bg-blue-900\/20,
+.dark\:text-white,
+.dark\:text-gray-400,
+.dark\:text-gray-300,
+.dark\:border-gray-600,
+.dark\:border-gray-700,
+.dark\:hover\:bg-blue-900\/40,
+.dark\:hover\:border-blue-400 {
+  color: inherit !important;
+  background-color: inherit !important;
+  border-color: inherit !important;
+}
+
+/* Professional card styling with subtle elevation */
+.card {
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Force backgrounds to white */
+body,
+.bg-white,
+.bg-neutral-50,
+.bg-neutral-100,
+.hover\:bg-neutral-50,
+.hover\:bg-primary-50 {
+  background-color: #ffffff !important;
+}
+
+/* Override any colored backgrounds to dark blue */
+.bg-blue-500,
+.bg-green-500,
+.bg-purple-500,
+.bg-orange-500 {
+  background-color: #1e3a8a !important;
+}
+
+/* Override status colors to dark blue */
+.bg-green-100,
+.text-green-600,
+.text-green-800,
+.bg-yellow-100,
+.text-yellow-800,
+.bg-red-50,
+.text-red-600,
+.text-red-800 {
+  color: #1e3a8a !important;
+  background-color: #ffffff !important;
+}
+
+.btn-primary {
+  background-color: #1e3a8a !important;
+  color: #ffffff !important;
+  border: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+.btn-secondary,
+.hover\:bg-primary-50,
+.hover\:bg-neutral-100 {
+  background-color: #ffffff !important;
+  color: #1e3a8a !important;
+  border: 1px solid #1e3a8a !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+}
+
+/* Make buttons minimal */
+.btn-primary,
+.btn-secondary {
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.875rem !important;
+  border-radius: 4px !important;
+}
+
+/* Reduce heading sizes globally */
+.text-3xl {
+  font-size: 1.125rem !important;
+}
+.text-2xl {
+  font-size: 1rem !important;
+}
+.text-xl {
+  font-size: 0.875rem !important;
+}
+.text-lg {
+  font-size: 0.75rem !important;
+}

@@ -1,0 +1,18 @@
+export type QuestionType =
+  | 'text'
+  | 'radio'
+  | 'checkbox'
+  | 'email'
+  | 'url'
+  | 'tel'
+  | 'date'
+  | 'time'
+  | 'file'
+  | 'range'
+  | 'rating'
+  | 'scale'
+  | 'radio-grid'
+  | 'checkbox-grid'
+  | 'radio-image'
+  | 'paragraph'
+  | 'search-select';

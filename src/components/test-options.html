@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Multiple Choice Options</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            resize: none;
+            font-family: inherit;
+        }
+        textarea:focus {
+            outline: none;
+            border-color: #0066cc;
+            box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2);
+        }
+        .tip {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .preview {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .option-list {
+            list-style: none;
+            padding: 0;
+        }
+        .option-list li {
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .option-list li:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Multiple Choice Options</h1>
+    <p>This tests the textarea functionality for entering multiple options.</p>
+    
+    <div class="form-group">
+        <label for="options">Options (one per line)</label>
+        <textarea 
+            id="options" 
+            rows="4" 
+            placeholder="Enter options, one per line:&#10;Excellent&#10;Good&#10;Average&#10;Poor"
+        ></textarea>
+        <div class="tip">💡 Tip: Each line becomes a selectable option for your users</div>
+    </div>
+    
+    <div class="preview">
+        <h3>Preview:</h3>
+        <ul id="optionsList" class="option-list">
+            <li><em>Enter options above to see preview...</em></li>
+        </ul>
+    </div>
+
+    <script>
+        const textarea = document.getElementById('options');
+        const optionsList = document.getElementById('optionsList');
+        
+        function updatePreview() {
+            const value = textarea.value;
+            const options = value.split('\n').filter(option => option.trim());
+            
+            if (options.length === 0) {
+                optionsList.innerHTML = '<li><em>Enter options above to see preview...</em></li>';
+                return;
+            }
+            
+            optionsList.innerHTML = options.map(option => 
+                `<li>• ${option.trim()}</li>`
+            ).join('');
+        }
+        
+        textarea.addEventListener('input', updatePreview);
+        textarea.addEventListener('keyup', updatePreview);
+        textarea.addEventListener('change', updatePreview);
+        
+        // Test with initial values
+        textarea.value = "hjjjjj - option 1\nOption 2\nOption 3";
+        updatePreview();
+    </script>
+</body>
+</html>
