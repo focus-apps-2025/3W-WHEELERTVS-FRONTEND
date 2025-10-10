@@ -20,10 +20,12 @@ export default function DashboardNew() {
   const navigate = useNavigate();
   const { data: formsData, loading: formsLoading } = useForms();
 
-  const recentForms = formsData?.forms?.filter((form: any) => form.isVisible).slice(0, 5) || [];
+  const recentForms =
+    formsData?.forms?.filter((form: any) => form.isVisible).slice(0, 5) || [];
 
   // Calculate real-time stats from active forms data
-  const activeForms = formsData?.forms?.filter((form: any) => form.isVisible) || [];
+  const activeForms =
+    formsData?.forms?.filter((form: any) => form.isVisible) || [];
   const totalForms = activeForms.length;
   const totalResponses =
     activeForms.reduce(
@@ -84,7 +86,7 @@ export default function DashboardNew() {
   }
 
   const customerPortalUrl = tenant
-    ? `${window.location.origin.replace("5173", "5174")}/${tenant.slug}`
+    ? `https://servicerequests.netlify.app/${tenant.slug}`
     : null;
 
   return (

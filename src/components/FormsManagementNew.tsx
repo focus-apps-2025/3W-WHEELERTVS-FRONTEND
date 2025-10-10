@@ -170,7 +170,7 @@ export default function FormsManagementNew() {
     // For production, use your actual customer frontend URL
     const baseUrl = window.location.origin.includes("localhost")
       ? "http://localhost:5174"
-      : "https://your-customer-frontend.com";
+      : "https://servicerequests.netlify.app";
     return `${baseUrl}/${tenantSlug}/forms/${formId}`;
   };
 
