@@ -19,6 +19,7 @@ import { apiClient } from "../api/client";
 import { questionsApi } from "../api/storage";
 import { useNotification } from "../context/NotificationContext";
 import { useAuth } from "../context/AuthContext";
+import { NestedFollowUpRenderer } from "./NestedFollowUpRenderer";
 
 interface FormSection {
   id: string;
@@ -53,6 +54,8 @@ interface FollowUpQuestion {
   description?: string;
   showWhen?: ShowWhen;
   parentId: string;
+  followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
+  requireFollowUp?: boolean; // Make follow-up mandatory for certain question types
 }
 
 export default function FormCreator() {
@@ -294,7 +297,7 @@ export default function FormCreator() {
       }
     }
 
-    // Flatten follow-up questions into section questions array
+    // Flatten follow-up questions into section questions array (recursively)
     const formToSave = {
       ...form,
       // Include tenantId for form creation
@@ -302,15 +305,24 @@ export default function FormCreator() {
       sections: form.sections.map((section) => {
         const allQuestions: Question[] = [];
 
-        section.questions.forEach((question) => {
+        // Recursive function to process a question and all its nested follow-ups
+        const processQuestionRecursively = (
+          question: Question,
+          depth: number = 0
+        ) => {
+          const indent = "  ".repeat(depth);
+          console.log(
+            `${indent}Processing question: "${question.text}" (depth: ${depth})`
+          );
+
           // Add the main question (without followUpQuestions to avoid duplication)
           const { followUpQuestions, ...mainQuestion } = question;
           allQuestions.push(mainQuestion as Question);
 
-          // Add its follow-up questions as separate questions with showWhen
+          // Recursively add its follow-up questions
           if (followUpQuestions && followUpQuestions.length > 0) {
             console.log(
-              `Processing ${followUpQuestions.length} follow-up questions for question: ${question.text}`
+              `${indent}Found ${followUpQuestions.length} follow-up questions`
             );
             followUpQuestions.forEach((followUp) => {
               const followUpWithShowWhen = {
@@ -320,9 +332,23 @@ export default function FormCreator() {
                   value: followUp.showWhen?.value || "",
                 },
               };
-              console.log("Adding follow-up question:", followUpWithShowWhen);
-              allQuestions.push(followUpWithShowWhen as Question);
+              console.log(
+                `${indent}Adding follow-up: "${followUpWithShowWhen.text}"`
+              );
+
+              // Recursively process this follow-up's nested follow-ups
+              processQuestionRecursively(
+                followUpWithShowWhen as Question,
+                depth + 1
+              );
             });
+          }
+        };
+
+        // Process only main questions (those without showWhen)
+        section.questions.forEach((question) => {
+          if (!question.showWhen) {
+            processQuestionRecursively(question);
           }
         });
 
@@ -777,6 +803,181 @@ export default function FormCreator() {
     });
   };
 
+  // Recursive function to add nested follow-up question
+  const addNestedFollowUpQuestion = (
+    sectionId: string,
+    parentQuestionId: string,
+    triggerValue: string,
+    path: string[] = [] // Path to the parent question in the nested structure
+  ) => {
+    const newFollowUpQuestion: FollowUpQuestion = {
+      id: crypto.randomUUID(),
+      text: "Follow-up Question",
+      type: "text",
+      required: false,
+      description: "",
+      parentId: parentQuestionId,
+      showWhen: {
+        questionId: parentQuestionId,
+        value: triggerValue,
+      },
+      followUpQuestions: [],
+    };
+
+    const section = form.sections.find((s) => s.id === sectionId);
+    if (!section) {
+      console.error("Section not found:", sectionId);
+      return;
+    }
+
+    // Helper function to recursively update nested follow-ups
+    // The path includes the full path TO the target question (including the target itself)
+    const updateNestedFollowUps = (
+      questions: (Question | FollowUpQuestion)[],
+      pathIndex: number = 0
+    ): (Question | FollowUpQuestion)[] => {
+      return questions.map((q) => {
+        // Check if this is the question we're looking for in the path
+        if (pathIndex < path.length && q.id === path[pathIndex]) {
+          // Check if this is the last element in the path (the target question)
+          if (pathIndex === path.length - 1) {
+            // This is the target question, add the follow-up
+            console.log(
+              "Adding follow-up to question:",
+              q.id,
+              "at path index:",
+              pathIndex
+            );
+            return {
+              ...q,
+              followUpQuestions: [
+                ...(q.followUpQuestions || []),
+                newFollowUpQuestion,
+              ],
+            };
+          } else {
+            // Continue traversing the path through follow-ups
+            console.log(
+              "Traversing through question:",
+              q.id,
+              "at path index:",
+              pathIndex
+            );
+            return {
+              ...q,
+              followUpQuestions: updateNestedFollowUps(
+                q.followUpQuestions || [],
+                pathIndex + 1
+              ) as FollowUpQuestion[],
+            };
+          }
+        }
+
+        return q;
+      });
+    };
+
+    console.log("addNestedFollowUpQuestion called with:", {
+      sectionId,
+      parentQuestionId,
+      triggerValue,
+      path,
+    });
+
+    const updatedQuestions = updateNestedFollowUps(section.questions, 0);
+    console.log("Updated questions:", updatedQuestions);
+
+    updateSection(sectionId, {
+      questions: updatedQuestions as Question[],
+    });
+  };
+
+  // Recursive function to update nested follow-up question
+  const updateNestedFollowUpQuestion = (
+    sectionId: string,
+    followUpQuestionId: string,
+    updates: Partial<FollowUpQuestion>,
+    path: string[] = [] // Path to the follow-up question
+  ) => {
+    const section = form.sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    const updateInQuestions = (
+      questions: (Question | FollowUpQuestion)[],
+      pathIndex: number = 0
+    ): (Question | FollowUpQuestion)[] => {
+      return questions.map((q) => {
+        if (pathIndex === path.length && q.id === followUpQuestionId) {
+          return { ...q, ...updates };
+        } else if (pathIndex < path.length && q.id === path[pathIndex]) {
+          return {
+            ...q,
+            followUpQuestions: updateInQuestions(
+              q.followUpQuestions || [],
+              pathIndex + 1
+            ) as FollowUpQuestion[],
+          };
+        } else if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+          // Search in all follow-ups recursively
+          const updated = updateInQuestions(q.followUpQuestions, pathIndex);
+          if (updated !== q.followUpQuestions) {
+            return { ...q, followUpQuestions: updated as FollowUpQuestion[] };
+          }
+        }
+        return q;
+      });
+    };
+
+    updateSection(sectionId, {
+      questions: updateInQuestions(section.questions) as Question[],
+    });
+  };
+
+  // Recursive function to delete nested follow-up question
+  const deleteNestedFollowUpQuestion = (
+    sectionId: string,
+    followUpQuestionId: string,
+    path: string[] = [] // Path to the parent of the follow-up question
+  ) => {
+    const section = form.sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    const deleteInQuestions = (
+      questions: (Question | FollowUpQuestion)[],
+      pathIndex: number = 0
+    ): (Question | FollowUpQuestion)[] => {
+      return questions.map((q) => {
+        if (pathIndex === path.length) {
+          // At the parent level, filter out the target follow-up
+          return {
+            ...q,
+            followUpQuestions: (q.followUpQuestions || []).filter(
+              (fq) => fq.id !== followUpQuestionId
+            ),
+          };
+        } else if (pathIndex < path.length && q.id === path[pathIndex]) {
+          return {
+            ...q,
+            followUpQuestions: deleteInQuestions(
+              q.followUpQuestions || [],
+              pathIndex + 1
+            ) as FollowUpQuestion[],
+          };
+        } else if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+          const updated = deleteInQuestions(q.followUpQuestions, pathIndex);
+          if (updated !== q.followUpQuestions) {
+            return { ...q, followUpQuestions: updated as FollowUpQuestion[] };
+          }
+        }
+        return q;
+      });
+    };
+
+    updateSection(sectionId, {
+      questions: deleteInQuestions(section.questions) as Question[],
+    });
+  };
+
   const addOption = (sectionId: string, questionId: string) => {
     const section = form.sections.find((s) => s.id === sectionId);
     if (!section) return;
@@ -906,6 +1107,103 @@ export default function FormCreator() {
     updateFollowUpQuestion(sectionId, parentQuestionId, followUpQuestionId, {
       options: followUpQ.options.filter((_, i) => i !== optionIndex),
     });
+  };
+
+  // Recursive functions for nested follow-up options
+  const addNestedFollowUpOption = (
+    sectionId: string,
+    followUpQuestionId: string,
+    path: string[] = []
+  ) => {
+    updateNestedFollowUpQuestion(
+      sectionId,
+      followUpQuestionId,
+      {
+        options: [
+          ...((path.length > 0
+            ? findNestedQuestion(sectionId, followUpQuestionId, path)?.options
+            : null) || []),
+          "",
+        ],
+      },
+      path
+    );
+  };
+
+  const updateNestedFollowUpOption = (
+    sectionId: string,
+    followUpQuestionId: string,
+    optionIndex: number,
+    value: string,
+    path: string[] = []
+  ) => {
+    const question = findNestedQuestion(sectionId, followUpQuestionId, path);
+    if (!question || !question.options) return;
+
+    const updatedOptions = [...question.options];
+    updatedOptions[optionIndex] = value;
+
+    updateNestedFollowUpQuestion(
+      sectionId,
+      followUpQuestionId,
+      {
+        options: updatedOptions.filter((opt) => opt.trim() !== ""),
+      },
+      path
+    );
+  };
+
+  const removeNestedFollowUpOption = (
+    sectionId: string,
+    followUpQuestionId: string,
+    optionIndex: number,
+    path: string[] = []
+  ) => {
+    const question = findNestedQuestion(sectionId, followUpQuestionId, path);
+    if (!question || !question.options) return;
+
+    updateNestedFollowUpQuestion(
+      sectionId,
+      followUpQuestionId,
+      {
+        options: question.options.filter((_, i) => i !== optionIndex),
+      },
+      path
+    );
+  };
+
+  // Helper function to find a nested question by path
+  const findNestedQuestion = (
+    sectionId: string,
+    questionId: string,
+    path: string[] = []
+  ): Question | FollowUpQuestion | null => {
+    const section = form.sections.find((s) => s.id === sectionId);
+    if (!section) return null;
+
+    const searchInQuestions = (
+      questions: (Question | FollowUpQuestion)[],
+      pathIndex: number = 0
+    ): Question | FollowUpQuestion | null => {
+      for (const q of questions) {
+        if (pathIndex === path.length && q.id === questionId) {
+          return q;
+        } else if (pathIndex < path.length && q.id === path[pathIndex]) {
+          return searchInQuestions(q.followUpQuestions || [], pathIndex + 1);
+        } else if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+          const found = searchInQuestions(q.followUpQuestions, pathIndex);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    return searchInQuestions(section.questions);
+  };
+
+  // Helper function to check if a question type requires follow-ups
+  const requiresFollowUp = (type: string): boolean => {
+    return ["radio", "checkbox", "select", "search-select"].includes(type);
   };
 
   const questionTypes = [
@@ -1407,231 +1705,121 @@ export default function FormCreator() {
                       </div>
                     )}
 
-                    {/* Follow-up Questions Section */}
-                    {(question.type === "radio" ||
-                      question.type === "select") &&
+                    {/* Follow-up Questions Section - Now with Unlimited Nesting */}
+                    {requiresFollowUp(question.type) &&
                       question.options &&
                       question.options.length > 0 && (
                         <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                           <h5 className="text-xs font-medium text-blue-800 mb-3">
-                            Follow-up Questions
+                            Follow-up Questions (Unlimited Nesting)
                           </h5>
 
+                          {/* Render nested follow-up questions using the recursive component */}
                           {question.followUpQuestions &&
                             question.followUpQuestions.length > 0 && (
-                              <div className="space-y-3 mb-3">
-                                {question.followUpQuestions.map(
-                                  (followUpQ, fqIndex) => (
-                                    <div
-                                      key={followUpQ.id}
-                                      className="bg-white p-3 rounded border"
-                                    >
-                                      <div className="flex items-center justify-between mb-2">
-                                        <span className="text-xs font-medium text-blue-600">
-                                          Follow-up {fqIndex + 1}
-                                        </span>
-                                        <button
-                                          onClick={() =>
-                                            deleteFollowUpQuestion(
-                                              section.id,
-                                              question.id,
-                                              followUpQ.id
-                                            )
-                                          }
-                                          className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                        </button>
-                                      </div>
-
-                                      <div className="grid grid-cols-1 gap-2">
-                                        <div>
-                                          <label className="block text-xs font-medium text-blue-600 mb-1">
-                                            Show when answer is:
-                                          </label>
-                                          <select
-                                            value={
-                                              followUpQ.showWhen?.value || ""
-                                            }
-                                            onChange={(e) =>
-                                              updateFollowUpQuestion(
-                                                section.id,
-                                                question.id,
-                                                followUpQ.id,
-                                                {
-                                                  showWhen: {
-                                                    questionId: question.id,
-                                                    value: e.target.value,
-                                                  },
-                                                }
-                                              )
-                                            }
-                                            className="input-field text-xs"
-                                          >
-                                            <option value="">
-                                              Select trigger option
-                                            </option>
-                                            {question.options?.map(
-                                              (option, optIndex) => (
-                                                <option
-                                                  key={optIndex}
-                                                  value={option}
-                                                >
-                                                  {option}
-                                                </option>
-                                              )
-                                            )}
-                                          </select>
-                                        </div>
-
-                                        <div>
-                                          <label className="block text-xs font-medium text-blue-600 mb-1">
-                                            Question Text
-                                          </label>
-                                          <input
-                                            type="text"
-                                            value={followUpQ.text}
-                                            onChange={(e) =>
-                                              updateFollowUpQuestion(
-                                                section.id,
-                                                question.id,
-                                                followUpQ.id,
-                                                {
-                                                  text: e.target.value,
-                                                }
-                                              )
-                                            }
-                                            className="input-field text-xs"
-                                            placeholder="Enter follow-up question"
-                                          />
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <div>
-                                            <label className="block text-xs font-medium text-blue-600 mb-1">
-                                              Type
-                                            </label>
-                                            <select
-                                              value={followUpQ.type}
-                                              onChange={(e) =>
-                                                updateFollowUpQuestion(
-                                                  section.id,
-                                                  question.id,
-                                                  followUpQ.id,
-                                                  {
-                                                    type: e.target.value,
-                                                  }
-                                                )
-                                              }
-                                              className="input-field text-xs"
-                                            >
-                                              {questionTypes.map((type) => (
-                                                <option
-                                                  key={type.value}
-                                                  value={type.value}
-                                                >
-                                                  {type.label}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          </div>
-
-                                          <div className="flex items-end">
-                                            <label className="flex items-center">
-                                              <input
-                                                type="checkbox"
-                                                checked={followUpQ.required}
-                                                onChange={(e) =>
-                                                  updateFollowUpQuestion(
-                                                    section.id,
-                                                    question.id,
-                                                    followUpQ.id,
-                                                    {
-                                                      required:
-                                                        e.target.checked,
-                                                    }
-                                                  )
-                                                }
-                                                className="rounded border-neutral-300 text-blue-600 focus:ring-blue-500"
-                                              />
-                                              <span className="ml-1 text-xs text-blue-700">
-                                                Required
-                                              </span>
-                                            </label>
-                                          </div>
-                                        </div>
-
-                                        {(followUpQ.type === "radio" ||
-                                          followUpQ.type === "checkbox" ||
-                                          followUpQ.type === "select") && (
-                                          <div>
-                                            <label className="block text-xs font-medium text-blue-600 mb-2">
-                                              Options
-                                            </label>
-                                            <div className="space-y-1">
-                                              {(followUpQ.options || []).map(
-                                                (option, index) => (
-                                                  <div
-                                                    key={index}
-                                                    className="flex items-center space-x-1"
-                                                  >
-                                                    <input
-                                                      type="text"
-                                                      value={option}
-                                                      onChange={(e) =>
-                                                        updateFollowUpOption(
-                                                          section.id,
-                                                          question.id,
-                                                          followUpQ.id,
-                                                          index,
-                                                          e.target.value
-                                                        )
-                                                      }
-                                                      className="flex-1 p-1 border border-neutral-300 rounded text-xs focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                                                      placeholder={`Option ${
-                                                        index + 1
-                                                      }`}
-                                                    />
-                                                    <button
-                                                      onClick={() =>
-                                                        removeFollowUpOption(
-                                                          section.id,
-                                                          question.id,
-                                                          followUpQ.id,
-                                                          index
-                                                        )
-                                                      }
-                                                      className="p-1 text-red-500 hover:text-red-700"
-                                                    >
-                                                      <X className="w-3 h-3" />
-                                                    </button>
-                                                  </div>
-                                                )
-                                              )}
-                                              <button
-                                                onClick={() =>
-                                                  addFollowUpOption(
-                                                    section.id,
-                                                    question.id,
-                                                    followUpQ.id
-                                                  )
-                                                }
-                                                className="flex items-center text-blue-600 hover:text-blue-800 text-xs"
-                                              >
-                                                <Plus className="w-3 h-3 mr-1" />
-                                                Add Option
-                                              </button>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )
-                                )}
-                              </div>
+                              <NestedFollowUpRenderer
+                                followUpQuestions={question.followUpQuestions}
+                                sectionId={section.id}
+                                parentQuestion={{
+                                  id: question.id,
+                                  options: question.options,
+                                }}
+                                path={[question.id]}
+                                onUpdate={(sId, fqId, updates, path) => {
+                                  if (path.length === 1) {
+                                    // First level follow-up
+                                    updateFollowUpQuestion(
+                                      sId,
+                                      path[0],
+                                      fqId,
+                                      updates
+                                    );
+                                  } else {
+                                    // Nested follow-up
+                                    updateNestedFollowUpQuestion(
+                                      sId,
+                                      fqId,
+                                      updates,
+                                      path
+                                    );
+                                  }
+                                }}
+                                onDelete={(sId, fqId, path) => {
+                                  if (path.length === 1) {
+                                    // First level follow-up
+                                    deleteFollowUpQuestion(sId, path[0], fqId);
+                                  } else {
+                                    // Nested follow-up
+                                    deleteNestedFollowUpQuestion(
+                                      sId,
+                                      fqId,
+                                      path
+                                    );
+                                  }
+                                }}
+                                onAddNested={addNestedFollowUpQuestion}
+                                onAddOption={(sId, fqId, path) => {
+                                  if (path.length === 1) {
+                                    // First level follow-up
+                                    addFollowUpOption(sId, path[0], fqId);
+                                  } else {
+                                    // Nested follow-up
+                                    addNestedFollowUpOption(sId, fqId, path);
+                                  }
+                                }}
+                                onUpdateOption={(
+                                  sId,
+                                  fqId,
+                                  optIndex,
+                                  value,
+                                  path
+                                ) => {
+                                  if (path.length === 1) {
+                                    // First level follow-up
+                                    updateFollowUpOption(
+                                      sId,
+                                      path[0],
+                                      fqId,
+                                      optIndex,
+                                      value
+                                    );
+                                  } else {
+                                    // Nested follow-up
+                                    updateNestedFollowUpOption(
+                                      sId,
+                                      fqId,
+                                      optIndex,
+                                      value,
+                                      path
+                                    );
+                                  }
+                                }}
+                                onRemoveOption={(sId, fqId, optIndex, path) => {
+                                  if (path.length === 1) {
+                                    // First level follow-up
+                                    removeFollowUpOption(
+                                      sId,
+                                      path[0],
+                                      fqId,
+                                      optIndex
+                                    );
+                                  } else {
+                                    // Nested follow-up
+                                    removeNestedFollowUpOption(
+                                      sId,
+                                      fqId,
+                                      optIndex,
+                                      path
+                                    );
+                                  }
+                                }}
+                                questionTypes={questionTypes}
+                                depth={0}
+                              />
                             )}
 
-                          <div className="space-y-2">
+                          {/* Add first-level follow-up buttons */}
+                          <div className="space-y-2 mt-3">
                             {question.options?.map((option, optIndex) => (
                               <button
                                 key={optIndex}
@@ -1776,206 +1964,286 @@ export default function FormCreator() {
                   </div>
 
                   <div className="space-y-4">
-                    {section.questions.map((question, questionIndex) => (
-                      <div
-                        key={question.id}
-                        className="bg-neutral-50 p-4 rounded-lg"
-                      >
-                        <label className="block text-sm font-medium text-primary-700 mb-2">
-                          {question.text}
-                          {question.required && (
-                            <span className="text-red-500 ml-1">*</span>
+                    {section.questions
+                      .filter((q) => !q.showWhen)
+                      .map((question, questionIndex) => (
+                        <div
+                          key={question.id}
+                          className="bg-neutral-50 p-4 rounded-lg"
+                        >
+                          <label className="block text-sm font-medium text-primary-700 mb-2">
+                            {question.text}
+                            {question.required && (
+                              <span className="text-red-500 ml-1">*</span>
+                            )}
+                          </label>
+
+                          {question.description && (
+                            <p className="text-sm text-primary-600 mb-3">
+                              {question.description}
+                            </p>
                           )}
-                        </label>
 
-                        {question.description && (
-                          <p className="text-sm text-primary-600 mb-3">
-                            {question.description}
-                          </p>
-                        )}
+                          {/* Render different input types */}
+                          {question.type === "text" && (
+                            <input
+                              type="text"
+                              className="w-full p-2 border border-neutral-300 rounded-md"
+                              placeholder="Your answer"
+                              disabled
+                            />
+                          )}
 
-                        {/* Render different input types */}
-                        {question.type === "text" && (
-                          <input
-                            type="text"
-                            className="w-full p-2 border border-neutral-300 rounded-md"
-                            placeholder="Your answer"
-                            disabled
-                          />
-                        )}
+                          {question.type === "textarea" && (
+                            <textarea
+                              className="w-full p-2 border border-neutral-300 rounded-md"
+                              rows={3}
+                              placeholder="Your answer"
+                              disabled
+                            />
+                          )}
 
-                        {question.type === "textarea" && (
-                          <textarea
-                            className="w-full p-2 border border-neutral-300 rounded-md"
-                            rows={3}
-                            placeholder="Your answer"
-                            disabled
-                          />
-                        )}
+                          {question.type === "email" && (
+                            <input
+                              type="email"
+                              className="w-full p-2 border border-neutral-300 rounded-md"
+                              placeholder="your.email@example.com"
+                              disabled
+                            />
+                          )}
 
-                        {question.type === "email" && (
-                          <input
-                            type="email"
-                            className="w-full p-2 border border-neutral-300 rounded-md"
-                            placeholder="your.email@example.com"
-                            disabled
-                          />
-                        )}
+                          {question.type === "number" && (
+                            <input
+                              type="number"
+                              className="w-full p-2 border border-neutral-300 rounded-md"
+                              placeholder="0"
+                              disabled
+                            />
+                          )}
 
-                        {question.type === "number" && (
-                          <input
-                            type="number"
-                            className="w-full p-2 border border-neutral-300 rounded-md"
-                            placeholder="0"
-                            disabled
-                          />
-                        )}
+                          {question.type === "date" && (
+                            <input
+                              type="date"
+                              className="w-full p-2 border border-neutral-300 rounded-md"
+                              disabled
+                            />
+                          )}
 
-                        {question.type === "date" && (
-                          <input
-                            type="date"
-                            className="w-full p-2 border border-neutral-300 rounded-md"
-                            disabled
-                          />
-                        )}
-
-                        {question.type === "radio" && question.options && (
-                          <div className="space-y-2">
-                            {question.options.map((option, optionIndex) => (
-                              <label
-                                key={optionIndex}
-                                className="flex items-center"
-                              >
-                                <input
-                                  type="radio"
-                                  name={`question-${question.id}`}
-                                  className="mr-2"
-                                  disabled
-                                />
-                                <span className="text-sm text-primary-700">
-                                  {option}
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-
-                        {question.type === "checkbox" && question.options && (
-                          <div className="space-y-2">
-                            {question.options.map((option, optionIndex) => (
-                              <label
-                                key={optionIndex}
-                                className="flex items-center"
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="mr-2"
-                                  disabled
-                                />
-                                <span className="text-sm text-primary-700">
-                                  {option}
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-
-                        {question.type === "select" && question.options && (
-                          <select
-                            className="w-full p-2 border border-neutral-300 rounded-md"
-                            disabled
-                          >
-                            <option>Select an option</option>
-                            {question.options.map((option, optionIndex) => (
-                              <option key={optionIndex} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-
-                        {question.type === "file" && (
-                          <input
-                            type="file"
-                            className="w-full p-2 border border-neutral-300 rounded-md"
-                            disabled
-                          />
-                        )}
-
-                        {/* Show follow-up questions in preview */}
-                        {question.followUpQuestions &&
-                          question.followUpQuestions.length > 0 && (
-                            <div className="mt-4 pl-6 border-l-2 border-blue-200">
-                              <p className="text-xs text-blue-600 mb-2 font-medium">
-                                Follow-up questions (conditional):
-                              </p>
-                              {question.followUpQuestions.map(
-                                (followUpQ, fqIndex) => (
-                                  <div
-                                    key={followUpQ.id}
-                                    className="mb-3 p-2 bg-blue-50 rounded"
-                                  >
-                                    <p className="text-xs text-blue-500 mb-1">
-                                      Shows when "{question.text}" = "
-                                      {followUpQ.showWhen?.value}"
-                                    </p>
-                                    <label className="block text-xs font-medium text-blue-700 mb-1">
-                                      {followUpQ.text}
-                                      {followUpQ.required && (
-                                        <span className="text-red-500 ml-1">
-                                          *
-                                        </span>
-                                      )}
-                                    </label>
-
-                                    {followUpQ.type === "text" && (
-                                      <input
-                                        type="text"
-                                        className="w-full p-1 text-xs border border-blue-300 rounded"
-                                        placeholder="Follow-up answer"
-                                        disabled
-                                      />
-                                    )}
-
-                                    {followUpQ.type === "textarea" && (
-                                      <textarea
-                                        className="w-full p-1 text-xs border border-blue-300 rounded"
-                                        rows={2}
-                                        placeholder="Follow-up answer"
-                                        disabled
-                                      />
-                                    )}
-
-                                    {followUpQ.type === "radio" &&
-                                      followUpQ.options && (
-                                        <div className="space-y-1">
-                                          {followUpQ.options.map(
-                                            (option, optIndex) => (
-                                              <label
-                                                key={optIndex}
-                                                className="flex items-center"
-                                              >
-                                                <input
-                                                  type="radio"
-                                                  name={`followup-${followUpQ.id}`}
-                                                  className="mr-1"
-                                                  disabled
-                                                />
-                                                <span className="text-xs text-blue-700">
-                                                  {option}
-                                                </span>
-                                              </label>
-                                            )
-                                          )}
-                                        </div>
-                                      )}
-                                  </div>
-                                )
-                              )}
+                          {question.type === "radio" && question.options && (
+                            <div className="space-y-2">
+                              {question.options.map((option, optionIndex) => (
+                                <label
+                                  key={optionIndex}
+                                  className="flex items-center"
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`question-${question.id}`}
+                                    className="mr-2"
+                                    disabled
+                                  />
+                                  <span className="text-sm text-primary-700">
+                                    {option}
+                                  </span>
+                                </label>
+                              ))}
                             </div>
                           )}
-                      </div>
-                    ))}
+
+                          {question.type === "checkbox" && question.options && (
+                            <div className="space-y-2">
+                              {question.options.map((option, optionIndex) => (
+                                <label
+                                  key={optionIndex}
+                                  className="flex items-center"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="mr-2"
+                                    disabled
+                                  />
+                                  <span className="text-sm text-primary-700">
+                                    {option}
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+
+                          {question.type === "select" && question.options && (
+                            <select
+                              className="w-full p-2 border border-neutral-300 rounded-md"
+                              disabled
+                            >
+                              <option>Select an option</option>
+                              {question.options.map((option, optionIndex) => (
+                                <option key={optionIndex} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+
+                          {question.type === "file" && (
+                            <input
+                              type="file"
+                              className="w-full p-2 border border-neutral-300 rounded-md"
+                              disabled
+                            />
+                          )}
+
+                          {/* Show follow-up questions in preview (recursively) */}
+                          {(() => {
+                            const renderFollowUps = (
+                              parentId: string,
+                              depth: number = 0
+                            ): JSX.Element | null => {
+                              const followUps = section.questions.filter(
+                                (q) =>
+                                  q.showWhen &&
+                                  q.showWhen.questionId === parentId
+                              );
+
+                              if (followUps.length === 0) return null;
+
+                              return (
+                                <div
+                                  className={`mt-4 ${
+                                    depth === 0 ? "pl-6" : "pl-4"
+                                  } border-l-2 border-blue-${Math.min(
+                                    200 + depth * 100,
+                                    500
+                                  )}`}
+                                >
+                                  {depth === 0 && (
+                                    <p className="text-xs text-blue-600 mb-2 font-medium">
+                                      Follow-up questions (conditional):
+                                    </p>
+                                  )}
+                                  {followUps.map((followUpQ) => {
+                                    const parentQuestion =
+                                      section.questions.find(
+                                        (q) => q.id === parentId
+                                      );
+                                    return (
+                                      <div
+                                        key={followUpQ.id}
+                                        className="mb-3 p-2 bg-blue-50 rounded"
+                                      >
+                                        <p className="text-xs text-blue-500 mb-1">
+                                          Shows when "{parentQuestion?.text}" =
+                                          "{followUpQ.showWhen?.value}"
+                                        </p>
+                                        <label className="block text-xs font-medium text-blue-700 mb-1">
+                                          {followUpQ.text}
+                                          {followUpQ.required && (
+                                            <span className="text-red-500 ml-1">
+                                              *
+                                            </span>
+                                          )}
+                                        </label>
+
+                                        {followUpQ.type === "text" && (
+                                          <input
+                                            type="text"
+                                            className="w-full p-1 text-xs border border-blue-300 rounded"
+                                            placeholder="Follow-up answer"
+                                            disabled
+                                          />
+                                        )}
+
+                                        {followUpQ.type === "textarea" && (
+                                          <textarea
+                                            className="w-full p-1 text-xs border border-blue-300 rounded"
+                                            rows={2}
+                                            placeholder="Follow-up answer"
+                                            disabled
+                                          />
+                                        )}
+
+                                        {followUpQ.type === "radio" &&
+                                          followUpQ.options && (
+                                            <div className="space-y-1">
+                                              {followUpQ.options.map(
+                                                (option, optIndex) => (
+                                                  <label
+                                                    key={optIndex}
+                                                    className="flex items-center"
+                                                  >
+                                                    <input
+                                                      type="radio"
+                                                      name={`followup-${followUpQ.id}`}
+                                                      className="mr-1"
+                                                      disabled
+                                                    />
+                                                    <span className="text-xs text-blue-700">
+                                                      {option}
+                                                    </span>
+                                                  </label>
+                                                )
+                                              )}
+                                            </div>
+                                          )}
+
+                                        {followUpQ.type === "checkbox" &&
+                                          followUpQ.options && (
+                                            <div className="space-y-1">
+                                              {followUpQ.options.map(
+                                                (option, optIndex) => (
+                                                  <label
+                                                    key={optIndex}
+                                                    className="flex items-center"
+                                                  >
+                                                    <input
+                                                      type="checkbox"
+                                                      className="mr-1"
+                                                      disabled
+                                                    />
+                                                    <span className="text-xs text-blue-700">
+                                                      {option}
+                                                    </span>
+                                                  </label>
+                                                )
+                                              )}
+                                            </div>
+                                          )}
+
+                                        {followUpQ.type === "select" &&
+                                          followUpQ.options && (
+                                            <select
+                                              className="w-full p-1 text-xs border border-blue-300 rounded"
+                                              disabled
+                                            >
+                                              <option>Select an option</option>
+                                              {followUpQ.options.map(
+                                                (option, optIndex) => (
+                                                  <option
+                                                    key={optIndex}
+                                                    value={option}
+                                                  >
+                                                    {option}
+                                                  </option>
+                                                )
+                                              )}
+                                            </select>
+                                          )}
+
+                                        {/* Recursively render nested follow-ups */}
+                                        {renderFollowUps(
+                                          followUpQ.id,
+                                          depth + 1
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              );
+                            };
+
+                            return renderFollowUps(question.id);
+                          })()}
+                        </div>
+                      ))}
                   </div>
                 </div>
               ))}

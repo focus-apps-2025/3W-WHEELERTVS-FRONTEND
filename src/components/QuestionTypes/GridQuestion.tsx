@@ -47,26 +47,26 @@ export default function GridQuestion({
 
   return (
     <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 dark:bg-gray-800">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
           <tr>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               {question.text}
             </th>
             {columns.map((col) => (
               <th
                 key={col}
-                className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"
+                className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
               >
                 {col}
               </th>
             ))}
           </tr>
         </thead>
-        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+        <tbody className="bg-white divide-y divide-gray-200">
           {rows.map((row) => (
-            <tr key={row} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
+            <tr key={row} className="hover:bg-gray-50">
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                 {row}
               </td>
               {columns.map((col) => (
@@ -84,7 +84,7 @@ export default function GridQuestion({
                     }
                     onChange={(e) => handleChange(row, col, e.target.checked)}
                     disabled={readOnly}
-                    className={`h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 ${
+                    className={`h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 ${
                       readOnly ? "cursor-not-allowed" : ""
                     }`}
                     required={

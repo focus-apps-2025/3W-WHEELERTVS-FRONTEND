@@ -12,12 +12,14 @@ interface FollowUpQuestion {
   text: string;
   type: string;
   required: boolean;
-  showWhen: {
+  showWhen?: {
     questionId: string;
     value: string;
   };
   parentId: string;
   description?: string;
+  options?: string[];
+  followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
 }
 
 interface Question {
@@ -27,6 +29,7 @@ interface Question {
   required: boolean;
   options?: string[];
   description?: string;
+  followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
 }
 
 interface Section {
@@ -119,15 +122,52 @@ export const FormWithFollowUpResponder: React.FC<
     setError(null);
   };
 
+  // Recursively get all visible nested follow-up questions
+  const getVisibleNestedFollowUps = (
+    followUps: FollowUpQuestion[] | undefined
+  ): FollowUpQuestion[] => {
+    if (!followUps || followUps.length === 0) return [];
+
+    const visible: FollowUpQuestion[] = [];
+
+    followUps.forEach((followUp) => {
+      // Check if this follow-up should be visible
+      if (followUp.showWhen) {
+        const parentAnswer = responses[followUp.showWhen.questionId];
+        if (parentAnswer === followUp.showWhen.value) {
+          visible.push(followUp);
+          // Recursively get nested follow-ups
+          visible.push(
+            ...getVisibleNestedFollowUps(followUp.followUpQuestions)
+          );
+        }
+      }
+    });
+
+    return visible;
+  };
+
   const getVisibleFollowUpQuestions = (): FollowUpQuestion[] => {
     if (!form) return [];
 
-    return form.followUpQuestions.filter((followUp) => {
-      if (!followUp.showWhen) return false;
+    const visible: FollowUpQuestion[] = [];
 
+    // Get follow-ups from form level (legacy support)
+    const formLevelFollowUps = form.followUpQuestions.filter((followUp) => {
+      if (!followUp.showWhen) return false;
       const parentAnswer = responses[followUp.showWhen.questionId];
       return parentAnswer === followUp.showWhen.value;
     });
+    visible.push(...formLevelFollowUps);
+
+    // Get nested follow-ups from each section's questions
+    form.sections.forEach((section) => {
+      section.questions.forEach((question) => {
+        visible.push(...getVisibleNestedFollowUps(question.followUpQuestions));
+      });
+    });
+
+    return visible;
   };
 
   const getAllVisibleQuestions = (): (Question | FollowUpQuestion)[] => {
@@ -140,7 +180,7 @@ export const FormWithFollowUpResponder: React.FC<
       questions.push(...section.questions);
     });
 
-    // Add visible follow-up questions
+    // Add visible follow-up questions (including nested ones)
     questions.push(...getVisibleFollowUpQuestions());
 
     return questions;

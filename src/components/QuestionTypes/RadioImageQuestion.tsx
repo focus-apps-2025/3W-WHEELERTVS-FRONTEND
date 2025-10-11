@@ -28,7 +28,7 @@ export default function RadioImageQuestion({
               ? "border-blue-500 ring-2 ring-blue-500 ring-opacity-50"
               : readOnly
               ? "border-transparent"
-              : "border-transparent hover:border-gray-300 dark:hover:border-gray-600"
+              : "border-transparent hover:border-gray-300"
           }`}
         >
           <img src={imageUrl} alt="" className="w-full h-48 object-cover" />
@@ -39,7 +39,7 @@ export default function RadioImageQuestion({
             checked={value === imageUrl}
             onChange={(e) => !readOnly && onChange(e.target.value)}
             disabled={readOnly}
-            className="absolute top-2 right-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
+            className="absolute top-2 right-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
             required={question.required && !value}
           />
           <div

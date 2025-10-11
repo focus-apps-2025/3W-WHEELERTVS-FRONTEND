@@ -25,11 +25,9 @@ export default function PreviewForm({ questions, onSubmit }: PreviewFormProps) {
 
   if (!question) {
     return (
-      <div className="max-w-4xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg text-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-          Form Preview
-        </h1>
-        <p className="text-gray-600 dark:text-gray-300 mb-6">
+      <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg text-center">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Form Preview</h1>
+        <p className="text-gray-600 mb-6">
           See how your form will appear to users
         </p>
         <div className="max-w-md mx-auto bg-red-50 border border-red-200 rounded-lg p-6 space-y-4">

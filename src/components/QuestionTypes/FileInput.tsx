@@ -33,10 +33,10 @@ export default function FileInput({
   return (
     <div className="space-y-4">
       <label
-        className={`flex flex-col items-center px-4 py-6 border-2 border-dashed rounded-lg ${
+        className={`flex flex-col items-center px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg ${
           readOnly
-            ? "cursor-not-allowed bg-gray-100 dark:bg-gray-700"
-            : "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+            ? "cursor-not-allowed bg-gray-100"
+            : "cursor-pointer hover:bg-gray-50"
         }`}
       >
         <Upload className="w-8 h-8 text-gray-400 mb-2" />
@@ -63,8 +63,8 @@ export default function FileInput({
               className="max-w-full h-auto rounded-lg"
             />
           ) : (
-            <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-sm text-gray-600">
                 File uploaded successfully
               </p>
             </div>

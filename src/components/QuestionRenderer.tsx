@@ -56,7 +56,7 @@ export default function QuestionRenderer({
             {question.options?.map((option) => (
               <label
                 key={option}
-                className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50"
               >
                 <input
                   type={question.type}
@@ -86,13 +86,11 @@ export default function QuestionRenderer({
                   }}
                   required={question.required && !value}
                   disabled={readOnly}
-                  className={`h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 ${
+                  className={`h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 ${
                     readOnly ? "cursor-not-allowed" : ""
                   }`}
                 />
-                <span className="text-gray-700 dark:text-gray-300">
-                  {option}
-                </span>
+                <span className="text-gray-700">{option}</span>
               </label>
             ))}
           </div>
@@ -166,11 +164,11 @@ export default function QuestionRenderer({
             onChange={(e) => !readOnly && onChange(e.target.value)}
             required={question.required}
             disabled={readOnly}
-            className={`w-full px-4 py-2 border rounded-lg ${
+            className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${
               readOnly
-                ? "bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
-                : "focus:ring-2 focus:ring-blue-500"
-            } dark:bg-gray-800 dark:border-gray-600 dark:text-white`}
+                ? "bg-gray-100 cursor-not-allowed"
+                : "bg-white focus:ring-2 focus:ring-blue-500"
+            }`}
           />
         );
     }
@@ -178,14 +176,12 @@ export default function QuestionRenderer({
 
   return (
     <div className="space-y-2">
-      <label className="block font-medium text-gray-700 dark:text-gray-300">
+      <label className="block font-medium text-gray-700">
         {question.text}
         {question.required && <span className="text-red-500 ml-1">*</span>}
       </label>
       {question.description && (
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-          {question.description}
-        </p>
+        <p className="text-sm text-gray-500 mb-2">{question.description}</p>
       )}
       {renderInput()}
     </div>

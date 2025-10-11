@@ -32,6 +32,8 @@ export interface FollowUpQuestion {
   imageUrl?: string;
   description?: string;
   sectionId?: string;
+  followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
+  requireFollowUp?: boolean; // Make follow-up mandatory for certain question types
 }
 
 export interface Question {

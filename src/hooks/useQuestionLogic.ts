@@ -18,37 +18,54 @@ export function useQuestionLogic() {
       questions.filter((q) => q.showWhen).length
     );
 
-    // Process each main question and its follow-ups
+    // Recursive function to process a question and all its nested follow-ups
+    const processQuestionAndFollowUps = (questionId: string) => {
+      // Find all direct follow-ups for this question
+      const followUps = questions.filter(
+        (q) => q.showWhen && q.showWhen.questionId === questionId
+      );
+
+      console.log(
+        `Processing follow-ups for question ${questionId}, found ${followUps.length} potential follow-ups`
+      );
+
+      followUps.forEach((followUp) => {
+        // Check if this follow-up should be shown based on the answer
+        const parentAnswer = answers[questionId];
+        const shouldShow = evaluateCondition(
+          parentAnswer,
+          followUp.showWhen?.value
+        );
+
+        console.log(
+          `Follow-up "${followUp.text}" - parent answer: "${parentAnswer}", showWhen value: "${followUp.showWhen?.value}", shouldShow: ${shouldShow}`
+        );
+
+        if (shouldShow) {
+          orderedQuestions.push(followUp);
+
+          // Recursively process nested follow-ups if this follow-up has an answer
+          if (answers[followUp.id]) {
+            console.log(
+              `Follow-up "${followUp.text}" has an answer, checking for nested follow-ups...`
+            );
+            processQuestionAndFollowUps(followUp.id);
+          }
+        }
+      });
+    };
+
+    // Process each main question and its follow-ups recursively
     mainQuestions.forEach((question) => {
       orderedQuestions.push(question);
 
       // If this question has an answer that might trigger follow-ups
       if (answers[question.id]) {
-        const followUps = questions.filter(
-          (q) => q.showWhen && q.showWhen.questionId === question.id
-        );
-
         console.log(
           `Question "${question.text}" (${question.id}) has answer:`,
           answers[question.id]
         );
-        console.log(
-          `Found ${followUps.length} potential follow-ups for this question`
-        );
-
-        followUps.forEach((followUp) => {
-          const shouldShow = evaluateCondition(
-            answers[question.id],
-            followUp.showWhen?.value
-          );
-          console.log(
-            `Follow-up "${followUp.text}" - showWhen value: "${followUp.showWhen?.value}", shouldShow: ${shouldShow}`
-          );
-
-          if (shouldShow) {
-            orderedQuestions.push(followUp);
-          }
-        });
+        processQuestionAndFollowUps(question.id);
       }
     });
 
