@@ -85,18 +85,18 @@ export default function Sidebar() {
       path: "/responses/all",
       description: "View customer service requests",
     },
-    {
-      title: "Request Management",
-      icon: ListTodo,
-      path: "/forms/management",
-      description: "Manage and organize service requests",
-    },
-    {
-      title: "Shop Settings",
-      icon: Settings,
-      path: "/system/management",
-      description: "Configure shop settings and preferences",
-    },
+    // {
+    //   title: "Request Management",
+    //   icon: ListTodo,
+    //   path: "/forms/management",
+    //   description: "Manage and organize service requests",
+    // },
+    // {
+    //   title: "Shop Settings",
+    //   icon: Settings,
+    //   path: "/system/management",
+    //   description: "Configure shop settings and preferences",
+    // },
     // {
     //   title: "Email System",
     //   icon: Mail,
