@@ -72,6 +72,7 @@ export default function FormCreator() {
     title: "",
     description: "",
     isVisible: true,
+    locationEnabled: true,
     sections: [
       {
         id: crypto.randomUUID(),
@@ -156,6 +157,7 @@ export default function FormCreator() {
             title: backendForm.title,
             description: backendForm.description,
             isVisible: backendForm.isVisible,
+            locationEnabled: backendForm.locationEnabled !== false,
             sections: sectionsWithNestedFollowUps,
             followUpQuestions: backendForm.followUpQuestions || [],
           });
@@ -179,6 +181,7 @@ export default function FormCreator() {
           title: "",
           description: "",
           isVisible: true,
+          locationEnabled: true,
           sections: [
             {
               id: crypto.randomUUID(),
@@ -446,6 +449,7 @@ export default function FormCreator() {
       title: "",
       description: "",
       isVisible: true,
+      locationEnabled: true,
       sections: [
         {
           id: crypto.randomUUID(),
@@ -468,6 +472,7 @@ export default function FormCreator() {
       description:
         "This is a demo form with follow-up questions for testing purposes. It includes various question types and conditional logic.",
       isVisible: true,
+      locationEnabled: true,
       sections: [
         {
           id: crypto.randomUUID(),
@@ -1504,6 +1509,27 @@ export default function FormCreator() {
                   className="ml-2 text-sm text-primary-700"
                 >
                   Make form publicly visible
+                </label>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="locationEnabled"
+                  checked={form.locationEnabled !== false}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      locationEnabled: e.target.checked,
+                    }))
+                  }
+                  className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                />
+                <label
+                  htmlFor="locationEnabled"
+                  className="ml-2 text-sm text-primary-700"
+                >
+                  Enable location tracking for responses
                 </label>
               </div>
 

@@ -46,6 +46,7 @@ export interface Question {
   followUpQuestions: FollowUpQuestion[];
   parentFormId?: string;
   parentFormTitle?: string;
+  locationEnabled?: boolean;
 }
 
 export interface Response {

@@ -118,8 +118,7 @@ export default function ResponseQuestion({
       },
     };
 
-    const chartType =
-      chartPreferences[q.id] || (q.type === "radio" ? "pie" : "bar");
+    const chartType = chartPreferences[q.id] || "bar";
 
     return (
       <div className="h-[300px]">
@@ -196,10 +195,7 @@ export default function ResponseQuestion({
                     {responseCount} responses
                   </span>
                   <ChartTypeSelector
-                    value={
-                      chartPreferences[q.id] ||
-                      (q.type === "radio" ? "pie" : "bar")
-                    }
+                    value={chartPreferences[q.id] || "bar"}
                     onChange={(type) => handleChartTypeChange(q.id, type)}
                   />
                 </div>
