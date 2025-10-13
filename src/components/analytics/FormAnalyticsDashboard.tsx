@@ -13,6 +13,7 @@ import {
   PieChart,
 } from "lucide-react";
 import { apiClient } from "../../api/client";
+import ResponseQuestion from "./ResponseQuestion";
 
 interface Response {
   id: string;
@@ -34,6 +35,23 @@ const getResponseTimestamp = (response: Response): string | undefined => {
   return response.timestamp || response.createdAt;
 };
 
+interface Section {
+  id: string;
+  title: string;
+  description?: string;
+  questions: FollowUpQuestion[];
+}
+
+interface FollowUpQuestion {
+  id: string;
+  text: string;
+  type: string;
+  required?: boolean;
+  options?: string[];
+  description?: string;
+  followUpQuestions?: FollowUpQuestion[];
+}
+
 interface Form {
   _id: string;
   id?: string;
@@ -41,6 +59,12 @@ interface Form {
   description?: string;
   createdAt?: string;
   isVisible?: boolean;
+  logoUrl?: string;
+  imageUrl?: string;
+  sections?: Section[];
+  followUpQuestions?: FollowUpQuestion[];
+  parentFormId?: string;
+  parentFormTitle?: string;
 }
 
 export default function FormAnalyticsDashboard() {
@@ -368,6 +392,13 @@ export default function FormAnalyticsDashboard() {
           })}
         </div>
       </div>
+
+      {/* Question-wise Analytics */}
+      {form && (
+        <div className="card p-6">
+          <ResponseQuestion question={form} responses={responses} />
+        </div>
+      )}
 
       {/* Form Details */}
       {form && (

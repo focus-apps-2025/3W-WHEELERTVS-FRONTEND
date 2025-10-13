@@ -6,7 +6,11 @@ import { LogoProvider } from "./context/LogoContext";
 import { AuthProvider } from "./context/AuthContext";
 import { SidebarProvider } from "./context/SidebarContext";
 import { NotificationProvider } from "./context/NotificationContext";
+import { migrateLocalStorageForms } from "./utils/migrateLocalStorage";
 import "./index.css";
+
+// Run localStorage migration on app startup
+migrateLocalStorageForms();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

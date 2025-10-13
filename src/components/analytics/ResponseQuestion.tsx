@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -8,10 +8,10 @@ import {
   Tooltip,
   Legend,
   ArcElement,
-} from 'chart.js';
-import { Bar, Pie } from 'react-chartjs-2';
-import type { Question, Response } from '../../types';
-import ChartTypeSelector, { ChartType } from './ChartTypeSelector';
+} from "chart.js";
+import { Bar, Pie } from "react-chartjs-2";
+import type { Question, Response } from "../../types";
+import ChartTypeSelector, { ChartType } from "./ChartTypeSelector";
 
 ChartJS.register(
   CategoryScale,
@@ -28,25 +28,33 @@ interface ResponseQuestionProps {
   responses: Response[];
 }
 
-export default function ResponseQuestion({ question, responses }: ResponseQuestionProps) {
-  const [chartPreferences, setChartPreferences] = useState<Record<string, ChartType>>({});
+export default function ResponseQuestion({
+  question,
+  responses,
+}: ResponseQuestionProps) {
+  const [chartPreferences, setChartPreferences] = useState<
+    Record<string, ChartType>
+  >({});
 
   // Get all questions from sections or fallback to followUpQuestions
-  const allQuestions = question.sections.length > 0
-    ? question.sections.flatMap(section => section.questions)
-    : question.followUpQuestions;
+  const allQuestions =
+    question.sections && question.sections.length > 0
+      ? question.sections.flatMap((section) => section.questions)
+      : question.followUpQuestions;
 
   const getQuestionResponses = (questionId: string) => {
-    return responses.map(response => response.answers[questionId]).filter(Boolean);
+    return responses
+      .map((response) => response.answers[questionId])
+      .filter(Boolean);
   };
 
   const getResponseDistribution = (questionId: string) => {
     const questionResponses = getQuestionResponses(questionId);
     const distribution: Record<string, number> = {};
 
-    questionResponses.forEach(response => {
+    questionResponses.forEach((response) => {
       if (Array.isArray(response)) {
-        response.forEach(value => {
+        response.forEach((value) => {
           distribution[value] = (distribution[value] || 0) + 1;
         });
       } else {
@@ -58,14 +66,14 @@ export default function ResponseQuestion({ question, responses }: ResponseQuesti
   };
 
   const chartColors = [
-    'rgba(59, 130, 246, 0.8)',   // blue-500
-    'rgba(16, 185, 129, 0.8)',   // green-500
-    'rgba(239, 68, 68, 0.8)',    // red-500
-    'rgba(217, 119, 6, 0.8)',    // yellow-600
-    'rgba(147, 51, 234, 0.8)',   // purple-600
+    "rgba(59, 130, 246, 0.8)", // blue-500
+    "rgba(16, 185, 129, 0.8)", // green-500
+    "rgba(239, 68, 68, 0.8)", // red-500
+    "rgba(217, 119, 6, 0.8)", // yellow-600
+    "rgba(147, 51, 234, 0.8)", // purple-600
   ];
 
-  const renderQuestionChart = (q: Question['followUpQuestions'][0]) => {
+  const renderQuestionChart = (q: Question["followUpQuestions"][0]) => {
     if (!q.options) return null;
 
     const distribution = getResponseDistribution(q.id);
@@ -73,9 +81,9 @@ export default function ResponseQuestion({ question, responses }: ResponseQuesti
       labels: q.options,
       datasets: [
         {
-          data: q.options.map(option => distribution[option] || 0),
+          data: q.options.map((option) => distribution[option] || 0),
           backgroundColor: chartColors,
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: "rgba(255, 255, 255, 0.1)",
           borderWidth: 1,
         },
       ],
@@ -85,20 +93,23 @@ export default function ResponseQuestion({ question, responses }: ResponseQuesti
       responsive: true,
       plugins: {
         legend: {
-          position: 'bottom' as const,
+          position: "bottom" as const,
           labels: {
             padding: 20,
             font: {
               size: 12,
             },
-            color: 'rgb(107, 114, 128)',
+            color: "rgb(107, 114, 128)",
           },
         },
         tooltip: {
           callbacks: {
             label: (context: any) => {
               const value = context.raw;
-              const total = Object.values(distribution).reduce((a: number, b: number) => a + b, 0);
+              const total = Object.values(distribution).reduce(
+                (a: number, b: number) => a + b,
+                0
+              );
               const percentage = ((value / total) * 100).toFixed(1);
               return `${value} responses (${percentage}%)`;
             },
@@ -107,26 +118,27 @@ export default function ResponseQuestion({ question, responses }: ResponseQuesti
       },
     };
 
-    const chartType = chartPreferences[q.id] || (q.type === 'radio' ? 'pie' : 'bar');
+    const chartType =
+      chartPreferences[q.id] || (q.type === "radio" ? "pie" : "bar");
 
     return (
       <div className="h-[300px]">
-        {chartType === 'pie' ? (
+        {chartType === "pie" ? (
           <Pie data={data} options={options} />
         ) : (
-          <Bar 
-            data={data} 
+          <Bar
+            data={data}
             options={{
               ...options,
-              indexAxis: 'y' as const,
+              indexAxis: "y" as const,
               scales: {
                 x: {
                   beginAtZero: true,
                   grid: {
-                    color: 'rgba(107, 114, 128, 0.1)',
+                    color: "rgba(107, 114, 128, 0.1)",
                   },
                   ticks: {
-                    color: 'rgb(107, 114, 128)',
+                    color: "rgb(107, 114, 128)",
                   },
                 },
                 y: {
@@ -134,11 +146,11 @@ export default function ResponseQuestion({ question, responses }: ResponseQuesti
                     display: false,
                   },
                   ticks: {
-                    color: 'rgb(107, 114, 128)',
+                    color: "rgb(107, 114, 128)",
                   },
                 },
               },
-            }} 
+            }}
           />
         )}
       </div>
@@ -146,9 +158,9 @@ export default function ResponseQuestion({ question, responses }: ResponseQuesti
   };
 
   const handleChartTypeChange = (questionId: string, type: ChartType) => {
-    setChartPreferences(prev => ({
+    setChartPreferences((prev) => ({
       ...prev,
-      [questionId]: type
+      [questionId]: type,
     }));
   };
 
@@ -162,9 +174,12 @@ export default function ResponseQuestion({ question, responses }: ResponseQuesti
           if (!q.options) return null;
           const responses = getQuestionResponses(q.id);
           const responseCount = responses.length;
-          
+
           return (
-            <div key={q.id} className="border-b dark:border-gray-700 pb-8 last:border-0">
+            <div
+              key={q.id}
+              className="border-b dark:border-gray-700 pb-8 last:border-0"
+            >
               <div className="flex justify-between items-start mb-4">
                 <div>
                   <h5 className="text-lg font-medium text-gray-900 dark:text-white">
@@ -181,7 +196,10 @@ export default function ResponseQuestion({ question, responses }: ResponseQuesti
                     {responseCount} responses
                   </span>
                   <ChartTypeSelector
-                    value={chartPreferences[q.id] || (q.type === 'radio' ? 'pie' : 'bar')}
+                    value={
+                      chartPreferences[q.id] ||
+                      (q.type === "radio" ? "pie" : "bar")
+                    }
                     onChange={(type) => handleChartTypeChange(q.id, type)}
                   />
                 </div>
