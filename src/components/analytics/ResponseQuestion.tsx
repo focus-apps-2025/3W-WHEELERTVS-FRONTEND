@@ -77,11 +77,18 @@ export default function ResponseQuestion({
     if (!q.options) return null;
 
     const distribution = getResponseDistribution(q.id);
+    const validOptions = q.options.filter(
+      (option) =>
+        option &&
+        typeof option === "string" &&
+        option.trim() !== "" &&
+        option.toLowerCase() !== "undefined"
+    );
     const data = {
-      labels: q.options,
+      labels: validOptions,
       datasets: [
         {
-          data: q.options.map((option) => distribution[option] || 0),
+          data: validOptions.map((option) => distribution[option] || 0),
           backgroundColor: chartColors,
           borderColor: "rgba(255, 255, 255, 0.1)",
           borderWidth: 1,
@@ -130,6 +137,12 @@ export default function ResponseQuestion({
             options={{
               ...options,
               indexAxis: "y" as const,
+              plugins: {
+                ...options.plugins,
+                legend: {
+                  display: false,
+                },
+              },
               scales: {
                 x: {
                   beginAtZero: true,
