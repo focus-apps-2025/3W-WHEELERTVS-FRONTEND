@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { LogIn, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { useNotification } from "../../context/NotificationContext";
 
 export default function LoginPage() {
   const {
@@ -15,7 +14,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("srimathi123");
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
-  const { showSuccess } = useNotification();
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
@@ -29,13 +27,7 @@ export default function LoginPage() {
 
     const success = await login(email, password);
     if (success) {
-      showSuccess(
-        "Welcome back! Redirecting to dashboard...",
-        "Login Successful"
-      );
-      setTimeout(() => {
-        navigate("/dashboard");
-      }, 500);
+      navigate("/dashboard");
     }
   };
 
