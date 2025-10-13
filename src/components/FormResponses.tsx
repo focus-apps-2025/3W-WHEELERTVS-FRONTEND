@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   Eye,
@@ -9,6 +9,7 @@ import {
   ArrowLeft,
   Save,
   Download,
+  Table,
 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
@@ -85,6 +86,54 @@ export default function FormResponses() {
   );
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [updating, setUpdating] = useState(false);
+  const [showTableView, setShowTableView] = useState(false);
+
+  const questionColumns = useMemo(() => {
+    if (!form) return [] as Array<{ id: string; text: string }>;
+
+    const sectionQuestions = (form.sections ?? []).flatMap(
+      (section) => section.questions ?? []
+    );
+    const followUpQuestions = form.followUpQuestions ?? [];
+
+    const uniqueQuestions = new Map<string, Question>();
+
+    [...sectionQuestions, ...followUpQuestions].forEach((questionItem) => {
+      if (questionItem && !uniqueQuestions.has(questionItem.id)) {
+        uniqueQuestions.set(questionItem.id, questionItem);
+      }
+    });
+
+    return Array.from(uniqueQuestions.values()).map(({ id, text }) => ({
+      id,
+      text,
+    }));
+  }, [form]);
+
+  const getAnswerDisplay = useCallback(
+    (response: Response, questionId: string) => {
+      const answer = response.answers?.[questionId];
+
+      if (answer === undefined || answer === null || answer === "") {
+        return "--";
+      }
+
+      if (Array.isArray(answer)) {
+        return answer.join(", ");
+      }
+
+      if (typeof answer === "object") {
+        try {
+          return JSON.stringify(answer, null, 2);
+        } catch (error) {
+          return String(answer);
+        }
+      }
+
+      return String(answer);
+    },
+    []
+  );
 
   useEffect(() => {
     if (id) {
@@ -176,8 +225,6 @@ export default function FormResponses() {
     }, {} as Record<string, Response[]>);
   };
 
-  const groupedResponses = groupResponsesByDate(responses);
-
   const handleExport = (targetForm: Form) => {
     exportResponsesToExcel(responses, {
       id: targetForm.id,
@@ -186,6 +233,11 @@ export default function FormResponses() {
       sections: targetForm.sections,
     } as any);
   };
+
+  const groupedResponses = useMemo(
+    () => groupResponsesByDate(responses),
+    [responses]
+  );
 
   if (loading) {
     return (
@@ -268,14 +320,24 @@ export default function FormResponses() {
                   Download a full Excel report of all responses for this form.
                 </p>
               </div>
-              <button
-                onClick={() => form && handleExport(form)}
-                className="btn-secondary flex items-center self-start"
-                disabled={!form || responses.length === 0}
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export as Excel
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => form && handleExport(form)}
+                  className="btn-secondary flex items-center"
+                  disabled={!form || responses.length === 0}
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  Export as Excel
+                </button>
+                <button
+                  onClick={() => setShowTableView(true)}
+                  className="btn-tertiary flex items-center"
+                  disabled={responses.length === 0}
+                >
+                  <Table className="w-4 h-4 mr-2" />
+                  View as Table
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -385,7 +447,9 @@ export default function FormResponses() {
                       value={
                         selectedStatus || selectedResponse.status || "pending"
                       }
-                      onChange={(e) => setSelectedStatus(e.target.value)}
+                      onChange={(event) =>
+                        setSelectedStatus(event.target.value)
+                      }
                       className="px-3 py-1.5 border border-primary-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                     >
                       <option value="pending">Pending</option>
@@ -497,6 +561,107 @@ export default function FormResponses() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Table View Modal */}
+      {showTableView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-primary-200 flex items-start justify-between">
+              <div>
+                <h3 className="text-xl font-semibold text-primary-700">
+                  {form?.title} Responses
+                </h3>
+                <p className="text-sm text-primary-500">
+                  Viewing {responses.length} replies in table view
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowTableView(false)}
+                className="text-primary-500 hover:text-primary-700"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="overflow-auto">
+              <table className="min-w-full divide-y divide-primary-100">
+                <thead className="bg-primary-50 sticky top-0 z-10">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-primary-500 uppercase tracking-wider">
+                      Timestamp
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-primary-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-primary-500 uppercase tracking-wider">
+                      Submitted By
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-primary-500 uppercase tracking-wider">
+                      Location
+                    </th>
+                    {questionColumns.map((column) => (
+                      <th
+                        key={column.id}
+                        className="px-4 py-3 text-left text-xs font-medium text-primary-500 uppercase tracking-wider whitespace-nowrap"
+                      >
+                        {column.text}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-primary-100">
+                  {responses.map((responseItem) => {
+                    const location =
+                      responseItem.submissionMetadata?.location ?? undefined;
+                    const locationText = location
+                      ? [location.city, location.region, location.country]
+                          .filter(Boolean)
+                          .join(", ")
+                      : "--";
+
+                    return (
+                      <React.Fragment key={responseItem._id}>
+                        <tr className="bg-primary-25">
+                          <td className="px-4 py-3 text-sm text-primary-600 align-top">
+                            {formatTimestamp(responseItem.createdAt)}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-primary-600 align-top">
+                            {responseItem.status ?? "Pending"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-primary-600 align-top">
+                            {responseItem.submissionMetadata?.ipAddress ?? "--"}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-primary-600 align-top">
+                            {locationText}
+                          </td>
+                          {questionColumns.map((column) => (
+                            <td
+                              key={`${responseItem._id}-${column.id}-value`}
+                              className="px-4 py-3 text-sm text-primary-600 align-top whitespace-pre-wrap"
+                            >
+                              {getAnswerDisplay(responseItem, column.id)}
+                            </td>
+                          ))}
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })}
+                  {responses.length === 0 && (
+                    <tr>
+                      <td
+                        colSpan={4 + questionColumns.length}
+                        className="px-4 py-6 text-center text-sm text-primary-500"
+                      >
+                        No responses to display yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
