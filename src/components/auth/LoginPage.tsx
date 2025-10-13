@@ -10,8 +10,8 @@ export default function LoginPage() {
     loading: authLoading,
     isAuthenticated,
   } = useAuth();
-  const [email, setEmail] = useState("superadmin@gmail.com");
-  const [password, setPassword] = useState("srimathi123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
