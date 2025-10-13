@@ -225,10 +225,10 @@ export default function DashboardNew() {
                           <Calendar className="w-3 h-3 mr-1 text-gray-400" />
                           {new Date(form.createdAt).toLocaleDateString()}
                         </div>
-                        <div className="flex items-center">
+                        {/* <div className="flex items-center">
                           <Users className="w-3 h-3 mr-1 text-gray-400" />
                           {form.responseCount || 0} responses
-                        </div>
+                        </div> */}
                       </div>
                     </div>
                     <div className="flex items-center space-x-2 ml-4">
