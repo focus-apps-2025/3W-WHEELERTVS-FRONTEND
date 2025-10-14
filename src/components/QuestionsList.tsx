@@ -292,6 +292,51 @@ export default function QuestionsList({
                 options={q.options || []}
                 onChange={(options) => updateQuestion(q.id, { options })}
               />
+
+              {/* Correct Answer Selection for Quiz Questions */}
+              {q.options && q.options.length > 0 && (
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-primary-600 mb-2">
+                    Correct Answer (Optional - for quiz mode)
+                  </label>
+                  <select
+                    value={q.correctAnswer || ""}
+                    onChange={(e) => {
+                      console.log("Correct answer changed:", {
+                        questionId: q.id,
+                        questionText: q.text,
+                        oldValue: q.correctAnswer,
+                        newValue: e.target.value,
+                        options: q.options,
+                      });
+                      updateQuestion(q.id, {
+                        correctAnswer: e.target.value || undefined,
+                      });
+                    }}
+                    className="input-field"
+                  >
+                    <option value="">-- No correct answer --</option>
+                    {q.options
+                      .filter((opt) => opt && opt.trim() !== "")
+                      .map((option) => (
+                        <option
+                          key={`${q.id}-correct-${option}`}
+                          value={option}
+                        >
+                          {option}
+                        </option>
+                      ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Select the correct answer if this is a quiz question. Leave
+                    empty for regular questions.
+                  </p>
+                  {/* Debug info */}
+                  <p className="text-xs text-blue-600 mt-1">
+                    Current value: "{q.correctAnswer || "(empty)"}"
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

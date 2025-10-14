@@ -23,6 +23,8 @@ export interface FollowUpQuestion {
   type: QuestionType;
   required?: boolean;
   options?: string[];
+  correctAnswer?: string; // Single correct answer (backward compatibility)
+  correctAnswers?: string[]; // Multiple correct answers
   gridOptions?: GridOption;
   min?: number;
   max?: number;
@@ -61,6 +63,10 @@ export interface Response {
   verifiedAt?: string;
   status?: "pending" | "verified" | "rejected";
   notes?: string;
+  score?: {
+    correct: number;
+    total: number;
+  };
   submissionMetadata?: {
     ipAddress?: string;
     userAgent?: string;

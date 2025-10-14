@@ -38,6 +38,7 @@ interface Question {
   followUpQuestions?: FollowUpQuestion[];
   showWhen?: ShowWhen;
   parentId?: string;
+  correctAnswer?: string;
 }
 
 interface ShowWhen {
@@ -56,6 +57,7 @@ interface FollowUpQuestion {
   parentId: string;
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
   requireFollowUp?: boolean; // Make follow-up mandatory for certain question types
+  correctAnswer?: string;
 }
 
 export default function FormCreator() {
@@ -1730,6 +1732,35 @@ export default function FormCreator() {
                         </div>
                       </div>
                     )}
+
+                    {/* Correct Answer Section */}
+                    {(question.type === "radio" ||
+                      question.type === "checkbox" ||
+                      question.type === "select") &&
+                      question.options &&
+                      question.options.length > 0 && (
+                        <div className="mt-3">
+                          <label className="block text-xs font-medium text-primary-600 mb-2">
+                            Correct Answer (Optional - for quiz questions)
+                          </label>
+                          <select
+                            value={question.correctAnswer || ""}
+                            onChange={(e) =>
+                              updateQuestion(section.id, question.id, {
+                                correctAnswer: e.target.value || undefined,
+                              })
+                            }
+                            className="w-full p-2 border border-neutral-300 rounded-md text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                          >
+                            <option value="">No correct answer</option>
+                            {question.options.map((option, index) => (
+                              <option key={index} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
 
                     {/* Follow-up Questions Section - Now with Unlimited Nesting */}
                     {requiresFollowUp(question.type) &&

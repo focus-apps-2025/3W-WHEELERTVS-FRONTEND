@@ -31,10 +31,32 @@ export default function QuestionForm({ onSubmit }: QuestionFormProps) {
       if (existingQuestion) {
         // Load sections from sectionsApi
         const sections = sectionsApi.getByFormId(id);
-        setQuestion({
+        const loadedQuestion = {
           ...existingQuestion,
           sections: sections.length > 0 ? sections : existingQuestion.sections,
-        });
+        };
+
+        // Debug: Log loaded question data
+        console.log("=== FORM LOADED ===");
+        console.log("Form ID:", id);
+        console.log("Form Title:", loadedQuestion.title);
+        if (loadedQuestion.sections) {
+          loadedQuestion.sections.forEach((section, si) => {
+            console.log(`Section ${si}:`, section.title);
+            if (section.questions) {
+              section.questions.forEach((q, qi) => {
+                if (q.options && q.options.length > 0) {
+                  console.log(`  Question ${qi}: ${q.text}`);
+                  console.log(`    correctAnswer: "${q.correctAnswer}"`);
+                  console.log(`    options:`, q.options);
+                }
+              });
+            }
+          });
+        }
+        console.log("==================");
+
+        setQuestion(loadedQuestion);
       }
     }
   }, [id]);
@@ -58,6 +80,26 @@ export default function QuestionForm({ onSubmit }: QuestionFormProps) {
           parentFormTitle: questionsApi.getById(parentFormId)?.title || "",
         }
       : question;
+
+    // Debug: Log what's being saved
+    console.log("=== SAVING FORM ===");
+    console.log("Form ID:", questionToSave.id);
+    console.log("Form Title:", questionToSave.title);
+    if (questionToSave.sections) {
+      questionToSave.sections.forEach((section, si) => {
+        console.log(`Section ${si}:`, section.title);
+        if (section.questions) {
+          section.questions.forEach((q, qi) => {
+            if (q.options && q.options.length > 0) {
+              console.log(`  Question ${qi}: ${q.text}`);
+              console.log(`    correctAnswer: "${q.correctAnswer}"`);
+              console.log(`    options:`, q.options);
+            }
+          });
+        }
+      });
+    }
+    console.log("==================");
 
     // Save sections separately
     if (question.sections.length > 0) {

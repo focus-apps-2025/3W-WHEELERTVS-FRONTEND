@@ -17,6 +17,7 @@ interface FollowUpQuestion {
   parentId: string;
   followUpQuestions?: FollowUpQuestion[];
   requireFollowUp?: boolean;
+  correctAnswer?: string;
 }
 
 interface NestedFollowUpRendererProps {
@@ -315,6 +316,36 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     Add Option
                   </button>
                 </div>
+              </div>
+            )}
+
+            {/* Correct Answer Section */}
+            {followUpQ.options && followUpQ.options.length > 0 && (
+              <div className="mt-2">
+                <label className="block text-xs font-medium text-blue-600 mb-1">
+                  Correct Answer (Optional)
+                </label>
+                <select
+                  value={followUpQ.correctAnswer || ""}
+                  onChange={(e) =>
+                    onUpdate(
+                      sectionId,
+                      followUpQ.id,
+                      {
+                        correctAnswer: e.target.value || undefined,
+                      },
+                      path
+                    )
+                  }
+                  className="w-full p-1 border border-neutral-300 rounded text-xs focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">No correct answer</option>
+                  {followUpQ.options.map((option, index) => (
+                    <option key={index} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
           </div>

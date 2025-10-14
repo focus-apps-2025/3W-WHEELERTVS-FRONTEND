@@ -1,9 +1,9 @@
-import React from 'react';
-import { Trash2 } from 'lucide-react';
-import type { FollowUpQuestion, QuestionType } from '../../types';
-import QuestionTypeSelector from './QuestionTypeSelector';
-import OptionsEditor from './OptionsEditor';
-import GridOptionsEditor from './GridOptionsEditor';
+import React from "react";
+import { Trash2 } from "lucide-react";
+import type { FollowUpQuestion, QuestionType } from "../../types";
+import QuestionTypeSelector from "./QuestionTypeSelector";
+import OptionsEditor from "./OptionsEditor";
+import GridOptionsEditor from "./GridOptionsEditor";
 
 interface QuestionEditorProps {
   question: FollowUpQuestion;
@@ -11,20 +11,24 @@ interface QuestionEditorProps {
   onRemove: () => void;
 }
 
-export default function QuestionEditor({ question, onUpdate, onRemove }: QuestionEditorProps) {
+export default function QuestionEditor({
+  question,
+  onUpdate,
+  onRemove,
+}: QuestionEditorProps) {
   const handleTypeChange = (type: QuestionType) => {
     const updates: Partial<FollowUpQuestion> = { type };
-    
+
     // Initialize options for types that need them
-    if (['radio', 'checkbox', 'radio-image'].includes(type)) {
-      updates.options = [''];
+    if (["radio", "checkbox", "radio-image"].includes(type)) {
+      updates.options = [""];
     }
-    
+
     // Initialize grid options for grid types
-    if (['radio-grid', 'checkbox-grid'].includes(type)) {
-      updates.gridOptions = { rows: [''], columns: [''] };
+    if (["radio-grid", "checkbox-grid"].includes(type)) {
+      updates.gridOptions = { rows: [""], columns: [""] };
     }
-    
+
     onUpdate(updates);
   };
 
@@ -39,13 +43,13 @@ export default function QuestionEditor({ question, onUpdate, onRemove }: Questio
             placeholder="Enter question text"
             className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
           />
-          
+
           <div className="flex space-x-4">
             <QuestionTypeSelector
               value={question.type}
               onChange={handleTypeChange}
             />
-            
+
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -53,7 +57,9 @@ export default function QuestionEditor({ question, onUpdate, onRemove }: Questio
                 onChange={(e) => onUpdate({ required: e.target.checked })}
                 className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
               />
-              <span className="text-sm text-gray-700 dark:text-gray-300">Required</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                Required
+              </span>
             </label>
           </div>
         </div>
@@ -66,21 +72,57 @@ export default function QuestionEditor({ question, onUpdate, onRemove }: Questio
         </button>
       </div>
 
-      {['radio', 'checkbox', 'radio-image'].includes(question.type) && (
-        <OptionsEditor
-          options={question.options || []}
-          onChange={(options) => onUpdate({ options })}
-        />
+      {["radio", "checkbox", "radio-image"].includes(question.type) && (
+        <>
+          <OptionsEditor
+            options={question.options || []}
+            onChange={(options) => onUpdate({ options })}
+          />
+
+          {/* Correct Answer Selection for Quiz Questions */}
+          {question.options && question.options.length > 0 && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Correct Answer (Optional - for quiz mode)
+              </label>
+              <select
+                value={question.correctAnswer || ""}
+                onChange={(e) =>
+                  onUpdate({
+                    correctAnswer: e.target.value || undefined,
+                  })
+                }
+                className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="">-- No correct answer --</option>
+                {question.options
+                  .filter((opt) => opt && opt.trim() !== "")
+                  .map((option) => (
+                    <option
+                      key={`${question.id}-correct-${option}`}
+                      value={option}
+                    >
+                      {option}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Select the correct answer if this is a quiz question. Leave
+                empty for regular questions.
+              </p>
+            </div>
+          )}
+        </>
       )}
 
-      {['radio-grid', 'checkbox-grid'].includes(question.type) && (
+      {["radio-grid", "checkbox-grid"].includes(question.type) && (
         <GridOptionsEditor
-          gridOptions={question.gridOptions || { rows: [''], columns: [''] }}
+          gridOptions={question.gridOptions || { rows: [""], columns: [""] }}
           onChange={(gridOptions) => onUpdate({ gridOptions })}
         />
       )}
 
-      {['range', 'scale'].includes(question.type) && (
+      {["range", "scale"].includes(question.type) && (
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">

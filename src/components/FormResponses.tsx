@@ -10,11 +10,36 @@ import {
   Save,
   Download,
   Table,
+  BarChart3,
+  PieChart,
+  Check,
+  X as XIcon,
 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
 import { exportResponsesToExcel } from "../utils/exportUtils";
+import { Bar, Pie } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+} from "chart.js";
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
+);
 
 interface Response {
   _id: string;
@@ -25,6 +50,10 @@ interface Response {
   updatedAt: string;
   assignedTo?: string;
   status?: string;
+  score?: {
+    correct: number;
+    total: number;
+  };
   submissionMetadata?: {
     ipAddress?: string;
     userAgent?: string;
@@ -56,6 +85,7 @@ interface Question {
   id: string;
   text: string;
   type: string;
+  correctAnswer?: any;
 }
 
 interface Section {
@@ -79,6 +109,7 @@ export default function FormResponses() {
   const { showSuccess, showError } = useNotification();
   const [responses, setResponses] = useState<Response[]>([]);
   const [form, setForm] = useState<Form | null>(null);
+  const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedResponse, setSelectedResponse] = useState<Response | null>(
@@ -87,6 +118,7 @@ export default function FormResponses() {
   const [selectedStatus, setSelectedStatus] = useState<string>("");
   const [updating, setUpdating] = useState(false);
   const [showTableView, setShowTableView] = useState(false);
+  const [chartType, setChartType] = useState<"bar" | "pie">("bar");
 
   const questionColumns = useMemo(() => {
     if (!form) return [] as Array<{ id: string; text: string }>;
@@ -109,6 +141,25 @@ export default function FormResponses() {
       text,
     }));
   }, [form]);
+
+  const quizQuestions = useMemo(() => {
+    return allQuestions.filter((q) => q.correctAnswer !== undefined);
+  }, [allQuestions]);
+
+  const getQuestionDistribution = useCallback(
+    (questionId: string) => {
+      const distribution: Record<string, number> = {};
+      responses.forEach((response) => {
+        const answer = response.answers?.[questionId];
+        const answerStr = Array.isArray(answer)
+          ? answer.join(", ")
+          : String(answer || "No Answer");
+        distribution[answerStr] = (distribution[answerStr] || 0) + 1;
+      });
+      return distribution;
+    },
+    [responses]
+  );
 
   const getAnswerDisplay = useCallback(
     (response: Response, questionId: string) => {
@@ -155,6 +206,17 @@ export default function FormResponses() {
         return;
       }
       setForm(formData.form);
+
+      // Collect all questions from sections and followUpQuestions
+      const allQs: Question[] = [];
+      if (formData.form.sections) {
+        formData.form.sections.forEach((section) => {
+          if (section.questions) allQs.push(...section.questions);
+        });
+      }
+      if (formData.form.followUpQuestions)
+        allQs.push(...formData.form.followUpQuestions);
+      setAllQuestions(allQs);
 
       // Filter responses for this form
       const formResponses = responsesData.responses.filter(
@@ -282,13 +344,21 @@ export default function FormResponses() {
         </div>
 
         {/* Response Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
           <div className="card p-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-primary-600">
                 {responses.length}
               </div>
               <div className="text-sm text-primary-500">Total Responses</div>
+            </div>
+          </div>
+          <div className="card p-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-primary-600">
+                {responses.filter((r) => r.score).length}
+              </div>
+              <div className="text-sm text-primary-500">Scored Responses</div>
             </div>
           </div>
           <div className="card p-4">
@@ -310,7 +380,26 @@ export default function FormResponses() {
               <div className="text-sm text-primary-500">Pending</div>
             </div>
           </div>
-          <div className="card p-4 sm:col-span-3">
+          <div className="card p-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {(() => {
+                  const scoredResponses = responses.filter((r) => r.score);
+                  if (scoredResponses.length === 0) return "0%";
+                  const totalScore = scoredResponses.reduce(
+                    (sum, r) => sum + r.score.correct / r.score.total,
+                    0
+                  );
+                  const average = Math.round(
+                    (totalScore / scoredResponses.length) * 100
+                  );
+                  return `${average}%`;
+                })()}
+              </div>
+              <div className="text-sm text-primary-500">Average Score</div>
+            </div>
+          </div>
+          <div className="card p-4 sm:col-span-5">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold text-primary-600">
@@ -342,6 +431,105 @@ export default function FormResponses() {
           </div>
         </div>
       </div>
+
+      {/* Response Distribution by Question */}
+      {/* {quizQuestions.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-primary-600">
+              Response Distribution by Question
+            </h2>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setChartType("bar")}
+                className={`btn-secondary flex items-center ${
+                  chartType === "bar" ? "bg-primary-600 text-white" : ""
+                }`}
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Bar
+              </button>
+              <button
+                onClick={() => setChartType("pie")}
+                className={`btn-secondary flex items-center ${
+                  chartType === "pie" ? "bg-primary-600 text-white" : ""
+                }`}
+              >
+                <PieChart className="w-4 h-4 mr-2" />
+                Pie
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {quizQuestions.map((question) => {
+              const distribution = getQuestionDistribution(question.id);
+              const labels = Object.keys(distribution);
+              const data = Object.values(distribution);
+              const correctAnswerStr = Array.isArray(question.correctAnswer)
+                ? question.correctAnswer.join(", ")
+                : String(question.correctAnswer || "");
+              const correctIndex = labels.findIndex(
+                (label) =>
+                  label.toLowerCase() === correctAnswerStr.toLowerCase()
+              );
+
+              const backgroundColors = labels.map((_, index) =>
+                index === correctIndex ? "#10B981" : "#6B7280"
+              );
+              const borderColors = labels.map((_, index) =>
+                index === correctIndex ? "#059669" : "#4B5563"
+              );
+
+              const chartData = {
+                labels,
+                datasets: [
+                  {
+                    label: "Responses",
+                    data,
+                    backgroundColor: backgroundColors,
+                    borderColor: borderColors,
+                    borderWidth: 1,
+                  },
+                ],
+              };
+
+              const options = {
+                responsive: true,
+                plugins: {
+                  legend: {
+                    position: "top" as const,
+                  },
+                  title: {
+                    display: true,
+                    text: question.text,
+                  },
+                },
+              };
+
+              return (
+                <div key={question.id} className="card p-6">
+                  <h3 className="text-lg font-medium text-primary-600 mb-2">
+                    {question.text}
+                  </h3>
+                  <p className="text-sm text-green-600 font-medium mb-4">
+                    Correct Answer: {correctAnswerStr}
+                  </p>
+                  <p className="text-sm text-primary-500 mb-4">
+                    {responses.length} responses
+                  </p>
+                  <div className="h-64">
+                    {chartType === "bar" ? (
+                      <Bar data={chartData} options={options} />
+                    ) : (
+                      <Pie data={chartData} options={options} />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )} */}
 
       {/* Responses by Date */}
       <div className="space-y-6">
@@ -392,6 +580,18 @@ export default function FormResponses() {
                               ? "Closed"
                               : "Pending"}
                           </span>
+                          {response.score && (
+                            <div className="mt-1 text-xs text-primary-600">
+                              Score: {response.score.correct}/
+                              {response.score.total} (
+                              {Math.round(
+                                (response.score.correct /
+                                  response.score.total) *
+                                  100
+                              )}
+                              %)
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -437,6 +637,31 @@ export default function FormResponses() {
                   <p className="text-sm text-primary-500 mt-1">
                     Submitted on {formatTimestamp(selectedResponse.createdAt)}
                   </p>
+                  {(() => {
+                    let correctCount = 0;
+                    allQuestions.forEach((q) => {
+                      if (q.correctAnswer) {
+                        const ans = selectedResponse.answers[q.id];
+                        if (ans !== undefined && ans !== null) {
+                          const ansStr = Array.isArray(ans)
+                            ? ans.join(", ")
+                            : String(ans);
+                          const corrStr = Array.isArray(q.correctAnswer)
+                            ? q.correctAnswer.join(", ")
+                            : String(q.correctAnswer);
+                          if (ansStr.toLowerCase() === corrStr.toLowerCase())
+                            correctCount++;
+                        }
+                      }
+                    });
+                    const score = correctCount * 10;
+                    const percentage = Math.round((score / 110) * 100);
+                    return (
+                      <p className="text-sm text-primary-500 mt-1">
+                        Quiz Score: {score}/110 ({percentage}%)
+                      </p>
+                    );
+                  })()}
 
                   {/* Status Update Section */}
                   <div className="mt-3 flex items-center gap-3">
@@ -493,13 +718,41 @@ export default function FormResponses() {
                       <div className="font-medium text-primary-700 mb-2">
                         {getQuestionText(key)}
                       </div>
-                      <div className="text-primary-600 bg-primary-50 p-3 rounded-lg">
-                        {Array.isArray(value)
+                      {(() => {
+                        const question = allQuestions.find((q) => q.id === key);
+                        const isQuiz = question && question.correctAnswer;
+                        const answerStr = Array.isArray(value)
                           ? value.join(", ")
                           : typeof value === "object"
                           ? JSON.stringify(value, null, 2)
-                          : String(value)}
-                      </div>
+                          : String(value);
+                        const correct = isQuiz
+                          ? (() => {
+                              const corrStr = Array.isArray(
+                                question.correctAnswer
+                              )
+                                ? question.correctAnswer.join(", ")
+                                : String(question.correctAnswer);
+                              return (
+                                answerStr.toLowerCase() ===
+                                corrStr.toLowerCase()
+                              );
+                            })()
+                          : null;
+                        return (
+                          <div
+                            className={`p-3 rounded-lg ${
+                              isQuiz
+                                ? correct
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-red-50 text-red-700"
+                                : "bg-primary-50 text-primary-600"
+                            }`}
+                          >
+                            {answerStr}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )
                 )}
