@@ -9,6 +9,7 @@ import {
   Legend,
   ArcElement,
 } from "chart.js";
+import ChartDataLabels from "chartjs-plugin-datalabels";
 import { Bar, Pie } from "react-chartjs-2";
 import type { Question, Response } from "../../types";
 import ChartTypeSelector, { ChartType } from "./ChartTypeSelector";
@@ -20,7 +21,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  ArcElement
+  ArcElement,
+  ChartDataLabels
 );
 
 interface ResponseQuestionProps {
@@ -96,7 +98,9 @@ export default function ResponseQuestion({
       ],
     };
 
-    const options = {
+    const chartType = chartPreferences[q.id] || "bar";
+
+    const baseOptions = {
       responsive: true,
       plugins: {
         legend: {
@@ -125,45 +129,81 @@ export default function ResponseQuestion({
       },
     };
 
-    const chartType = chartPreferences[q.id] || "bar";
+    const options =
+      chartType === "pie"
+        ? {
+            ...baseOptions,
+            plugins: {
+              ...baseOptions.plugins,
+              datalabels: {
+                formatter: (value, ctx) => {
+                  const total = ctx.chart.data.datasets[0].data.reduce(
+                    (a, b) => a + b,
+                    0
+                  );
+                  const percentage = ((value / total) * 100).toFixed(1);
+                  return `${percentage}% (${value})`;
+                },
+                color: "white",
+                font: { size: 12 },
+              },
+            },
+          }
+        : {
+            ...baseOptions,
+            indexAxis: "y" as const,
+            plugins: {
+              ...baseOptions.plugins,
+              legend: {
+                display: false,
+              },
+              datalabels: {
+                anchor: "center",
+                align: "center",
+                formatter: (value, ctx) => {
+                  const total = ctx.chart.data.datasets[0].data.reduce(
+                    (a, b) => a + b,
+                    0
+                  );
+                  const percentage = ((value / total) * 100).toFixed(1);
+                  return `${percentage}% (${value})`;
+                },
+                color: "white",
+                font: { size: 12 },
+              },
+            },
+            layout: {
+              padding: {
+                right: 60,
+              },
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                grid: {
+                  color: "rgba(107, 114, 128, 0.1)",
+                },
+                ticks: {
+                  color: "rgb(107, 114, 128)",
+                },
+              },
+              y: {
+                grid: {
+                  display: false,
+                },
+                ticks: {
+                  color: "rgb(107, 114, 128)",
+                },
+              },
+            },
+          };
 
     return (
-      <div className="h-[300px]">
+      <div className="h-[350px]">
         {chartType === "pie" ? (
           <Pie data={data} options={options} />
         ) : (
-          <Bar
-            data={data}
-            options={{
-              ...options,
-              indexAxis: "y" as const,
-              plugins: {
-                ...options.plugins,
-                legend: {
-                  display: false,
-                },
-              },
-              scales: {
-                x: {
-                  beginAtZero: true,
-                  grid: {
-                    color: "rgba(107, 114, 128, 0.1)",
-                  },
-                  ticks: {
-                    color: "rgb(107, 114, 128)",
-                  },
-                },
-                y: {
-                  grid: {
-                    display: false,
-                  },
-                  ticks: {
-                    color: "rgb(107, 114, 128)",
-                  },
-                },
-              },
-            }}
-          />
+          <Bar data={data} options={options} />
         )}
       </div>
     );
