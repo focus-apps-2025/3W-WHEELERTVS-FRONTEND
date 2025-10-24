@@ -242,6 +242,38 @@ class ApiClient {
     });
   }
 
+  // Child Form Management (Parent-Child Relationships)
+  async linkChildForm(parentFormId: string, childFormId: string) {
+    return this.request<{ parentForm: any; childForm: any }>(
+      `/forms/${parentFormId}/child-forms`,
+      {
+        method: "POST",
+        body: JSON.stringify({ childFormId }),
+      }
+    );
+  }
+
+  async unlinkChildForm(parentFormId: string, childFormId: string) {
+    return this.request(`/forms/${parentFormId}/child-forms/${childFormId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async getChildForms(parentFormId: string) {
+    return this.request<{
+      parentFormId: string;
+      parentFormTitle: string;
+      childForms: any[];
+    }>(`/forms/${parentFormId}/child-forms`);
+  }
+
+  async reorderChildForms(parentFormId: string, childFormOrder: string[]) {
+    return this.request(`/forms/${parentFormId}/child-forms/reorder`, {
+      method: "PUT",
+      body: JSON.stringify({ childFormOrder }),
+    });
+  }
+
   // Responses
   async getResponses() {
     return this.request<{ responses: any[]; pagination?: any }>(

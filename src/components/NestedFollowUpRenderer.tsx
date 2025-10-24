@@ -127,29 +127,49 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
   };
 
   return (
-    <div className={`space-y-3 ${getIndentClass(depth)}`}>
+    <div className={`space-y-4 ${getIndentClass(depth)}`}>
       {followUpQuestions.map((followUpQ, fqIndex) => (
         <div
           key={followUpQ.id}
-          className={`bg-white p-3 rounded border ${getBorderColor(depth)}`}
+          className={`bg-gradient-to-br from-white to-gray-50 p-5 rounded-xl border-2 ${getBorderColor(
+            depth
+          )} shadow-sm hover:shadow-md transition-shadow duration-200`}
         >
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-blue-600">
-              Follow-up Level {depth + 1} - Question {fqIndex + 1}
-            </span>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+            <div className="flex items-center space-x-2">
+              <span
+                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                  depth === 0
+                    ? "bg-blue-100 text-blue-700"
+                    : depth === 1
+                    ? "bg-green-100 text-green-700"
+                    : depth === 2
+                    ? "bg-purple-100 text-purple-700"
+                    : "bg-orange-100 text-orange-700"
+                }`}
+              >
+                Level {depth + 1} · Q{fqIndex + 1}
+              </span>
+              <span className="text-xs text-gray-500">Follow-up Question</span>
+            </div>
             <button
               onClick={() => onDelete(sectionId, followUpQ.id, path)}
-              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded"
+              className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
+              title="Delete follow-up question"
             >
-              <Trash2 className="w-3 h-3" />
+              <Trash2 className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-2">
-            {/* Show When */}
-            <div>
-              <label className="block text-xs font-medium text-blue-600 mb-1">
-                Show when answer is:
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Show When - Full Width */}
+            <div className="lg:col-span-2">
+              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
+                  1
+                </span>
+                Show when answer is
               </label>
               <select
                 value={followUpQ.showWhen?.value || ""}
@@ -166,9 +186,9 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     path
                   )
                 }
-                className="input-field text-xs"
+                className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
               >
-                <option value="">Select trigger option</option>
+                <option value="">Select trigger option...</option>
                 {parentQuestion.options?.map((option, optIndex) => (
                   <option key={optIndex} value={option}>
                     {option}
@@ -177,9 +197,12 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
               </select>
             </div>
 
-            {/* Question Text */}
-            <div>
-              <label className="block text-xs font-medium text-blue-600 mb-1">
+            {/* Question Text - Full Width */}
+            <div className="lg:col-span-2">
+              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
+                  2
+                </span>
                 Question Text
               </label>
               <input
@@ -193,14 +216,17 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     path
                   )
                 }
-                className="input-field text-xs"
-                placeholder="Enter follow-up question"
+                className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                placeholder="Enter your follow-up question..."
               />
             </div>
 
             {/* Question Type */}
             <div>
-              <label className="block text-xs font-medium text-blue-600 mb-1">
+              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
+                  3
+                </span>
                 Question Type
               </label>
               <select
@@ -219,7 +245,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     path
                   )
                 }
-                className="input-field text-xs"
+                className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
               >
                 {questionTypes.map((type) => (
                   <option key={type.value} value={type.value}>
@@ -229,33 +255,44 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
               </select>
             </div>
 
-            {/* Required Checkbox */}
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id={`required-${followUpQ.id}`}
-                checked={followUpQ.required}
-                onChange={(e) =>
-                  onUpdate(
-                    sectionId,
-                    followUpQ.id,
-                    { required: e.target.checked },
-                    path
-                  )
-                }
-                className="mr-2 h-3 w-3 text-blue-600 focus:ring-blue-500 border-neutral-300 rounded"
-              />
-              <label
-                htmlFor={`required-${followUpQ.id}`}
-                className="text-xs text-blue-600"
-              >
-                Required
+            {/* Required Checkbox - Styled */}
+            <div>
+              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
+                  4
+                </span>
+                Options
               </label>
+              <div className="flex items-center h-[42px] px-4 py-2.5 border-2 border-gray-300 rounded-lg bg-gray-50">
+                <input
+                  type="checkbox"
+                  id={`required-${followUpQ.id}`}
+                  checked={followUpQ.required}
+                  onChange={(e) =>
+                    onUpdate(
+                      sectionId,
+                      followUpQ.id,
+                      { required: e.target.checked },
+                      path
+                    )
+                  }
+                  className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label
+                  htmlFor={`required-${followUpQ.id}`}
+                  className="ml-3 text-sm font-medium text-gray-700 cursor-pointer"
+                >
+                  Required Question
+                </label>
+              </div>
             </div>
 
-            {/* Description */}
-            <div>
-              <label className="block text-xs font-medium text-blue-600 mb-1">
+            {/* Description - Full Width */}
+            <div className="lg:col-span-2">
+              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
+                  5
+                </span>
                 Description (Optional)
               </label>
               <textarea
@@ -268,21 +305,27 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     path
                   )
                 }
-                className="input-field text-xs"
+                className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm resize-none"
                 rows={2}
-                placeholder="Add a description"
+                placeholder="Add helpful context or instructions..."
               />
             </div>
 
-            {/* Options for radio, checkbox, select, search-select */}
+            {/* Options for radio, checkbox, select, search-select - Full Width */}
             {requiresFollowUp(followUpQ.type) && (
-              <div>
-                <label className="block text-xs font-medium text-blue-600 mb-1">
-                  Options
+              <div className="lg:col-span-2">
+                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
+                    6
+                  </span>
+                  Answer Options
                 </label>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {followUpQ.options?.map((option, index) => (
-                    <div key={index} className="flex items-center space-x-1">
+                    <div key={index} className="flex items-center space-x-2">
+                      <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 text-gray-600 rounded-lg text-xs font-medium">
+                        {index + 1}
+                      </span>
                       <input
                         type="text"
                         value={option}
@@ -295,24 +338,25 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                             path
                           )
                         }
-                        className="flex-1 p-1 border border-neutral-300 rounded text-xs focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
                         placeholder={`Option ${index + 1}`}
                       />
                       <button
                         onClick={() =>
                           onRemoveOption(sectionId, followUpQ.id, index, path)
                         }
-                        className="p-1 text-red-500 hover:text-red-700"
+                        className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
+                        title="Remove option"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-4 h-4" />
                       </button>
                     </div>
                   ))}
                   <button
                     onClick={() => onAddOption(sectionId, followUpQ.id, path)}
-                    className="flex items-center text-blue-600 hover:text-blue-800 text-xs"
+                    className="flex items-center px-4 py-2 text-blue-600 hover:text-white hover:bg-blue-600 border-2 border-blue-600 rounded-lg transition-all duration-200 text-sm font-medium"
                   >
-                    <Plus className="w-3 h-3 mr-1" />
+                    <Plus className="w-4 h-4 mr-2" />
                     Add Option
                   </button>
                 </div>
@@ -321,8 +365,11 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
 
             {/* Correct Answer Section */}
             {followUpQ.options && followUpQ.options.length > 0 && (
-              <div className="mt-2">
-                <label className="block text-xs font-medium text-blue-600 mb-1">
+              <div className="lg:col-span-2">
+                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600 text-xs mr-2">
+                    ✓
+                  </span>
                   Correct Answer (Optional)
                 </label>
                 <select
@@ -337,7 +384,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                       path
                     )
                   }
-                  className="w-full p-1 border border-neutral-300 rounded text-xs focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-sm"
                 >
                   <option value="">No correct answer</option>
                   {followUpQ.options.map((option, index) => (
@@ -354,10 +401,26 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
           {requiresFollowUp(followUpQ.type) &&
             followUpQ.options &&
             followUpQ.options.length > 0 && (
-              <div className={`mt-3 p-2 ${getBgColor(depth + 1)} rounded-lg`}>
-                <h6 className="text-xs font-medium text-gray-700 mb-2">
-                  Nested Follow-ups for this question
-                </h6>
+              <div
+                className={`mt-6 p-4 ${getBgColor(
+                  depth + 1
+                )} rounded-xl border-2 ${getBorderColor(depth + 1)}`}
+              >
+                <div className="flex items-center mb-3">
+                  <div className="flex-1 flex items-center">
+                    <span
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                        depth === 0
+                          ? "bg-green-100 text-green-700"
+                          : depth === 1
+                          ? "bg-purple-100 text-purple-700"
+                          : "bg-orange-100 text-orange-700"
+                      }`}
+                    >
+                      Nested Follow-ups
+                    </span>
+                  </div>
+                </div>
 
                 {/* Render existing nested follow-ups */}
                 {followUpQ.followUpQuestions &&
@@ -382,7 +445,10 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                   )}
 
                 {/* Add nested follow-up buttons */}
-                <div className="space-y-1 mt-2">
+                <div className="space-y-2 mt-3">
+                  <p className="text-xs text-gray-600 font-medium mb-2">
+                    Add follow-up questions for specific answers:
+                  </p>
                   {followUpQ.options?.map((option, optIndex) => (
                     <button
                       key={optIndex}
@@ -398,9 +464,13 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                           followUpQ.id,
                         ]);
                       }}
-                      className="w-full p-2 text-xs border border-green-300 rounded text-green-600 hover:bg-green-100 transition-colors"
+                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm border-2 border-green-300 rounded-lg text-green-700 hover:bg-green-50 hover:border-green-500 transition-all duration-200 font-medium"
                     >
-                      Add nested follow-up for "{option}"
+                      <span>
+                        If answer is:{" "}
+                        <span className="font-semibold">"{option}"</span>
+                      </span>
+                      <Plus className="w-4 h-4" />
                     </button>
                   ))}
                 </div>

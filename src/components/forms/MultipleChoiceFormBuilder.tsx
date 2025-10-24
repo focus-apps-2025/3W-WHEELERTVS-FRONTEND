@@ -7,7 +7,7 @@ import {
   Trash2,
   AlertCircle,
   CheckCircle,
-  Settings,
+  MoreVertical,
 } from "lucide-react";
 
 interface FormSection {
@@ -111,6 +111,7 @@ export const MultipleChoiceFormBuilder: React.FC<
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [openMenuOption, setOpenMenuOption] = useState<string | null>(null);
 
   const handleFormFieldChange = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -757,61 +758,127 @@ export const MultipleChoiceFormBuilder: React.FC<
                           </label>
 
                           <div className="space-y-2">
-                            {question.options.map((option, optionIndex) => (
-                              <div
-                                key={optionIndex}
-                                className="flex items-center space-x-2"
-                              >
-                                <input
-                                  aria-label={`Option ${optionIndex + 1}`}
-                                  type="text"
-                                  value={option}
-                                  onChange={(e) =>
-                                    updateOption(
-                                      sectionIndex,
-                                      questionIndex,
-                                      optionIndex,
-                                      e.target.value
-                                    )
-                                  }
-                                  placeholder={`Option ${optionIndex + 1}`}
-                                  className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                />
+                            {question.options.map((option, optionIndex) => {
+                              const menuKey = `${sectionIndex}-${questionIndex}-${optionIndex}`;
+                              const isMenuOpen = openMenuOption === menuKey;
 
-                                {question.options &&
-                                  question.options.length > 2 && (
+                              return (
+                                <div
+                                  key={optionIndex}
+                                  className="flex items-center space-x-2"
+                                >
+                                  <input
+                                    aria-label={`Option ${optionIndex + 1}`}
+                                    type="text"
+                                    value={option}
+                                    onChange={(e) =>
+                                      updateOption(
+                                        sectionIndex,
+                                        questionIndex,
+                                        optionIndex,
+                                        e.target.value
+                                      )
+                                    }
+                                    placeholder={`Option ${optionIndex + 1}`}
+                                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                  />
+
+                                  {question.options &&
+                                    question.options.length > 2 && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          removeOption(
+                                            sectionIndex,
+                                            questionIndex,
+                                            optionIndex
+                                          )
+                                        }
+                                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                                        aria-label="Remove option"
+                                      >
+                                        <Minus className="h-4 w-4" />
+                                      </button>
+                                    )}
+
+                                  {/* Three dots menu */}
+                                  <div className="relative">
                                     <button
                                       type="button"
                                       onClick={() =>
-                                        removeOption(
-                                          sectionIndex,
-                                          questionIndex,
-                                          optionIndex
+                                        setOpenMenuOption(
+                                          isMenuOpen ? null : menuKey
                                         )
                                       }
-                                      className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                                      aria-label="Remove option"
+                                      className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors"
+                                      aria-label={`Options for ${option}`}
                                     >
-                                      <Minus className="h-4 w-4" />
+                                      <MoreVertical className="h-4 w-4" />
                                     </button>
-                                  )}
 
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    addFollowUp(
-                                      sectionIndex,
-                                      questionIndex,
-                                      option
-                                    )
-                                  }
-                                  className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
-                                  aria-label={`Add follow-up for ${option}`}
-                                >
-                                  <Settings className="h-4 w-4" />
-                                </button>
-                              </div>
-                            ))}
+                                    {/* Dropdown menu */}
+                                    {isMenuOpen && (
+                                      <>
+                                        {/* Backdrop to close menu */}
+                                        <div
+                                          className="fixed inset-0 z-10"
+                                          onClick={() =>
+                                            setOpenMenuOption(null)
+                                          }
+                                        />
+
+                                        <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
+                                          <div className="py-1">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                addFollowUp(
+                                                  sectionIndex,
+                                                  questionIndex,
+                                                  option
+                                                );
+                                                setOpenMenuOption(null);
+                                              }}
+                                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                            >
+                                              📝 Follow-up Question
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                // TODO: Implement follow-up section logic
+                                                alert(
+                                                  "Follow-up Section feature coming soon!"
+                                                );
+                                                setOpenMenuOption(null);
+                                              }}
+                                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                            >
+                                              📋 Follow-up Section
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                // TODO: Implement follow-up form logic
+                                                alert(
+                                                  "Follow-up Form feature coming soon!"
+                                                );
+                                                setOpenMenuOption(null);
+                                              }}
+                                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                                            >
+                                              📄 Follow-up Form
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
 
                           <button

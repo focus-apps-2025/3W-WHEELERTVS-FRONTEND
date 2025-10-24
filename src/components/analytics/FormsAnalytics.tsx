@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FileText,
@@ -14,6 +14,10 @@ import {
   Copy,
   BarChart3,
   List,
+  MoreVertical,
+  Link2,
+  Share2,
+  Check,
 } from "lucide-react";
 import { useForms, useResponses, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
@@ -40,6 +44,9 @@ interface ResponseData {
 export default function FormsAnalytics() {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const { data: formsData, loading, error, execute: refetchForms } = useForms();
 
@@ -154,6 +161,75 @@ export default function FormsAnalytics() {
       isVisible: !currentVisibility,
     });
   };
+
+  const toggleMenu = (formId: string) => {
+    setOpenMenuId(openMenuId === formId ? null : formId);
+  };
+
+  const handleManageChildForms = (formId: string) => {
+    // Navigate to edit page where ChildFormsManager is available
+    navigate(`/forms/${formId}/edit`);
+    setOpenMenuId(null);
+    // Optionally scroll to child forms section after a short delay
+    setTimeout(() => {
+      const childFormsSection = document.querySelector(
+        '[data-section="child-forms"]'
+      );
+      if (childFormsSection) {
+        childFormsSection.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
+    }, 500);
+  };
+
+  const handleLinkToParent = (formId: string) => {
+    // Navigate to edit page where user can manage parent-child relationships
+    navigate(`/forms/${formId}/edit`);
+    setOpenMenuId(null);
+    setTimeout(() => {
+      const childFormsSection = document.querySelector(
+        '[data-section="child-forms"]'
+      );
+      if (childFormsSection) {
+        childFormsSection.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
+    }, 500);
+  };
+
+  const handleCopyShareLink = (formId: string, tenantSlug?: string) => {
+    const baseUrl = window.location.origin;
+    const shareLink = tenantSlug
+      ? `${baseUrl}/${tenantSlug}/form/${formId}`
+      : `${baseUrl}/form/${formId}`;
+
+    navigator.clipboard.writeText(shareLink).then(() => {
+      setCopiedId(formId);
+      setTimeout(() => setCopiedId(null), 2000);
+    });
+    setOpenMenuId(null);
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+
+    if (openMenuId) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [openMenuId]);
 
   if (loading || responsesLoading) {
     return (
@@ -314,11 +390,99 @@ export default function FormsAnalytics() {
                     <Users className="w-3 h-3 mr-1" />
                     {responseCount} responses
                   </div>
-                  <div className="flex items-center">
-                    <Calendar className="w-3 h-3 mr-1" />
-                    {parent.createdAt
-                      ? new Date(parent.createdAt).toLocaleDateString()
-                      : "Unknown"}
+                  <div className="flex items-center gap-3">
+                    {/* 3-dot menu */}
+                    <div
+                      className="relative"
+                      ref={openMenuId === formId ? menuRef : null}
+                    >
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleMenu(formId);
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-primary-100 transition-colors group"
+                        title="More options"
+                      >
+                        <MoreVertical className="w-4 h-4 text-primary-500 group-hover:text-primary-700" />
+                      </button>
+
+                      {/* Dropdown menu */}
+                      {openMenuId === formId && (
+                        <div className="absolute right-0 top-8 w-56 bg-white rounded-lg shadow-xl border border-primary-200 py-2 z-50 animate-fadeIn">
+                          <button
+                            onClick={() => handleManageChildForms(formId)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+                          >
+                            <div className="p-1.5 bg-gradient-to-br from-primary-100 to-purple-100 rounded-lg">
+                              <Layers className="w-4 h-4 text-primary-600" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-medium">
+                                Manage Child Forms
+                              </div>
+                              <div className="text-xs text-primary-500">
+                                Link & organize
+                              </div>
+                            </div>
+                            {children.length > 0 && (
+                              <span className="ml-auto px-2 py-0.5 bg-primary-600 text-white text-xs rounded-full">
+                                {children.length}
+                              </span>
+                            )}
+                          </button>
+
+                          <button
+                            onClick={() => handleLinkToParent(formId)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+                          >
+                            <div className="p-1.5 bg-gradient-to-br from-blue-100 to-cyan-100 rounded-lg">
+                              <Link2 className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-medium">Link to Parent</div>
+                              <div className="text-xs text-primary-500">
+                                Connect forms
+                              </div>
+                            </div>
+                          </button>
+
+                          <div className="border-t border-primary-100 my-1"></div>
+
+                          <button
+                            onClick={() => handleCopyShareLink(formId)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+                          >
+                            <div className="p-1.5 bg-gradient-to-br from-green-100 to-emerald-100 rounded-lg">
+                              {copiedId === formId ? (
+                                <Check className="w-4 h-4 text-green-600" />
+                              ) : (
+                                <Share2 className="w-4 h-4 text-green-600" />
+                              )}
+                            </div>
+                            <div className="text-left">
+                              <div className="font-medium">
+                                {copiedId === formId
+                                  ? "Link Copied!"
+                                  : "Copy Share Link"}
+                              </div>
+                              <div className="text-xs text-primary-500">
+                                {copiedId === formId
+                                  ? "Ready to share"
+                                  : "Share with others"}
+                              </div>
+                            </div>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center">
+                      <Calendar className="w-3 h-3 mr-1" />
+                      {parent.createdAt
+                        ? new Date(parent.createdAt).toLocaleDateString()
+                        : "Unknown"}
+                    </div>
                   </div>
                 </div>
 
@@ -411,88 +575,139 @@ export default function FormsAnalytics() {
                 </div>
 
                 {children.length > 0 && (
-                  <div className="border-t border-neutral-200 pt-6 mt-6">
-                    <div className="flex items-center mb-4">
-                      <ChevronRight className="w-5 h-5 text-primary-500 mr-2" />
-                      <h4 className="text-lg font-medium text-primary-600">
-                        Connected Forms ({children.length})
-                      </h4>
+                  <div className="border-t border-neutral-200 pt-6 mt-6 bg-gradient-to-r from-primary-50/30 to-purple-50/30 -mx-6 px-6 pb-6 rounded-b-lg">
+                    <div className="flex items-center justify-between mb-5">
+                      <div className="flex items-center">
+                        <div className="p-2 bg-gradient-to-br from-primary-500 to-purple-500 rounded-lg mr-3 shadow-sm">
+                          <Layers className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-semibold text-primary-800 flex items-center">
+                            Child Forms
+                            <span className="ml-2 px-2.5 py-0.5 text-xs font-bold bg-gradient-to-r from-primary-500 to-purple-500 text-white rounded-full shadow-sm">
+                              {children.length}
+                            </span>
+                          </h4>
+                          <p className="text-xs text-primary-600 mt-0.5">
+                            Connected follow-up forms
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {children.map((child) => {
+                      {children.map((child, index) => {
                         const childId = child.id || child._id;
                         const childResponseCount = child.responseCount || 0;
 
                         return (
                           <div
                             key={childId}
-                            className="card p-4 hover:border-primary-300 transition-colors duration-200 group"
+                            className="relative bg-white rounded-xl p-4 border-2 border-primary-100 hover:border-primary-300 hover:shadow-lg transition-all duration-300 group transform hover:-translate-y-1"
+                            style={{
+                              animationDelay: `${index * 50}ms`,
+                              animation: "fadeInUp 0.5s ease-out forwards",
+                            }}
                           >
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="p-2 bg-primary-50 rounded-lg">
-                                <FileText className="w-5 h-5 text-primary-600" />
+                            {/* Corner decoration */}
+                            <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-primary-100 to-purple-100 rounded-bl-full opacity-50"></div>
+
+                            <div className="relative">
+                              <div className="flex items-start justify-between mb-3">
+                                <div className="flex items-center space-x-2">
+                                  <div className="p-2.5 bg-gradient-to-br from-primary-500 to-purple-500 rounded-lg shadow-md group-hover:scale-110 transition-transform duration-300">
+                                    <FileText className="w-4 h-4 text-white" />
+                                  </div>
+                                  <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-primary-100 to-purple-100 text-primary-700 border border-primary-200">
+                                    ✦ Child
+                                  </span>
+                                </div>
                               </div>
-                              <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                <button
-                                  onClick={() =>
-                                    navigate(`/forms/${childId}/edit`)
-                                  }
-                                  className="p-2 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50"
-                                  title="Edit form"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
+
+                              <h5 className="font-semibold text-primary-800 mb-2 line-clamp-2 text-sm group-hover:text-primary-600 transition-colors">
+                                {child.title}
+                              </h5>
+
+                              {child.description && (
+                                <p className="text-xs text-primary-600 mb-3 line-clamp-2">
+                                  {child.description}
+                                </p>
+                              )}
+
+                              <div className="flex items-center justify-between text-xs text-primary-600 mb-3 pb-3 border-b border-primary-100">
+                                <div className="flex items-center space-x-1">
+                                  <Users className="w-3.5 h-3.5 text-primary-500" />
+                                  <span className="font-medium">
+                                    {childResponseCount}
+                                  </span>
+                                  <span className="text-primary-500">
+                                    responses
+                                  </span>
+                                </div>
+                                {child.createdAt && (
+                                  <div className="flex items-center space-x-1 text-primary-500">
+                                    <Calendar className="w-3.5 h-3.5" />
+                                    <span>
+                                      {new Date(
+                                        child.createdAt
+                                      ).toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                      })}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Quick action buttons */}
+                              <div className="flex items-center justify-between gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300">
                                 <button
                                   onClick={() =>
                                     navigate(`/forms/${childId}/preview`)
                                   }
-                                  className="p-2 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50"
+                                  className="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-gradient-to-r from-primary-500 to-primary-600 text-white hover:from-primary-600 hover:to-primary-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center gap-1"
                                   title="View form"
                                 >
-                                  <Eye className="w-4 h-4" />
+                                  <Eye className="w-3.5 h-3.5" />
+                                  View
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    navigate(`/forms/${childId}/edit`)
+                                  }
+                                  className="p-1.5 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50 transition-colors"
+                                  title="Edit form"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() =>
                                     navigate(`/forms/${childId}/analytics`)
                                   }
-                                  className="p-2 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50"
-                                  title="View analytics"
+                                  className="p-1.5 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50 transition-colors"
+                                  title="Analytics"
                                 >
-                                  <BarChart3 className="w-4 h-4" />
+                                  <BarChart3 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() =>
                                     navigate(`/forms/${childId}/responses`)
                                   }
-                                  className="p-2 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50"
-                                  title="View responses"
+                                  className="p-1.5 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50 transition-colors"
+                                  title="Responses"
                                 >
-                                  <List className="w-4 h-4" />
+                                  <List className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() =>
                                     handleDelete(childId, child.title || "")
                                   }
-                                  className="p-2 rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
-                                  title="Delete form"
+                                  className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                                  title="Delete"
                                 >
-                                  <Trash2 className="w-4 h-4" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
-                            </div>
-
-                            <h5 className="font-medium text-primary-600 mb-2 line-clamp-2">
-                              {child.title}
-                            </h5>
-
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-primary-50 text-primary-600 border border-primary-200">
-                                Child Form
-                              </span>
-                              <span className="text-xs text-primary-500">
-                                {childResponseCount} responses
-                              </span>
                             </div>
                           </div>
                         );
