@@ -137,7 +137,17 @@ export default function FormCreator() {
   }, [user]);
 
   useEffect(() => {
-    setForms(questionsApi.getAll());
+    const loadForms = async () => {
+      try {
+        const response = await apiClient.getForms();
+        setForms(response.forms || []);
+      } catch (error) {
+        console.error("Failed to fetch forms:", error);
+        setForms([]);
+      }
+    };
+    loadForms();
+
     if (id) {
       // Load existing form from API for editing
       const loadForm = async () => {
@@ -414,8 +424,9 @@ export default function FormCreator() {
         console.log("Form created successfully:", response);
         showSuccess("Form created successfully", "Success");
         setMode("list");
-        // Refresh forms list - could call apiClient.getForms() here instead
-        setForms(questionsApi.getAll());
+        // Refresh forms list from backend
+        const formsResponse = await apiClient.getForms();
+        setForms(formsResponse.forms || []);
       }
     } catch (error: any) {
       console.error("=== Error saving form ===");
@@ -435,10 +446,16 @@ export default function FormCreator() {
   const handleDelete = (id: string, title: string) => {
     showConfirm(
       `Are you sure you want to delete "${title}"? This action cannot be undone.`,
-      () => {
-        questionsApi.delete(id);
-        setForms(questionsApi.getAll());
-        showSuccess("Form deleted successfully", "Success");
+      async () => {
+        try {
+          await apiClient.deleteForm(id);
+          const formsResponse = await apiClient.getForms();
+          setForms(formsResponse.forms || []);
+          showSuccess("Form deleted successfully", "Success");
+        } catch (error) {
+          console.error("Failed to delete form:", error);
+          showError("Failed to delete form", "Error");
+        }
       },
       "Delete Form",
       "Delete",
@@ -446,33 +463,27 @@ export default function FormCreator() {
     );
   };
 
-  const handleDuplicate = (form: any) => {
-    const newForm = {
-      ...form,
-      id: crypto.randomUUID(),
-      title: `${form.title} (Copy)`,
-      sections: form.sections.map((section: any) => ({
-        ...section,
-        id: crypto.randomUUID(),
-        questions: section.questions.map((question: any) => ({
-          ...question,
-          id: crypto.randomUUID(),
-        })),
-      })),
-      followUpQuestions: form.followUpQuestions.map((question: any) => ({
-        ...question,
-        id: crypto.randomUUID(),
-      })),
-    };
-    questionsApi.save(newForm);
-    setForms(questionsApi.getAll());
+  const handleDuplicate = async (form: any) => {
+    try {
+      await apiClient.duplicateForm(form._id);
+      const formsResponse = await apiClient.getForms();
+      setForms(formsResponse.forms || []);
+      showSuccess("Form duplicated successfully", "Success");
+    } catch (error) {
+      console.error("Failed to duplicate form:", error);
+      showError("Failed to duplicate form", "Error");
+    }
   };
 
-  const handleToggleVisibility = (id: string, currentVisibility: boolean) => {
-    const form = questionsApi.getById(id);
-    if (form) {
-      questionsApi.save({ ...form, isVisible: !currentVisibility });
-      setForms(questionsApi.getAll());
+  const handleToggleVisibility = async (id: string, currentVisibility: boolean) => {
+    try {
+      await apiClient.updateFormVisibility(id, !currentVisibility);
+      const formsResponse = await apiClient.getForms();
+      setForms(formsResponse.forms || []);
+      showSuccess("Form visibility updated", "Success");
+    } catch (error) {
+      console.error("Failed to update form visibility:", error);
+      showError("Failed to update form visibility", "Error");
     }
   };
 
@@ -2090,7 +2101,7 @@ export default function FormCreator() {
                             </p>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        {/* <div className="flex items-center gap-2">
                           {!section.isSubsection && (
                             <button
                               onClick={() => addSubsection(section.id)}
@@ -2110,7 +2121,7 @@ export default function FormCreator() {
                               <Trash2 className="w-5 h-5" />
                             </button>
                           )}
-                        </div>
+                        </div> */}
                       </div>
                     </div>
 

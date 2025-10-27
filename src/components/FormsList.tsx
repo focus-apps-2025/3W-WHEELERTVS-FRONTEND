@@ -9,7 +9,7 @@ interface FormsListProps {
 }
 
 export default function FormsList({
-  questions,
+  questions = [],
   responses = [],
 }: FormsListProps) {
   const hasSubmittedResponse = (questionId: string) => {
@@ -17,7 +17,7 @@ export default function FormsList({
   };
 
   // Get main forms only
-  const mainForms = questions.filter((q) => !q.parentFormId);
+  const mainForms = (questions || []).filter((q) => !q.parentFormId);
 
   return (
     <div className="max-w-4xl mx-auto">

@@ -1,9 +1,10 @@
 import React from "react";
-import { X } from "lucide-react";
+import { X, Mail } from "lucide-react";
 import type { Question, Response } from "../types";
 import { formatTimestamp } from "../utils/dateUtils";
 import FilePreview from "./FilePreview";
 import SubmissionMetadata from "./SubmissionMetadata";
+import { useNotification } from "../context/NotificationContext";
 
 interface ResponseDetailsProps {
   response: Response;
@@ -16,6 +17,12 @@ export default function ResponseDetails({
   question,
   onClose,
 }: ResponseDetailsProps) {
+  const { showInfo } = useNotification();
+
+  const handleSendToMail = () => {
+    showInfo("This feature is coming soon!", "Coming Soon");
+  };
+
   const renderAnswer = (questionType: string, answer: any) => {
     if (questionType === "file" || questionType === "radio-image") {
       return <FilePreview data={answer as string} />;
@@ -73,12 +80,21 @@ export default function ResponseDetails({
               Submitted on {formatTimestamp(response.timestamp)}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleSendToMail}
+              className="flex items-center px-3 py-2 text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/30 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              Send to Mail
+            </button>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         <div className="px-6 py-4">

@@ -121,16 +121,24 @@ export default function ResponseForm({
         ];
 
   const getAvailableSections = () => {
+    if (!allFormSections || !Array.isArray(allFormSections)) {
+      return [];
+    }
+
     const baseSections: typeof allFormSections = [];
     const linkedSections: typeof allFormSections = [];
 
     for (const section of allFormSections) {
+      if (!section) continue;
+
       if (!section.linkedToOption && !section.linkedToQuestionId) {
         baseSections.push(section);
       } else {
-        for (const question of allFormSections
-          .flatMap((s) => s.questions)
-          .filter((q) => !q.showWhen)) {
+        const allQuestions = allFormSections
+          .flatMap((s) => s?.questions || [])
+          .filter((q) => q && !q.showWhen);
+
+        for (const question of allQuestions) {
           const answer = answers[question.id];
           if (answer && question.followUpConfig?.[answer]?.linkedSectionId === section.id) {
             linkedSections.push(section);
@@ -147,12 +155,16 @@ export default function ResponseForm({
       result.push(baseSection);
       addedSectionIds.add(baseSection.id);
 
-      for (const question of baseSection.questions.filter((q) => !q.showWhen)) {
+      const questionsInSection = (baseSection.questions || []).filter(
+        (q) => q && !q.showWhen
+      );
+
+      for (const question of questionsInSection) {
         const answer = answers[question.id];
         if (answer && question.followUpConfig?.[answer]?.linkedSectionId) {
           const linkedSectionId = question.followUpConfig[answer].linkedSectionId;
           const linkedSection = linkedSections.find(
-            (s) => s.id === linkedSectionId && !addedSectionIds.has(s.id)
+            (s) => s && s.id === linkedSectionId && !addedSectionIds.has(s.id)
           );
           if (linkedSection) {
             result.push(linkedSection);

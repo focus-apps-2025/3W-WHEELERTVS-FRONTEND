@@ -8,6 +8,7 @@ import {
   CheckCircle,
   Clock,
   XCircle,
+  Mail,
 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
@@ -36,7 +37,7 @@ interface GroupedResponses {
 }
 
 export default function AllResponses() {
-  const { showSuccess, showError } = useNotification();
+  const { showSuccess, showError, showInfo } = useNotification();
   const [responses, setResponses] = useState<
     (Response & { formTitle: string })[]
   >([]);
@@ -91,6 +92,10 @@ export default function AllResponses() {
     } finally {
       setUpdatingStatus(false);
     }
+  };
+
+  const handleSendToMail = () => {
+    showInfo("This feature is coming soon!", "Coming Soon");
   };
 
   const fetchData = async () => {
@@ -432,6 +437,14 @@ export default function AllResponses() {
                     <CheckCircle className="w-4 h-4" />
                   </button>
                 </div>
+                <button
+                  onClick={handleSendToMail}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                  title="Send to Mail"
+                >
+                  <Mail className="w-4 h-4" />
+                  Send to Mail
+                </button>
                 <button
                   onClick={() => {
                     setSelectedResponse(null);
