@@ -126,6 +126,10 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
   const colors = getColors();
 
+  // Defensive checks to prevent rendering functions or invalid types
+  const safeTitle = typeof title === "string" ? title : undefined;
+  const safeMessage = typeof message === "string" ? message : String(message);
+
   return (
     <div
       className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ${
@@ -154,9 +158,9 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
           <div className="flex items-center space-x-4">
             <div className="flex-shrink-0">{getIcon()}</div>
             <div>
-              {title && (
+              {safeTitle && (
                 <h3 className={`text-lg font-semibold ${colors.text}`}>
-                  {title}
+                  {safeTitle}
                 </h3>
               )}
             </div>
@@ -165,7 +169,9 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
         {/* Body */}
         <div className="px-6 py-6">
-          <p className="text-gray-700 text-base leading-relaxed">{message}</p>
+          <p className="text-gray-700 text-base leading-relaxed">
+            {safeMessage}
+          </p>
         </div>
 
         {/* Footer */}

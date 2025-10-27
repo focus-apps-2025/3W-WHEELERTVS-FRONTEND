@@ -50,6 +50,8 @@ interface Response {
   updatedAt: string;
   assignedTo?: string;
   status?: string;
+  parentResponseId?: string;
+  childResponses?: Response[];
   score?: {
     correct: number;
     total: number;
@@ -810,6 +812,47 @@ export default function FormResponses() {
                           )}
                         </p>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedResponse.childResponses && selectedResponse.childResponses.length > 0 && (
+                  <div className="mt-8 pt-8 border-t-2 border-primary-200">
+                    <h4 className="text-lg font-semibold text-primary-700 mb-4 flex items-center">
+                      <span className="text-purple-600 mr-2">📄</span>
+                      Follow-up Form Responses ({selectedResponse.childResponses.length})
+                    </h4>
+                    <div className="space-y-6">
+                      {selectedResponse.childResponses.map((childResponse, idx) => (
+                        <div key={childResponse.id} className="bg-purple-50 border-2 border-purple-200 rounded-lg p-4">
+                          <div className="mb-4 pb-3 border-b border-purple-200">
+                            <h5 className="font-semibold text-purple-900">
+                              Follow-up Form Response {idx + 1}
+                            </h5>
+                            <div className="text-sm text-purple-700 mt-1">
+                              {formatTimestamp(childResponse.createdAt)}
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            {Object.entries(childResponse.answers).map(
+                              ([key, value]) => (
+                                <div key={key}>
+                                  <div className="text-sm font-medium text-purple-800 mb-1">
+                                    {getQuestionText(key)}
+                                  </div>
+                                  <div className="text-sm text-purple-700 bg-white p-2 rounded border border-purple-100">
+                                    {Array.isArray(value)
+                                      ? value.join(", ")
+                                      : typeof value === "object"
+                                      ? JSON.stringify(value, null, 2)
+                                      : String(value)}
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}

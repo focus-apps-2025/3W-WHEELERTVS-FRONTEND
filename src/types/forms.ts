@@ -15,6 +15,8 @@ export interface Section {
   title: string;
   description?: string;
   questions: FollowUpQuestion[];
+  linkedToOption?: string;
+  linkedToQuestionId?: string;
 }
 
 export interface FollowUpQuestion {
@@ -49,6 +51,15 @@ export interface Question {
   parentFormId?: string;
   parentFormTitle?: string;
   locationEnabled?: boolean;
+  followUpConfig?: Record<
+    string,
+    {
+      hasFollowUp: boolean;
+      required: boolean;
+      linkedSectionId?: string;
+      linkedFormId?: string;
+    }
+  >;
 }
 
 export interface Response {

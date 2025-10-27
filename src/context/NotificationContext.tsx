@@ -146,9 +146,29 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({
       confirmText?: string,
       cancelText?: string
     ) => {
+      // Validate parameters to prevent runtime errors
+      if (typeof message !== "string") {
+        console.error(
+          "[NotificationContext] showConfirm called with invalid message:",
+          message
+        );
+        return;
+      }
+
+      if (typeof onConfirm !== "function") {
+        console.error(
+          "[NotificationContext] showConfirm called with invalid onConfirm callback:",
+          onConfirm
+        );
+        return;
+      }
+
+      // Ensure title is a string or undefined
+      const safeTitle = typeof title === "string" ? title : undefined;
+
       showNotification({
         type: "confirm",
-        title: title || "Confirm Action",
+        title: safeTitle || "Confirm Action",
         message,
         onConfirm,
         confirmText: confirmText || "Confirm",

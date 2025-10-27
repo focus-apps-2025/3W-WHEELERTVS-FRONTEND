@@ -108,7 +108,7 @@ export default function ResponseForm({
   }
 
   // Use sections from the form
-  const formSections =
+  const allFormSections =
     question.sections && question.sections.length > 0
       ? question.sections
       : [
@@ -120,7 +120,62 @@ export default function ResponseForm({
           },
         ];
 
-  console.log("Form sections:", formSections);
+  const getAvailableSections = () => {
+    const baseSections: typeof allFormSections = [];
+    const linkedSections: typeof allFormSections = [];
+
+    for (const section of allFormSections) {
+      if (!section.linkedToOption && !section.linkedToQuestionId) {
+        baseSections.push(section);
+      } else {
+        for (const question of allFormSections
+          .flatMap((s) => s.questions)
+          .filter((q) => !q.showWhen)) {
+          const answer = answers[question.id];
+          if (answer && question.followUpConfig?.[answer]?.linkedSectionId === section.id) {
+            linkedSections.push(section);
+            break;
+          }
+        }
+      }
+    }
+
+    const result: typeof allFormSections = [];
+    const addedSectionIds = new Set<string>();
+
+    for (const baseSection of baseSections) {
+      result.push(baseSection);
+      addedSectionIds.add(baseSection.id);
+
+      for (const question of baseSection.questions.filter((q) => !q.showWhen)) {
+        const answer = answers[question.id];
+        if (answer && question.followUpConfig?.[answer]?.linkedSectionId) {
+          const linkedSectionId = question.followUpConfig[answer].linkedSectionId;
+          const linkedSection = linkedSections.find(
+            (s) => s.id === linkedSectionId && !addedSectionIds.has(s.id)
+          );
+          if (linkedSection) {
+            result.push(linkedSection);
+            addedSectionIds.add(linkedSection.id);
+          }
+        }
+      }
+    }
+
+    for (const linkedSection of linkedSections) {
+      if (!addedSectionIds.has(linkedSection.id)) {
+        result.push(linkedSection);
+        addedSectionIds.add(linkedSection.id);
+      }
+    }
+
+    return result;
+  };
+
+  const formSections = getAvailableSections();
+
+  console.log("All form sections:", allFormSections);
+  console.log("Available sections:", formSections);
   console.log("Current answers:", answers);
 
   // Debug: Log all questions in current section
@@ -187,6 +242,47 @@ export default function ResponseForm({
     );
   }
 
+  const findLinkedFormInAnswers = (): string | null => {
+    const checkQuestionRecursively = (
+      q: any,
+      answers: Record<string, any>
+    ): string | null => {
+      const answer = answers[q.id];
+      
+      if (answer && q.followUpConfig?.[answer]?.linkedFormId) {
+        return q.followUpConfig[answer].linkedFormId;
+      }
+
+      if (
+        q.followUpQuestions &&
+        Array.isArray(q.followUpQuestions) &&
+        answer
+      ) {
+        for (const followUp of q.followUpQuestions) {
+          if (
+            followUp.showWhen?.questionId === q.id &&
+            followUp.showWhen?.value === answer
+          ) {
+            const result = checkQuestionRecursively(followUp, answers);
+            if (result) return result;
+          }
+        }
+      }
+
+      return null;
+    };
+
+    for (const section of allFormSections) {
+      for (const q of section.questions) {
+        if (!q.showWhen) {
+          const result = checkQuestionRecursively(q, answers);
+          if (result) return result;
+        }
+      }
+    }
+    return null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -226,6 +322,15 @@ export default function ResponseForm({
       // Also save to local storage for backward compatibility
       responsesApi.save(response);
 
+      // Check if there's a follow-up form linked to any selected option
+      const linkedFormId = findLinkedFormInAnswers();
+      if (linkedFormId) {
+        setTimeout(() => {
+          navigate(`/forms/${linkedFormId}/respond?parentResponse=${response.id}`);
+        }, 500);
+        return;
+      }
+
       if (onSubmit) {
         onSubmit(response);
       }
@@ -245,6 +350,8 @@ export default function ResponseForm({
 
   const handleNext = () => {
     const currentSection = formSections[currentSectionIndex];
+    if (!currentSection) return;
+
     const visibleQuestions = getOrderedVisibleQuestions(
       currentSection.questions,
       answers
@@ -260,14 +367,24 @@ export default function ResponseForm({
       return;
     }
 
-    setCurrentSectionIndex((prev) => prev + 1);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (currentSectionIndex + 1 < formSections.length) {
+      setCurrentSectionIndex((prev) => prev + 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const handlePrevious = () => {
-    setCurrentSectionIndex((prev) => prev - 1);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (currentSectionIndex > 0) {
+      setCurrentSectionIndex((prev) => prev - 1);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
+
+  useEffect(() => {
+    if (currentSectionIndex >= formSections.length && formSections.length > 0) {
+      setCurrentSectionIndex(formSections.length - 1);
+    }
+  }, [formSections.length]);
 
   const currentSection = formSections[currentSectionIndex];
   const isLastSection = currentSectionIndex === formSections.length - 1;

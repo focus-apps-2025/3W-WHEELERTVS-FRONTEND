@@ -85,24 +85,24 @@ export default function Sidebar() {
       path: "/responses/all",
       description: "View customer service requests",
     },
-    // {
-    //   title: "Request Management",
-    //   icon: ListTodo,
-    //   path: "/forms/management",
-    //   description: "Manage and organize service requests",
-    // },
-    // {
-    //   title: "Shop Settings",
-    //   icon: Settings,
-    //   path: "/system/management",
-    //   description: "Configure shop settings and preferences",
-    // },
-    // {
-    //   title: "Email System",
-    //   icon: Mail,
-    //   path: "/mail/test",
-    //   description: "Test and configure email notifications",
-    // },
+    {
+      title: "Request Management",
+      icon: ListTodo,
+      path: "/forms/management",
+      description: "Manage and organize service requests",
+    },
+    {
+      title: "Shop Settings",
+      icon: Settings,
+      path: "/system/management",
+      description: "Configure shop settings and preferences",
+    },
+    {
+      title: "Email System",
+      icon: Mail,
+      path: "/mail/test",
+      description: "Test and configure email notifications",
+    },
   ];
 
   // Determine which menu items to show based on user role

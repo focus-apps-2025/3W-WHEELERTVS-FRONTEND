@@ -1,5 +1,5 @@
-import React from "react";
-import { Trash2, Plus, X } from "lucide-react";
+import React, { useState } from "react";
+import { Trash2, Plus, X, MoreVertical } from "lucide-react";
 
 interface ShowWhen {
   questionId: string;
@@ -63,6 +63,18 @@ interface NestedFollowUpRendererProps {
     optionIndex: number,
     path: string[]
   ) => void;
+  onAddFollowUpSection?: (
+    sectionId: string,
+    parentQuestionId: string,
+    triggerValue: string,
+    path: string[]
+  ) => void;
+  onAddFollowUpForm?: (
+    sectionId: string,
+    parentQuestionId: string,
+    triggerValue: string,
+    path: string[]
+  ) => void;
   questionTypes: Array<{
     value: string;
     label: string;
@@ -82,9 +94,27 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
   onAddOption,
   onUpdateOption,
   onRemoveOption,
+  onAddFollowUpSection,
+  onAddFollowUpForm,
   questionTypes,
   depth = 0,
 }) => {
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+
+  const toggleMenu = (menuId: string) => {
+    setOpenMenus((prev) => ({
+      ...prev,
+      [menuId]: !prev[menuId],
+    }));
+  };
+
+  const closeMenu = (menuId: string) => {
+    setOpenMenus((prev) => ({
+      ...prev,
+      [menuId]: false,
+    }));
+  };
+
   const requiresFollowUp = (type: string): boolean => {
     return ["radio", "checkbox", "select", "search-select"].includes(type);
   };
@@ -322,34 +352,100 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                 </label>
                 <div className="space-y-2">
                   {followUpQ.options?.map((option, index) => (
-                    <div key={index} className="flex items-center space-x-2">
-                      <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 text-gray-600 rounded-lg text-xs font-medium">
-                        {index + 1}
-                      </span>
-                      <input
-                        type="text"
-                        value={option}
-                        onChange={(e) =>
-                          onUpdateOption(
-                            sectionId,
-                            followUpQ.id,
-                            index,
-                            e.target.value,
-                            path
-                          )
-                        }
-                        className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
-                        placeholder={`Option ${index + 1}`}
-                      />
-                      <button
-                        onClick={() =>
-                          onRemoveOption(sectionId, followUpQ.id, index, path)
-                        }
-                        className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
-                        title="Remove option"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                    <div key={index} className="relative">
+                      <div className="flex items-center space-x-2">
+                        <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 text-gray-600 rounded-lg text-xs font-medium">
+                          {index + 1}
+                        </span>
+                        <input
+                          type="text"
+                          value={option}
+                          onChange={(e) =>
+                            onUpdateOption(
+                              sectionId,
+                              followUpQ.id,
+                              index,
+                              e.target.value,
+                              path
+                            )
+                          }
+                          className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                          placeholder={`Option ${index + 1}`}
+                        />
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => toggleMenu(`${followUpQ.id}-${index}`)}
+                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                            title="More options"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+
+                          {openMenus[`${followUpQ.id}-${index}`] && (
+                            <div className="absolute top-10 right-0 bg-white border border-gray-200 rounded-lg shadow-md z-50 min-w-max">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  onAddNested(sectionId, followUpQ.id, option, [
+                                    ...path,
+                                    followUpQ.id,
+                                  ]);
+                                  closeMenu(`${followUpQ.id}-${index}`);
+                                }}
+                                className="block w-full text-left px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 transition-colors first:rounded-t-lg"
+                              >
+                                Add a question for this option
+                              </button>
+
+                              {onAddFollowUpSection && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onAddFollowUpSection(
+                                      sectionId,
+                                      followUpQ.id,
+                                      option,
+                                      [...path, followUpQ.id]
+                                    );
+                                    closeMenu(`${followUpQ.id}-${index}`);
+                                  }}
+                                  className="block w-full text-left px-4 py-2.5 text-sm text-green-600 hover:bg-green-50 transition-colors"
+                                >
+                                  Add a section for this option
+                                </button>
+                              )}
+
+                              {onAddFollowUpForm && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    onAddFollowUpForm(
+                                      sectionId,
+                                      followUpQ.id,
+                                      option,
+                                      [...path, followUpQ.id]
+                                    );
+                                    closeMenu(`${followUpQ.id}-${index}`);
+                                  }}
+                                  className="block w-full text-left px-4 py-2.5 text-sm text-purple-600 hover:bg-purple-50 transition-colors last:rounded-b-lg"
+                                >
+                                  Link a form for this option
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() =>
+                            onRemoveOption(sectionId, followUpQ.id, index, path)
+                          }
+                          className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
+                          title="Remove option"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                   <button
@@ -439,41 +535,12 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                       onAddOption={onAddOption}
                       onUpdateOption={onUpdateOption}
                       onRemoveOption={onRemoveOption}
+                      onAddFollowUpSection={onAddFollowUpSection}
+                      onAddFollowUpForm={onAddFollowUpForm}
                       questionTypes={questionTypes}
                       depth={depth + 1}
                     />
                   )}
-
-                {/* Add nested follow-up buttons */}
-                <div className="space-y-2 mt-3">
-                  <p className="text-xs text-gray-600 font-medium mb-2">
-                    Add follow-up questions for specific answers:
-                  </p>
-                  {followUpQ.options?.map((option, optIndex) => (
-                    <button
-                      key={optIndex}
-                      onClick={() => {
-                        console.log("Add nested follow-up clicked:", {
-                          sectionId,
-                          followUpQId: followUpQ.id,
-                          option,
-                          path: [...path, followUpQ.id],
-                        });
-                        onAddNested(sectionId, followUpQ.id, option, [
-                          ...path,
-                          followUpQ.id,
-                        ]);
-                      }}
-                      className="w-full flex items-center justify-between px-4 py-2.5 text-sm border-2 border-green-300 rounded-lg text-green-700 hover:bg-green-50 hover:border-green-500 transition-all duration-200 font-medium"
-                    >
-                      <span>
-                        If answer is:{" "}
-                        <span className="font-semibold">"{option}"</span>
-                      </span>
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  ))}
-                </div>
               </div>
             )}
         </div>

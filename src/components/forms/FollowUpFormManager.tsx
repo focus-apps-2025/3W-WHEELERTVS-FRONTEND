@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { FormWithFollowUpCreator } from "./FormWithFollowUpCreator";
 import { FormWithFollowUpResponder } from "./FormWithFollowUpResponder";
+import { SectionFollowUpCreator } from "./SectionFollowUpCreator";
 import formWithFollowUpService, {
   FollowUpConfig,
 } from "../../api/formWithFollowUpService";
@@ -51,7 +52,7 @@ interface FormListItem extends Form {
   followUpConfig?: Record<string, FollowUpConfig>;
 }
 
-type ViewMode = "list" | "create" | "edit" | "respond" | "analytics" | "config";
+type ViewMode = "list" | "create" | "edit" | "respond" | "analytics" | "config" | "create-sections";
 
 interface FollowUpFormManagerProps {
   initialView?: ViewMode;
@@ -256,13 +257,22 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
           </p>
         </div>
 
-        <button
-          onClick={() => setCurrentView("create")}
-          className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create New Form
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setCurrentView("create")}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create New Form
+          </button>
+          <button
+            onClick={() => setCurrentView("create-sections")}
+            className="flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Sections Form
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -529,6 +539,21 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
             />
           </div>
         ) : null;
+
+      case "create-sections":
+        return (
+          <div>
+            <div className="mb-6">
+              <button
+                onClick={() => setCurrentView("list")}
+                className="flex items-center text-blue-600 hover:text-blue-800"
+              >
+                ← Back to Forms
+              </button>
+            </div>
+            <SectionFollowUpCreator />
+          </div>
+        );
 
       case "config":
         return selectedForm ? (

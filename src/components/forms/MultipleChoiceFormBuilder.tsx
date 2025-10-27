@@ -37,7 +37,15 @@ interface FormQuestion {
   required: boolean;
   options?: string[];
   followUpQuestions?: FollowUpQuestion[];
-  followUpConfig?: Record<string, { hasFollowUp: boolean; required: boolean }>;
+  followUpConfig?: Record<
+    string,
+    {
+      hasFollowUp: boolean;
+      required: boolean;
+      linkedFormId?: string;
+      goToSection?: string;
+    }
+  >;
 }
 
 interface FormData {
@@ -111,7 +119,13 @@ export const MultipleChoiceFormBuilder: React.FC<
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [openMenuOption, setOpenMenuOption] = useState<string | null>(null);
+  const [sectionModal, setSectionModal] = useState<{
+    isOpen: boolean;
+    sectionIndex: number;
+    questionIndex: number;
+    option: string;
+  } | null>(null);
+  const [openOptionMenu, setOpenOptionMenu] = useState<string | null>(null);
 
   const handleFormFieldChange = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -150,6 +164,83 @@ export const MultipleChoiceFormBuilder: React.FC<
               ),
             }
           : section
+      ),
+    }));
+  };
+
+  const addSection = () => {
+    const newSectionId = `section${formData.sections.length + 1}`;
+    const newSection: FormSection = {
+      id: newSectionId,
+      title: "",
+      description: "",
+      questions: [
+        {
+          id: `q${Date.now()}`,
+          text: "",
+          type: "shortText",
+          required: false,
+        },
+      ],
+    };
+
+    setFormData((prev) => ({
+      ...prev,
+      sections: [...prev.sections, newSection],
+    }));
+  };
+
+  const removeSection = (sectionIndex: number) => {
+    if (formData.sections.length <= 1) {
+      setError("At least one section is required");
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.filter((_, index) => index !== sectionIndex),
+    }));
+  };
+
+  const addQuestion = (sectionIndex: number) => {
+    const newQuestion: FormQuestion = {
+      id: `q${Date.now()}`,
+      text: "",
+      type: "shortText",
+      required: false,
+    };
+
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section, index) =>
+        index === sectionIndex
+          ? {
+              ...section,
+              questions: [...section.questions, newQuestion],
+            }
+          : section
+      ),
+    }));
+  };
+
+  const removeQuestion = (sectionIndex: number, questionIndex: number) => {
+    const section = formData.sections[sectionIndex];
+    if (section.questions.length <= 1) {
+      setError("At least one question is required per section");
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((sec, sIndex) =>
+        sIndex === sectionIndex
+          ? {
+              ...sec,
+              questions: sec.questions.filter(
+                (_, qIndex) => qIndex !== questionIndex
+              ),
+            }
+          : sec
       ),
     }));
   };
@@ -302,6 +393,118 @@ export const MultipleChoiceFormBuilder: React.FC<
                       followUpConfig: {
                         ...(q.followUpConfig || {}),
                         [option]: { hasFollowUp: true, required: false },
+                      },
+                    }
+                  : q
+              ),
+            }
+          : section
+      ),
+    }));
+  };
+
+  const linkFollowUpSection = (
+    sectionIndex: number,
+    questionIndex: number,
+    option: string
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section, sIndex) =>
+        sIndex === sectionIndex
+          ? {
+              ...section,
+              questions: section.questions.map((q, qIndex) =>
+                qIndex === questionIndex
+                  ? {
+                      ...q,
+                      followUpConfig: {
+                        ...Object.keys(q.followUpConfig || {}).reduce(
+                          (acc, key) => ({
+                            ...acc,
+                            [key]: {
+                              hasFollowUp: false,
+                              required: false,
+                              linkedFormId: undefined,
+                            },
+                          }),
+                          {}
+                        ),
+                        [option]: {
+                          hasFollowUp: true,
+                          required: false,
+                          linkedFormId: undefined,
+                        },
+                      },
+                    }
+                  : q
+              ),
+            }
+          : section
+      ),
+    }));
+  };
+
+  const linkFollowUpForm = (
+    sectionIndex: number,
+    questionIndex: number,
+    option: string,
+    linkedFormId: string
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section, sIndex) =>
+        sIndex === sectionIndex
+          ? {
+              ...section,
+              questions: section.questions.map((q, qIndex) =>
+                qIndex === questionIndex
+                  ? {
+                      ...q,
+                      followUpConfig: {
+                        ...q.followUpConfig,
+                        [option]: {
+                          ...(q.followUpConfig?.[option] || {
+                            hasFollowUp: false,
+                            required: false,
+                          }),
+                          linkedFormId: linkedFormId || undefined,
+                        },
+                      },
+                    }
+                  : q
+              ),
+            }
+          : section
+      ),
+    }));
+  };
+
+  const updateGoToSection = (
+    sectionIndex: number,
+    questionIndex: number,
+    option: string,
+    targetSectionId: string
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((section, sIndex) =>
+        sIndex === sectionIndex
+          ? {
+              ...section,
+              questions: section.questions.map((q, qIndex) =>
+                qIndex === questionIndex
+                  ? {
+                      ...q,
+                      followUpConfig: {
+                        ...q.followUpConfig,
+                        [option]: {
+                          ...(q.followUpConfig?.[option] || {
+                            hasFollowUp: false,
+                            required: false,
+                          }),
+                          goToSection: targetSectionId || undefined,
+                        },
                       },
                     }
                   : q
@@ -558,9 +761,21 @@ export const MultipleChoiceFormBuilder: React.FC<
         {/* Sections */}
         {formData.sections.map((section, sectionIndex) => (
           <div key={section.id} className="bg-gray-50 p-6 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
-              Section {sectionIndex + 1}
-            </h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-800">
+                Section {sectionIndex + 1}
+              </h3>
+              {formData.sections.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeSection(sectionIndex)}
+                  className="flex items-center px-3 py-1.5 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete Section
+                </button>
+              )}
+            </div>
 
             <div className="space-y-4">
               <div>
@@ -616,6 +831,23 @@ export const MultipleChoiceFormBuilder: React.FC<
                     key={question.id}
                     className="border border-gray-200 p-4 rounded-lg mb-4 bg-white"
                   >
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-sm font-medium text-gray-600">
+                        Question {questionIndex + 1}
+                      </span>
+                      {section.questions.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            removeQuestion(sectionIndex, questionIndex)
+                          }
+                          className="flex items-center px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" />
+                          Delete
+                        </button>
+                      )}
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
                         <label
@@ -757,124 +989,206 @@ export const MultipleChoiceFormBuilder: React.FC<
                             Options (one per line)
                           </label>
 
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             {question.options.map((option, optionIndex) => {
-                              const menuKey = `${sectionIndex}-${questionIndex}-${optionIndex}`;
-                              const isMenuOpen = openMenuOption === menuKey;
+                              const currentGoToSection =
+                                question.followUpConfig?.[option]?.goToSection;
 
                               return (
-                                <div
-                                  key={optionIndex}
-                                  className="flex items-center space-x-2"
-                                >
-                                  <input
-                                    aria-label={`Option ${optionIndex + 1}`}
-                                    type="text"
-                                    value={option}
-                                    onChange={(e) =>
-                                      updateOption(
-                                        sectionIndex,
-                                        questionIndex,
-                                        optionIndex,
-                                        e.target.value
-                                      )
-                                    }
-                                    placeholder={`Option ${optionIndex + 1}`}
-                                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                  />
-
-                                  {question.options &&
-                                    question.options.length > 2 && (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          removeOption(
-                                            sectionIndex,
-                                            questionIndex,
-                                            optionIndex
-                                          )
-                                        }
-                                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                                        aria-label="Remove option"
-                                      >
-                                        <Minus className="h-4 w-4" />
-                                      </button>
-                                    )}
-
-                                  {/* Three dots menu */}
-                                  <div className="relative">
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setOpenMenuOption(
-                                          isMenuOpen ? null : menuKey
+                                <div key={optionIndex} className="space-y-2">
+                                  <div className="flex items-center space-x-2">
+                                    <input
+                                      aria-label={`Option ${optionIndex + 1}`}
+                                      type="text"
+                                      value={option}
+                                      onChange={(e) =>
+                                        updateOption(
+                                          sectionIndex,
+                                          questionIndex,
+                                          optionIndex,
+                                          e.target.value
                                         )
                                       }
-                                      className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-lg transition-colors"
-                                      aria-label={`Options for ${option}`}
+                                      placeholder={`Option ${optionIndex + 1}`}
+                                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    />
+
+                                    {question.options &&
+                                      question.options.length > 2 && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            removeOption(
+                                              sectionIndex,
+                                              questionIndex,
+                                              optionIndex
+                                            )
+                                          }
+                                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                                          aria-label="Remove option"
+                                        >
+                                          <Minus className="h-4 w-4" />
+                                        </button>
+                                      )}
+                                  </div>
+
+                                  {/* Follow-up Action Menu */}
+                                  <div className="ml-8 flex items-center gap-2 mt-2 relative">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const menuId = `${sectionIndex}-${questionIndex}-${optionIndex}`;
+                                        setOpenOptionMenu(openOptionMenu === menuId ? null : menuId);
+                                      }}
+                                      className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors relative"
+                                      title="More actions"
                                     >
-                                      <MoreVertical className="h-4 w-4" />
+                                      <MoreVertical className="w-4 h-4" />
                                     </button>
 
-                                    {/* Dropdown menu */}
-                                    {isMenuOpen && (
-                                      <>
-                                        {/* Backdrop to close menu */}
-                                        <div
-                                          className="fixed inset-0 z-10"
-                                          onClick={() =>
-                                            setOpenMenuOption(null)
-                                          }
-                                        />
-
-                                        <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-20">
-                                          <div className="py-1">
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                addFollowUp(
-                                                  sectionIndex,
-                                                  questionIndex,
-                                                  option
-                                                );
-                                                setOpenMenuOption(null);
-                                              }}
-                                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                            >
-                                              📝 Follow-up Question
-                                            </button>
-
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                // TODO: Implement follow-up section logic
-                                                alert(
-                                                  "Follow-up Section feature coming soon!"
-                                                );
-                                                setOpenMenuOption(null);
-                                              }}
-                                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                            >
-                                              📋 Follow-up Section
-                                            </button>
-
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                // TODO: Implement follow-up form logic
-                                                alert(
-                                                  "Follow-up Form feature coming soon!"
-                                                );
-                                                setOpenMenuOption(null);
-                                              }}
-                                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                                            >
-                                              📄 Follow-up Form
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </>
+                                    {openOptionMenu === `${sectionIndex}-${questionIndex}-${optionIndex}` && (
+                                      <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-max">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            addFollowUp(
+                                              sectionIndex,
+                                              questionIndex,
+                                              option
+                                            );
+                                            setOpenOptionMenu(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                                        >
+                                          Add a question for this option
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            console.log(
+                                              "Opening section modal for option:",
+                                              option
+                                            );
+                                            console.log(
+                                              "Available sections:",
+                                              formData.sections.length
+                                            );
+                                            setSectionModal({
+                                              isOpen: true,
+                                              sectionIndex,
+                                              questionIndex,
+                                              option,
+                                            });
+                                            setOpenOptionMenu(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 transition-colors"
+                                        >
+                                          Add a section for this option
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const isLinked =
+                                              section.questions[questionIndex]
+                                                .followUpConfig?.[option]
+                                                ?.hasFollowUp;
+                                            if (!isLinked) {
+                                              alert(
+                                                "Please link a follow-up section first before linking a form"
+                                              );
+                                              return;
+                                            }
+                                            const formId =
+                                              (window as any).formId ||
+                                              "current-form";
+                                            const forms =
+                                              (window as any).availableForms || [];
+                                            if (forms.length === 0) {
+                                              alert(
+                                                "No other forms available to link"
+                                              );
+                                              return;
+                                            }
+                                            const selectedFormId = prompt(
+                                              "Enter the ID of the form to link (or paste form ID)"
+                                            );
+                                            if (selectedFormId) {
+                                              linkFollowUpForm(
+                                                sectionIndex,
+                                                questionIndex,
+                                                option,
+                                                selectedFormId
+                                              );
+                                              alert("Form linked successfully!");
+                                            }
+                                            setOpenOptionMenu(null);
+                                          }}
+                                          className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                                        >
+                                          Link a form for this option
+                                        </button>
+                                      </div>
                                     )}
+                                  </div>
+
+                                  {/* Go to Section Display */}
+                                  <div className="ml-8 flex items-center space-x-2">
+                                    <div className="flex-1 text-xs text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                                      {currentGoToSection ? (
+                                        currentGoToSection === "submit" ? (
+                                          <span className="text-purple-600 font-medium">
+                                            ✅ Submit form
+                                          </span>
+                                        ) : (
+                                          <span className="text-green-600 font-medium">
+                                            ➡️ Jump to{" "}
+                                            {formData.sections.findIndex(
+                                              (s) => s.id === currentGoToSection
+                                            ) !== -1
+                                              ? `Section ${
+                                                  formData.sections.findIndex(
+                                                    (s) =>
+                                                      s.id ===
+                                                      currentGoToSection
+                                                  ) + 1
+                                                }${
+                                                  formData.sections.find(
+                                                    (s) =>
+                                                      s.id ===
+                                                      currentGoToSection
+                                                  )?.title
+                                                    ? `: ${
+                                                        formData.sections.find(
+                                                          (s) =>
+                                                            s.id ===
+                                                            currentGoToSection
+                                                        )?.title
+                                                      }`
+                                                    : ""
+                                                }`
+                                              : "Unknown section"}
+                                          </span>
+                                        )
+                                      ) : (
+                                        <span className="text-gray-500">
+                                          ➡️ Continue to next section
+                                        </span>
+                                      )}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSectionModal({
+                                          isOpen: true,
+                                          sectionIndex,
+                                          questionIndex,
+                                          option,
+                                        });
+                                      }}
+                                      className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
+                                    >
+                                      {currentGoToSection ? "Change" : "Set"}
+                                    </button>
                                   </div>
                                 </div>
                               );
@@ -1009,10 +1323,32 @@ export const MultipleChoiceFormBuilder: React.FC<
                       )}
                   </div>
                 ))}
+
+                {/* Add Question Button */}
+                <button
+                  type="button"
+                  onClick={() => addQuestion(sectionIndex)}
+                  className="mt-4 flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Question to Section {sectionIndex + 1}
+                </button>
               </div>
             </div>
           </div>
         ))}
+
+        {/* Add Section Button */}
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={addSection}
+            className="flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-lg"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            Add New Section
+          </button>
+        </div>
 
         {/* Action Buttons */}
         <div className="flex justify-end space-x-4">
@@ -1036,6 +1372,154 @@ export const MultipleChoiceFormBuilder: React.FC<
           </button>
         </div>
       </div>
+
+      {/* Section Selection Modal */}
+      {sectionModal?.isOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={(e) => {
+            // Close modal if clicking on backdrop
+            if (e.target === e.currentTarget) {
+              setSectionModal(null);
+            }
+          }}
+        >
+          <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-green-600 to-green-500 px-6 py-4 text-white">
+              <h3 className="text-xl font-semibold">
+                Select Section to Jump To
+              </h3>
+              <p className="text-sm text-green-50 mt-1">
+                When "{sectionModal.option}" is selected, go to:
+              </p>
+              <p className="text-xs text-green-100 mt-2">
+                📋 {formData.sections.length} section
+                {formData.sections.length !== 1 ? "s" : ""} available
+              </p>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="space-y-3">
+                {/* Continue to Next Section Option */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateGoToSection(
+                      sectionModal.sectionIndex,
+                      sectionModal.questionIndex,
+                      sectionModal.option,
+                      ""
+                    );
+                    setSectionModal(null);
+                  }}
+                  className="w-full text-left p-4 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-gray-900 group-hover:text-blue-700">
+                        ➡️ Continue to Next Section
+                      </div>
+                      <div className="text-sm text-gray-500 mt-1">
+                        Follow the default sequential flow
+                      </div>
+                    </div>
+                  </div>
+                </button>
+
+                {/* All Available Sections */}
+                {formData.sections.map((section, index) => {
+                  const isCurrentSection = index === sectionModal.sectionIndex;
+                  return (
+                    <button
+                      key={section.id}
+                      type="button"
+                      onClick={() => {
+                        updateGoToSection(
+                          sectionModal.sectionIndex,
+                          sectionModal.questionIndex,
+                          sectionModal.option,
+                          section.id
+                        );
+                        setSectionModal(null);
+                      }}
+                      disabled={isCurrentSection}
+                      className={`w-full text-left p-4 border-2 rounded-lg transition-all ${
+                        isCurrentSection
+                          ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
+                          : "border-green-300 hover:border-green-500 hover:bg-green-50 group"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div
+                            className={`font-semibold ${
+                              isCurrentSection
+                                ? "text-gray-500"
+                                : "text-gray-900 group-hover:text-green-700"
+                            }`}
+                          >
+                            📋 Section {index + 1}
+                            {section.title && `: ${section.title}`}
+                          </div>
+                          <div className="text-sm text-gray-500 mt-1">
+                            {section.questions.length} question
+                            {section.questions.length !== 1 ? "s" : ""}
+                            {section.description && ` • ${section.description}`}
+                          </div>
+                          {isCurrentSection && (
+                            <div className="text-xs text-orange-600 mt-1">
+                              ⚠️ Cannot jump to current section
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+
+                {/* Submit Form Option */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    updateGoToSection(
+                      sectionModal.sectionIndex,
+                      sectionModal.questionIndex,
+                      sectionModal.option,
+                      "submit"
+                    );
+                    setSectionModal(null);
+                  }}
+                  className="w-full text-left p-4 border-2 border-purple-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all group"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-gray-900 group-hover:text-purple-700">
+                        ✅ Submit Form
+                      </div>
+                      <div className="text-sm text-gray-500 mt-1">
+                        End the form immediately after this answer
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSectionModal(null)}
+                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

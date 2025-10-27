@@ -46,6 +46,14 @@ interface Question {
   showWhen?: ShowWhen;
   parentId?: string;
   correctAnswer?: string;
+  followUpConfig?: Record<
+    string,
+    {
+      hasFollowUp: boolean;
+      required: boolean;
+      linkedFormId?: string;
+    }
+  >;
 }
 
 interface ShowWhen {
@@ -79,6 +87,20 @@ export default function FormCreator() {
   const [selectedTenantId, setSelectedTenantId] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(0); // For multi-page navigation
   const [openOptionMenu, setOpenOptionMenu] = useState<string | null>(null); // Track which option's menu is open
+  const [showSectionSelector, setShowSectionSelector] = useState(false); // Show modal for selecting a section
+  const [pendingSectionLink, setPendingSectionLink] = useState<{
+    sectionId: string;
+    parentQuestionId: string;
+    triggerValue: string;
+    path: string[];
+  } | null>(null);
+  const [showFormSelector, setShowFormSelector] = useState(false); // Show modal for selecting a form
+  const [pendingFormLink, setPendingFormLink] = useState<{
+    sectionId: string;
+    parentQuestionId: string;
+    triggerValue: string;
+    path: string[];
+  } | null>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -867,6 +889,71 @@ export default function FormCreator() {
     });
   };
 
+  const linkFollowUpSection = (
+    sectionId: string,
+    parentQuestionId: string,
+    option: string
+  ) => {
+    // Show section selector modal
+    setPendingSectionLink({
+      sectionId,
+      parentQuestionId,
+      triggerValue: option,
+      path: [],
+    });
+    setShowSectionSelector(true);
+  };
+
+  const linkFollowUpForm = (
+    sectionId: string,
+    parentQuestionId: string,
+    option: string,
+    linkedFormId?: string
+  ) => {
+    if (linkedFormId) {
+      // Direct form linking from modal
+      const section = form.sections.find((s) => s.id === sectionId);
+      if (!section) return;
+
+      const parentQuestion = section.questions.find(
+        (q) => q.id === parentQuestionId
+      );
+      if (!parentQuestion) return;
+
+      const existingConfig = parentQuestion.followUpConfig?.[option] || {
+        hasFollowUp: true,
+        required: false,
+      };
+
+      const updatedParentQuestion = {
+        ...parentQuestion,
+        followUpConfig: {
+          ...parentQuestion.followUpConfig,
+          [option]: {
+            ...existingConfig,
+            linkedFormId: linkedFormId,
+          },
+        },
+      };
+
+      updateSection(sectionId, {
+        questions: section.questions.map((q) =>
+          q.id === parentQuestionId ? updatedParentQuestion : q
+        ),
+      });
+      showSuccess(`Form linked successfully for "${option}"`);
+    } else {
+      // Show form selector modal
+      setPendingFormLink({
+        sectionId,
+        parentQuestionId,
+        triggerValue: option,
+        path: [],
+      });
+      setShowFormSelector(true);
+    }
+  };
+
   const addFollowUpQuestion = (
     sectionId: string,
     parentQuestionId: string,
@@ -1050,6 +1137,148 @@ export default function FormCreator() {
     updateSection(sectionId, {
       questions: updatedQuestions as Question[],
     });
+  };
+
+  const handleAddFollowUpSection = (
+    sectionId: string,
+    parentQuestionId: string,
+    triggerValue: string,
+    path: string[]
+  ) => {
+    setPendingSectionLink({
+      sectionId,
+      parentQuestionId,
+      triggerValue,
+      path,
+    });
+    setShowSectionSelector(true);
+  };
+
+  const handleSelectSectionForLink = (selectedSectionId: string) => {
+    if (!pendingSectionLink) return;
+
+    const section = form.sections.find(
+      (s) => s.id === pendingSectionLink.sectionId
+    );
+    if (!section) {
+      showError("Section not found");
+      return;
+    }
+
+    const updateFollowUpConfig = (
+      questions: (Question | FollowUpQuestion)[],
+      pathIndex: number = 0
+    ): (Question | FollowUpQuestion)[] => {
+      return questions.map((q) => {
+        if (
+          pathIndex < pendingSectionLink.path.length &&
+          q.id === pendingSectionLink.path[pathIndex]
+        ) {
+          if (pathIndex === pendingSectionLink.path.length - 1) {
+            return {
+              ...q,
+              followUpConfig: {
+                ...(q.followUpConfig || {}),
+                [pendingSectionLink.triggerValue]: {
+                  hasFollowUp: true,
+                  required: false,
+                  linkedSectionId: selectedSectionId,
+                },
+              },
+            };
+          } else {
+            return {
+              ...q,
+              followUpQuestions: updateFollowUpConfig(
+                q.followUpQuestions || [],
+                pathIndex + 1
+              ),
+            };
+          }
+        }
+        return q;
+      });
+    };
+
+    const updatedQuestions = updateFollowUpConfig(section.questions, 0);
+    updateSection(pendingSectionLink.sectionId, {
+      questions: updatedQuestions as Question[],
+    });
+
+    setShowSectionSelector(false);
+    setPendingSectionLink(null);
+    showSuccess(`Section linked successfully`);
+  };
+
+  const handleAddFollowUpForm = (
+    sectionId: string,
+    parentQuestionId: string,
+    triggerValue: string,
+    path: string[]
+  ) => {
+    setPendingFormLink({
+      sectionId,
+      parentQuestionId,
+      triggerValue,
+      path,
+    });
+    setShowFormSelector(true);
+  };
+
+  const handleSelectFormForLink = (selectedFormId: string) => {
+    if (!pendingFormLink) return;
+
+    const section = form.sections.find(
+      (s) => s.id === pendingFormLink.sectionId
+    );
+    if (!section) {
+      showError("Section not found");
+      return;
+    }
+
+    const updateFollowUpConfig = (
+      questions: (Question | FollowUpQuestion)[],
+      pathIndex: number = 0
+    ): (Question | FollowUpQuestion)[] => {
+      return questions.map((q) => {
+        if (
+          pathIndex < pendingFormLink.path.length &&
+          q.id === pendingFormLink.path[pathIndex]
+        ) {
+          if (pathIndex === pendingFormLink.path.length - 1) {
+            return {
+              ...q,
+              followUpConfig: {
+                ...(q.followUpConfig || {}),
+                [pendingFormLink.triggerValue]: {
+                  hasFollowUp: true,
+                  required: false,
+                  linkedFormId: selectedFormId,
+                },
+              },
+            };
+          } else {
+            return {
+              ...q,
+              followUpQuestions: updateFollowUpConfig(
+                q.followUpQuestions || [],
+                pathIndex + 1
+              ),
+            };
+          }
+        }
+        return q;
+      });
+    };
+
+    const updatedQuestions = updateFollowUpConfig(section.questions, 0);
+    updateSection(pendingFormLink.sectionId, {
+      questions: updatedQuestions as Question[],
+    });
+
+    setShowFormSelector(false);
+    setPendingFormLink(null);
+    showSuccess(`Form linked successfully`);
   };
 
   // Recursive function to update nested follow-up question
@@ -1565,20 +1794,20 @@ export default function FormCreator() {
   }
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-purple-50 via-white to-indigo-50">
+    <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50 min-w-full">
+        <div className="min-w-full px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate("/forms/management")}
-                className="p-2 hover:bg-purple-50 rounded-lg transition-colors group"
+                className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
               >
-                <ArrowLeft className="w-5 h-5 text-gray-600 group-hover:text-purple-600" />
+                <ArrowLeft className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
               </button>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-indigo-600 bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
                   {id ? "✏️ Edit Form" : "✨ Create New Form"}
                 </h1>
                 <p className="text-sm text-gray-600">
@@ -1595,7 +1824,7 @@ export default function FormCreator() {
               </button>
               <button
                 onClick={handleSave}
-                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
               >
                 <Save className="w-5 h-5" />
                 Save Form
@@ -1605,17 +1834,17 @@ export default function FormCreator() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="w-full px-6 py-8">
+        <div className="flex gap-6">
           {/* Form Editor */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="flex-1 space-y-6">
             {/* Form Details */}
-            <div className="bg-white rounded-xl shadow-sm border-l-4 border-l-purple-500 overflow-hidden">
-              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 px-6 py-4 border-b border-purple-100">
-                <h2 className="text-lg font-bold text-purple-900">
+            <div className="bg-white rounded-xl shadow-sm border-l-4 border-l-blue-500 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-50 to-blue-50 px-6 py-4 border-b border-blue-100">
+                <h2 className="text-lg font-bold text-blue-900">
                   📋 Form Details
                 </h2>
-                <p className="text-sm text-purple-700 mt-1">
+                <p className="text-sm text-blue-700 mt-1">
                   Set your form's basic information
                 </p>
               </div>
@@ -1631,7 +1860,7 @@ export default function FormCreator() {
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, title: e.target.value }))
                     }
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-base font-medium"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base font-medium"
                     placeholder="e.g., Customer Feedback Survey"
                   />
                 </div>
@@ -1648,7 +1877,7 @@ export default function FormCreator() {
                         description: e.target.value,
                       }))
                     }
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all resize-none text-sm"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none text-sm"
                     rows={3}
                     placeholder="Describe the purpose of your form..."
                   />
@@ -1729,7 +1958,7 @@ export default function FormCreator() {
                   <button
                     type="button"
                     onClick={loadDemoData}
-                    className="w-full px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-lg hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
+                    className="w-full px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
                   >
                     <FileText className="w-4 h-4" />
                     Load Demo Data (For Testing)
@@ -1746,7 +1975,7 @@ export default function FormCreator() {
               const pages = getPagesFromSections();
               if (pages.length > 1) {
                 return (
-                  <div className="bg-white rounded-xl shadow-md border border-purple-200 p-4 mb-6">
+                  <div className="bg-white rounded-xl shadow-md border border-blue-200 p-4 mb-6">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-semibold text-gray-700">
                         Form Pages:
@@ -1758,7 +1987,7 @@ export default function FormCreator() {
                             onClick={() => setCurrentPage(pageIndex)}
                             className={`w-10 h-10 rounded-lg font-bold text-sm transition-all duration-200 ${
                               currentPage === pageIndex
-                                ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg scale-110"
+                                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg scale-110"
                                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                             }`}
                           >
@@ -1804,7 +2033,7 @@ export default function FormCreator() {
                     className={`bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden ${
                       section.isSubsection
                         ? "border-l-4 border-l-green-500 ml-6"
-                        : "border-l-4 border-l-purple-500"
+                        : "border-l-4 border-l-blue-500"
                     }`}
                   >
                     {/* Section Header */}
@@ -1812,7 +2041,7 @@ export default function FormCreator() {
                       className={`px-6 py-4 border-b ${
                         section.isSubsection
                           ? "bg-gradient-to-r from-green-50 to-teal-50 border-green-100"
-                          : "bg-gradient-to-r from-purple-50 to-indigo-50 border-purple-100"
+                          : "bg-gradient-to-r from-blue-50 to-blue-50 border-blue-100"
                       }`}
                     >
                       <div className="flex items-start justify-between">
@@ -1822,7 +2051,7 @@ export default function FormCreator() {
                               className={`flex items-center justify-center w-8 h-8 rounded-full text-white font-bold text-sm shadow-md ${
                                 section.isSubsection
                                   ? "bg-green-600"
-                                  : "bg-purple-600"
+                                  : "bg-blue-600"
                               }`}
                             >
                               {sectionLabel}
@@ -1831,7 +2060,7 @@ export default function FormCreator() {
                               className={`text-lg font-bold ${
                                 section.isSubsection
                                   ? "text-green-900"
-                                  : "text-purple-900"
+                                  : "text-blue-900"
                               }`}
                             >
                               {section.isSubsection ? "Subsection" : "Section"}{" "}
@@ -1841,7 +2070,7 @@ export default function FormCreator() {
                                   className={`font-normal ml-2 ${
                                     section.isSubsection
                                       ? "text-green-600"
-                                      : "text-purple-600"
+                                      : "text-blue-600"
                                   }`}
                                 >
                                   · {section.title}
@@ -1854,7 +2083,7 @@ export default function FormCreator() {
                               className={`text-sm ml-11 ${
                                 section.isSubsection
                                   ? "text-green-700"
-                                  : "text-purple-700"
+                                  : "text-blue-700"
                               }`}
                             >
                               {section.description}
@@ -1900,7 +2129,7 @@ export default function FormCreator() {
                                 title: e.target.value,
                               })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
                             placeholder="e.g., Personal Information, Contact Details"
                           />
                         </div>
@@ -1916,7 +2145,7 @@ export default function FormCreator() {
                                 description: e.target.value,
                               })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all resize-none text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none text-sm"
                             rows={2}
                             placeholder="Brief description for respondents"
                           />
@@ -1931,7 +2160,7 @@ export default function FormCreator() {
                         <div className="flex justify-center -mb-3 relative z-10">
                           <button
                             onClick={() => insertQuestionAt(section.id, 0)}
-                            className="group bg-white border-2 border-dashed border-purple-300 rounded-full p-2 text-purple-400 hover:bg-purple-50 hover:border-purple-500 hover:text-purple-600 transition-all duration-200"
+                            className="group bg-white border-2 border-dashed border-blue-300 rounded-full p-2 text-blue-400 hover:bg-blue-50 hover:border-blue-500 hover:text-blue-600 transition-all duration-200"
                             title="Insert question at the beginning"
                           >
                             <Plus className="w-5 h-5" />
@@ -1948,7 +2177,7 @@ export default function FormCreator() {
                                 onClick={() =>
                                   insertQuestionAt(section.id, questionIndex)
                                 }
-                                className="group bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 border-2 border-purple-400 rounded-full p-2 text-white transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110"
+                                className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 border-2 border-blue-400 rounded-full p-2 text-white transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110"
                                 title="Insert question here"
                               >
                                 <Plus className="w-5 h-5" />
@@ -1957,11 +2186,11 @@ export default function FormCreator() {
                           )}
 
                           {/* Question Card */}
-                          <div className="bg-white border-2 border-gray-200 rounded-xl shadow-sm hover:shadow-lg hover:border-purple-300 transition-all duration-200">
+                          <div className="bg-white border-2 border-gray-200 rounded-xl shadow-sm hover:shadow-lg hover:border-blue-300 transition-all duration-200">
                             {/* Question Header */}
                             <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 rounded-t-xl">
                               <div className="flex items-center gap-3">
-                                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-purple-600 text-white font-bold text-xs shadow">
+                                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs shadow">
                                   {questionIndex + 1}
                                 </div>
                                 <span className="text-sm font-semibold text-gray-700">
@@ -2034,7 +2263,7 @@ export default function FormCreator() {
                                         text: e.target.value,
                                       })
                                     }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-sm"
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                                     placeholder="Enter your question"
                                   />
                                 </div>
@@ -2050,7 +2279,7 @@ export default function FormCreator() {
                                         type: e.target.value,
                                       })
                                     }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-sm"
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                                   >
                                     {questionTypes.map((type) => (
                                       <option
@@ -2074,9 +2303,9 @@ export default function FormCreator() {
                                         required: e.target.checked,
                                       })
                                     }
-                                    className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-2 focus:ring-purple-500 focus:ring-offset-1 transition-all"
+                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all"
                                   />
-                                  <span className="ml-2.5 text-sm text-gray-700 group-hover:text-purple-700 font-medium transition-colors">
+                                  <span className="ml-2.5 text-sm text-gray-700 group-hover:text-blue-700 font-medium transition-colors">
                                     Required question
                                   </span>
                                 </label>
@@ -2085,8 +2314,8 @@ export default function FormCreator() {
                               {(question.type === "radio" ||
                                 question.type === "checkbox" ||
                                 question.type === "select") && (
-                                <div className="mt-5 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                                  <label className="block text-xs font-semibold text-purple-800 mb-3 uppercase tracking-wide">
+                                <div className="mt-5 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                  <label className="block text-xs font-semibold text-blue-800 mb-3 uppercase tracking-wide">
                                     Options
                                   </label>
                                   <div className="space-y-2.5">
@@ -2101,7 +2330,7 @@ export default function FormCreator() {
                                             key={index}
                                             className="flex items-center gap-2 group"
                                           >
-                                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-200 text-purple-700 font-bold text-xs">
+                                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 text-blue-700 font-bold text-xs">
                                               {index + 1}
                                             </div>
                                             <input
@@ -2115,7 +2344,7 @@ export default function FormCreator() {
                                                   e.target.value
                                                 )
                                               }
-                                              className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                                              className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                                               placeholder={`Option ${
                                                 index + 1
                                               }`}
@@ -2206,15 +2435,16 @@ export default function FormCreator() {
 
                                                       <button
                                                         onClick={() => {
-                                                          // TODO: Implement follow-up section logic
-                                                          alert(
-                                                            "Follow-up Section feature coming soon!"
+                                                          linkFollowUpSection(
+                                                            section.id,
+                                                            question.id,
+                                                            option
                                                           );
                                                           setOpenOptionMenu(
                                                             null
                                                           );
                                                         }}
-                                                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
+                                                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-2"
                                                       >
                                                         <span className="text-lg">
                                                           📋
@@ -2232,9 +2462,10 @@ export default function FormCreator() {
 
                                                       <button
                                                         onClick={() => {
-                                                          // TODO: Implement follow-up form logic
-                                                          alert(
-                                                            "Follow-up Form feature coming soon!"
+                                                          linkFollowUpForm(
+                                                            section.id,
+                                                            question.id,
+                                                            option
                                                           );
                                                           setOpenOptionMenu(
                                                             null
@@ -2268,7 +2499,7 @@ export default function FormCreator() {
                                       onClick={() =>
                                         addOption(section.id, question.id)
                                       }
-                                      className="flex items-center gap-2 px-4 py-2 text-purple-700 hover:text-purple-900 hover:bg-purple-100 rounded-lg text-sm font-medium transition-all"
+                                      className="flex items-center gap-2 px-4 py-2 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded-lg text-sm font-medium transition-all"
                                     >
                                       <Plus className="w-5 h-5" />
                                       Add Option
@@ -2448,10 +2679,54 @@ export default function FormCreator() {
                                               );
                                             }
                                           }}
+                                          onAddFollowUpSection={
+                                            handleAddFollowUpSection
+                                          }
+                                          onAddFollowUpForm={
+                                            handleAddFollowUpForm
+                                          }
                                           questionTypes={questionTypes}
                                           depth={0}
                                         />
                                       )}
+
+                                    {(!question.followUpQuestions ||
+                                      question.followUpQuestions.length ===
+                                        0) && (
+                                      <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-dashed border-blue-300 rounded-lg text-center">
+                                        <div className="flex items-center justify-center mb-3">
+                                          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                                            <Plus className="w-6 h-6 text-blue-600" />
+                                          </div>
+                                        </div>
+                                        <p className="text-sm font-medium text-blue-900 mb-3">
+                                          Add follow-up questions for your options
+                                        </p>
+                                        <p className="text-xs text-blue-700 mb-3">
+                                          Select an option to add a follow-up question
+                                          that appears when users select it
+                                        </p>
+                                        <div className="flex flex-wrap gap-2 justify-center">
+                                          {question.options?.map(
+                                            (option, optIndex) => (
+                                              <button
+                                                key={optIndex}
+                                                onClick={() => {
+                                                  addFollowUpQuestion(
+                                                    section.id,
+                                                    question.id,
+                                                    option
+                                                  );
+                                                }}
+                                                className="px-3 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                                              >
+                                                Add for "{option}"
+                                              </button>
+                                            )
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
 
                                     {/* Note: Follow-up options are now available in the three-dots menu for each option */}
                                   </div>
@@ -2466,7 +2741,7 @@ export default function FormCreator() {
                         <div className="flex justify-center -my-3 relative z-10">
                           <button
                             onClick={() => addQuestion(section.id)}
-                            className="group bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-600 hover:to-indigo-600 border-2 border-purple-400 rounded-full p-2 text-white transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110"
+                            className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 border-2 border-blue-400 rounded-full p-2 text-white transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110"
                             title="Add question at the end"
                           >
                             <Plus className="w-5 h-5" />
@@ -2478,13 +2753,13 @@ export default function FormCreator() {
                       {section.questions.length === 0 && (
                         <div className="text-center py-12">
                           <div
-                            className="inline-flex flex-col items-center gap-3 p-8 border-2 border-dashed border-purple-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all cursor-pointer"
+                            className="inline-flex flex-col items-center gap-3 p-8 border-2 border-dashed border-blue-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer"
                             onClick={() => addQuestion(section.id)}
                           >
-                            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-purple-500 to-indigo-500 text-white shadow-lg">
+                            <div className="flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg">
                               <Plus className="w-8 h-8" />
                             </div>
-                            <p className="text-lg font-semibold text-purple-700">
+                            <p className="text-lg font-semibold text-blue-700">
                               Add Your First Question
                             </p>
                             <p className="text-sm text-gray-600">
@@ -2508,10 +2783,10 @@ export default function FormCreator() {
                   const pages = getPagesFromSections();
                   setCurrentPage(pages.length);
                 }}
-                className="w-full group relative overflow-hidden p-6 border-2 border-dashed border-purple-300 rounded-xl text-purple-700 hover:border-purple-500 hover:bg-gradient-to-r hover:from-purple-50 hover:to-indigo-50 transition-all duration-200 shadow-sm hover:shadow-md"
+                className="w-full group relative overflow-hidden p-6 border-2 border-dashed border-blue-300 rounded-xl text-blue-700 hover:border-blue-500 hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-all duration-200 shadow-sm hover:shadow-md"
               >
                 <div className="flex items-center justify-center gap-3">
-                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-purple-600 text-white shadow-md group-hover:scale-110 transition-transform">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full bg-blue-600 text-white shadow-md group-hover:scale-110 transition-transform">
                     <Plus className="w-6 h-6" />
                   </div>
                   <span className="text-lg font-bold">
@@ -2566,7 +2841,114 @@ export default function FormCreator() {
           </div>
 
           {/* Sidebar */}
-          <div className="space-y-6">
+          <div className="w-80 flex-shrink-0 space-y-6">
+            {/* Sticky Page Navigation */}
+            {(() => {
+              const pages = getPagesFromSections();
+              if (pages.length > 1) {
+                return (
+                  <div className="sticky top-1/2 -translate-y-1/2 h-0">
+                    <div className="bg-white rounded-lg border-2 border-blue-200 shadow-lg p-4 -translate-y-1/2">
+                      <h3 className="text-sm font-bold text-blue-900 mb-3 text-center">
+                        📄 Pages
+                      </h3>
+                      <div className="space-y-2">
+                        {pages.map((page, pageIndex) => {
+                          const isCurrent = currentPage === pageIndex;
+                          const sectionLabel = String.fromCharCode(
+                            65 + pageIndex
+                          ); // A, B, C...
+                          const mainSection = page.find((s) => !s.isSubsection);
+                          const questionCount = page.reduce(
+                            (total, s) => total + s.questions.length,
+                            0
+                          );
+
+                          return (
+                            <button
+                              key={pageIndex}
+                              type="button"
+                              onClick={() => setCurrentPage(pageIndex)}
+                              className={`
+                                w-full p-3 rounded-lg text-left transition-all duration-200
+                                ${
+                                  isCurrent
+                                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md scale-105"
+                                    : "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+                                }
+                              `}
+                              title={
+                                mainSection?.title || `Page ${pageIndex + 1}`
+                              }
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={`
+                                    flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm
+                                    ${
+                                      isCurrent
+                                        ? "bg-white text-blue-600"
+                                        : "bg-blue-600 text-white"
+                                    }
+                                  `}
+                                  >
+                                    {sectionLabel}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div
+                                      className={`text-sm font-bold truncate ${
+                                        isCurrent
+                                          ? "text-white"
+                                          : "text-blue-900"
+                                      }`}
+                                    >
+                                      {mainSection?.title ||
+                                        `Section ${pageIndex + 1}`}
+                                    </div>
+                                    <div
+                                      className={`text-xs ${
+                                        isCurrent
+                                          ? "text-blue-100"
+                                          : "text-blue-600"
+                                      }`}
+                                    >
+                                      {questionCount}{" "}
+                                      {questionCount === 1
+                                        ? "question"
+                                        : "questions"}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Progress indicator */}
+                      <div className="mt-4 pt-4 border-t border-blue-200">
+                        <div className="text-xs text-center text-blue-700 mb-2 font-medium">
+                          Page {currentPage + 1} of {pages.length}
+                        </div>
+                        <div className="w-full bg-blue-100 rounded-full h-2">
+                          <div
+                            className="bg-gradient-to-r from-blue-600 to-blue-700 h-2 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${
+                                ((currentPage + 1) / pages.length) * 100
+                              }%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
             <div className="bg-white rounded-lg border border-neutral-200 p-6">
               <h3 className="font-medium text-primary-800 mb-4">
                 Form Preview
@@ -2727,14 +3109,6 @@ export default function FormCreator() {
                             />
                           )}
 
-                          {question.type === "date" && (
-                            <input
-                              type="date"
-                              className="w-full p-2 border border-neutral-300 rounded-md"
-                              disabled
-                            />
-                          )}
-
                           {question.type === "radio" && question.options && (
                             <div className="space-y-2">
                               {question.options.map((option, optionIndex) => (
@@ -2744,7 +3118,7 @@ export default function FormCreator() {
                                 >
                                   <input
                                     type="radio"
-                                    name={`question-${question.id}`}
+                                    name={question.id}
                                     className="mr-2"
                                     disabled
                                   />
@@ -2799,166 +3173,89 @@ export default function FormCreator() {
                           )}
 
                           {/* Show follow-up questions in preview (recursively) */}
-                          {(() => {
-                            const renderFollowUps = (
-                              parentId: string,
-                              depth: number = 0
-                            ): JSX.Element | null => {
-                              const followUps = section.questions.filter(
-                                (q) =>
-                                  q.showWhen &&
-                                  q.showWhen.questionId === parentId
-                              );
-
-                              if (followUps.length === 0) return null;
-
-                              return (
-                                <div
-                                  className={`mt-4 ${
-                                    depth === 0 ? "pl-6" : "pl-4"
-                                  } border-l-2 border-blue-${Math.min(
-                                    200 + depth * 100,
-                                    500
-                                  )}`}
-                                >
-                                  {depth === 0 && (
-                                    <p className="text-xs text-blue-600 mb-2 font-medium">
-                                      Follow-up questions (conditional):
-                                    </p>
-                                  )}
-                                  {followUps.map((followUpQ) => {
-                                    const parentQuestion =
-                                      section.questions.find(
-                                        (q) => q.id === parentId
-                                      );
-                                    return (
-                                      <div
-                                        key={followUpQ.id}
-                                        className="mb-3 p-2 bg-blue-50 rounded"
-                                      >
-                                        <p className="text-xs text-blue-500 mb-1">
-                                          Shows when "{parentQuestion?.text}" =
-                                          "{followUpQ.showWhen?.value}"
-                                        </p>
-                                        <label className="block text-xs font-medium text-blue-700 mb-1">
-                                          {followUpQ.text}
-                                          {followUpQ.required && (
-                                            <span className="text-red-500 ml-1">
-                                              *
-                                            </span>
-                                          )}
-                                        </label>
-
-                                        {followUpQ.type === "text" && (
-                                          <input
-                                            type="text"
-                                            className="w-full p-1 text-xs border border-blue-300 rounded"
-                                            placeholder="Follow-up answer"
-                                            disabled
-                                          />
-                                        )}
-
-                                        {followUpQ.type === "textarea" && (
-                                          <textarea
-                                            className="w-full p-1 text-xs border border-blue-300 rounded"
-                                            rows={2}
-                                            placeholder="Follow-up answer"
-                                            disabled
-                                          />
-                                        )}
-
-                                        {followUpQ.type === "radio" &&
-                                          followUpQ.options && (
-                                            <div className="space-y-1">
-                                              {followUpQ.options.map(
-                                                (option, optIndex) => (
-                                                  <label
-                                                    key={optIndex}
-                                                    className="flex items-center"
-                                                  >
-                                                    <input
-                                                      type="radio"
-                                                      name={`followup-${followUpQ.id}`}
-                                                      className="mr-1"
-                                                      disabled
-                                                    />
-                                                    <span className="text-xs text-blue-700">
-                                                      {option}
-                                                    </span>
-                                                  </label>
-                                                )
-                                              )}
-                                            </div>
-                                          )}
-
-                                        {followUpQ.type === "checkbox" &&
-                                          followUpQ.options && (
-                                            <div className="space-y-1">
-                                              {followUpQ.options.map(
-                                                (option, optIndex) => (
-                                                  <label
-                                                    key={optIndex}
-                                                    className="flex items-center"
-                                                  >
-                                                    <input
-                                                      type="checkbox"
-                                                      className="mr-1"
-                                                      disabled
-                                                    />
-                                                    <span className="text-xs text-blue-700">
-                                                      {option}
-                                                    </span>
-                                                  </label>
-                                                )
-                                              )}
-                                            </div>
-                                          )}
-
-                                        {followUpQ.type === "select" &&
-                                          followUpQ.options && (
-                                            <select
-                                              className="w-full p-1 text-xs border border-blue-300 rounded"
-                                              disabled
-                                            >
-                                              <option>Select an option</option>
-                                              {followUpQ.options.map(
-                                                (option, optIndex) => (
-                                                  <option
-                                                    key={optIndex}
-                                                    value={option}
-                                                  >
-                                                    {option}
-                                                  </option>
-                                                )
-                                              )}
-                                            </select>
-                                          )}
-
-                                        {/* Recursively render nested follow-ups */}
-                                        {renderFollowUps(
-                                          followUpQ.id,
-                                          depth + 1
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              );
-                            };
-
-                            return renderFollowUps(question.id);
-                          })()}
                         </div>
                       ))}
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
 
-              <div className="pt-6 border-t">
-                <button className="btn-primary" disabled>
-                  Submit Form (Preview Mode)
-                </button>
-              </div>
+      {/* Section Selector Modal */}
+      {showSectionSelector && pendingSectionLink && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h2 className="text-xl font-bold mb-4">Link Follow-up Section</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Select a section to show when user selects "{pendingSectionLink.triggerValue}":
+            </p>
+            <select
+              className="w-full p-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleSelectSectionForLink(e.target.value);
+                }
+              }}
+            >
+              <option value="">-- Select a section --</option>
+              {form.sections.map((section) => (
+                <option key={section.id} value={section.id}>
+                  {section.title}
+                </option>
+              ))}
+            </select>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowSectionSelector(false);
+                  setPendingSectionLink(null);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Form Selector Modal */}
+      {showFormSelector && pendingFormLink && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <h2 className="text-xl font-bold mb-4">Link Follow-up Form</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Select a form to link as follow-up for "{pendingFormLink.triggerValue}":
+            </p>
+            <select
+              className="w-full p-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onChange={(e) => {
+                if (e.target.value) {
+                  handleSelectFormForLink(e.target.value);
+                }
+              }}
+            >
+              <option value="">-- Select a form --</option>
+              {forms
+                .filter((f) => f._id !== id)
+                .map((f) => (
+                  <option key={f._id} value={f._id}>
+                    {f.title}
+                  </option>
+                ))}
+            </select>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setShowFormSelector(false);
+                  setPendingFormLink(null);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>

@@ -148,7 +148,7 @@ const Toast: React.FC<ToastProps> = ({
         )}
       </div>
 
-      <style jsx>{`
+      <style>{`
         @keyframes shrink {
           from {
             width: 100%;
