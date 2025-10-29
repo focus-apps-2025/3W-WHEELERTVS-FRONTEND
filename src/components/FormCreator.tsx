@@ -25,6 +25,7 @@ import { useNotification } from "../context/NotificationContext";
 import { useAuth } from "../context/AuthContext";
 import { NestedFollowUpRenderer } from "./NestedFollowUpRenderer";
 import ChildFormsManager from "./forms/ChildFormsManager";
+import { SectionBranchingConfig } from "./forms/SectionBranchingConfig";
 
 interface FormSection {
   id: string;
@@ -54,6 +55,11 @@ interface Question {
       linkedFormId?: string;
     }
   >;
+  branchingRules?: Array<{
+    optionLabel: string;
+    targetSectionId: string;
+    isOtherOption?: boolean;
+  }>;
 }
 
 interface ShowWhen {
@@ -101,6 +107,12 @@ export default function FormCreator() {
     triggerValue: string;
     path: string[];
   } | null>(null);
+  const [showBranchingConfig, setShowBranchingConfig] = useState(false);
+  const [branchingConfigQuestion, setBranchingConfigQuestion] = useState<{
+    questionId: string;
+    sectionId: string;
+    options: string[];
+  } | null>(null);
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -115,6 +127,7 @@ export default function FormCreator() {
       },
     ] as FormSection[],
   });
+  const [formSectionBranching, setFormSectionBranching] = useState<any[]>([]);
   const { showSuccess, showError, showConfirm } = useNotification();
 
   // Fetch tenants for superadmin
@@ -204,6 +217,12 @@ export default function FormCreator() {
             sections: sectionsWithNestedFollowUps,
             followUpQuestions: backendForm.followUpQuestions || [],
           });
+
+          // Load branching rules for the form
+          if (backendForm.sectionBranching) {
+            setFormSectionBranching(backendForm.sectionBranching);
+            console.log('Branching rules loaded from form:', backendForm.sectionBranching);
+          }
         } catch (error) {
           console.error("Failed to load form:", error);
           // Fallback to local storage if API fails
@@ -415,6 +434,17 @@ export default function FormCreator() {
         // Update existing form
         console.log("Updating form with ID:", id);
         await apiClient.updateForm(id, formToSave);
+        
+        // Save branching rules if any exist
+        if (formSectionBranching.length > 0) {
+          console.log("Saving branching rules:", formSectionBranching);
+          await apiClient.request(`/forms/${id}/section-branching`, {
+            method: 'POST',
+            body: JSON.stringify({ rules: formSectionBranching })
+          });
+          console.log("Branching rules saved successfully");
+        }
+        
         showSuccess("Form updated successfully", "Success");
         navigate("/forms/management");
       } else {
@@ -422,6 +452,18 @@ export default function FormCreator() {
         console.log("Creating new form...");
         const response = await apiClient.createForm(formToSave);
         console.log("Form created successfully:", response);
+        const newFormId = response.form._id;
+        
+        // Save branching rules if any exist
+        if (formSectionBranching.length > 0) {
+          console.log("Saving branching rules for new form:", formSectionBranching);
+          await apiClient.request(`/forms/${newFormId}/section-branching`, {
+            method: 'POST',
+            body: JSON.stringify({ rules: formSectionBranching })
+          });
+          console.log("Branching rules saved successfully");
+        }
+        
         showSuccess("Form created successfully", "Success");
         setMode("list");
         // Refresh forms list from backend
@@ -898,6 +940,62 @@ export default function FormCreator() {
     updateSection(sectionId, {
       questions: section.questions.filter((q) => q.id !== questionId),
     });
+  };
+
+  const openBranchingConfig = (
+    sectionId: string,
+    questionId: string,
+    options: string[]
+  ) => {
+    setBranchingConfigQuestion({ questionId, sectionId, options });
+    setShowBranchingConfig(true);
+  };
+
+  const handleSaveBranchingRules = (rules: any[]) => {
+    if (!branchingConfigQuestion) return;
+
+    const section = form.sections.find(s => s.id === branchingConfigQuestion.sectionId);
+    if (!section) return;
+
+    const question = section.questions.find(q => q.id === branchingConfigQuestion.questionId);
+    if (!question) return;
+
+    const branchingRules = rules.map(rule => ({
+      optionLabel: rule.optionLabel,
+      targetSectionId: rule.targetSectionId,
+      isOtherOption: rule.isOtherOption || false
+    }));
+
+    const updatedQuestion = {
+      ...question,
+      branchingRules: branchingRules
+    };
+
+    updateSection(branchingConfigQuestion.sectionId, {
+      questions: section.questions.map(q =>
+        q.id === branchingConfigQuestion.questionId ? updatedQuestion : q
+      )
+    });
+
+    // Update formSectionBranching state with complete rule structure for API
+    const apiRules = rules.map(rule => ({
+      questionId: branchingConfigQuestion.questionId,
+      sectionId: branchingConfigQuestion.sectionId,
+      optionLabel: rule.optionLabel,
+      targetSectionId: rule.targetSectionId,
+      isOtherOption: rule.isOtherOption || false
+    }));
+
+    // Remove old rules for this question and add new ones
+    const updatedBranching = formSectionBranching.filter(
+      r => !(r.questionId === branchingConfigQuestion.questionId && r.sectionId === branchingConfigQuestion.sectionId)
+    );
+    setFormSectionBranching([...updatedBranching, ...apiRules]);
+    console.log('Branching rules updated:', [...updatedBranching, ...apiRules]);
+
+    setShowBranchingConfig(false);
+    setBranchingConfigQuestion(null);
+    showSuccess('Section routing configured successfully');
   };
 
   const linkFollowUpSection = (
@@ -2519,6 +2617,55 @@ export default function FormCreator() {
                                 </div>
                               )}
 
+                              {/* Section Branching Configuration */}
+                              {(question.type === "radio" ||
+                                question.type === "checkbox" ||
+                                question.type === "select") &&
+                                question.options &&
+                                question.options.length > 0 && (
+                                  <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-lg">🔀</span>
+                                        <label className="text-xs font-semibold text-purple-800 uppercase tracking-wide">
+                                          Section Routing
+                                        </label>
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          openBranchingConfig(
+                                            section.id,
+                                            question.id,
+                                            question.options || []
+                                          )
+                                        }
+                                        className="px-3 py-1.5 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors flex items-center gap-1"
+                                      >
+                                        <LinkIcon className="w-4 h-4" />
+                                        Configure Routing
+                                      </button>
+                                    </div>
+                                    <p className="text-xs text-purple-700 mb-2">
+                                      Route user to different sections based on their answer
+                                    </p>
+                                    {question.branchingRules && question.branchingRules.length > 0 && (
+                                      <div className="text-xs text-purple-600 bg-white rounded p-2">
+                                        <div className="font-medium mb-1">Active routing:</div>
+                                        <ul className="space-y-1">
+                                          {question.branchingRules.map((rule, idx) => (
+                                            <li key={idx}>
+                                              • "{rule.optionLabel}" → {
+                                                form.sections.find(s => s.id === rule.targetSectionId)?.title || 'Unknown'
+                                              }
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
                               {/* Correct Answer Section */}
                               {(question.type === "radio" ||
                                 question.type === "checkbox" ||
@@ -3270,6 +3417,27 @@ export default function FormCreator() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Section Branching Configuration Modal */}
+      {showBranchingConfig && branchingConfigQuestion && (
+        <SectionBranchingConfig
+          questionId={branchingConfigQuestion.questionId}
+          sectionId={branchingConfigQuestion.sectionId}
+          options={branchingConfigQuestion.options}
+          sections={form.sections}
+          existingRules={
+            form.sections
+              .find(s => s.id === branchingConfigQuestion.sectionId)
+              ?.questions.find(q => q.id === branchingConfigQuestion.questionId)
+              ?.branchingRules || []
+          }
+          onSave={handleSaveBranchingRules}
+          onClose={() => {
+            setShowBranchingConfig(false);
+            setBranchingConfigQuestion(null);
+          }}
+        />
       )}
     </div>
   );

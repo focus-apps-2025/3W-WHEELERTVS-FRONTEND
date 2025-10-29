@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { AlertCircle } from "lucide-react";
 import type { Question, Response, Section } from "../types";
 import { useQuestionLogic } from "../hooks/useQuestionLogic";
 import ThankYouMessage from "./ThankYouMessage";
@@ -7,21 +8,35 @@ import FormHeader from "./preview/FormHeader";
 import SectionProgress from "./preview/SectionProgress";
 import SectionContent from "./preview/SectionContent";
 import NavigationButtons from "./preview/NavigationButtons";
+import { apiClient } from "../api/client";
 
 interface PreviewFormProps {
   questions: Question[];
   onSubmit: (response: Response) => void;
+  branchingRules?: any[];
 }
 
-export default function PreviewForm({ questions, onSubmit }: PreviewFormProps) {
+export default function PreviewForm({ questions, onSubmit, branchingRules: propBranchingRules = [] }: PreviewFormProps) {
   const { id } = useParams();
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitted, setSubmitted] = useState(false);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
+  const [branchingAlert, setBranchingAlert] = useState<string | null>(null);
+  const [visitedSectionIndices, setVisitedSectionIndices] = useState<Set<number>>(new Set([0]));
   const { getOrderedVisibleQuestions } = useQuestionLogic();
-
+  
+  const branchingRules = propBranchingRules;
   const question = questions.find((q) => q.id === id);
+
+  useEffect(() => {
+    console.log('=== PreviewForm Debug ===');
+    console.log('Branching rules received:', branchingRules);
+    console.log('Number of branching rules:', branchingRules.length);
+    if (branchingRules.length > 0) {
+      console.log('First rule:', branchingRules[0]);
+    }
+  }, [branchingRules]);
 
   if (!question) {
     return (
@@ -63,12 +78,50 @@ export default function PreviewForm({ questions, onSubmit }: PreviewFormProps) {
           },
         ];
 
+  const checkForBranching = (sectionId: string, questionId: string, answerValue: any) => {
+    const matchingRules = branchingRules.filter(
+      rule => rule.sectionId === sectionId && rule.questionId === questionId
+    );
+    
+    console.log(`  Checking: sectionId=${sectionId}, questionId=${questionId}`);
+    console.log(`  Matching rules found: ${matchingRules.length}`);
+    if (matchingRules.length > 0) {
+      console.log('  Rules:', matchingRules);
+    }
+
+    for (const rule of matchingRules) {
+      console.log(`  Evaluating rule: optionLabel="${rule.optionLabel}", isOther=${rule.isOtherOption}, answer="${answerValue}"`);
+      
+      if (rule.isOtherOption && answerValue && typeof answerValue === 'string') {
+        const exactMatchExists = branchingRules.some(r => 
+          r.sectionId === sectionId && 
+          r.questionId === questionId && 
+          !r.isOtherOption && 
+          (answerValue === r.optionLabel || answerValue.toLowerCase() === r.optionLabel.toLowerCase())
+        );
+        console.log(`    "Other" option, exact match exists: ${exactMatchExists}`);
+        if (!exactMatchExists) {
+          console.log('    ✓ Returning Other rule');
+          return rule;
+        }
+      } else if (answerValue === rule.optionLabel || (typeof answerValue === 'string' && answerValue.toLowerCase() === rule.optionLabel.toLowerCase())) {
+        console.log('    ✓ Match found!');
+        return rule;
+      }
+    }
+    console.log('  No matching rule');
+    return null;
+  };
+
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
 
-    // Validate all sections before submitting
+    // Only validate sections that were actually visited (not skipped by branching)
     let isValid = true;
-    sections.forEach((section) => {
+    visitedSectionIndices.forEach((sectionIndex) => {
+      const section = sections[sectionIndex];
+      if (!section) return;
+      
       const visibleQuestions = getOrderedVisibleQuestions(
         section.questions,
         answers
@@ -104,9 +157,50 @@ export default function PreviewForm({ questions, onSubmit }: PreviewFormProps) {
   };
 
   const handleNext = () => {
-    // Move to next section without validation
+    const currentSection = sections[currentSectionIndex];
+    const visibleQuestions = getOrderedVisibleQuestions(
+      currentSection.questions,
+      answers
+    );
+
+    console.log('=== handleNext Debug ===');
+    console.log('Current section ID:', currentSection.id);
+    console.log('Current section title:', currentSection.title);
+    console.log('Visible questions:', visibleQuestions.map(q => ({ id: q.id, text: q.text })));
+    console.log('Answers:', answers);
+    console.log('Branching rules available:', branchingRules.length);
+
+    for (const question of visibleQuestions) {
+      const answerValue = answers[question.id];
+      console.log(`Checking question: ${question.id} (${question.text}) with answer: ${answerValue}`);
+      
+      const branchingRule = checkForBranching(currentSection.id, question.id, answerValue);
+      console.log(`Branching rule found: `, branchingRule);
+      
+      if (branchingRule) {
+        const targetSectionIndex = sections.findIndex(s => s.id === branchingRule.targetSectionId);
+        console.log(`Target section index: ${targetSectionIndex}, Target ID: ${branchingRule.targetSectionId}`);
+        
+        if (targetSectionIndex !== -1) {
+          const targetSectionTitle = sections[targetSectionIndex]?.title || 'Next Section';
+          console.log(`Navigating to section: ${targetSectionTitle} (index: ${targetSectionIndex})`);
+          setBranchingAlert(`Navigating to: ${targetSectionTitle}`);
+          setTimeout(() => {
+            setCurrentSectionIndex(targetSectionIndex);
+            setVisitedSectionIndices(prev => new Set(prev).add(targetSectionIndex));
+            setBranchingAlert(null);
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }, 500);
+          return;
+        }
+      }
+    }
+
+    console.log('No branching rule matched, proceeding to next section normally');
     if (currentSectionIndex + 1 < sections.length) {
-      setCurrentSectionIndex(currentSectionIndex + 1);
+      const nextIndex = currentSectionIndex + 1;
+      setCurrentSectionIndex(nextIndex);
+      setVisitedSectionIndices(prev => new Set(prev).add(nextIndex));
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
@@ -125,6 +219,13 @@ export default function PreviewForm({ questions, onSubmit }: PreviewFormProps) {
   return (
     <div className="min-h-screen bg-white py-12">
       <div className="max-w-3xl mx-auto px-6">
+        {branchingAlert && (
+          <div className="mb-6 flex items-center space-x-2 text-green-600 bg-green-50 border border-green-200 px-4 py-3 rounded-lg">
+            <AlertCircle className="w-5 h-5" />
+            <span className="font-medium">{branchingAlert}</span>
+          </div>
+        )}
+
         <FormHeader
           title={question.title}
           description={question.description}
@@ -134,8 +235,10 @@ export default function PreviewForm({ questions, onSubmit }: PreviewFormProps) {
         <form onSubmit={handleSubmit} className="mt-12 space-y-10">
           {sections.length > 1 && (
             <SectionProgress
-              currentSection={currentSectionIndex}
-              totalSections={sections.length}
+              currentSection={Array.from(visitedSectionIndices).sort().indexOf(currentSectionIndex)}
+              totalSections={visitedSectionIndices.size}
+              visitedCount={visitedSectionIndices.size}
+              totalCount={sections.length}
             />
           )}
 

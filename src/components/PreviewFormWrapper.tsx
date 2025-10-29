@@ -7,6 +7,7 @@ import PreviewForm from "./PreviewForm";
 export default function PreviewFormWrapper() {
   const { id } = useParams();
   const [form, setForm] = useState<any>(null);
+  const [branchingRules, setBranchingRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,6 +18,26 @@ export default function PreviewFormWrapper() {
       setLoading(true);
       const response = await apiClient.getForm(id);
       setForm(response.form);
+      
+      // Load branching rules
+      try {
+        const branchingResponse = await apiClient.request<{ sectionBranching: any[] }>(
+          `/forms/${id}/section-branching`
+        );
+        if (branchingResponse && branchingResponse.sectionBranching) {
+          setBranchingRules(branchingResponse.sectionBranching);
+          console.log('=== PreviewFormWrapper: Branching rules loaded ===');
+          console.log('Count:', branchingResponse.sectionBranching.length);
+          console.log('Rules:', branchingResponse.sectionBranching);
+        } else {
+          console.log('=== PreviewFormWrapper: No branching rules in response ===');
+          setBranchingRules([]);
+        }
+      } catch (branchErr) {
+        console.warn('Preview - Failed to fetch branching rules:', branchErr);
+        setBranchingRules([]);
+      }
+      
       setError(null);
     } catch (err) {
       setError("Failed to load form");
@@ -158,5 +179,5 @@ export default function PreviewFormWrapper() {
     followUpQuestions: form.followUpQuestions || [],
   };
 
-  return <PreviewForm questions={[formData]} onSubmit={handleSubmit} />;
+  return <PreviewForm questions={[formData]} onSubmit={handleSubmit} branchingRules={branchingRules} />;
 }
