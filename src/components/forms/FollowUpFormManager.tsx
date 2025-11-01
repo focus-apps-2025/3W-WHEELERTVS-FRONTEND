@@ -22,6 +22,7 @@ import { SectionFollowUpCreator } from "./SectionFollowUpCreator";
 import formWithFollowUpService, {
   FollowUpConfig,
 } from "../../api/formWithFollowUpService";
+import { useNotification } from "../../context/NotificationContext";
 
 interface Form {
   id: string;
@@ -52,7 +53,14 @@ interface FormListItem extends Form {
   followUpConfig?: Record<string, FollowUpConfig>;
 }
 
-type ViewMode = "list" | "create" | "edit" | "respond" | "analytics" | "config" | "create-sections";
+type ViewMode =
+  | "list"
+  | "create"
+  | "edit"
+  | "respond"
+  | "analytics"
+  | "config"
+  | "create-sections";
 
 interface FollowUpFormManagerProps {
   initialView?: ViewMode;
@@ -67,6 +75,7 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
   onFormUpdated,
   onFormDeleted,
 }) => {
+  const { showSuccess, showError, showConfirm } = useNotification();
   const [currentView, setCurrentView] = useState<ViewMode>(initialView);
   const [forms, setForms] = useState<FormListItem[]>([]);
   const [selectedForm, setSelectedForm] = useState<FormListItem | null>(null);
@@ -210,30 +219,28 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
   };
 
   const handleDeleteForm = async (form: FormListItem) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete "${form.title}"? This action cannot be undone.`
-      )
-    ) {
-      return;
-    }
+    showConfirm(
+      `Are you sure you want to delete "${form.title}"? This action cannot be undone.`,
+      async () => {
+        try {
+          await formWithFollowUpService.deleteForm(form.id);
 
-    try {
-      await formWithFollowUpService.deleteForm(form.id);
+          setForms((prev) => prev.filter((f) => f.id !== form.id));
+          showSuccess("Form deleted successfully!", "Success");
 
-      setForms((prev) => prev.filter((f) => f.id !== form.id));
-      setSuccess("Form deleted successfully!");
-      setTimeout(() => setSuccess(null), 3000);
-
-      if (onFormDeleted) {
-        onFormDeleted(form.id);
-      }
-    } catch (error) {
-      setError(
-        error instanceof Error ? error.message : "Failed to delete form"
-      );
-      setTimeout(() => setError(null), 3000);
-    }
+          if (onFormDeleted) {
+            onFormDeleted(form.id);
+          }
+        } catch (error) {
+          const errorMsg =
+            error instanceof Error ? error.message : "Failed to delete form";
+          showError(errorMsg, "Error");
+        }
+      },
+      "Delete Form",
+      "Delete",
+      "Cancel"
+    );
   };
 
   const getFollowUpSummary = (

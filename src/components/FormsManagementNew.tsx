@@ -177,13 +177,204 @@ export default function FormsManagementNew() {
 
   const searchValue = searchTerm.toLowerCase();
   const activeForms = forms.filter((form: Form) => form.isActive);
-  const filteredForms = activeForms.filter(
+
+  // Separate parent/standalone forms and child forms
+  const parentAndStandaloneForms = activeForms.filter(
+    (form: Form) => !form.parentFormId
+  );
+
+  // Filter forms based on search (parent/standalone only, children will be shown under parents)
+  const filteredForms = parentAndStandaloneForms.filter(
     (form: Form) =>
       form.title.toLowerCase().includes(searchValue) ||
       form.description.toLowerCase().includes(searchValue)
   );
+
   const hasAnyForms = forms.length > 0;
   const hasActiveForms = activeForms.length > 0;
+
+  // Get child forms for a parent
+  const getChildFormsForParent = (parentFormId: string) => {
+    return activeForms.filter(
+      (form: Form) => form.parentFormId === parentFormId
+    );
+  };
+
+  // Render a single form card (used for both parent and child forms)
+  const renderFormCard = (form: Form, isChild: boolean = false) => (
+    <div
+      key={form._id}
+      className={`bg-white rounded-lg border p-4 hover:shadow-sm transition-shadow ${
+        isChild
+          ? "ml-8 border-l-4 border-l-blue-400 bg-blue-50/30 border-neutral-200"
+          : "border-neutral-200"
+      }`}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            {isChild && (
+              <LinkIcon className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            )}
+            <h3
+              className={`font-medium line-clamp-2 ${isChild ? "text-sm" : ""}`}
+            >
+              {form.title}
+            </h3>
+            {/* Parent Form Indicator */}
+            {!isChild && form.childForms && form.childForms.length > 0 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                <LinkIcon className="w-3 h-3 mr-1" />
+                Parent ({form.childForms.length} child
+                {form.childForms.length !== 1 ? "s" : ""})
+              </span>
+            )}
+            {/* Child Form Indicator */}
+            {isChild && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                Child Form
+              </span>
+            )}
+          </div>
+          <p
+            className={`line-clamp-2 ${
+              isChild ? "text-xs text-primary-600" : "text-sm"
+            }`}
+          >
+            {form.description}
+          </p>
+        </div>
+        <div
+          className="relative ml-2"
+          ref={openDropdownId === form._id ? dropdownRef : null}
+        >
+          <button
+            onClick={() => handleToggleDropdown(form._id)}
+            className="p-1 hover:bg-neutral-100 rounded"
+          >
+            <MoreVertical className="w-4 h-4 text-primary-400" />
+          </button>
+
+          {/* Dropdown Menu */}
+          {openDropdownId === form._id && (
+            <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-10">
+              {!isChild && (
+                <button
+                  onClick={() => handleOpenChildFormsModal(form)}
+                  className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
+                >
+                  <LinkIcon className="w-4 h-4 mr-2" />
+                  Manage Child Forms
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  handleCopyFormLink(form.id || form._id, form.title);
+                  setOpenDropdownId(null);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copy Customer Link
+              </button>
+              <button
+                onClick={() => {
+                  handleOpenFormLink(form.id || form._id);
+                  setOpenDropdownId(null);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open Customer Link
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Form Stats */}
+      <div
+        className={`flex items-center justify-between text-primary-500 mb-4 ${
+          isChild ? "text-xs" : "text-xs"
+        }`}
+      >
+        <div className="flex items-center">
+          <Users className="w-3 h-3 mr-1" />
+          {form.responseCount || 0} responses
+        </div>
+        <div className="flex items-center">
+          <Calendar className="w-3 h-3 mr-1" />
+          {new Date(form.createdAt).toLocaleDateString()}
+        </div>
+      </div>
+
+      {/* Active Status */}
+      <div className="flex items-center justify-between mb-4">
+        <span
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            form.isActive
+              ? "bg-green-100 text-green-800"
+              : "bg-gray-100 text-gray-800"
+          }`}
+        >
+          {form.isActive ? "Active" : "Inactive"}
+        </span>
+        <button
+          onClick={() => handleToggleActive(form._id, form.isActive)}
+          className="text-xs text-primary-600 hover:text-primary-800"
+          disabled={activeMutation.loading}
+        >
+          {activeMutation.loading ? "..." : "Toggle"}
+        </button>
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => handlePreviewForm(form.id || form._id)}
+            className={`px-3 py-2 font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 ${
+              isChild ? "text-xs" : "text-sm"
+            }`}
+          >
+            View
+          </button>
+          <button
+            onClick={() => handleEditForm(form._id)}
+            className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
+            title="Edit form"
+          >
+            <Edit2 className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+          </button>
+          <button
+            onClick={() => handleViewResponses(form._id)}
+            className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
+            title="View responses"
+          >
+            <List className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+          </button>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => handleDuplicate(form._id)}
+            className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
+            title="Duplicate form"
+            disabled={duplicateMutation.loading}
+          >
+            <Copy className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+          </button>
+          <button
+            onClick={() => handleDelete(form._id, form.title)}
+            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+            title="Delete form"
+            disabled={deleteMutation.loading}
+          >
+            <Trash2 className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   const handleDelete = async (id: string, title: string) => {
     showConfirm(
@@ -327,14 +518,14 @@ export default function FormsManagementNew() {
     }
   };
 
-  // Get available forms for linking (exclude the parent itself and forms that are already parents)
+  // Get available forms for linking (exclude the parent itself and forms that are children of OTHER parents)
   const getAvailableChildForms = () => {
     if (!selectedParentForm) return [];
 
     return forms.filter(
       (form: Form) =>
         form._id !== selectedParentForm._id && // Not the parent itself
-        !form.parentFormId // Not already a child of another form
+        (!form.parentFormId || form.parentFormId === selectedParentForm._id) // Not a child of another parent (but allow children of THIS parent)
     );
   };
 
@@ -429,204 +620,24 @@ export default function FormsManagementNew() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredForms.map((form: Form) => (
-            <div
-              key={form._id}
-              className="bg-white rounded-lg border border-neutral-200 p-4 hover:shadow-sm transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-medium line-clamp-2">{form.title}</h3>
-                    {/* Parent Form Indicator */}
-                    {form.childForms && form.childForms.length > 0 && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                        <LinkIcon className="w-3 h-3 mr-1" />
-                        Parent ({form.childForms.length} child
-                        {form.childForms.length !== 1 ? "s" : ""})
-                      </span>
-                    )}
-                    {/* Child Form Indicator */}
-                    {form.parentFormId && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                        Child Form
-                      </span>
+          {filteredForms.map((form: Form) => {
+            const childForms = getChildFormsForParent(form._id);
+            return (
+              <div key={form._id} className="space-y-2">
+                {/* Parent/Standalone Form */}
+                {renderFormCard(form, false)}
+
+                {/* Child Forms (nested under parent) */}
+                {childForms.length > 0 && (
+                  <div className="space-y-2">
+                    {childForms.map((childForm: Form) =>
+                      renderFormCard(childForm, true)
                     )}
                   </div>
-                  <p className="text-sm line-clamp-2">{form.description}</p>
-                  {/* Show parent form name if this is a child */}
-                  {form.parentFormTitle && (
-                    <p className="text-xs text-blue-600 mt-1 flex items-center">
-                      <LinkIcon className="w-3 h-3 mr-1" />
-                      Parent: {form.parentFormTitle}
-                    </p>
-                  )}
-                </div>
-                <div
-                  className="relative ml-2"
-                  ref={openDropdownId === form._id ? dropdownRef : null}
-                >
-                  <button
-                    onClick={() => handleToggleDropdown(form._id)}
-                    className="p-1 hover:bg-neutral-100 rounded"
-                  >
-                    <MoreVertical className="w-4 h-4 text-primary-400" />
-                  </button>
-
-                  {/* Dropdown Menu */}
-                  {openDropdownId === form._id && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-10">
-                      <button
-                        onClick={() => handleOpenChildFormsModal(form)}
-                        className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
-                      >
-                        <LinkIcon className="w-4 h-4 mr-2" />
-                        Manage Child Forms
-                      </button>
-                      <button
-                        onClick={() => {
-                          handleCopyFormLink(form.id || form._id, form.title);
-                          setOpenDropdownId(null);
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
-                      >
-                        <Copy className="w-4 h-4 mr-2" />
-                        Copy Customer Link
-                      </button>
-                      <button
-                        onClick={() => {
-                          handleOpenFormLink(form.id || form._id);
-                          setOpenDropdownId(null);
-                        }}
-                        className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
-                      >
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        Open Customer Link
-                      </button>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
-
-              {/* Form Stats */}
-              <div className="flex items-center justify-between text-xs text-primary-500 mb-4">
-                <div className="flex items-center">
-                  <Users className="w-3 h-3 mr-1" />
-                  {form.responseCount || 0} responses
-                </div>
-                <div className="flex items-center">
-                  <Calendar className="w-3 h-3 mr-1" />
-                  {new Date(form.createdAt).toLocaleDateString()}
-                </div>
-              </div>
-
-              {/* Active Status */}
-              <div className="flex items-center justify-between mb-4">
-                <span
-                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                    form.isActive
-                      ? "bg-green-100 text-green-800"
-                      : "bg-gray-100 text-gray-800"
-                  }`}
-                >
-                  {form.isActive ? "Active" : "Inactive"}
-                </span>
-                <button
-                  onClick={() => handleToggleActive(form._id, form.isActive)}
-                  className="text-xs text-primary-600 hover:text-primary-800"
-                  disabled={activeMutation.loading}
-                >
-                  {activeMutation.loading ? "..." : "Toggle"}
-                </button>
-              </div>
-
-              {/* Customer Form Link - Only show if form is active */}
-              {/* {form.isActive && (
-                <div className="mb-4 p-2 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center text-xs text-blue-700 flex-1 min-w-0">
-                      <LinkIcon className="w-3 h-3 mr-1 flex-shrink-0" />
-                      <span className="truncate font-medium">
-                        Customer Link
-                      </span>
-                    </div>
-                    <div className="flex space-x-1 ml-2">
-                      <button
-                        onClick={() =>
-                          handleCopyFormLink(form.id || form._id, form.title)
-                        }
-                        className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
-                        title="Copy customer link"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </button>
-                      <button
-                        onClick={() => handleOpenFormLink(form.id || form._id)}
-                        className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded transition-colors"
-                        title="Open in new tab"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-1 text-xs text-blue-600 truncate">
-                    {getCustomerFormUrl(form.id || form._id)}
-                  </div>
-                </div>
-              )} */}
-
-              {/* Actions */}
-              <div className="flex items-center justify-between">
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handlePreviewForm(form.id || form._id)}
-                    className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
-                  >
-                    View
-                  </button>
-                  <button
-                    onClick={() => handleEditForm(form._id)}
-                    className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
-                    title="Edit form"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleViewResponses(form._id)}
-                    className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
-                    title="View responses"
-                  >
-                    <List className="w-4 h-4" />
-                  </button>
-                  {/* <button
-                    onClick={() => handleViewAnalytics(form._id)}
-                    className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
-                    title="View analytics"
-                  >
-                    <TrendingUp className="w-4 h-4" />
-                  </button> */}
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={() => handleDuplicate(form._id)}
-                    className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
-                    title="Duplicate form"
-                    disabled={duplicateMutation.loading}
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(form._id, form.title)}
-                    className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                    title="Delete form"
-                    disabled={deleteMutation.loading}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

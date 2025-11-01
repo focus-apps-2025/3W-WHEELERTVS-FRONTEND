@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useForms, useResponses, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
+import { useNotification } from "../../context/NotificationContext";
 
 interface FormItem {
   _id: string;
@@ -35,6 +36,11 @@ interface FormItem {
   createdBy?: any;
   responseCount?: number;
   parentFormId?: string | null;
+  childForms?: Array<{
+    formId: string;
+    formTitle?: string;
+    order?: number;
+  }>;
 }
 
 interface ResponseData {
@@ -43,6 +49,7 @@ interface ResponseData {
 
 export default function FormsAnalytics() {
   const navigate = useNavigate();
+  const { showSuccess, showError, showConfirm } = useNotification();
   const [searchTerm, setSearchTerm] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -87,6 +94,19 @@ export default function FormsAnalytics() {
     (form: FormItem) => form.isActive === false
   ).length;
 
+  const formsMap = useMemo(() => {
+    const map = new Map<string, FormItem>();
+    forms.forEach((form) => {
+      if (form._id) {
+        map.set(form._id, form);
+      }
+      if (form.id) {
+        map.set(form.id, form);
+      }
+    });
+    return map;
+  }, [forms]);
+
   const filteredForms = forms.filter((form: FormItem) => {
     const titleMatch = form.title
       ?.toLowerCase()
@@ -109,28 +129,95 @@ export default function FormsAnalytics() {
   }, [responsesData]);
 
   const groupedForms = useMemo(() => {
-    return filteredForms.reduce((acc, form) => {
-      const key = form.parentFormId || form._id;
-      if (!acc[key]) {
-        acc[key] = {
-          parent: form.parentFormId ? null : form,
-          children: [],
-        };
+    const result = filteredForms.reduce(
+      (acc, form) => {
+        const key = form.parentFormId || form.id || form._id;
+        if (!key) {
+          return acc;
+        }
+
+        if (!acc[key]) {
+          acc[key] = {
+            parent: form.parentFormId ? null : form,
+            children: [],
+          };
+        }
+
+        if (form.parentFormId) {
+          const parentKey = form.parentFormId;
+          acc[parentKey] = acc[parentKey] || {
+            parent: null,
+            children: [],
+          };
+          acc[parentKey].children.push(form);
+        } else {
+          acc[key].parent = form;
+        }
+
+        return acc;
+      },
+      {} as Record<string, { parent: FormItem | null; children: FormItem[] }>
+    );
+
+    Object.values(result).forEach((group) => {
+      const parent = group.parent;
+      if (!parent) {
+        return;
       }
 
-      if (form.parentFormId) {
-        acc[form.parentFormId] = acc[form.parentFormId] || {
-          parent: null,
-          children: [],
-        };
-        acc[form.parentFormId].children.push(form);
-      } else {
-        acc[key].parent = form;
+      const childRefs = [...(parent.childForms || [])].sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0)
+      );
+
+      if (childRefs.length === 0) {
+        return;
       }
 
-      return acc;
-    }, {} as Record<string, { parent: FormItem | null; children: FormItem[] }>);
-  }, [filteredForms]);
+      const existingChildrenMap = new Map<string, FormItem>();
+      group.children.forEach((child) => {
+        const childKey = child.id || child._id;
+        if (childKey) {
+          existingChildrenMap.set(childKey, child);
+        }
+      });
+
+      const orderedChildren: FormItem[] = [];
+      const usedChildIds = new Set<string>();
+
+      childRefs.forEach((childRef, index) => {
+        const childId = childRef.formId;
+        if (!childId || usedChildIds.has(childId)) {
+          return;
+        }
+
+        usedChildIds.add(childId);
+
+        let child = existingChildrenMap.get(childId) || formsMap.get(childId);
+        if (!child) {
+          child = {
+            _id: childId,
+            id: childId,
+            title: childRef.formTitle || "Linked Form",
+            parentFormId: parent.id || parent._id || null,
+          } as FormItem;
+        }
+
+        orderedChildren.push(child);
+      });
+
+      group.children.forEach((child) => {
+        const childId = child.id || child._id;
+        if (!childId || usedChildIds.has(childId)) {
+          return;
+        }
+        orderedChildren.push(child);
+      });
+
+      group.children = orderedChildren;
+    });
+
+    return result;
+  }, [filteredForms, formsMap]);
 
   const allForms = filteredForms.length;
   const totalResponses = filteredForms.reduce((sum, form) => {
@@ -139,13 +226,16 @@ export default function FormsAnalytics() {
   }, 0);
 
   const handleDelete = async (id: string, title: string) => {
-    if (
-      window.confirm(
-        `Are you sure you want to delete "${title}"? This action cannot be undone.`
-      )
-    ) {
-      await deleteMutation.mutate(id);
-    }
+    showConfirm(
+      `Are you sure you want to delete "${title}"? This action cannot be undone.`,
+      async () => {
+        await deleteMutation.mutate(id);
+        showSuccess("Form deleted successfully", "Success");
+      },
+      "Delete Form",
+      "Delete",
+      "Cancel"
+    );
   };
 
   const handleDuplicate = async (id: string) => {
@@ -598,7 +688,9 @@ export default function FormsAnalytics() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {children.map((child, index) => {
                         const childId = child.id || child._id;
-                        const childResponseCount = child.responseCount || 0;
+                        const childResponseCount = childId
+                          ? responseCounts[childId] || child.responseCount || 0
+                          : child.responseCount || 0;
 
                         return (
                           <div

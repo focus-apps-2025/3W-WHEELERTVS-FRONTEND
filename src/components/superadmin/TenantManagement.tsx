@@ -50,7 +50,9 @@ export default function TenantManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showTenantModal, setShowTenantModal] = useState(false);
+  const [modalMode, setModalMode] = useState<"create" | "edit">("create");
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const { showSuccess, showError } = useNotification();
@@ -106,7 +108,11 @@ export default function TenantManagement() {
           </p>
         </div>
         <button
-          onClick={() => setShowCreateModal(true)}
+          onClick={() => {
+            setModalMode("create");
+            setEditingTenant(null);
+            setShowTenantModal(true);
+          }}
           className="btn-primary flex items-center space-x-2"
         >
           <Plus className="w-5 h-5" />

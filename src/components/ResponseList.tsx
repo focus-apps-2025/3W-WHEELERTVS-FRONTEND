@@ -20,11 +20,13 @@ import FollowUpModal from "./settings/forms/FollowUpModal";
 import ResponsePreview from "./responses/ResponsePreview";
 import { apiClient } from "../api/client";
 import { useAuth } from "../context/AuthContext";
+import { useNotification } from "../context/NotificationContext";
 
 export default function ResponseList() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { showSuccess, showError, showConfirm } = useNotification();
   const [editingResponse, setEditingResponse] = useState<Response | null>(null);
   const [viewingResponse, setViewingResponse] = useState<Response | null>(null);
   const [assigningResponse, setAssigningResponse] = useState<Response | null>(
@@ -196,21 +198,24 @@ export default function ResponseList() {
   };
 
   const handleDelete = async (response: Response) => {
-    if (
-      window.confirm(
-        "Are you sure you want to delete this response? This action cannot be undone."
-      )
-    ) {
-      try {
-        await apiClient.deleteResponse(response.id);
-        setLocalResponses((prevResponses) =>
-          prevResponses.filter((r) => r.id !== response.id)
-        );
-      } catch (err) {
-        console.error("Error deleting response:", err);
-        alert("Failed to delete response. Please try again.");
-      }
-    }
+    showConfirm(
+      "Are you sure you want to delete this response? This action cannot be undone.",
+      async () => {
+        try {
+          await apiClient.deleteResponse(response.id);
+          setLocalResponses((prevResponses) =>
+            prevResponses.filter((r) => r.id !== response.id)
+          );
+          showSuccess("Response deleted successfully", "Success");
+        } catch (err) {
+          console.error("Error deleting response:", err);
+          showError("Failed to delete response. Please try again.", "Error");
+        }
+      },
+      "Delete Response",
+      "Delete",
+      "Cancel"
+    );
   };
 
   const handleSaveEdit = async (updatedResponse: Response) => {

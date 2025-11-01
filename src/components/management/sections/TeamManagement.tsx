@@ -6,11 +6,13 @@ import { teamsApi } from "../../../api/teams";
 import { staffApi } from "../../../api/storage";
 import TeamCreationModal from "./team/TeamCreationModal";
 import TeamList from "./team/TeamList";
+import { useNotification } from "../../../context/NotificationContext";
 
 export default function TeamManagement() {
   const [teams, setTeams] = useState<TeamWithMembers[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTeam, setEditingTeam] = useState<TeamWithMembers | null>(null);
+  const { showSuccess, showError, showConfirm } = useNotification();
 
   useEffect(() => {
     loadTeams();
@@ -72,14 +74,24 @@ export default function TeamManagement() {
   };
 
   const handleDeleteTeam = (id: string) => {
-    if (
-      window.confirm(
-        "Are you sure you want to delete this team? This action cannot be undone."
-      )
-    ) {
-      teamsApi.delete(id);
-      loadTeams();
-    }
+    const team = teams.find((t) => t.id === id);
+    const teamName = team?.name || "this team";
+
+    showConfirm(
+      `Are you sure you want to delete "${teamName}"? This action cannot be undone.`,
+      () => {
+        try {
+          teamsApi.delete(id);
+          loadTeams();
+          showSuccess("Team deleted successfully", "Success");
+        } catch (error: any) {
+          showError(error.message || "Failed to delete team", "Error");
+        }
+      },
+      "Delete Team",
+      "Delete",
+      "Cancel"
+    );
   };
 
   return (

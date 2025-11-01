@@ -16,30 +16,39 @@ export default function PreviewFormWrapper() {
 
     try {
       setLoading(true);
+      console.log("[PreviewFormWrapper] Fetching form with ID:", id);
       const response = await apiClient.getForm(id);
       setForm(response.form);
-      
+
       // Load branching rules
       try {
-        const branchingResponse = await apiClient.request<{ sectionBranching: any[] }>(
-          `/forms/${id}/section-branching`
-        );
+        const branchingResponse = await apiClient.request<{
+          sectionBranching: any[];
+        }>(`/forms/${id}/section-branching`);
         if (branchingResponse && branchingResponse.sectionBranching) {
           setBranchingRules(branchingResponse.sectionBranching);
-          console.log('=== PreviewFormWrapper: Branching rules loaded ===');
-          console.log('Count:', branchingResponse.sectionBranching.length);
-          console.log('Rules:', branchingResponse.sectionBranching);
+          console.log("=== PreviewFormWrapper: Branching rules loaded ===");
+          console.log("Count:", branchingResponse.sectionBranching.length);
+          console.log("Rules:", branchingResponse.sectionBranching);
         } else {
-          console.log('=== PreviewFormWrapper: No branching rules in response ===');
+          console.log(
+            "=== PreviewFormWrapper: No branching rules in response ==="
+          );
           setBranchingRules([]);
         }
       } catch (branchErr) {
-        console.warn('Preview - Failed to fetch branching rules:', branchErr);
+        console.warn("Preview - Failed to fetch branching rules:", branchErr);
         setBranchingRules([]);
       }
-      
+
+      console.log(
+        "[PreviewFormWrapper] Form loaded successfully:",
+        response.form.id
+      );
       setError(null);
     } catch (err) {
+      console.error("[PreviewFormWrapper] Error fetching form with ID:", id);
+      console.error("[PreviewFormWrapper] Error details:", err);
       setError("Failed to load form");
       console.error("Error fetching form:", err);
     } finally {
@@ -179,5 +188,11 @@ export default function PreviewFormWrapper() {
     followUpQuestions: form.followUpQuestions || [],
   };
 
-  return <PreviewForm questions={[formData]} onSubmit={handleSubmit} branchingRules={branchingRules} />;
+  return (
+    <PreviewForm
+      questions={[formData]}
+      onSubmit={handleSubmit}
+      branchingRules={branchingRules}
+    />
+  );
 }

@@ -486,6 +486,19 @@ class ApiClient {
     });
   }
 
+  async updateTenant(tenantId: string, tenantData: any) {
+    return this.request<{ tenant: any; admin?: any }>(`/tenants/${tenantId}`, {
+      method: "PUT",
+      body: JSON.stringify(tenantData),
+    });
+  }
+
+  async deleteTenant(tenantId: string) {
+    return this.request(`/tenants/${tenantId}`, {
+      method: "DELETE",
+    });
+  }
+
   async getTenantStats(tenantId: string) {
     return this.request<{ stats: any }>(`/tenants/${tenantId}/stats`);
   }

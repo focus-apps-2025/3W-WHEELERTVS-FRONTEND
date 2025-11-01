@@ -26,6 +26,8 @@ import { useAuth } from "../context/AuthContext";
 import { NestedFollowUpRenderer } from "./NestedFollowUpRenderer";
 import ChildFormsManager from "./forms/ChildFormsManager";
 import { SectionBranchingConfig } from "./forms/SectionBranchingConfig";
+import { FormRoutingConfig } from "./forms/FormRoutingConfig";
+import PreviewForm from "./PreviewForm";
 
 interface FormSection {
   id: string;
@@ -128,6 +130,12 @@ export default function FormCreator() {
     ] as FormSection[],
   });
   const [formSectionBranching, setFormSectionBranching] = useState<any[]>([]);
+  const [showFormRoutingConfig, setShowFormRoutingConfig] = useState(false);
+  const [formRoutingConfigQuestion, setFormRoutingConfigQuestion] = useState<{
+    questionId: string;
+    sectionId: string;
+    options: string[];
+  } | null>(null);
   const { showSuccess, showError, showConfirm } = useNotification();
 
   // Fetch tenants for superadmin
@@ -221,7 +229,10 @@ export default function FormCreator() {
           // Load branching rules for the form
           if (backendForm.sectionBranching) {
             setFormSectionBranching(backendForm.sectionBranching);
-            console.log('Branching rules loaded from form:', backendForm.sectionBranching);
+            console.log(
+              "Branching rules loaded from form:",
+              backendForm.sectionBranching
+            );
           }
         } catch (error) {
           console.error("Failed to load form:", error);
@@ -434,17 +445,17 @@ export default function FormCreator() {
         // Update existing form
         console.log("Updating form with ID:", id);
         await apiClient.updateForm(id, formToSave);
-        
+
         // Save branching rules if any exist
         if (formSectionBranching.length > 0) {
           console.log("Saving branching rules:", formSectionBranching);
           await apiClient.request(`/forms/${id}/section-branching`, {
-            method: 'POST',
-            body: JSON.stringify({ rules: formSectionBranching })
+            method: "POST",
+            body: JSON.stringify({ rules: formSectionBranching }),
           });
           console.log("Branching rules saved successfully");
         }
-        
+
         showSuccess("Form updated successfully", "Success");
         navigate("/forms/management");
       } else {
@@ -453,17 +464,20 @@ export default function FormCreator() {
         const response = await apiClient.createForm(formToSave);
         console.log("Form created successfully:", response);
         const newFormId = response.form._id;
-        
+
         // Save branching rules if any exist
         if (formSectionBranching.length > 0) {
-          console.log("Saving branching rules for new form:", formSectionBranching);
+          console.log(
+            "Saving branching rules for new form:",
+            formSectionBranching
+          );
           await apiClient.request(`/forms/${newFormId}/section-branching`, {
-            method: 'POST',
-            body: JSON.stringify({ rules: formSectionBranching })
+            method: "POST",
+            body: JSON.stringify({ rules: formSectionBranching }),
           });
           console.log("Branching rules saved successfully");
         }
-        
+
         showSuccess("Form created successfully", "Success");
         setMode("list");
         // Refresh forms list from backend
@@ -517,7 +531,10 @@ export default function FormCreator() {
     }
   };
 
-  const handleToggleVisibility = async (id: string, currentVisibility: boolean) => {
+  const handleToggleVisibility = async (
+    id: string,
+    currentVisibility: boolean
+  ) => {
     try {
       await apiClient.updateFormVisibility(id, !currentVisibility);
       const formsResponse = await apiClient.getForms();
@@ -951,51 +968,102 @@ export default function FormCreator() {
     setShowBranchingConfig(true);
   };
 
+  const openFormRoutingConfig = (
+    sectionId: string,
+    questionId: string,
+    options: string[]
+  ) => {
+    setFormRoutingConfigQuestion({ questionId, sectionId, options });
+    setShowFormRoutingConfig(true);
+  };
+
   const handleSaveBranchingRules = (rules: any[]) => {
     if (!branchingConfigQuestion) return;
 
-    const section = form.sections.find(s => s.id === branchingConfigQuestion.sectionId);
+    const section = form.sections.find(
+      (s) => s.id === branchingConfigQuestion.sectionId
+    );
     if (!section) return;
 
-    const question = section.questions.find(q => q.id === branchingConfigQuestion.questionId);
+    const question = section.questions.find(
+      (q) => q.id === branchingConfigQuestion.questionId
+    );
     if (!question) return;
 
-    const branchingRules = rules.map(rule => ({
+    const branchingRules = rules.map((rule) => ({
       optionLabel: rule.optionLabel,
       targetSectionId: rule.targetSectionId,
-      isOtherOption: rule.isOtherOption || false
+      isOtherOption: rule.isOtherOption || false,
     }));
 
     const updatedQuestion = {
       ...question,
-      branchingRules: branchingRules
+      branchingRules: branchingRules,
     };
 
     updateSection(branchingConfigQuestion.sectionId, {
-      questions: section.questions.map(q =>
+      questions: section.questions.map((q) =>
         q.id === branchingConfigQuestion.questionId ? updatedQuestion : q
-      )
+      ),
     });
 
     // Update formSectionBranching state with complete rule structure for API
-    const apiRules = rules.map(rule => ({
+    const apiRules = rules.map((rule) => ({
       questionId: branchingConfigQuestion.questionId,
       sectionId: branchingConfigQuestion.sectionId,
       optionLabel: rule.optionLabel,
       targetSectionId: rule.targetSectionId,
-      isOtherOption: rule.isOtherOption || false
+      isOtherOption: rule.isOtherOption || false,
     }));
 
     // Remove old rules for this question and add new ones
     const updatedBranching = formSectionBranching.filter(
-      r => !(r.questionId === branchingConfigQuestion.questionId && r.sectionId === branchingConfigQuestion.sectionId)
+      (r) =>
+        !(
+          r.questionId === branchingConfigQuestion.questionId &&
+          r.sectionId === branchingConfigQuestion.sectionId
+        )
     );
     setFormSectionBranching([...updatedBranching, ...apiRules]);
-    console.log('Branching rules updated:', [...updatedBranching, ...apiRules]);
+    console.log("Branching rules updated:", [...updatedBranching, ...apiRules]);
 
     setShowBranchingConfig(false);
     setBranchingConfigQuestion(null);
-    showSuccess('Section routing configured successfully');
+    showSuccess("Section routing configured successfully");
+  };
+
+  const handleSaveFormRoutingConfig = (
+    config: Record<string, { linkedFormId: string }>
+  ) => {
+    if (!formRoutingConfigQuestion) return;
+
+    const section = form.sections.find(
+      (s) => s.id === formRoutingConfigQuestion.sectionId
+    );
+    if (!section) return;
+
+    const question = section.questions.find(
+      (q) => q.id === formRoutingConfigQuestion.questionId
+    );
+    if (!question) return;
+
+    const updatedQuestion = {
+      ...question,
+      followUpConfig: {
+        ...(question.followUpConfig || {}),
+        ...config,
+      },
+    };
+
+    updateSection(formRoutingConfigQuestion.sectionId, {
+      questions: section.questions.map((q) =>
+        q.id === formRoutingConfigQuestion.questionId ? updatedQuestion : q
+      ),
+    });
+
+    setShowFormRoutingConfig(false);
+    setFormRoutingConfigQuestion(null);
+    showSuccess("Follow-up form routing configured successfully");
   };
 
   const linkFollowUpSection = (
@@ -2647,22 +2715,94 @@ export default function FormCreator() {
                                       </button>
                                     </div>
                                     <p className="text-xs text-purple-700 mb-2">
-                                      Route user to different sections based on their answer
+                                      Route user to different sections based on
+                                      their answer
                                     </p>
-                                    {question.branchingRules && question.branchingRules.length > 0 && (
-                                      <div className="text-xs text-purple-600 bg-white rounded p-2">
-                                        <div className="font-medium mb-1">Active routing:</div>
-                                        <ul className="space-y-1">
-                                          {question.branchingRules.map((rule, idx) => (
-                                            <li key={idx}>
-                                              • "{rule.optionLabel}" → {
-                                                form.sections.find(s => s.id === rule.targetSectionId)?.title || 'Unknown'
-                                              }
-                                            </li>
-                                          ))}
-                                        </ul>
+                                    {question.branchingRules &&
+                                      question.branchingRules.length > 0 && (
+                                        <div className="text-xs text-purple-600 bg-white rounded p-2">
+                                          <div className="font-medium mb-1">
+                                            Active routing:
+                                          </div>
+                                          <ul className="space-y-1">
+                                            {question.branchingRules.map(
+                                              (rule, idx) => (
+                                                <li key={idx}>
+                                                  • "{rule.optionLabel}" →{" "}
+                                                  {form.sections.find(
+                                                    (s) =>
+                                                      s.id ===
+                                                      rule.targetSectionId
+                                                  )?.title || "Unknown"}
+                                                </li>
+                                              )
+                                            )}
+                                          </ul>
+                                        </div>
+                                      )}
+                                  </div>
+                                )}
+
+                              {/* Form Routing Configuration */}
+                              {(question.type === "radio" ||
+                                question.type === "checkbox" ||
+                                question.type === "select") &&
+                                question.options &&
+                                question.options.length > 0 && (
+                                  <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-lg">🔗</span>
+                                        <label className="text-xs font-semibold text-green-800 uppercase tracking-wide">
+                                          Follow-up Form Routing
+                                        </label>
                                       </div>
-                                    )}
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          openFormRoutingConfig(
+                                            section.id,
+                                            question.id,
+                                            question.options || []
+                                          )
+                                        }
+                                        className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-1"
+                                      >
+                                        <LinkIcon className="w-4 h-4" />
+                                        Configure Form Links
+                                      </button>
+                                    </div>
+                                    <p className="text-xs text-green-700 mb-2">
+                                      Link answers to follow-up forms
+                                      (auto-redirect after submission)
+                                    </p>
+                                    {question.followUpConfig &&
+                                      Object.keys(question.followUpConfig).some(
+                                        (k) =>
+                                          question.followUpConfig?.[k]
+                                            ?.linkedFormId
+                                      ) && (
+                                        <div className="text-xs text-green-600 bg-white rounded p-2">
+                                          <div className="font-medium mb-1">
+                                            ✅ Active form links:
+                                          </div>
+                                          <ul className="space-y-1">
+                                            {Object.entries(
+                                              question.followUpConfig
+                                            )
+                                              .filter(
+                                                ([_, config]) =>
+                                                  config.linkedFormId
+                                              )
+                                              .map(([option, config], idx) => (
+                                                <li key={idx}>
+                                                  • "{option}" → Form:{" "}
+                                                  {config.linkedFormId}
+                                                </li>
+                                              ))}
+                                          </ul>
+                                        </div>
+                                      )}
                                   </div>
                                 )}
 
@@ -2858,11 +2998,13 @@ export default function FormCreator() {
                                           </div>
                                         </div>
                                         <p className="text-sm font-medium text-blue-900 mb-3">
-                                          Add follow-up questions for your options
+                                          Add follow-up questions for your
+                                          options
                                         </p>
                                         <p className="text-xs text-blue-700 mb-3">
-                                          Select an option to add a follow-up question
-                                          that appears when users select it
+                                          Select an option to add a follow-up
+                                          question that appears when users
+                                          select it
                                         </p>
                                         <div className="flex flex-wrap gap-2 justify-center">
                                           {question.options?.map(
@@ -3176,244 +3318,19 @@ export default function FormCreator() {
       {showPreview && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
-              <h2 className="text-xl font-bold text-primary-800">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-2xl font-bold text-primary-900">
                 Form Preview
               </h2>
               <button
                 onClick={() => setShowPreview(false)}
-                className="p-2 hover:bg-neutral-100 rounded-lg"
+                className="text-neutral-400 hover:text-neutral-600"
               >
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6" />
               </button>
             </div>
-
             <div className="p-6">
-              <div className="mb-6">
-                <h1 className="text-2xl font-bold text-primary-800 mb-2">
-                  {form.title || "Untitled Form"}
-                </h1>
-                <p className="text-primary-600">
-                  {form.description || "No description provided"}
-                </p>
-              </div>
-
-              {form.sections.map((section, sectionIndex) => (
-                <div key={section.id} className="mb-8">
-                  <div className="border-l-4 border-primary-500 pl-4 mb-4">
-                    <h2 className="text-xl font-semibold text-primary-700 mb-2">
-                      {section.title}
-                    </h2>
-                    {section.description && (
-                      <p className="text-primary-600">{section.description}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-4">
-                    {section.questions
-                      .filter((q) => !q.showWhen)
-                      .map((question, questionIndex) => (
-                        <div
-                          key={question.id}
-                          className="bg-neutral-50 p-4 rounded-lg"
-                        >
-                          <label className="block text-sm font-medium text-primary-700 mb-2">
-                            {question.text}
-                            {question.required && (
-                              <span className="text-red-500 ml-1">*</span>
-                            )}
-                          </label>
-
-                          {question.description && (
-                            <p className="text-sm text-primary-600 mb-3">
-                              {question.description}
-                            </p>
-                          )}
-
-                          {/* Render different input types */}
-                          {question.type === "text" && (
-                            <input
-                              type="text"
-                              className="w-full p-2 border border-neutral-300 rounded-md"
-                              placeholder="Your answer"
-                              disabled
-                            />
-                          )}
-
-                          {question.type === "textarea" && (
-                            <textarea
-                              className="w-full p-2 border border-neutral-300 rounded-md"
-                              rows={3}
-                              placeholder="Your answer"
-                              disabled
-                            />
-                          )}
-
-                          {question.type === "email" && (
-                            <input
-                              type="email"
-                              className="w-full p-2 border border-neutral-300 rounded-md"
-                              placeholder="your.email@example.com"
-                              disabled
-                            />
-                          )}
-
-                          {question.type === "number" && (
-                            <input
-                              type="number"
-                              className="w-full p-2 border border-neutral-300 rounded-md"
-                              placeholder="0"
-                              disabled
-                            />
-                          )}
-
-                          {question.type === "radio" && question.options && (
-                            <div className="space-y-2">
-                              {question.options.map((option, optionIndex) => (
-                                <label
-                                  key={optionIndex}
-                                  className="flex items-center"
-                                >
-                                  <input
-                                    type="radio"
-                                    name={question.id}
-                                    className="mr-2"
-                                    disabled
-                                  />
-                                  <span className="text-sm text-primary-700">
-                                    {option}
-                                  </span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-
-                          {question.type === "checkbox" && question.options && (
-                            <div className="space-y-2">
-                              {question.options.map((option, optionIndex) => (
-                                <label
-                                  key={optionIndex}
-                                  className="flex items-center"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    className="mr-2"
-                                    disabled
-                                  />
-                                  <span className="text-sm text-primary-700">
-                                    {option}
-                                  </span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-
-                          {question.type === "select" && question.options && (
-                            <select
-                              className="w-full p-2 border border-neutral-300 rounded-md"
-                              disabled
-                            >
-                              <option>Select an option</option>
-                              {question.options.map((option, optionIndex) => (
-                                <option key={optionIndex} value={option}>
-                                  {option}
-                                </option>
-                              ))}
-                            </select>
-                          )}
-
-                          {question.type === "file" && (
-                            <input
-                              type="file"
-                              className="w-full p-2 border border-neutral-300 rounded-md"
-                              disabled
-                            />
-                          )}
-
-                          {/* Show follow-up questions in preview (recursively) */}
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Section Selector Modal */}
-      {showSectionSelector && pendingSectionLink && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold mb-4">Link Follow-up Section</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Select a section to show when user selects "{pendingSectionLink.triggerValue}":
-            </p>
-            <select
-              className="w-full p-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onChange={(e) => {
-                if (e.target.value) {
-                  handleSelectSectionForLink(e.target.value);
-                }
-              }}
-            >
-              <option value="">-- Select a section --</option>
-              {form.sections.map((section) => (
-                <option key={section.id} value={section.id}>
-                  {section.title}
-                </option>
-              ))}
-            </select>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setShowSectionSelector(false);
-                  setPendingSectionLink(null);
-                }}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Form Selector Modal */}
-      {showFormSelector && pendingFormLink && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <h2 className="text-xl font-bold mb-4">Link Follow-up Form</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Select a form to link as follow-up for "{pendingFormLink.triggerValue}":
-            </p>
-            <select
-              className="w-full p-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              onChange={(e) => {
-                if (e.target.value) {
-                  handleSelectFormForLink(e.target.value);
-                }
-              }}
-            >
-              <option value="">-- Select a form --</option>
-              {forms
-                .filter((f) => f._id !== id)
-                .map((f) => (
-                  <option key={f._id} value={f._id}>
-                    {f.title}
-                  </option>
-                ))}
-            </select>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setShowFormSelector(false);
-                  setPendingFormLink(null);
-                }}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors font-medium"
-              >
-                Cancel
-              </button>
+              <PreviewForm form={form} />
             </div>
           </div>
         </div>
@@ -3425,17 +3342,40 @@ export default function FormCreator() {
           questionId={branchingConfigQuestion.questionId}
           sectionId={branchingConfigQuestion.sectionId}
           options={branchingConfigQuestion.options}
-          sections={form.sections}
+          sections={form.sections.map((s) => ({ id: s.id, title: s.title }))}
           existingRules={
             form.sections
-              .find(s => s.id === branchingConfigQuestion.sectionId)
-              ?.questions.find(q => q.id === branchingConfigQuestion.questionId)
-              ?.branchingRules || []
+              .find((s) => s.id === branchingConfigQuestion.sectionId)
+              ?.questions.find(
+                (q) => q.id === branchingConfigQuestion.questionId
+              )?.branchingRules || []
           }
           onSave={handleSaveBranchingRules}
           onClose={() => {
             setShowBranchingConfig(false);
             setBranchingConfigQuestion(null);
+          }}
+        />
+      )}
+
+      {/* Form Routing Configuration Modal */}
+      {showFormRoutingConfig && formRoutingConfigQuestion && (
+        <FormRoutingConfig
+          questionId={formRoutingConfigQuestion.questionId}
+          sectionId={formRoutingConfigQuestion.sectionId}
+          options={formRoutingConfigQuestion.options}
+          availableForms={forms.map((f) => ({ id: f.id || f._id, title: f.title }))}
+          existingConfig={
+            form.sections
+              .find((s) => s.id === formRoutingConfigQuestion.sectionId)
+              ?.questions.find(
+                (q) => q.id === formRoutingConfigQuestion.questionId
+              )?.followUpConfig || {}
+          }
+          onSave={handleSaveFormRoutingConfig}
+          onClose={() => {
+            setShowFormRoutingConfig(false);
+            setFormRoutingConfigQuestion(null);
           }}
         />
       )}
