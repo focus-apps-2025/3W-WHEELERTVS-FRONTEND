@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Eye,
   Calendar,
@@ -10,14 +10,35 @@ import {
   XCircle,
   Mail,
 } from "lucide-react";
+import { Bar } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+} from "chart.js";
+import type { ActiveElement } from "chart.js";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
 
+ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+
+function truncateLabel(label: string, maxLength = 50): string {
+  if (!label) {
+    return "";
+  }
+  return label.length > maxLength ? `${label.slice(0, maxLength - 3)}...` : label;
+}
+
 interface Form {
   _id: string;
+  id?: string;
   title: string;
-  sections: any[];
+  sections?: any[];
   followUpQuestions?: any[];
 }
 
@@ -30,6 +51,10 @@ interface Response {
   updatedAt: string;
   assignedTo?: string;
   status?: string;
+  yesNoScore?: {
+    yes: number;
+    total: number;
+  };
 }
 
 interface GroupedResponses {
@@ -50,15 +75,32 @@ export default function AllResponses() {
   const [formLoading, setFormLoading] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showStatusUpdate, setShowStatusUpdate] = useState(false);
+  const [viewMode, setViewMode] = useState<"dashboard" | "responses">("dashboard");
+  const [pendingSectionId, setPendingSectionId] = useState<string | null>(null);
+  const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (viewMode !== "responses" || !pendingSectionId) {
+      return;
+    }
+    const target = sectionRefs.current[pendingSectionId];
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      setPendingSectionId(null);
+    }
+  }, [viewMode, pendingSectionId]);
+
   const handleViewDetails = async (
     response: Response & { formTitle: string }
   ) => {
     setSelectedResponse(response);
+    setViewMode("dashboard");
+    setPendingSectionId(null);
+    sectionRefs.current = {};
     setFormLoading(true);
     try {
       const formData = await apiClient.getForm(response.questionId);
@@ -106,22 +148,26 @@ export default function AllResponses() {
         apiClient.getForms(),
       ]);
 
-      // Create a map using both _id and id for compatibility
       const formsMap = formsData.forms.reduce(
-        (map: Record<string, string>, form: any) => {
-          // Map both _id and id to the title for maximum compatibility
-          if (form._id) map[form._id] = form.title;
-          if (form.id) map[form.id] = form.title;
+        (map: Record<string, Form>, form: any) => {
+          if (form?._id) map[form._id] = form as Form;
+          if (form?.id) map[form.id] = form as Form;
           return map;
         },
         {}
       );
 
       const responsesWithTitles = responsesData.responses.map(
-        (response: Response) => ({
-          ...response,
-          formTitle: formsMap[response.questionId] || "Unknown Form",
-        })
+        (response: Response) => {
+          const form = formsMap[response.questionId];
+          return {
+            ...response,
+            formTitle: form?.title || "Unknown Form",
+            yesNoScore: form
+              ? computeYesNoScore(response.answers, form)
+              : undefined,
+          };
+        }
       );
 
       setResponses(responsesWithTitles);
@@ -147,26 +193,467 @@ export default function AllResponses() {
 
   const groupedResponses = groupResponsesByDate(responses);
 
-  const getAllQuestions = (form: Form) => {
-    const questions: Record<string, any> = {};
+  const sectionStats = useMemo(() => {
+    if (!selectedForm || !selectedResponse) {
+      return [] as Array<{
+        id: string;
+        title: string;
+        yes: number;
+        no: number;
+        na: number;
+        total: number;
+      }>;
+    }
+    return getSectionYesNoStats(selectedForm, selectedResponse.answers);
+  }, [selectedForm, selectedResponse]);
 
-    // Add questions from sections
+  const filteredSectionStats = useMemo(
+    () => sectionStats.filter((stat) => stat.yes > 0 || stat.no > 0 || stat.na > 0),
+    [sectionStats]
+  );
+
+  const sectionChartData = useMemo(() => {
+    const calculatePercentage = (value: number, total: number) =>
+      total ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
+
+    return {
+      labels: filteredSectionStats.map((stat) => truncateLabel(stat.title)),
+      datasets: [
+        {
+          label: "Yes",
+          data: filteredSectionStats.map((stat) => calculatePercentage(stat.yes, stat.total)),
+          backgroundColor: "#1d4ed8",
+          borderRadius: 4,
+        },
+        {
+          label: "No",
+          data: filteredSectionStats.map((stat) => calculatePercentage(stat.no, stat.total)),
+          backgroundColor: "#3b82f6",
+          borderRadius: 4,
+        },
+        {
+          label: "N/A",
+          data: filteredSectionStats.map((stat) => calculatePercentage(stat.na, stat.total)),
+          backgroundColor: "#93c5fd",
+          borderRadius: 4,
+        },
+      ],
+    };
+  }, [filteredSectionStats]);
+
+  const sectionChartOptions = useMemo(
+    () => ({
+      indexAxis: "y",
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: { top: 16, right: 32, bottom: 16, left: 8 },
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: {
+            color: "#0f172a",
+          },
+        },
+        tooltip: {
+          callbacks: {
+            title: (items: any[]) => {
+              const index = items?.[0]?.dataIndex;
+              if (index === undefined) {
+                return "";
+              }
+              return filteredSectionStats[index]?.title || "";
+            },
+            label: (context: any) => {
+              const value = context.parsed?.x ?? 0;
+              return `${context.dataset.label}: ${value.toFixed(1)}%`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          max: 100,
+          stacked: true,
+          ticks: {
+            callback: (value: any) => `${value}%`,
+            color: "#0f172a",
+          },
+          title: {
+            display: true,
+            text: "Percentage",
+            color: "#0f172a",
+          },
+        },
+        y: {
+          stacked: true,
+          ticks: {
+            autoSkip: false,
+            color: "#0f172a",
+          },
+          title: {
+            display: true,
+            text: "Sections",
+            color: "#0f172a",
+          },
+        },
+      },
+    }),
+    [filteredSectionStats]
+  );
+
+  function collectYesNoQuestionIds(form: Form): string[] {
+    const ids = new Set<string>();
+
+    const processQuestion = (question: any) => {
+      if (!question) {
+        return;
+      }
+      if (question.type === "yesNoNA" && question.id) {
+        ids.add(question.id);
+      }
+      question.followUpQuestions?.forEach(processQuestion);
+    };
+
     form.sections?.forEach((section) => {
-      section.questions?.forEach((question: any) => {
-        questions[question.id] = question;
-        // Add follow-up questions
-        question.followUpQuestions?.forEach((followUp: any) => {
-          questions[followUp.id] = followUp;
-        });
-      });
+      section.questions?.forEach(processQuestion);
     });
 
-    // Add form-level follow-up questions
-    form.followUpQuestions?.forEach((question: any) => {
-      questions[question.id] = question;
+    form.followUpQuestions?.forEach(processQuestion);
+
+    return Array.from(ids);
+  }
+
+  function extractYesNoValues(value: any): string[] {
+    if (value === null || value === undefined) {
+      return [];
+    }
+    if (typeof value === "string") {
+      const normalized = value.trim().toLowerCase();
+      return normalized ? [normalized] : [];
+    }
+    if (typeof value === "boolean") {
+      return [value ? "yes" : "no"];
+    }
+    if (Array.isArray(value)) {
+      return value.flatMap((item) => extractYesNoValues(item));
+    }
+    if (typeof value === "object") {
+      return Object.values(value).flatMap((item) => extractYesNoValues(item));
+    }
+    return [];
+  }
+
+  function computeYesNoScore(
+    answers: Record<string, any>,
+    form: Form
+  ): { yes: number; total: number } | undefined {
+    const questionIds = collectYesNoQuestionIds(form);
+    if (!questionIds.length) {
+      return undefined;
+    }
+
+    let yesCount = 0;
+
+    questionIds.forEach((questionId) => {
+      const normalizedValues = extractYesNoValues(answers?.[questionId]);
+      if (normalizedValues.includes("yes")) {
+        yesCount += 1;
+      }
     });
 
-    return questions;
+    return {
+      yes: yesCount,
+      total: questionIds.length,
+    };
+  }
+
+  function getSectionYesNoStats(
+    form: Form,
+    answers: Record<string, any>
+  ): Array<{
+    id: string;
+    title: string;
+    yes: number;
+    no: number;
+    na: number;
+    total: number;
+  }> {
+    const stats =
+      form.sections?.map((section: any) => {
+        const counts = { yes: 0, no: 0, na: 0, total: 0 };
+
+        const processQuestion = (question: any) => {
+          if (!question) {
+            return;
+          }
+          if (question.type !== "yesNoNA" || !question.id) {
+            question.followUpQuestions?.forEach(processQuestion);
+            return;
+          }
+
+          const normalizedValues = extractYesNoValues(answers?.[question.id]);
+          const hasRecognizedValue = normalizedValues.some((value) =>
+            ["yes", "no", "n/a", "na", "not applicable"].includes(value)
+          );
+          if (!hasRecognizedValue) {
+            question.followUpQuestions?.forEach(processQuestion);
+            return;
+          }
+
+          counts.total += 1;
+          if (normalizedValues.includes("yes")) {
+            counts.yes += 1;
+          }
+          if (normalizedValues.includes("no")) {
+            counts.no += 1;
+          }
+          if (
+            normalizedValues.includes("n/a") ||
+            normalizedValues.includes("na") ||
+            normalizedValues.includes("not applicable")
+          ) {
+            counts.na += 1;
+          }
+
+          question.followUpQuestions?.forEach(processQuestion);
+        };
+
+        section.questions?.forEach(processQuestion);
+
+        if (!counts.total) {
+          return null;
+        }
+
+        return {
+          id: section.id,
+          title: section.title || "Untitled Section",
+          yes: counts.yes,
+          no: counts.no,
+          na: counts.na,
+          total: counts.total,
+        };
+      }) ?? [];
+
+    return stats.filter((stat): stat is {
+      id: string;
+      title: string;
+      yes: number;
+      no: number;
+      na: number;
+      total: number;
+    } => Boolean(stat));
+  }
+
+  const hasAnswerValue = (value: any) => {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    if (typeof value === "string") {
+      return value.trim() !== "";
+    }
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+    if (typeof value === "object") {
+      return Object.keys(value).length > 0;
+    }
+    return true;
+  };
+
+  const renderAnswerDisplay = (value: any): React.ReactNode => {
+    if (value === null || value === undefined) {
+      return <span className="text-primary-400">No response</span>;
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      return trimmed ? trimmed : <span className="text-primary-400">No response</span>;
+    }
+    if (Array.isArray(value)) {
+      return value.length
+        ? value.join(", ")
+        : <span className="text-primary-400">No response</span>;
+    }
+    if (typeof value === "object") {
+      if (!Object.keys(value).length) {
+        return <span className="text-primary-400">No response</span>;
+      }
+      return (
+        <pre className="whitespace-pre-wrap text-primary-600 text-sm">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      );
+    }
+    return String(value);
+  };
+
+  const renderFormContent = (): React.ReactNode => {
+    if (!selectedResponse) {
+      return null;
+    }
+
+    const answeredKeys = new Set<string>();
+    const content: React.ReactNode[] = [];
+
+    if (!selectedForm) {
+      return (
+        <div className="space-y-4">
+          {Object.entries(selectedResponse.answers).map(([key, value]) => (
+            <div key={key} className="border-b border-primary-100 pb-2">
+              <div className="font-medium text-primary-700">{key}</div>
+              <div className="text-primary-600 mt-1">
+                {renderAnswerDisplay(value)}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    selectedForm.sections?.forEach((section) => {
+      const sectionQuestions = section.questions || [];
+      if (!sectionQuestions.length) {
+        return;
+      }
+
+      content.push(
+        <div
+          key={section.id}
+          ref={(element) => {
+            sectionRefs.current[section.id] = element;
+          }}
+          className="border border-primary-100 rounded-lg overflow-hidden"
+        >
+          <div className="px-4 py-3 bg-primary-50">
+            <div className="text-base font-semibold text-primary-700">
+              {section.title || "Untitled Section"}
+            </div>
+            {section.description ? (
+              <div className="text-sm text-primary-500 mt-1">
+                {section.description}
+              </div>
+            ) : null}
+          </div>
+          <div className="divide-y divide-primary-100">
+            {sectionQuestions.map((question: any) => {
+              answeredKeys.add(question.id);
+              const answer = selectedResponse.answers[question.id];
+
+              return (
+                <div key={question.id} className="p-4">
+                  <div className="font-medium text-primary-700">
+                    {question.text || question.id}
+                  </div>
+                  <div className="mt-1 text-primary-600">
+                    {renderAnswerDisplay(answer)}
+                  </div>
+                  {question.followUpQuestions?.map((followUp: any) => {
+                    const followAnswer = selectedResponse.answers[followUp.id];
+                    if (!hasAnswerValue(followAnswer)) {
+                      return null;
+                    }
+                    answeredKeys.add(followUp.id);
+                    return (
+                      <div
+                        key={followUp.id}
+                        className="mt-3 pl-4 border-l border-primary-100"
+                      >
+                        <div className="text-sm font-medium text-primary-600">
+                          {followUp.text || followUp.id}
+                        </div>
+                        <div className="mt-1 text-sm text-primary-600">
+                          {renderAnswerDisplay(followAnswer)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    });
+
+    if (selectedForm.followUpQuestions?.length) {
+      content.push(
+        <div
+          key="form-follow-ups"
+          className="border border-primary-100 rounded-lg overflow-hidden"
+        >
+          <div className="px-4 py-3 bg-primary-50">
+            <div className="text-base font-semibold text-primary-700">
+              Form Follow-up Questions
+            </div>
+          </div>
+          <div className="divide-y divide-primary-100">
+            {selectedForm.followUpQuestions.map((followUp: any) => {
+              answeredKeys.add(followUp.id);
+              const answer = selectedResponse.answers[followUp.id];
+
+              return (
+                <div key={followUp.id} className="p-4">
+                  <div className="font-medium text-primary-700">
+                    {followUp.text || followUp.id}
+                  </div>
+                  <div className="mt-1 text-primary-600">
+                    {renderAnswerDisplay(answer)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    const extraEntries = Object.entries(selectedResponse.answers).filter(
+      ([key]) => !answeredKeys.has(key)
+    );
+
+    if (extraEntries.length) {
+      content.push(
+        <div
+          key="additional-answers"
+          className="border border-primary-100 rounded-lg overflow-hidden"
+        >
+          <div className="px-4 py-3 bg-primary-50">
+            <div className="text-base font-semibold text-primary-700">
+              Additional Responses
+            </div>
+          </div>
+          <div className="divide-y divide-primary-100">
+            {extraEntries.map(([key, value]) => (
+              <div key={key} className="p-4">
+                <div className="font-medium text-primary-700">{key}</div>
+                <div className="mt-1 text-primary-600">
+                  {renderAnswerDisplay(value)}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (!content.length) {
+      return (
+        <div className="space-y-4">
+          {Object.entries(selectedResponse.answers).map(([key, value]) => (
+            <div key={key} className="border-b border-primary-100 pb-2">
+              <div className="font-medium text-primary-700">{key}</div>
+              <div className="text-primary-600 mt-1">
+                {renderAnswerDisplay(value)}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    return <div className="space-y-4">{content}</div>;
   };
 
   const getStatusInfo = (status: string) => {
@@ -282,6 +769,11 @@ export default function AllResponses() {
                                 </span>
                               );
                             })()}
+                          {response.yesNoScore && response.yesNoScore.total > 0 && (
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100">
+                              {response.yesNoScore.yes}/{response.yesNoScore.total}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center text-sm text-primary-500 mt-1">
                           <User className="w-4 h-4 mr-1" />
@@ -332,29 +824,42 @@ export default function AllResponses() {
                 <p className="text-sm text-primary-500">
                   Submitted on {formatTimestamp(selectedResponse.createdAt)}
                 </p>
-                {selectedResponse.status && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-700">
-                      Status:
-                    </span>
-                    {(() => {
-                      const statusInfo = getStatusInfo(selectedResponse.status);
-                      const IconComponent = statusInfo.icon;
-                      return (
-                        <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.color} ${statusInfo.bgColor}`}
-                        >
-                          <IconComponent className="w-4 h-4 mr-2" />
-                          {statusInfo.label}
+                {(selectedResponse.status ||
+                  (selectedResponse.yesNoScore &&
+                    selectedResponse.yesNoScore.total > 0)) && (
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    {selectedResponse.status && (
+                      <>
+                        <span className="text-sm font-medium text-gray-700">
+                          Status:
                         </span>
-                      );
-                    })()}
-                    <button
-                      onClick={() => setShowStatusUpdate(!showStatusUpdate)}
-                      className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-md hover:bg-primary-200 transition-colors"
-                    >
-                      Update
-                    </button>
+                        {(() => {
+                          const statusInfo = getStatusInfo(selectedResponse.status);
+                          const IconComponent = statusInfo.icon;
+                          return (
+                            <span
+                              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.color} ${statusInfo.bgColor}`}
+                            >
+                              <IconComponent className="w-4 h-4 mr-2" />
+                              {statusInfo.label}
+                            </span>
+                          );
+                        })()}
+                        <button
+                          onClick={() => setShowStatusUpdate(!showStatusUpdate)}
+                          className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-md hover:bg-primary-200 transition-colors"
+                        >
+                          Update
+                        </button>
+                      </>
+                    )}
+                    {selectedResponse.yesNoScore &&
+                      selectedResponse.yesNoScore.total > 0 && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold text-green-700 bg-green-50 border border-green-100">
+                          Score: {selectedResponse.yesNoScore.yes}/
+                          {selectedResponse.yesNoScore.total}
+                        </span>
+                      )}
                   </div>
                 )}
                 {showStatusUpdate && (
@@ -449,6 +954,9 @@ export default function AllResponses() {
                   onClick={() => {
                     setSelectedResponse(null);
                     setSelectedForm(null);
+                    setViewMode("dashboard");
+                    setPendingSectionId(null);
+                    sectionRefs.current = {};
                   }}
                   className="text-primary-500 hover:text-primary-700"
                 >
@@ -461,55 +969,54 @@ export default function AllResponses() {
                 <div className="flex items-center justify-center py-8">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
                 </div>
-              ) : selectedForm ? (
-                <div className="space-y-4">
-                  {(() => {
-                    const questions = getAllQuestions(selectedForm);
-                    return Object.entries(selectedResponse.answers).map(
-                      ([key, value]) => {
-                        const question = questions[key];
-                        return (
-                          <div
-                            key={key}
-                            className="border-b border-primary-100 pb-2"
-                          >
-                            <div className="font-medium text-primary-700">
-                              {question?.text || key}
-                            </div>
-                            <div className="text-primary-600 mt-1">
-                              {Array.isArray(value)
-                                ? value.join(", ")
-                                : typeof value === "object"
-                                ? JSON.stringify(value, null, 2)
-                                : String(value)}
-                            </div>
-                          </div>
-                        );
-                      }
-                    );
-                  })()}
-                </div>
               ) : (
-                <div className="space-y-4">
-                  {Object.entries(selectedResponse.answers).map(
-                    ([key, value]) => (
-                      <div
-                        key={key}
-                        className="border-b border-primary-100 pb-2"
-                      >
-                        <div className="font-medium text-primary-700">
-                          {key}
-                        </div>
-                        <div className="text-primary-600 mt-1">
-                          {Array.isArray(value)
-                            ? value.join(", ")
-                            : typeof value === "object"
-                            ? JSON.stringify(value, null, 2)
-                            : String(value)}
-                        </div>
-                      </div>
-                    )
+                <div className="space-y-6">
+                  <div className="flex items-center gap-2 bg-primary-50 rounded-lg p-2 w-fit">
+                    <button
+                      onClick={() => setViewMode("dashboard")}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        viewMode === "dashboard"
+                          ? "bg-primary-600 text-white"
+                          : "text-primary-600 hover:bg-primary-100"
+                      }`}
+                    >
+                      Dashboard
+                    </button>
+                    <button
+                      onClick={() => setViewMode("responses")}
+                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        viewMode === "responses"
+                          ? "bg-primary-600 text-white"
+                          : "text-primary-600 hover:bg-primary-100"
+                      }`}
+                    >
+                      Responses
+                    </button>
+                  </div>
+
+                  {viewMode === "dashboard" && filteredSectionStats.length > 0 && (
+                    <div className="h-72">
+                      <Bar
+                        data={sectionChartData}
+                        options={{
+                          ...sectionChartOptions,
+                          onClick: (_event, elements) => {
+                            const firstElement = elements[0] as ActiveElement | undefined;
+                            if (!firstElement) {
+                              return;
+                            }
+                            const sectionId = filteredSectionStats[firstElement.index]?.id;
+                            if (sectionId) {
+                              setPendingSectionId(sectionId);
+                              setViewMode("responses");
+                            }
+                          },
+                        }}
+                      />
+                    </div>
                   )}
+
+                  {viewMode === "responses" && renderFormContent()}
                 </div>
               )}
             </div>

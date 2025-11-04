@@ -86,7 +86,7 @@ export default function DashboardNew() {
   }
 
   const customerPortalUrl = tenant
-    ? `https://formsuser.focusengineeringapp.com/${tenant.slug}`
+    ? `https://formsresponse.netlify.app/${tenant.slug}`
     : null;
 
   // Debug logging
