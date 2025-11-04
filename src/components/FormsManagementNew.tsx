@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   PlusCircle,
@@ -19,11 +19,20 @@ import {
   ExternalLink,
   X,
   Check,
+  Upload,
+  Download,
 } from "lucide-react";
 import { useForms, useMutation } from "../hooks/useApi";
 import { apiClient } from "../api/client";
 import { useNotification } from "../context/NotificationContext";
 import { useAuth } from "../context/AuthContext";
+import {
+  exportFormStructureToExcel,
+  downloadFormImportTemplate,
+  parseFormWorkbook,
+} from "../utils/exportUtils";
+import type { Question as FormSchema, Section as FormSection } from "../types/forms";
+import type { Question as FormQuestion } from "../types";
 
 interface Form {
   _id: string;
@@ -54,9 +63,12 @@ export default function FormsManagementNew() {
     []
   );
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { data: formsData, loading, error, execute: refetchForms } = useForms();
   const { showSuccess, showError, showConfirm } = useNotification();
   const { user } = useAuth();
+  const [isImporting, setIsImporting] = useState(false);
+  const [exportingFormId, setExportingFormId] = useState<string | null>(null);
 
   const deleteMutation = useMutation((id: string) => apiClient.deleteForm(id), {
     onSuccess: () => {
@@ -356,6 +368,18 @@ export default function FormsManagementNew() {
         </div>
         <div className="flex space-x-2">
           <button
+            onClick={() => handleExportForm(form)}
+            className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
+            title="Export form structure"
+            disabled={exportingFormId === form._id}
+          >
+            {exportingFormId === form._id ? (
+              <div className="w-4 h-4 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+            ) : (
+              <Download className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+            )}
+          </button>
+          <button
             onClick={() => handleDuplicate(form._id)}
             className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
             title="Duplicate form"
@@ -411,6 +435,95 @@ export default function FormsManagementNew() {
 
   const handleCreateForm = () => {
     navigate("/forms/create");
+  };
+
+  const handleExportTemplate = () => {
+    downloadFormImportTemplate();
+  };
+
+  const handleExportForm = (form: Form) => {
+    const normalized: FormSchema = {
+      id: form.id || form._id,
+      title: form.title,
+      description: form.description,
+      sections: (form.sections || []) as FormSection[],
+      followUpQuestions: [],
+    } as FormSchema;
+    setExportingFormId(form._id);
+    try {
+      exportFormStructureToExcel(normalized as unknown as FormQuestion);
+      showSuccess(`Exported form "${form.title}"`, "Export Complete");
+    } catch (error: any) {
+      showError(error?.message || "Failed to export form", "Export Failed");
+    } finally {
+      setExportingFormId(null);
+    }
+  };
+
+  const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    const isValidType =
+      file.type ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      file.name.toLowerCase().endsWith(".xlsx");
+    if (!isValidType) {
+      showError("Please select a valid .xlsx file", "Invalid File");
+      return;
+    }
+
+    setIsImporting(true);
+
+    try {
+      const parsed = await parseFormWorkbook(file);
+
+      // Extract branching rules from questions and convert to sectionBranching format
+      const sectionBranching: any[] = [];
+      parsed.sections?.forEach((section: any) => {
+        section.questions?.forEach((question: any) => {
+          if (question.branchingRules && question.branchingRules.length > 0) {
+            question.branchingRules.forEach((rule: any) => {
+              sectionBranching.push({
+                questionId: question.id,
+                sectionId: section.id,
+                optionLabel: rule.optionLabel,
+                targetSectionId: rule.targetSectionId,
+                isOtherOption: false,
+              });
+            });
+          }
+        });
+      });
+
+      const formPayload = {
+        ...parsed,
+        isVisible: parsed.isVisible ?? true,
+        followUpQuestions: parsed.followUpQuestions || [],
+        sectionBranching: sectionBranching,
+      } as FormQuestion;
+      const created = await apiClient.createForm(formPayload);
+      showSuccess("Form imported successfully", "Import Complete");
+      if (created?.form?._id) {
+        navigate(`/forms/${created.form._id}/edit`);
+      }
+      refetchForms();
+    } catch (error: any) {
+      showError(error?.message || "Failed to import form", "Import Failed");
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleImportClick = () => {
+    if (isImporting) {
+      return;
+    }
+    fileInputRef.current?.click();
   };
 
   const handleEditForm = (id: string) => {
@@ -554,22 +667,47 @@ export default function FormsManagementNew() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="font-bold">Service Request Management</h1>
-            <p>Create, edit, and manage service request forms</p>
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
+      <div className="p-6">
+        <div className="mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h1 className="font-bold">Service Request Management</h1>
+              <p>Create, edit, and manage service request forms</p>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <button
+                onClick={handleExportTemplate}
+                className="btn-secondary flex items-center justify-center"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Download Import Template
+              </button>
+              <button
+                onClick={handleImportClick}
+                className="btn-secondary flex items-center justify-center"
+                disabled={isImporting}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {isImporting ? "Importing..." : "Import Form (Excel)"}
+              </button>
+              <button
+                onClick={handleCreateForm}
+                className="btn-primary flex items-center justify-center"
+              >
+                <PlusCircle className="w-3 h-3 mr-1" />
+                Create New Service Form
+              </button>
+            </div>
           </div>
-          <button
-            onClick={handleCreateForm}
-            className="btn-primary mt-2 sm:mt-0"
-          >
-            <PlusCircle className="w-3 h-3 mr-1" />
-            Create New Service Form
-          </button>
         </div>
-      </div>
 
       {/* Search */}
       <div className="mb-6">
@@ -759,5 +897,6 @@ export default function FormsManagementNew() {
         </div>
       )}
     </div>
+  </>
   );
 }

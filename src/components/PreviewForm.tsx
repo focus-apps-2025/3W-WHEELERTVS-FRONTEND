@@ -52,22 +52,29 @@ export default function PreviewForm({
 
   if (!question) {
     return (
-      <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg text-center">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Form Preview</h1>
-        <p className="text-gray-600 mb-6">
-          See how your form will appear to users
-        </p>
-        <div className="max-w-md mx-auto bg-red-50 border border-red-200 rounded-lg p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-red-800">Form Not Found</h2>
-          <p className="text-sm text-red-600">
-            The form you're looking for doesn't exist or may have been removed.
+      <div className="w-full bg-gradient-to-br from-blue-50 via-white to-blue-50 py-12">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">
+            Form Preview
+          </h1>
+          <p className="text-gray-600 mb-6 text-center">
+            See how your form will appear to users
           </p>
-          <button
-            onClick={() => navigate("/forms")}
-            className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            Return to Forms
-          </button>
+          <div className="max-w-md mx-auto bg-red-50 border border-red-200 rounded-lg p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-red-800">
+              Form Not Found
+            </h2>
+            <p className="text-sm text-red-600">
+              The form you're looking for doesn't exist or may have been
+              removed.
+            </p>
+            <button
+              onClick={() => navigate("/forms")}
+              className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Return to Forms
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -76,8 +83,8 @@ export default function PreviewForm({
   if (submitted) {
     if (linkedFollowUpForm) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center p-6">
-          <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-8 space-y-6">
+        <div className="w-full bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center py-6 sm:py-12 px-4 sm:px-6 min-h-screen">
+          <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
             <div className="text-center">
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                 <svg
@@ -407,8 +414,8 @@ export default function PreviewForm({
   const isFirstSection = sectionNavigationHistory.length <= 1;
 
   return (
-    <div className="min-h-screen bg-white py-12">
-      <div className="max-w-3xl mx-auto px-6">
+    <div className="w-full bg-gradient-to-br from-blue-50 via-white to-blue-50 py-6 sm:py-12">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6">
         {branchingAlert && (
           <div className="mb-6 flex items-center space-x-2 text-green-600 bg-green-50 border border-green-200 px-4 py-3 rounded-lg">
             <AlertCircle className="w-5 h-5" />

@@ -49,50 +49,55 @@ export default function QuestionRenderer({
           />
         );
 
+      case "yesNoNA":
       case "radio":
       case "checkbox":
         return (
           <div className="space-y-2">
-            {question.options?.map((option) => (
-              <label
-                key={option}
-                className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50"
-              >
-                <input
-                  type={question.type}
-                  name={question.id}
-                  value={option}
-                  checked={
-                    question.type === "checkbox"
-                      ? Array.isArray(value) && value.includes(option)
-                      : value === option
-                  }
-                  onChange={(e) => {
-                    if (readOnly) return;
-                    if (question.type === "checkbox") {
-                      const newValue = Array.isArray(value) ? [...value] : [];
-                      if (e.target.checked) {
-                        newValue.push(option);
-                      } else {
-                        const index = newValue.indexOf(option);
-                        if (index > -1) {
-                          newValue.splice(index, 1);
-                        }
-                      }
-                      onChange(newValue);
-                    } else {
-                      onChange(option);
+            {question.options?.map((option) => {
+              const inputType =
+                question.type === "checkbox" ? "checkbox" : "radio";
+              return (
+                <label
+                  key={option}
+                  className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50"
+                >
+                  <input
+                    type={inputType}
+                    name={question.id}
+                    value={option}
+                    checked={
+                      question.type === "checkbox"
+                        ? Array.isArray(value) && value.includes(option)
+                        : value === option
                     }
-                  }}
-                  required={question.required && !value}
-                  disabled={readOnly}
-                  className={`h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 ${
-                    readOnly ? "cursor-not-allowed" : ""
-                  }`}
-                />
-                <span className="text-gray-700">{option}</span>
-              </label>
-            ))}
+                    onChange={(e) => {
+                      if (readOnly) return;
+                      if (question.type === "checkbox") {
+                        const newValue = Array.isArray(value) ? [...value] : [];
+                        if (e.target.checked) {
+                          newValue.push(option);
+                        } else {
+                          const index = newValue.indexOf(option);
+                          if (index > -1) {
+                            newValue.splice(index, 1);
+                          }
+                        }
+                        onChange(newValue);
+                      } else {
+                        onChange(option);
+                      }
+                    }}
+                    required={question.required && !value}
+                    disabled={readOnly}
+                    className={`h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 ${
+                      readOnly ? "cursor-not-allowed" : ""
+                    }`}
+                  />
+                  <span className="text-gray-700">{option}</span>
+                </label>
+              );
+            })}
           </div>
         );
 

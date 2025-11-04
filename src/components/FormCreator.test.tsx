@@ -2,10 +2,37 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import FormCreator from "./FormCreator";
-import { useMutation } from "../hooks/useApi";
+import { apiClient } from "../api/client";
 
-// Mock the API hook
-vi.mock("../hooks/useApi");
+// Mock the API client
+vi.mock("../api/client", () => ({
+  apiClient: {
+    createForm: vi.fn(),
+    updateForm: vi.fn(),
+    request: vi.fn(),
+  },
+}));
+
+// Mock contexts
+vi.mock("../context/AuthContext", () => ({
+  useAuth: () => ({
+    user: {
+      role: "admin",
+      tenantId: "test-tenant-id",
+      firstName: "Test",
+      lastName: "User"
+    }
+  }),
+}));
+
+vi.mock("../context/NotificationContext", () => ({
+  useNotification: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+    showConfirm: vi.fn(),
+  }),
+}));
+
 vi.mock("react-router-dom", async () => {
   const actual = await vi.importActual("react-router-dom");
   return {
@@ -14,7 +41,7 @@ vi.mock("react-router-dom", async () => {
   };
 });
 
-const mockUseMutation = vi.mocked(useMutation);
+const mockApiClient = vi.mocked(apiClient);
 
 // Test wrapper with Router
 const TestWrapper = ({ children }: { children: React.ReactNode }) => (
@@ -22,22 +49,23 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => (
 );
 
 describe("FormCreator Component", () => {
-  const mockMutate = vi.fn();
-  const mockMutation = {
-    mutate: mockMutate,
-    loading: false,
-    error: null,
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseMutation.mockReturnValue(mockMutation);
     // Mock crypto.randomUUID
     Object.defineProperty(globalThis, "crypto", {
       value: {
         randomUUID: vi.fn(() => "test-uuid-123"),
       },
     });
+
+    // Mock successful API responses
+    mockApiClient.createForm.mockResolvedValue({
+      form: { _id: "test-form-id", title: "Test Form" }
+    });
+    mockApiClient.updateForm.mockResolvedValue({
+      form: { _id: "test-form-id", title: "Updated Form" }
+    });
+    mockApiClient.request.mockResolvedValue({});
   });
 
   it("renders form creation interface", () => {
@@ -197,7 +225,7 @@ describe("FormCreator Component", () => {
     fireEvent.click(saveButton);
 
     expect(mockAlert).toHaveBeenCalledWith("Please enter a form title");
-    expect(mockMutate).not.toHaveBeenCalled();
+    expect(mockApiClient.createForm).not.toHaveBeenCalled();
 
     mockAlert.mockRestore();
   });
@@ -224,10 +252,12 @@ describe("FormCreator Component", () => {
     fireEvent.click(saveButton);
 
     await waitFor(() => {
-      expect(mockMutate).toHaveBeenCalledWith({
+      expect(mockApiClient.createForm).toHaveBeenCalledWith({
         title: "Test Form",
         description: "Test Description",
         isVisible: true,
+        locationEnabled: true,
+        tenantId: undefined, // Will be set based on user role
         sections: [
           {
             title: "Section 1",
@@ -366,6 +396,244 @@ describe("FormCreator Component", () => {
       // Update options
       fireEvent.change(optionsTextarea, { target: { value: "X\nY\nZ" } });
       expect(optionsTextarea).toHaveValue("X\nY\nZ");
+    });
+  });
+
+  // Additional comprehensive tests for FormCreator functionality
+  describe("Advanced Form Features", () => {
+    it("handles follow-up questions creation", async () => {
+      render(
+        <TestWrapper>
+          <FormCreator />
+        </TestWrapper>
+      );
+
+      // Add a question and set to radio type
+      const addQuestionButton = screen.getByRole("button", {
+        name: /add question/i,
+      });
+      fireEvent.click(addQuestionButton);
+
+      const questionTypeSelect = screen.getByDisplayValue("Short Text");
+      fireEvent.change(questionTypeSelect, { target: { value: "radio" } });
+
+      // Add options
+      const optionsTextarea = screen.getByLabelText("Options (one per line)");
+      fireEvent.change(optionsTextarea, { target: { value: "Yes\nNo" } });
+
+      // Look for follow-up options menu (three dots)
+      await waitFor(() => {
+        const followUpMenus = screen.getAllByTitle("Follow-up options");
+        expect(followUpMenus.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("validates question text requirements", async () => {
+      const mockAlert = vi.spyOn(window, "alert").mockImplementation(() => {});
+
+      render(
+        <TestWrapper>
+          <FormCreator />
+        </TestWrapper>
+      );
+
+      // Add a question
+      const addQuestionButton = screen.getByRole("button", {
+        name: /add question/i,
+      });
+      fireEvent.click(addQuestionButton);
+
+      // Clear the question text
+      const questionInput = screen.getByDisplayValue("New Question");
+      fireEvent.change(questionInput, { target: { value: "" } });
+
+      // Try to save
+      const saveButton = screen.getByRole("button", { name: /save form/i });
+      fireEvent.click(saveButton);
+
+      expect(mockAlert).toHaveBeenCalledWith(
+        expect.stringContaining("is missing text")
+      );
+
+      mockAlert.mockRestore();
+    });
+
+    it("handles section branching configuration", async () => {
+      render(
+        <TestWrapper>
+          <FormCreator />
+        </TestWrapper>
+      );
+
+      // Add a question with radio type
+      const addQuestionButton = screen.getByRole("button", {
+        name: /add question/i,
+      });
+      fireEvent.click(addQuestionButton);
+
+      const questionTypeSelect = screen.getByDisplayValue("Short Text");
+      fireEvent.change(questionTypeSelect, { target: { value: "radio" } });
+
+      // Add options
+      const optionsTextarea = screen.getByLabelText("Options (one per line)");
+      fireEvent.change(optionsTextarea, { target: { value: "Option A\nOption B" } });
+
+      // Add another section
+      const addSectionButton = screen.getByRole("button", {
+        name: /add section/i,
+      });
+      fireEvent.click(addSectionButton);
+
+      // Look for section routing configuration
+      await waitFor(() => {
+        expect(screen.getByText("Section Routing")).toBeInTheDocument();
+      });
+    });
+
+    it("manages form visibility settings", () => {
+      render(
+        <TestWrapper>
+          <FormCreator />
+        </TestWrapper>
+      );
+
+      const visibilityCheckbox = screen.getByLabelText("Make form publicly visible");
+      expect(visibilityCheckbox).not.toBeChecked();
+
+      fireEvent.click(visibilityCheckbox);
+      expect(visibilityCheckbox).toBeChecked();
+    });
+
+    it("handles location tracking toggle", () => {
+      render(
+        <TestWrapper>
+          <FormCreator />
+        </TestWrapper>
+      );
+
+      const locationCheckbox = screen.getByLabelText("Enable location tracking for responses");
+      expect(locationCheckbox).toBeChecked(); // Default is true
+
+      fireEvent.click(locationCheckbox);
+      expect(locationCheckbox).not.toBeChecked();
+    });
+  });
+
+  describe("Form Validation", () => {
+    it("validates minimum form requirements", async () => {
+      const mockAlert = vi.spyOn(window, "alert").mockImplementation(() => {});
+
+      render(
+        <TestWrapper>
+          <FormCreator />
+        </TestWrapper>
+      );
+
+      // Try to save empty form
+      const saveButton = screen.getByRole("button", { name: /save form/i });
+      fireEvent.click(saveButton);
+
+      expect(mockAlert).toHaveBeenCalledWith("Please enter a form title");
+
+      // Add title but no description
+      const titleInput = screen.getByLabelText("Form Title *");
+      fireEvent.change(titleInput, { target: { value: "Test Form" } });
+
+      fireEvent.click(saveButton);
+      expect(mockAlert).toHaveBeenCalledWith("Please enter a form description");
+
+      mockAlert.mockRestore();
+    });
+
+    it("validates question type requirements", async () => {
+      const mockAlert = vi.spyOn(window, "alert").mockImplementation(() => {});
+
+      render(
+        <TestWrapper>
+          <FormCreator />
+        </TestWrapper>
+      );
+
+      // Add question but don't set type
+      const addQuestionButton = screen.getByRole("button", {
+        name: /add question/i,
+      });
+      fireEvent.click(addQuestionButton);
+
+      // Fill required fields
+      const titleInput = screen.getByLabelText("Form Title *");
+      fireEvent.change(titleInput, { target: { value: "Test Form" } });
+
+      const descInput = screen.getByLabelText("Description");
+      fireEvent.change(descInput, { target: { value: "Test Description" } });
+
+      // Try to save - should validate question type
+      const saveButton = screen.getByRole("button", { name: /save form/i });
+      fireEvent.click(saveButton);
+
+      // The validation should catch missing question type
+      expect(mockApiClient.createForm).not.toHaveBeenCalled();
+
+      mockAlert.mockRestore();
+    });
+  });
+
+  describe("Performance and Edge Cases", () => {
+    it("handles large number of questions", () => {
+      render(
+        <TestWrapper>
+          <FormCreator />
+        </TestWrapper>
+      );
+
+      // Add multiple questions quickly
+      const addQuestionButton = screen.getByRole("button", {
+        name: /add question/i,
+      });
+
+      for (let i = 0; i < 10; i++) {
+        fireEvent.click(addQuestionButton);
+      }
+
+      // Should render all questions without crashing
+      expect(screen.getByText("Question 10")).toBeInTheDocument();
+    });
+
+    it("handles special characters in form data", () => {
+      render(
+        <TestWrapper>
+          <FormCreator />
+        </TestWrapper>
+      );
+
+      const titleInput = screen.getByLabelText("Form Title *");
+      const specialTitle = "Form with émojis 🎉 and spëcial chärs";
+      fireEvent.change(titleInput, { target: { value: specialTitle } });
+
+      expect(titleInput).toHaveValue(specialTitle);
+    });
+
+    it("maintains state during rapid interactions", () => {
+      render(
+        <TestWrapper>
+          <FormCreator />
+        </TestWrapper>
+      );
+
+      // Rapidly add and modify elements
+      const addQuestionButton = screen.getByRole("button", {
+        name: /add question/i,
+      });
+
+      fireEvent.click(addQuestionButton);
+      fireEvent.click(addQuestionButton);
+
+      const questionInputs = screen.getAllByDisplayValue("New Question");
+      expect(questionInputs).toHaveLength(2);
+
+      // Modify first question
+      fireEvent.change(questionInputs[0], { target: { value: "Modified Question" } });
+      expect(questionInputs[0]).toHaveValue("Modified Question");
     });
   });
 });

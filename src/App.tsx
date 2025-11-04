@@ -46,7 +46,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, isMobileOpen } = useSidebar();
 
   return (
     <div className="min-h-screen bg-white">
@@ -54,10 +54,10 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
       <Header />
       <main
         className={`pt-16 transition-all duration-300 ${
-          isCollapsed ? "lg:ml-16" : "lg:ml-64"
+          !isMobileOpen ? (isCollapsed ? "lg:ml-16" : "lg:ml-64") : "ml-0"
         }`}
       >
-        <div className="container mx-auto p-6">{children}</div>
+        <div className="w-full overflow-x-hidden p-4 sm:p-6">{children}</div>
       </main>
     </div>
   );

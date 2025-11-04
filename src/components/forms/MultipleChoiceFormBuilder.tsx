@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Save,
   Eye,
@@ -33,7 +33,13 @@ interface FollowUpQuestion {
 interface FormQuestion {
   id: string;
   text: string;
-  type: "shortText" | "multipleChoice" | "longText" | "checkboxes" | "dropdown";
+  type:
+    | "text"
+    | "radio"
+    | "paragraph"
+    | "checkbox"
+    | "select"
+    | "yesNoNA";
   required: boolean;
   options?: string[];
   followUpQuestions?: FollowUpQuestion[];
@@ -53,6 +59,8 @@ interface FormData {
   description: string;
   isPublic: boolean;
   sections: FormSection[];
+  showMarksToCustomer?: boolean;
+  marksPerQuestion?: number;
 }
 
 interface MultipleChoiceFormBuilderProps {
@@ -61,48 +69,383 @@ interface MultipleChoiceFormBuilderProps {
   initialData?: Partial<FormData>;
 }
 
+const YES_NO_NA_OPTIONS = ["Yes", "No", "N/A"];
+
 const DEFAULT_FORM_DATA: FormData = {
-  title: "",
-  description: "",
+  title: "Comprehensive Assessment Form",
+  description:
+    "Complete form with 5 sections covering different question types",
   isPublic: false,
+  showMarksToCustomer: false,
+  marksPerQuestion: 1,
   sections: [
     {
       id: "section1",
-      title: "",
-      description: "",
+      title: "Section 1: Basic Information",
+      description: "Collect basic details and preferences",
       questions: [
         {
           id: "q1",
-          text: "",
-          type: "shortText",
-          required: false,
+          text: "What is your name?",
+          type: "text",
+          required: true,
         },
         {
           id: "q2",
-          text: "",
-          type: "shortText",
-          required: false,
+          text: "What is your email address?",
+          type: "text",
+          required: true,
         },
         {
           id: "q3",
-          text: "",
-          type: "shortText",
+          text: "Have you used our service before?",
+          type: "yesNoNA",
+          required: true,
+          followUpQuestions: [
+            {
+              id: "fup-q3-1",
+              text: "How would you rate your previous experience?",
+              type: "select",
+              required: false,
+              options: ["Excellent", "Good", "Average", "Poor"],
+              parentId: "q3",
+              showWhen: { questionId: "q3", value: "Yes" },
+            },
+          ],
+        },
+        {
+          id: "q4",
+          text: "What is your primary reason for visiting?",
+          type: "radio",
+          required: true,
+          options: ["Product Purchase", "Support", "Information", "Feedback"],
+          followUpConfig: {
+            "Product Purchase": { hasFollowUp: true, required: false },
+            Support: { hasFollowUp: true, required: false },
+          },
+          followUpQuestions: [
+            {
+              id: "fup-q4-1",
+              text: "Which product category interests you?",
+              type: "radio",
+              required: false,
+              options: ["Electronics", "Clothing", "Home & Garden", "Sports"],
+              parentId: "q4",
+              showWhen: { questionId: "q4", value: "Product Purchase" },
+            },
+            {
+              id: "fup-q4-2",
+              text: "What issue are you experiencing?",
+              type: "paragraph",
+              required: false,
+              parentId: "q4",
+              showWhen: { questionId: "q4", value: "Support" },
+            },
+          ],
+        },
+        {
+          id: "q5",
+          text: "Please provide any additional comments",
+          type: "paragraph",
           required: false,
         },
       ],
     },
     {
       id: "section2",
-      title: "",
-      description: "",
+      title: "Section 2: Product/Service Evaluation",
+      description: "Evaluate your satisfaction and experience",
       questions: [
         {
-          id: "q4",
-          text: "",
-          type: "multipleChoice",
+          id: "q6",
+          text: "How satisfied are you with the product quality?",
+          type: "select",
+          required: true,
+          options: [
+            "Very Satisfied",
+            "Satisfied",
+            "Neutral",
+            "Dissatisfied",
+            "Very Dissatisfied",
+          ],
+        },
+        {
+          id: "q7",
+          text: "Does the product meet your expectations?",
+          type: "yesNoNA",
+          required: true,
+          followUpQuestions: [
+            {
+              id: "fup-q7-1",
+              text: "What specific improvements would you suggest?",
+              type: "paragraph",
+              required: false,
+              parentId: "q7",
+              showWhen: { questionId: "q7", value: "No" },
+            },
+          ],
+        },
+        {
+          id: "q8",
+          text: "Select all features you find useful",
+          type: "checkbox",
           required: false,
-          options: ["RECENTLY PURCHASED", "Option 2", "Option 3", "Option 4"],
+          options: [
+            "Easy to Use",
+            "Fast Performance",
+            "Good Design",
+            "Reliable",
+            "Cost Effective",
+          ],
+        },
+        {
+          id: "q9",
+          text: "Would you recommend this to others?",
+          type: "yesNoNA",
+          required: true,
+          followUpQuestions: [
+            {
+              id: "fup-q9-1",
+              text: "Why would you recommend it?",
+              type: "paragraph",
+              required: false,
+              parentId: "q9",
+              showWhen: { questionId: "q9", value: "Yes" },
+            },
+            {
+              id: "fup-q9-2",
+              text: "Why not? What would convince you?",
+              type: "paragraph",
+              required: false,
+              parentId: "q9",
+              showWhen: { questionId: "q9", value: "No" },
+            },
+          ],
+        },
+        {
+          id: "q10",
+          text: "Which pricing tier interests you?",
+          type: "radio",
+          required: false,
+          options: ["Basic", "Standard", "Premium", "Enterprise"],
+          followUpConfig: {
+            Enterprise: { hasFollowUp: true, required: false },
+          },
+          followUpQuestions: [
+            {
+              id: "fup-q10-1",
+              text: "How many users will your organization have?",
+              type: "select",
+              required: false,
+              options: ["1-10", "11-50", "51-100", "100+"],
+              parentId: "q10",
+              showWhen: { questionId: "q10", value: "Enterprise" },
+            },
+          ],
+        },
+      ],
+    },
+    {
+      id: "section3",
+      title: "Section 3: Customer Support Experience",
+      description: "Feedback on support services",
+      questions: [
+        {
+          id: "q11",
+          text: "Did you contact our support team?",
+          type: "yesNoNA",
+          required: true,
+          followUpQuestions: [
+            {
+              id: "fup-q11-1",
+              text: "How would you rate their responsiveness?",
+              type: "select",
+              required: false,
+              options: ["Very Fast", "Fast", "Acceptable", "Slow", "Very Slow"],
+              parentId: "q11",
+              showWhen: { questionId: "q11", value: "Yes" },
+            },
+            {
+              id: "fup-q11-2",
+              text: "Did they resolve your issue?",
+              type: "yesNoNA",
+              required: false,
+              parentId: "q11",
+              showWhen: { questionId: "q11", value: "Yes" },
+            },
+          ],
+        },
+        {
+          id: "q12",
+          text: "How would you prefer to contact support?",
+          type: "checkbox",
+          required: true,
+          options: ["Phone", "Email", "Live Chat", "Social Media", "In-Person"],
+        },
+        {
+          id: "q13",
+          text: "What channel did you use?",
+          type: "radio",
+          required: false,
+          options: ["Phone", "Email", "Live Chat", "Social Media", "In-Person"],
           followUpConfig: {},
+        },
+        {
+          id: "q14",
+          text: "Was the support representative knowledgeable?",
+          type: "yesNoNA",
+          required: false,
+        },
+        {
+          id: "q15",
+          text: "Any suggestions for improving support?",
+          type: "paragraph",
+          required: false,
+        },
+      ],
+    },
+    {
+      id: "section4",
+      title: "Section 4: Purchase & Billing",
+      description: "Questions about purchasing and billing experience",
+      questions: [
+        {
+          id: "q16",
+          text: "Have you made a purchase?",
+          type: "yesNoNA",
+          required: true,
+          followUpQuestions: [
+            {
+              id: "fup-q16-1",
+              text: "How many times have you purchased?",
+              type: "select",
+              required: false,
+              options: ["1 time", "2-3 times", "4-5 times", "6+ times"],
+              parentId: "q16",
+              showWhen: { questionId: "q16", value: "Yes" },
+            },
+            {
+              id: "fup-q16-2",
+              text: "What prevented you from purchasing?",
+              type: "paragraph",
+              required: false,
+              parentId: "q16",
+              showWhen: { questionId: "q16", value: "No" },
+            },
+          ],
+        },
+        {
+          id: "q17",
+          text: "Was the checkout process easy?",
+          type: "yesNoNA",
+          required: false,
+        },
+        {
+          id: "q18",
+          text: "Which payment methods do you prefer?",
+          type: "checkbox",
+          required: true,
+          options: [
+            "Credit Card",
+            "Debit Card",
+            "PayPal",
+            "Bank Transfer",
+            "Digital Wallet",
+          ],
+        },
+        {
+          id: "q19",
+          text: "How did you hear about us?",
+          type: "radio",
+          required: true,
+          options: [
+            "Search Engine",
+            "Social Media",
+            "Friend/Family",
+            "Advertisement",
+            "Other",
+          ],
+          followUpConfig: {
+            Other: { hasFollowUp: true, required: false },
+          },
+          followUpQuestions: [
+            {
+              id: "fup-q19-1",
+              text: "Please specify the source",
+              type: "text",
+              required: false,
+              parentId: "q19",
+              showWhen: { questionId: "q19", value: "Other" },
+            },
+          ],
+        },
+        {
+          id: "q20",
+          text: "Are you interested in our newsletter?",
+          type: "yesNoNA",
+          required: false,
+        },
+      ],
+    },
+    {
+      id: "section5",
+      title: "Section 5: Overall Feedback & Future",
+      description: "Summary feedback and future engagement",
+      questions: [
+        {
+          id: "q21",
+          text: "Overall, how would you rate your experience?",
+          type: "select",
+          required: true,
+          options: ["Excellent", "Very Good", "Good", "Fair", "Poor"],
+        },
+        {
+          id: "q22",
+          text: "Would you use our service again?",
+          type: "yesNoNA",
+          required: true,
+          followUpQuestions: [
+            {
+              id: "fup-q22-1",
+              text: "What would make you come back?",
+              type: "paragraph",
+              required: false,
+              parentId: "q22",
+              showWhen: { questionId: "q22", value: "Maybe" },
+            },
+          ],
+        },
+        {
+          id: "q23",
+          text: "What aspect impressed you the most?",
+          type: "checkbox",
+          required: false,
+          options: [
+            "Product Quality",
+            "Pricing",
+            "Customer Service",
+            "Delivery Speed",
+            "User Experience",
+          ],
+        },
+        {
+          id: "q24",
+          text: "What needs improvement?",
+          type: "radio",
+          required: false,
+          options: [
+            "Product Range",
+            "Pricing",
+            "Delivery",
+            "Website",
+            "Customer Service",
+          ],
+        },
+        {
+          id: "q25",
+          text: "Any final comments or feedback?",
+          type: "paragraph",
+          required: false,
         },
       ],
     },
@@ -126,16 +469,62 @@ export const MultipleChoiceFormBuilder: React.FC<
     option: string;
   } | null>(null);
   const [openOptionMenu, setOpenOptionMenu] = useState<string | null>(null);
+  const sectionRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const [activeSectionIndex, setActiveSectionIndex] = useState(0);
 
-  const handleFormFieldChange = (field: keyof FormData, value: any) => {
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+    sectionRefs.current.length = formData.sections.length;
+    setActiveSectionIndex((prev) =>
+      Math.min(prev, Math.max(formData.sections.length - 1, 0))
+    );
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const index = sectionRefs.current.findIndex(
+              (section) => section === entry.target
+            );
+            if (index !== -1) {
+              setActiveSectionIndex(index);
+            }
+          }
+        });
+      },
+      { rootMargin: "-45% 0px -45% 0px", threshold: 0.1 }
+    );
+    sectionRefs.current.forEach((section) => {
+      if (section) {
+        observer.observe(section);
+      }
+    });
+    return () => {
+      observer.disconnect();
+    };
+  }, [formData.sections.length]);
+
+  const handleSectionNavigate = (index: number) => {
+    const target = sectionRefs.current[index];
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      setActiveSectionIndex(index);
+    }
+  };
+
+  const handleFormFieldChange = <K extends keyof FormData>(
+    field: K,
+    value: FormData[K]
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
     setError(null);
   };
 
-  const handleSectionChange = (
+  const handleSectionChange = <K extends keyof FormSection>(
     sectionIndex: number,
-    field: keyof FormSection,
-    value: any
+    field: K,
+    value: FormSection[K]
   ) => {
     setFormData((prev) => ({
       ...prev,
@@ -145,11 +534,11 @@ export const MultipleChoiceFormBuilder: React.FC<
     }));
   };
 
-  const handleQuestionChange = (
+  const handleQuestionChange = <K extends keyof FormQuestion>(
     sectionIndex: number,
     questionIndex: number,
-    field: keyof FormQuestion,
-    value: any
+    field: K,
+    value: FormQuestion[K]
   ) => {
     setFormData((prev) => ({
       ...prev,
@@ -178,7 +567,7 @@ export const MultipleChoiceFormBuilder: React.FC<
         {
           id: `q${Date.now()}`,
           text: "",
-          type: "shortText",
+          type: "text",
           required: false,
         },
       ],
@@ -206,7 +595,7 @@ export const MultipleChoiceFormBuilder: React.FC<
     const newQuestion: FormQuestion = {
       id: `q${Date.now()}`,
       text: "",
-      type: "shortText",
+      type: "text",
       required: false,
     };
 
@@ -222,6 +611,8 @@ export const MultipleChoiceFormBuilder: React.FC<
       ),
     }));
   };
+
+  const isYesNoNAType = (type: string): boolean => type === "yesNoNA";
 
   const removeQuestion = (sectionIndex: number, questionIndex: number) => {
     const section = formData.sections[sectionIndex];
@@ -601,17 +992,20 @@ export const MultipleChoiceFormBuilder: React.FC<
     for (const section of formData.sections) {
       for (const question of section.questions) {
         if (
-          question.type === "multipleChoice" ||
-          question.type === "checkboxes" ||
-          question.type === "dropdown"
+          question.type === "radio" ||
+          question.type === "checkbox" ||
+          question.type === "select" ||
+          question.type === "yesNoNA"
         ) {
           if (!question.options || question.options.length < 2) {
             setError(
               `${
-                question.type === "checkboxes"
+                question.type === "checkbox"
                   ? "Checkbox"
-                  : question.type === "dropdown"
+                  : question.type === "select"
                   ? "Dropdown"
+                  : question.type === "yesNoNA"
+                  ? "Yes/No/N/A"
                   : "Multiple choice"
               } questions must have at least 2 options`
             );
@@ -669,857 +1063,1047 @@ export const MultipleChoiceFormBuilder: React.FC<
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">
-          Customer Service Request Form Builder
-        </h2>
-        <p className="text-gray-600">
-          Create a comprehensive form with sections and multiple choice
-          questions
-        </p>
-      </div>
-
-      {error && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
-          <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-          <span className="text-red-700">{error}</span>
-        </div>
-      )}
-
-      {success && (
-        <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center">
-          <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
-          <span className="text-green-700">{success}</span>
-        </div>
-      )}
-
-      <div className="space-y-8">
-        {/* Form Details */}
-        <div className="bg-gray-50 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">
-            Form Details
-          </h3>
-
-          <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="form-title"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Form Title *
-              </label>
-              <input
-                id="form-title"
-                type="text"
-                value={formData.title}
-                onChange={(e) => handleFormFieldChange("title", e.target.value)}
-                placeholder="Enter form title (e.g., 'Customer Service Request')"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="form-description"
-                className="block text-sm font-medium text-gray-700 mb-2"
-              >
-                Description
-              </label>
-              <textarea
-                id="form-description"
-                value={formData.description}
-                onChange={(e) =>
-                  handleFormFieldChange("description", e.target.value)
-                }
-                placeholder="Describe your form purpose (e.g., 'Collect customer feedback and service requests')"
-                rows={3}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-
-            <div className="flex items-center">
-              <input
-                id="public-visibility"
-                type="checkbox"
-                checked={formData.isPublic}
-                onChange={(e) =>
-                  handleFormFieldChange("isPublic", e.target.checked)
-                }
-                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <label
-                htmlFor="public-visibility"
-                className="ml-2 block text-sm text-gray-700"
-              >
-                Make form publicly visible
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Sections */}
-        {formData.sections.map((section, sectionIndex) => (
-          <div key={section.id} className="bg-gray-50 p-6 rounded-lg">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">
-                Section {sectionIndex + 1}
-              </h3>
-              {formData.sections.length > 1 && (
+    <div className="max-w-6xl mx-auto px-4 py-6">
+      <div className="flex flex-col gap-6 md:flex-row md:items-start">
+        {formData.sections.length > 0 && (
+          <nav className="md:w-24 md:flex-shrink-0">
+            <div className="sticky top-1/2 -translate-y-1/2 transform bg-white/90 backdrop-blur-sm border border-gray-200 rounded-full p-3 shadow-lg flex flex-col items-center gap-3">
+              {formData.sections.map((section, index) => (
                 <button
+                  key={section.id}
                   type="button"
-                  onClick={() => removeSection(sectionIndex)}
-                  className="flex items-center px-3 py-1.5 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                  onClick={() => handleSectionNavigate(index)}
+                  title={section.title || `Section ${index + 1}`}
+                  aria-label={section.title || `Section ${index + 1}`}
+                  aria-current={
+                    activeSectionIndex === index ? "step" : undefined
+                  }
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold transition-all ${
+                    activeSectionIndex === index
+                      ? "bg-blue-600 text-white shadow-lg scale-110"
+                      : "bg-white text-gray-700 border border-gray-300 hover:bg-blue-50"
+                  }`}
                 >
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete Section
+                  {index + 1}
                 </button>
-              )}
+              ))}
+            </div>
+          </nav>
+        )}
+        <div className="flex-1">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                Customer Service Request Form Builder
+              </h2>
+              <p className="text-gray-600">
+                Create a comprehensive form with sections and multiple choice
+                questions
+              </p>
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <label
-                  htmlFor={`section-${sectionIndex}-title`}
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Section Title
-                </label>
-                <input
-                  id={`section-${sectionIndex}-title`}
-                  type="text"
-                  value={section.title}
-                  onChange={(e) =>
-                    handleSectionChange(sectionIndex, "title", e.target.value)
-                  }
-                  placeholder={`Section title (e.g., "Personal Information", "Service Details")`}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+            {error && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center">
+                <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+                <span className="text-red-700">{error}</span>
               </div>
+            )}
 
-              <div>
-                <label
-                  htmlFor={`section-${sectionIndex}-description`}
-                  className="block text-sm font-medium text-gray-700 mb-2"
-                >
-                  Section Description
-                </label>
-                <input
-                  id={`section-${sectionIndex}-description`}
-                  type="text"
-                  value={section.description}
-                  onChange={(e) =>
-                    handleSectionChange(
-                      sectionIndex,
-                      "description",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Brief description of this section's purpose"
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+            {success && (
+              <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center">
+                <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                <span className="text-green-700">{success}</span>
               </div>
+            )}
 
-              {/* Questions */}
-              <div className="mt-6">
-                <h4 className="text-md font-medium text-gray-800 mb-3">
-                  Questions
-                </h4>
+            <div className="space-y-8">
+              {/* Form Details */}
+              <div className="bg-gray-50 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                  Form Details
+                </h3>
 
-                {section.questions.map((question, questionIndex) => (
-                  <div
-                    key={question.id}
-                    className="border border-gray-200 p-4 rounded-lg mb-4 bg-white"
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="text-sm font-medium text-gray-600">
-                        Question {questionIndex + 1}
-                      </span>
-                      {section.questions.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            removeQuestion(sectionIndex, questionIndex)
-                          }
-                          className="flex items-center px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
-                        >
-                          <Trash2 className="h-3 w-3 mr-1" />
-                          Delete
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label
-                          htmlFor={`question-${sectionIndex}-${questionIndex}-text`}
-                          className="block text-sm font-medium text-gray-700 mb-2"
-                        >
-                          Question Text
-                        </label>
+                <div className="space-y-4">
+                  <div>
+                    <label
+                      htmlFor="form-title"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      Form Title *
+                    </label>
+                    <input
+                      id="form-title"
+                      type="text"
+                      value={formData.title}
+                      onChange={(e) =>
+                        handleFormFieldChange("title", e.target.value)
+                      }
+                      placeholder="Enter form title (e.g., 'Customer Service Request')"
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="form-description"
+                      className="block text-sm font-medium text-gray-700 mb-2"
+                    >
+                      Description
+                    </label>
+                    <textarea
+                      id="form-description"
+                      value={formData.description}
+                      onChange={(e) =>
+                        handleFormFieldChange("description", e.target.value)
+                      }
+                      placeholder="Describe your form purpose (e.g., 'Collect customer feedback and service requests')"
+                      rows={3}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      id="public-visibility"
+                      type="checkbox"
+                      checked={formData.isPublic}
+                      onChange={(e) =>
+                        handleFormFieldChange("isPublic", e.target.checked)
+                      }
+                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    />
+                    <label
+                      htmlFor="public-visibility"
+                      className="ml-2 block text-sm text-gray-700"
+                    >
+                      Make form publicly visible
+                    </label>
+                  </div>
+
+                  {/* Marks Visibility Settings */}
+                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="text-sm font-semibold text-gray-800 mb-3">
+                      Marks & Scoring Settings
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center">
                         <input
-                          id={`question-${sectionIndex}-${questionIndex}-text`}
-                          type="text"
-                          value={question.text}
+                          id="show-marks-to-customer"
+                          type="checkbox"
+                          checked={formData.showMarksToCustomer || false}
                           onChange={(e) =>
-                            handleQuestionChange(
-                              sectionIndex,
-                              questionIndex,
-                              "text",
-                              e.target.value
+                            handleFormFieldChange(
+                              "showMarksToCustomer",
+                              e.target.checked
                             )
                           }
-                          placeholder="What would you like to ask?"
-                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          className="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
                         />
+                        <label
+                          htmlFor="show-marks-to-customer"
+                          className="ml-2 block text-sm text-gray-700"
+                        >
+                          Show marks to customers
+                        </label>
+                        <span className="ml-2 text-xs text-gray-500">
+                          (
+                          {formData.showMarksToCustomer
+                            ? "Customers can see marks"
+                            : "Only Admin can see marks"}
+                          )
+                        </span>
                       </div>
 
                       <div>
                         <label
-                          htmlFor={`question-${sectionIndex}-${questionIndex}-type`}
+                          htmlFor="marks-per-question"
                           className="block text-sm font-medium text-gray-700 mb-2"
                         >
-                          Question Type
+                          Marks per Question
                         </label>
-                        <select
-                          id={`question-${sectionIndex}-${questionIndex}-type`}
-                          value={question.type}
-                          onChange={(e) => {
-                            const newType = e.target.value as
-                              | "shortText"
-                              | "multipleChoice"
-                              | "longText"
-                              | "checkboxes"
-                              | "dropdown";
-                            const updatedQuestion = {
-                              ...question,
-                              type: newType,
-                            };
-
-                            const needsOptions = [
-                              "multipleChoice",
-                              "checkboxes",
-                              "dropdown",
-                            ].includes(newType);
-
-                            if (needsOptions && !question.options) {
-                              updatedQuestion.options = [
-                                "Option 1",
-                                "Option 2",
-                                "Option 3",
-                                "Option 4",
-                              ];
-                              updatedQuestion.followUpConfig = {};
-                            } else if (!needsOptions) {
-                              delete updatedQuestion.options;
-                              delete updatedQuestion.followUpConfig;
+                        <div className="flex items-center gap-2">
+                          <input
+                            id="marks-per-question"
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={formData.marksPerQuestion || 1}
+                            onChange={(e) =>
+                              handleFormFieldChange(
+                                "marksPerQuestion",
+                                Math.max(0, parseInt(e.target.value) || 1)
+                              )
                             }
+                            placeholder="1"
+                            className="w-20 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                          />
+                          <span className="text-sm text-gray-600">
+                            points per correct answer
+                          </span>
+                        </div>
+                      </div>
 
-                            handleQuestionChange(
-                              sectionIndex,
-                              questionIndex,
-                              "type",
-                              newType
+                      <div className="mt-3 p-2 bg-white rounded border border-gray-200 text-xs text-gray-600">
+                        <div className="font-semibold mb-1">
+                          📊 Total Form Score:
+                        </div>
+                        <div>
+                          {formData.sections.reduce((total, section) => {
+                            return (
+                              total +
+                              section.questions.filter(
+                                (q) =>
+                                  !q.followUpQuestions ||
+                                  q.followUpQuestions.length === 0
+                              ).length
                             );
-                            if (needsOptions && !question.options) {
-                              handleQuestionChange(
-                                sectionIndex,
-                                questionIndex,
-                                "options",
-                                ["Option 1", "Option 2", "Option 3", "Option 4"]
-                              );
-                              handleQuestionChange(
-                                sectionIndex,
-                                questionIndex,
-                                "followUpConfig",
-                                {}
-                              );
-                            }
-                          }}
-                          className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                        >
-                          <option value="shortText">
-                            Short Text - Single line text input
-                          </option>
-                          <option value="multipleChoice">
-                            Multiple Choice - Select one option from many
-                          </option>
-                          <option value="checkboxes">
-                            Checkboxes - Select multiple options
-                          </option>
-                          <option value="dropdown">
-                            Dropdown - Select from searchable list
-                          </option>
-                          <option value="longText">
-                            Long Text - Multi-line text input
-                          </option>
-                        </select>
+                          }, 0) * (formData.marksPerQuestion || 1)}{" "}
+                          points
+                        </div>
                       </div>
                     </div>
+                  </div>
+                </div>
+              </div>
 
-                    <div className="flex items-center mb-4">
+              {/* Sections */}
+              {formData.sections.map((section, sectionIndex) => (
+                <div
+                  key={section.id}
+                  ref={(element) => {
+                    sectionRefs.current[sectionIndex] = element;
+                  }}
+                  className="bg-gray-50 p-6 rounded-lg"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-gray-800">
+                      Section {sectionIndex + 1}
+                    </h3>
+                    {formData.sections.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeSection(sectionIndex)}
+                        className="flex items-center px-3 py-1.5 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Delete Section
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-4">
+                    <div>
+                      <label
+                        htmlFor={`section-${sectionIndex}-title`}
+                        className="block text-sm font-medium text-gray-700 mb-2"
+                      >
+                        Section Title
+                      </label>
                       <input
-                        id={`question-${sectionIndex}-${questionIndex}-required`}
-                        type="checkbox"
-                        checked={question.required}
+                        id={`section-${sectionIndex}-title`}
+                        type="text"
+                        value={section.title}
                         onChange={(e) =>
-                          handleQuestionChange(
+                          handleSectionChange(
                             sectionIndex,
-                            questionIndex,
-                            "required",
-                            e.target.checked
+                            "title",
+                            e.target.value
                           )
                         }
-                        className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        placeholder={`Section title (e.g., "Personal Information", "Service Details")`}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
-                      <label
-                        htmlFor={`question-${sectionIndex}-${questionIndex}-required`}
-                        className="ml-2 block text-sm text-gray-700"
-                      >
-                        Required
-                      </label>
                     </div>
 
-                    {/* Multiple Choice/Checkboxes/Dropdown Options */}
-                    {(question.type === "multipleChoice" ||
-                      question.type === "checkboxes" ||
-                      question.type === "dropdown") &&
-                      question.options && (
-                        <div className="mt-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Options (one per line)
-                          </label>
+                    <div>
+                      <label
+                        htmlFor={`section-${sectionIndex}-description`}
+                        className="block text-sm font-medium text-gray-700 mb-2"
+                      >
+                        Section Description
+                      </label>
+                      <input
+                        id={`section-${sectionIndex}-description`}
+                        type="text"
+                        value={section.description}
+                        onChange={(e) =>
+                          handleSectionChange(
+                            sectionIndex,
+                            "description",
+                            e.target.value
+                          )
+                        }
+                        placeholder="Brief description of this section's purpose"
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
 
-                          <div className="space-y-3">
-                            {question.options.map((option, optionIndex) => {
-                              const currentGoToSection =
-                                question.followUpConfig?.[option]?.goToSection;
+                    {/* Questions */}
+                    <div className="mt-6">
+                      <h4 className="text-md font-medium text-gray-800 mb-3">
+                        Questions
+                      </h4>
 
-                              return (
-                                <div key={optionIndex} className="space-y-2">
-                                  <div className="flex items-center space-x-2">
-                                    <input
-                                      aria-label={`Option ${optionIndex + 1}`}
-                                      type="text"
-                                      value={option}
-                                      onChange={(e) =>
-                                        updateOption(
-                                          sectionIndex,
-                                          questionIndex,
-                                          optionIndex,
-                                          e.target.value
-                                        )
-                                      }
-                                      placeholder={`Option ${optionIndex + 1}`}
-                                      className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                    />
+                      {section.questions.map((question, questionIndex) => (
+                        <div
+                          key={question.id}
+                          className="border border-gray-200 p-4 rounded-lg mb-4 bg-white"
+                        >
+                          <div className="flex items-center justify-between mb-4">
+                            <span className="text-sm font-medium text-gray-600">
+                              Question {questionIndex + 1}
+                            </span>
+                            {section.questions.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  removeQuestion(sectionIndex, questionIndex)
+                                }
+                                className="flex items-center px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                              >
+                                <Trash2 className="h-3 w-3 mr-1" />
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                              <label
+                                htmlFor={`question-${sectionIndex}-${questionIndex}-text`}
+                                className="block text-sm font-medium text-gray-700 mb-2"
+                              >
+                                Question Text
+                              </label>
+                              <input
+                                id={`question-${sectionIndex}-${questionIndex}-text`}
+                                type="text"
+                                value={question.text}
+                                onChange={(e) =>
+                                  handleQuestionChange(
+                                    sectionIndex,
+                                    questionIndex,
+                                    "text",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="What would you like to ask?"
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                            </div>
 
-                                    {question.options &&
-                                      question.options.length > 2 && (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            removeOption(
-                                              sectionIndex,
-                                              questionIndex,
-                                              optionIndex
-                                            )
-                                          }
-                                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                                          aria-label="Remove option"
-                                        >
-                                          <Minus className="h-4 w-4" />
-                                        </button>
-                                      )}
-                                  </div>
+                            <div>
+                              <label
+                                htmlFor={`question-${sectionIndex}-${questionIndex}-type`}
+                                className="block text-sm font-medium text-gray-700 mb-2"
+                              >
+                                Question Type
+                              </label>
+                              <select
+                                id={`question-${sectionIndex}-${questionIndex}-type`}
+                                value={question.type}
+                                onChange={(e) => {
+                                  const newType = e.target.value as
+                                    | "text"
+                                    | "radio"
+                                    | "paragraph"
+                                    | "checkbox"
+                                    | "select"
+                                    | "yesNoNA";
+                                  const updatedQuestion = {
+                                    ...question,
+                                    type: newType,
+                                  };
 
-                                  {/* Follow-up Action Menu */}
-                                  <div className="ml-8 flex items-center gap-2 mt-2 relative">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        const menuId = `${sectionIndex}-${questionIndex}-${optionIndex}`;
-                                        setOpenOptionMenu(openOptionMenu === menuId ? null : menuId);
-                                      }}
-                                      className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors relative"
-                                      title="More actions"
-                                    >
-                                      <MoreVertical className="w-4 h-4" />
-                                    </button>
+                                  const needsOptions = [
+                                    "radio",
+                                    "checkbox",
+                                    "select",
+                                    "yesNoNA",
+                                  ].includes(newType);
 
-                                    {openOptionMenu === `${sectionIndex}-${questionIndex}-${optionIndex}` && (
-                                      <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-max">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            addFollowUp(
-                                              sectionIndex,
-                                              questionIndex,
-                                              option
-                                            );
-                                            setOpenOptionMenu(null);
-                                          }}
-                                          className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
-                                        >
-                                          Add a question for this option
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            console.log(
-                                              "Opening section modal for option:",
-                                              option
-                                            );
-                                            console.log(
-                                              "Available sections:",
-                                              formData.sections.length
-                                            );
-                                            setSectionModal({
-                                              isOpen: true,
-                                              sectionIndex,
-                                              questionIndex,
-                                              option,
-                                            });
-                                            setOpenOptionMenu(null);
-                                          }}
-                                          className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 transition-colors"
-                                        >
-                                          Add a section for this option
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            const isLinked =
-                                              section.questions[questionIndex]
-                                                .followUpConfig?.[option]
-                                                ?.hasFollowUp;
-                                            if (!isLinked) {
-                                              alert(
-                                                "Please link a follow-up section first before linking a form"
-                                              );
-                                              return;
-                                            }
-                                            const formId =
-                                              (window as any).formId ||
-                                              "current-form";
-                                            const forms =
-                                              (window as any).availableForms || [];
-                                            if (forms.length === 0) {
-                                              alert(
-                                                "No other forms available to link"
-                                              );
-                                              return;
-                                            }
-                                            const selectedFormId = prompt(
-                                              "Enter the ID of the form to link (or paste form ID)"
-                                            );
-                                            if (selectedFormId) {
-                                              linkFollowUpForm(
-                                                sectionIndex,
-                                                questionIndex,
-                                                option,
-                                                selectedFormId
-                                              );
-                                              alert("Form linked successfully!");
-                                            }
-                                            setOpenOptionMenu(null);
-                                          }}
-                                          className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
-                                        >
-                                          Link a form for this option
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
+                                  if (needsOptions && !question.options) {
+                                    if (newType === "yesNoNA") {
+                                      updatedQuestion.options =
+                                        YES_NO_NA_OPTIONS;
+                                    } else {
+                                      updatedQuestion.options = [
+                                        "Option 1",
+                                        "Option 2",
+                                        "Option 3",
+                                        "Option 4",
+                                      ];
+                                    }
+                                    updatedQuestion.followUpConfig = {};
+                                  } else if (!needsOptions) {
+                                    delete updatedQuestion.options;
+                                    delete updatedQuestion.followUpConfig;
+                                  }
 
-                                  {/* Go to Section Display */}
-                                  <div className="ml-8 flex items-center space-x-2">
-                                    <div className="flex-1 text-xs text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-200">
-                                      {currentGoToSection ? (
-                                        currentGoToSection === "submit" ? (
-                                          <span className="text-purple-600 font-medium">
-                                            ✅ Submit form
-                                          </span>
-                                        ) : (
-                                          <span className="text-green-600 font-medium">
-                                            ➡️ Jump to{" "}
-                                            {formData.sections.findIndex(
-                                              (s) => s.id === currentGoToSection
-                                            ) !== -1
-                                              ? `Section ${
-                                                  formData.sections.findIndex(
-                                                    (s) =>
-                                                      s.id ===
-                                                      currentGoToSection
-                                                  ) + 1
-                                                }${
-                                                  formData.sections.find(
-                                                    (s) =>
-                                                      s.id ===
-                                                      currentGoToSection
-                                                  )?.title
-                                                    ? `: ${
-                                                        formData.sections.find(
-                                                          (s) =>
-                                                            s.id ===
-                                                            currentGoToSection
-                                                        )?.title
-                                                      }`
-                                                    : ""
-                                                }`
-                                              : "Unknown section"}
-                                          </span>
-                                        )
-                                      ) : (
-                                        <span className="text-gray-500">
-                                          ➡️ Continue to next section
-                                        </span>
-                                      )}
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setSectionModal({
-                                          isOpen: true,
-                                          sectionIndex,
-                                          questionIndex,
-                                          option,
-                                        });
-                                      }}
-                                      className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
-                                    >
-                                      {currentGoToSection ? "Change" : "Set"}
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                                  handleQuestionChange(
+                                    sectionIndex,
+                                    questionIndex,
+                                    "type",
+                                    newType
+                                  );
+                                  if (needsOptions && !question.options) {
+                                    handleQuestionChange(
+                                      sectionIndex,
+                                      questionIndex,
+                                      "options",
+                                      [
+                                        "Option 1",
+                                        "Option 2",
+                                        "Option 3",
+                                        "Option 4",
+                                      ]
+                                    );
+                                    handleQuestionChange(
+                                      sectionIndex,
+                                      questionIndex,
+                                      "followUpConfig",
+                                      {}
+                                    );
+                                  }
+                                }}
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              >
+                                <option value="text">
+                                  Short Text - Single line text input
+                                </option>
+                                <option value="radio">
+                                  Multiple Choice - Select one option from many
+                                </option>
+                                <option value="checkbox">
+                                  Checkboxes - Select multiple options
+                                </option>
+                                <option value="select">
+                                  Dropdown - Select from searchable list
+                                </option>
+                                <option value="yesNoNA">
+                                  Yes/No/N/A - Preset options (Yes=1 point,
+                                  No/N/A=0 points)
+                                </option>
+                                <option value="paragraph">
+                                  Long Text - Multi-line text input
+                                </option>
+                              </select>
+                            </div>
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              addOption(sectionIndex, questionIndex)
-                            }
-                            className="mt-3 flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                          >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add Option
-                          </button>
-
-                          <div className="mt-2 text-xs text-gray-500">
-                            💡 Tip: Each line becomes a selectable option for
-                            your users
+                          <div className="flex items-center mb-4">
+                            <input
+                              id={`question-${sectionIndex}-${questionIndex}-required`}
+                              type="checkbox"
+                              checked={question.required}
+                              onChange={(e) =>
+                                handleQuestionChange(
+                                  sectionIndex,
+                                  questionIndex,
+                                  "required",
+                                  e.target.checked
+                                )
+                              }
+                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                            <label
+                              htmlFor={`question-${sectionIndex}-${questionIndex}-required`}
+                              className="ml-2 block text-sm text-gray-700"
+                            >
+                              Required
+                            </label>
                           </div>
 
-                          {/* Follow-up Questions */}
-                          {question.followUpQuestions &&
-                            question.followUpQuestions.length > 0 && (
-                              <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                                <h5 className="text-sm font-semibold text-blue-900 mb-3">
-                                  Follow-up Questions
-                                </h5>
+                          {/* Multiple Choice/Checkboxes/Dropdown/YesNoNA Options */}
+                          {(question.type === "radio" ||
+                            question.type === "checkbox" ||
+                            question.type === "select" ||
+                            question.type === "yesNoNA") &&
+                            question.options && (
+                              <div className="mt-4">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                  {question.type === "yesNoNA"
+                                    ? "Preset Options"
+                                    : "Options (one per line)"}
+                                </label>
+
                                 <div className="space-y-3">
-                                  {question.followUpQuestions.map(
-                                    (followUp, followUpIndex) => (
-                                      <div
-                                        key={followUp.id}
-                                        className="bg-white p-3 rounded-lg border border-blue-200"
-                                      >
-                                        <div className="flex items-start justify-between mb-2">
-                                          <span className="text-xs font-medium text-blue-600">
-                                            Shown when: "
-                                            {followUp.showWhen?.value}"
-                                          </span>
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              removeFollowUp(
-                                                sectionIndex,
-                                                questionIndex,
-                                                followUpIndex
-                                              )
-                                            }
-                                            className="text-red-600 hover:text-red-800"
-                                            aria-label="Remove follow-up"
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </button>
-                                        </div>
+                                  {question.options.map(
+                                    (option, optionIndex) => {
+                                      const currentGoToSection =
+                                        question.followUpConfig?.[option]
+                                          ?.goToSection;
 
-                                        <input
-                                          type="text"
-                                          value={followUp.text}
-                                          onChange={(e) =>
-                                            updateFollowUp(
-                                              sectionIndex,
-                                              questionIndex,
-                                              followUpIndex,
-                                              "text",
-                                              e.target.value
-                                            )
-                                          }
-                                          placeholder="Follow-up question text"
-                                          className="w-full p-2 mb-2 border border-gray-300 rounded-lg text-sm"
-                                        />
+                                      return (
+                                        <div
+                                          key={optionIndex}
+                                          className="space-y-2"
+                                        >
+                                          <div className="flex items-center space-x-2">
+                                            {question.type === "yesNoNA" ? (
+                                              <div className="flex-1 p-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-medium">
+                                                {option}
+                                              </div>
+                                            ) : (
+                                              <input
+                                                aria-label={`Option ${
+                                                  optionIndex + 1
+                                                }`}
+                                                type="text"
+                                                value={option}
+                                                onChange={(e) =>
+                                                  updateOption(
+                                                    sectionIndex,
+                                                    questionIndex,
+                                                    optionIndex,
+                                                    e.target.value
+                                                  )
+                                                }
+                                                placeholder={`Option ${
+                                                  optionIndex + 1
+                                                }`}
+                                                className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                              />
+                                            )}
 
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <select
-                                            value={followUp.type}
-                                            onChange={(e) =>
-                                              updateFollowUp(
-                                                sectionIndex,
-                                                questionIndex,
-                                                followUpIndex,
-                                                "type",
-                                                e.target.value
-                                              )
-                                            }
-                                            className="p-2 border border-gray-300 rounded-lg text-sm"
-                                          >
-                                            <option value="shortText">
-                                              Short Text
-                                            </option>
-                                            <option value="longText">
-                                              Long Text
-                                            </option>
-                                            <option value="multipleChoice">
-                                              Multiple Choice
-                                            </option>
-                                            <option value="checkboxes">
-                                              Checkboxes
-                                            </option>
-                                            <option value="dropdown">
-                                              Dropdown
-                                            </option>
-                                          </select>
+                                            {question.options &&
+                                              question.options.length > 2 &&
+                                              question.type !== "yesNoNA" && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    removeOption(
+                                                      sectionIndex,
+                                                      questionIndex,
+                                                      optionIndex
+                                                    )
+                                                  }
+                                                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                                                  aria-label="Remove option"
+                                                >
+                                                  <Minus className="h-4 w-4" />
+                                                </button>
+                                              )}
+                                          </div>
 
-                                          <label className="flex items-center space-x-2 p-2">
-                                            <input
-                                              type="checkbox"
-                                              checked={followUp.required}
-                                              onChange={(e) =>
-                                                updateFollowUp(
+                                          {/* Follow-up Action Menu */}
+                                          <div className="ml-8 flex items-center gap-2 mt-2 relative">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                const menuId = `${sectionIndex}-${questionIndex}-${optionIndex}`;
+                                                setOpenOptionMenu(
+                                                  openOptionMenu === menuId
+                                                    ? null
+                                                    : menuId
+                                                );
+                                              }}
+                                              className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors relative"
+                                              title="More actions"
+                                            >
+                                              <MoreVertical className="w-4 h-4" />
+                                            </button>
+
+                                            {openOptionMenu ===
+                                              `${sectionIndex}-${questionIndex}-${optionIndex}` && (
+                                              <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-max">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    addFollowUp(
+                                                      sectionIndex,
+                                                      questionIndex,
+                                                      option
+                                                    );
+                                                    setOpenOptionMenu(null);
+                                                  }}
+                                                  className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                                                >
+                                                  Add a question for this option
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    console.log(
+                                                      "Opening section modal for option:",
+                                                      option
+                                                    );
+                                                    console.log(
+                                                      "Available sections:",
+                                                      formData.sections.length
+                                                    );
+                                                    setSectionModal({
+                                                      isOpen: true,
+                                                      sectionIndex,
+                                                      questionIndex,
+                                                      option,
+                                                    });
+                                                    setOpenOptionMenu(null);
+                                                  }}
+                                                  className="w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-green-50 transition-colors"
+                                                >
+                                                  Add a section for this option
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const isLinked =
+                                                      section.questions[
+                                                        questionIndex
+                                                      ].followUpConfig?.[option]
+                                                        ?.hasFollowUp;
+                                                    if (!isLinked) {
+                                                      alert(
+                                                        "Please link a follow-up section first before linking a form"
+                                                      );
+                                                      return;
+                                                    }
+                                                    const formId =
+                                                      (window as any).formId ||
+                                                      "current-form";
+                                                    const forms =
+                                                      (window as any)
+                                                        .availableForms || [];
+                                                    if (forms.length === 0) {
+                                                      alert(
+                                                        "No other forms available to link"
+                                                      );
+                                                      return;
+                                                    }
+                                                    const selectedFormId =
+                                                      prompt(
+                                                        "Enter the ID of the form to link (or paste form ID)"
+                                                      );
+                                                    if (selectedFormId) {
+                                                      linkFollowUpForm(
+                                                        sectionIndex,
+                                                        questionIndex,
+                                                        option,
+                                                        selectedFormId
+                                                      );
+                                                      alert(
+                                                        "Form linked successfully!"
+                                                      );
+                                                    }
+                                                    setOpenOptionMenu(null);
+                                                  }}
+                                                  className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 transition-colors"
+                                                >
+                                                  Link a form for this option
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* Go to Section Display */}
+                                          <div className="ml-8 flex items-center space-x-2">
+                                            <div className="flex-1 text-xs text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                                              {currentGoToSection ? (
+                                                currentGoToSection ===
+                                                "submit" ? (
+                                                  <span className="text-purple-600 font-medium">
+                                                    ✅ Submit form
+                                                  </span>
+                                                ) : (
+                                                  <span className="text-green-600 font-medium">
+                                                    ➡️ Jump to{" "}
+                                                    {formData.sections.findIndex(
+                                                      (s) =>
+                                                        s.id ===
+                                                        currentGoToSection
+                                                    ) !== -1
+                                                      ? `Section ${
+                                                          formData.sections.findIndex(
+                                                            (s) =>
+                                                              s.id ===
+                                                              currentGoToSection
+                                                          ) + 1
+                                                        }${
+                                                          formData.sections.find(
+                                                            (s) =>
+                                                              s.id ===
+                                                              currentGoToSection
+                                                          )?.title
+                                                            ? `: ${
+                                                                formData.sections.find(
+                                                                  (s) =>
+                                                                    s.id ===
+                                                                    currentGoToSection
+                                                                )?.title
+                                                              }`
+                                                            : ""
+                                                        }`
+                                                      : "Unknown section"}
+                                                  </span>
+                                                )
+                                              ) : (
+                                                <span className="text-gray-500">
+                                                  ➡️ Continue to next section
+                                                </span>
+                                              )}
+                                            </div>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setSectionModal({
+                                                  isOpen: true,
                                                   sectionIndex,
                                                   questionIndex,
-                                                  followUpIndex,
-                                                  "required",
-                                                  e.target.checked
-                                                )
-                                              }
-                                              className="h-4 w-4 text-blue-600"
-                                            />
-                                            <span className="text-sm text-gray-700">
-                                              Required
-                                            </span>
-                                          </label>
+                                                  option,
+                                                });
+                                              }}
+                                              className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors whitespace-nowrap"
+                                            >
+                                              {currentGoToSection
+                                                ? "Change"
+                                                : "Set"}
+                                            </button>
+                                          </div>
                                         </div>
-                                      </div>
-                                    )
+                                      );
+                                    }
                                   )}
                                 </div>
+
+                                {question.type !== "yesNoNA" && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        addOption(sectionIndex, questionIndex)
+                                      }
+                                      className="mt-3 flex items-center px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                    >
+                                      <Plus className="h-4 w-4 mr-1" />
+                                      Add Option
+                                    </button>
+
+                                    <div className="mt-2 text-xs text-gray-500">
+                                      💡 Tip: Each line becomes a selectable
+                                      option for your users
+                                    </div>
+                                  </>
+                                )}
+                                {question.type === "yesNoNA" && (
+                                  <div className="mt-2 text-xs text-green-700 bg-green-50 p-2 rounded">
+                                    ✓ Yes/No/N/A options are preset. Yes = 1
+                                    point, No/N/A = 0 points
+                                  </div>
+                                )}
+
+                                {/* Follow-up Questions */}
+                                {question.followUpQuestions &&
+                                  question.followUpQuestions.length > 0 && (
+                                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                      <h5 className="text-sm font-semibold text-blue-900 mb-3">
+                                        Follow-up Questions
+                                      </h5>
+                                      <div className="space-y-3">
+                                        {question.followUpQuestions.map(
+                                          (followUp, followUpIndex) => (
+                                            <div
+                                              key={followUp.id}
+                                              className="bg-white p-3 rounded-lg border border-blue-200"
+                                            >
+                                              <div className="flex items-start justify-between mb-2">
+                                                <span className="text-xs font-medium text-blue-600">
+                                                  Shown when: "
+                                                  {followUp.showWhen?.value}"
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    removeFollowUp(
+                                                      sectionIndex,
+                                                      questionIndex,
+                                                      followUpIndex
+                                                    )
+                                                  }
+                                                  className="text-red-600 hover:text-red-800"
+                                                  aria-label="Remove follow-up"
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </button>
+                                              </div>
+
+                                              <input
+                                                type="text"
+                                                value={followUp.text}
+                                                onChange={(e) =>
+                                                  updateFollowUp(
+                                                    sectionIndex,
+                                                    questionIndex,
+                                                    followUpIndex,
+                                                    "text",
+                                                    e.target.value
+                                                  )
+                                                }
+                                                placeholder="Follow-up question text"
+                                                className="w-full p-2 mb-2 border border-gray-300 rounded-lg text-sm"
+                                              />
+
+                                              <div className="grid grid-cols-2 gap-2">
+                                                <select
+                                                  value={followUp.type}
+                                                  onChange={(e) =>
+                                                    updateFollowUp(
+                                                      sectionIndex,
+                                                      questionIndex,
+                                                      followUpIndex,
+                                                      "type",
+                                                      e.target.value
+                                                    )
+                                                  }
+                                                  className="p-2 border border-gray-300 rounded-lg text-sm"
+                                                >
+                                                  <option value="text">
+                                                    Short Text
+                                                  </option>
+                                                  <option value="paragraph">
+                                                    Long Text
+                                                  </option>
+                                                  <option value="radio">
+                                                    Multiple Choice
+                                                  </option>
+                                                  <option value="checkbox">
+                                                    Checkboxes
+                                                  </option>
+                                                  <option value="select">
+                                                    Dropdown
+                                                  </option>
+                                                </select>
+
+                                                <label className="flex items-center space-x-2 p-2">
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={followUp.required}
+                                                    onChange={(e) =>
+                                                      updateFollowUp(
+                                                        sectionIndex,
+                                                        questionIndex,
+                                                        followUpIndex,
+                                                        "required",
+                                                        e.target.checked
+                                                      )
+                                                    }
+                                                    className="h-4 w-4 text-blue-600"
+                                                  />
+                                                  <span className="text-sm text-gray-700">
+                                                    Required
+                                                  </span>
+                                                </label>
+                                              </div>
+                                            </div>
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
                               </div>
                             )}
                         </div>
-                      )}
-                  </div>
-                ))}
+                      ))}
 
-                {/* Add Question Button */}
+                      {/* Add Question Button */}
+                      <button
+                        type="button"
+                        onClick={() => addQuestion(sectionIndex)}
+                        className="mt-4 flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Add Question to Section {sectionIndex + 1}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Add Section Button */}
+              <div className="flex justify-center">
                 <button
                   type="button"
-                  onClick={() => addQuestion(sectionIndex)}
-                  className="mt-4 flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  onClick={addSection}
+                  className="flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-lg"
                 >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Question to Section {sectionIndex + 1}
+                  <Plus className="h-5 w-5 mr-2" />
+                  Add New Section
+                </button>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-4">
+                <button
+                  type="button"
+                  onClick={handlePreview}
+                  className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2"
+                >
+                  <Eye className="h-4 w-4" />
+                  <span>Preview Form</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={loading}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
+                >
+                  <Save className="h-4 w-4" />
+                  <span>{loading ? "Saving..." : "Save Form"}</span>
                 </button>
               </div>
             </div>
-          </div>
-        ))}
 
-        {/* Add Section Button */}
-        <div className="flex justify-center">
-          <button
-            type="button"
-            onClick={addSection}
-            className="flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-lg"
-          >
-            <Plus className="h-5 w-5 mr-2" />
-            Add New Section
-          </button>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex justify-end space-x-4">
-          <button
-            type="button"
-            onClick={handlePreview}
-            className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2"
-          >
-            <Eye className="h-4 w-4" />
-            <span>Preview Form</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={loading}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
-          >
-            <Save className="h-4 w-4" />
-            <span>{loading ? "Saving..." : "Save Form"}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Section Selection Modal */}
-      {sectionModal?.isOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={(e) => {
-            // Close modal if clicking on backdrop
-            if (e.target === e.currentTarget) {
-              setSectionModal(null);
-            }
-          }}
-        >
-          <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="bg-gradient-to-r from-green-600 to-green-500 px-6 py-4 text-white">
-              <h3 className="text-xl font-semibold">
-                Select Section to Jump To
-              </h3>
-              <p className="text-sm text-green-50 mt-1">
-                When "{sectionModal.option}" is selected, go to:
-              </p>
-              <p className="text-xs text-green-100 mt-2">
-                📋 {formData.sections.length} section
-                {formData.sections.length !== 1 ? "s" : ""} available
-              </p>
-            </div>
-
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-3">
-                {/* Continue to Next Section Option */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateGoToSection(
-                      sectionModal.sectionIndex,
-                      sectionModal.questionIndex,
-                      sectionModal.option,
-                      ""
-                    );
+            {/* Section Selection Modal */}
+            {sectionModal?.isOpen && (
+              <div
+                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+                onClick={(e) => {
+                  // Close modal if clicking on backdrop
+                  if (e.target === e.currentTarget) {
                     setSectionModal(null);
-                  }}
-                  className="w-full text-left p-4 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-gray-900 group-hover:text-blue-700">
-                        ➡️ Continue to Next Section
-                      </div>
-                      <div className="text-sm text-gray-500 mt-1">
-                        Follow the default sequential flow
-                      </div>
-                    </div>
+                  }
+                }}
+              >
+                <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+                  {/* Modal Header */}
+                  <div className="bg-gradient-to-r from-green-600 to-green-500 px-6 py-4 text-white">
+                    <h3 className="text-xl font-semibold">
+                      Select Section to Jump To
+                    </h3>
+                    <p className="text-sm text-green-50 mt-1">
+                      When "{sectionModal.option}" is selected, go to:
+                    </p>
+                    <p className="text-xs text-green-100 mt-2">
+                      📋 {formData.sections.length} section
+                      {formData.sections.length !== 1 ? "s" : ""} available
+                    </p>
                   </div>
-                </button>
 
-                {/* All Available Sections */}
-                {formData.sections.map((section, index) => {
-                  const isCurrentSection = index === sectionModal.sectionIndex;
-                  return (
-                    <button
-                      key={section.id}
-                      type="button"
-                      onClick={() => {
-                        updateGoToSection(
-                          sectionModal.sectionIndex,
-                          sectionModal.questionIndex,
-                          sectionModal.option,
-                          section.id
-                        );
-                        setSectionModal(null);
-                      }}
-                      disabled={isCurrentSection}
-                      className={`w-full text-left p-4 border-2 rounded-lg transition-all ${
-                        isCurrentSection
-                          ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
-                          : "border-green-300 hover:border-green-500 hover:bg-green-50 group"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1">
-                          <div
-                            className={`font-semibold ${
+                  {/* Modal Body */}
+                  <div className="flex-1 overflow-y-auto p-6">
+                    <div className="space-y-3">
+                      {/* Continue to Next Section Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateGoToSection(
+                            sectionModal.sectionIndex,
+                            sectionModal.questionIndex,
+                            sectionModal.option,
+                            ""
+                          );
+                          setSectionModal(null);
+                        }}
+                        className="w-full text-left p-4 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold text-gray-900 group-hover:text-blue-700">
+                              ➡️ Continue to Next Section
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              Follow the default sequential flow
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* All Available Sections */}
+                      {formData.sections.map((section, index) => {
+                        const isCurrentSection =
+                          index === sectionModal.sectionIndex;
+                        return (
+                          <button
+                            key={section.id}
+                            type="button"
+                            onClick={() => {
+                              updateGoToSection(
+                                sectionModal.sectionIndex,
+                                sectionModal.questionIndex,
+                                sectionModal.option,
+                                section.id
+                              );
+                              setSectionModal(null);
+                            }}
+                            disabled={isCurrentSection}
+                            className={`w-full text-left p-4 border-2 rounded-lg transition-all ${
                               isCurrentSection
-                                ? "text-gray-500"
-                                : "text-gray-900 group-hover:text-green-700"
+                                ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
+                                : "border-green-300 hover:border-green-500 hover:bg-green-50 group"
                             }`}
                           >
-                            📋 Section {index + 1}
-                            {section.title && `: ${section.title}`}
-                          </div>
-                          <div className="text-sm text-gray-500 mt-1">
-                            {section.questions.length} question
-                            {section.questions.length !== 1 ? "s" : ""}
-                            {section.description && ` • ${section.description}`}
-                          </div>
-                          {isCurrentSection && (
-                            <div className="text-xs text-orange-600 mt-1">
-                              ⚠️ Cannot jump to current section
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1">
+                                <div
+                                  className={`font-semibold ${
+                                    isCurrentSection
+                                      ? "text-gray-500"
+                                      : "text-gray-900 group-hover:text-green-700"
+                                  }`}
+                                >
+                                  📋 Section {index + 1}
+                                  {section.title && `: ${section.title}`}
+                                </div>
+                                <div className="text-sm text-gray-500 mt-1">
+                                  {section.questions.length} question
+                                  {section.questions.length !== 1 ? "s" : ""}
+                                  {section.description &&
+                                    ` • ${section.description}`}
+                                </div>
+                                {isCurrentSection && (
+                                  <div className="text-xs text-orange-600 mt-1">
+                                    ⚠️ Cannot jump to current section
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
+                          </button>
+                        );
+                      })}
 
-                {/* Submit Form Option */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    updateGoToSection(
-                      sectionModal.sectionIndex,
-                      sectionModal.questionIndex,
-                      sectionModal.option,
-                      "submit"
-                    );
-                    setSectionModal(null);
-                  }}
-                  className="w-full text-left p-4 border-2 border-purple-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all group"
-                >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-gray-900 group-hover:text-purple-700">
-                        ✅ Submit Form
-                      </div>
-                      <div className="text-sm text-gray-500 mt-1">
-                        End the form immediately after this answer
-                      </div>
+                      {/* Submit Form Option */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          updateGoToSection(
+                            sectionModal.sectionIndex,
+                            sectionModal.questionIndex,
+                            sectionModal.option,
+                            "submit"
+                          );
+                          setSectionModal(null);
+                        }}
+                        className="w-full text-left p-4 border-2 border-purple-300 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all group"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold text-gray-900 group-hover:text-purple-700">
+                              ✅ Submit Form
+                            </div>
+                            <div className="text-sm text-gray-500 mt-1">
+                              End the form immediately after this answer
+                            </div>
+                          </div>
+                        </div>
+                      </button>
                     </div>
                   </div>
-                </button>
-              </div>
-            </div>
 
-            {/* Modal Footer */}
-            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSectionModal(null)}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+                  {/* Modal Footer */}
+                  <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setSectionModal(null)}
+                      className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };

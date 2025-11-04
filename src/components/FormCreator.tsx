@@ -29,6 +29,9 @@ import { SectionBranchingConfig } from "./forms/SectionBranchingConfig";
 import { FormRoutingConfig } from "./forms/FormRoutingConfig";
 import PreviewForm from "./PreviewForm";
 
+const YES_NO_NA_OPTIONS = ["Yes", "No", "N/A"];
+const YES_NO_NA_CORRECT = "Yes";
+
 interface FormSection {
   id: string;
   title: string;
@@ -203,11 +206,39 @@ export default function FormCreator() {
                 }
               });
 
-              // Second pass: attach follow-ups to their parent questions
-              const questionsWithFollowUps = mainQuestions.map((q) => ({
-                ...q,
-                followUpQuestions: followUpMap.get(q.id) || [],
-              }));
+              // Second pass: attach follow-ups to their parent questions and initialize followUpConfig
+              const questionsWithFollowUps = mainQuestions.map((q) => {
+                const followUps = followUpMap.get(q.id) || [];
+
+                // Initialize followUpConfig if not present
+                const followUpConfig = q.followUpConfig || {};
+                if (q.options && q.options.length > 0) {
+                  q.options.forEach((option: string) => {
+                    if (!followUpConfig[option]) {
+                      followUpConfig[option] = {
+                        hasFollowUp: false,
+                        required: false,
+                      };
+                    }
+                  });
+                  // Mark options that have follow-ups
+                  followUps.forEach((followUp) => {
+                    if (
+                      followUp.showWhen?.value &&
+                      followUpConfig[followUp.showWhen.value]
+                    ) {
+                      followUpConfig[followUp.showWhen.value].hasFollowUp =
+                        true;
+                    }
+                  });
+                }
+
+                return {
+                  ...q,
+                  followUpQuestions: followUps,
+                  followUpConfig: followUpConfig,
+                };
+              });
 
               return {
                 ...section,
@@ -1550,6 +1581,7 @@ export default function FormCreator() {
 
     const question = section.questions.find((q) => q.id === questionId);
     if (!question) return;
+    if (question.type === "yesNoNA") return;
 
     updateQuestion(sectionId, questionId, {
       options: [...(question.options || []), ""],
@@ -1567,6 +1599,7 @@ export default function FormCreator() {
 
     const question = section.questions.find((q) => q.id === questionId);
     if (!question || !question.options) return;
+    if (question.type === "yesNoNA") return;
 
     const updatedOptions = [...question.options];
     updatedOptions[optionIndex] = value;
@@ -1586,6 +1619,7 @@ export default function FormCreator() {
 
     const question = section.questions.find((q) => q.id === questionId);
     if (!question || !question.options) return;
+    if (question.type === "yesNoNA") return;
 
     updateQuestion(sectionId, questionId, {
       options: question.options.filter((_, i) => i !== optionIndex),
@@ -1790,7 +1824,41 @@ export default function FormCreator() {
 
   // Helper function to check if a question type requires follow-ups
   const requiresFollowUp = (type: string): boolean => {
-    return ["radio", "checkbox", "select", "search-select"].includes(type);
+    return ["radio", "checkbox", "select", "search-select", "yesNoNA"].includes(
+      type
+    );
+  };
+
+  const handleQuestionTypeChange = (
+    sectionId: string,
+    questionId: string,
+    currentQuestion: Question,
+    newType: string
+  ) => {
+    const updates: Partial<Question> = { type: newType };
+
+    if (newType === "yesNoNA") {
+      updates.options = [...YES_NO_NA_OPTIONS];
+      updates.correctAnswer = YES_NO_NA_CORRECT;
+    } else if (requiresFollowUp(newType)) {
+      const baseOptions =
+        currentQuestion.type === "yesNoNA"
+          ? undefined
+          : currentQuestion.options;
+      updates.options =
+        baseOptions && baseOptions.length > 0
+          ? baseOptions
+          : ["Option 1", "Option 2"];
+      if (currentQuestion.type === "yesNoNA") {
+        updates.correctAnswer = undefined;
+      }
+    } else {
+      updates.options = undefined;
+      updates.correctAnswer = undefined;
+      updates.followUpConfig = undefined;
+    }
+
+    updateQuestion(sectionId, questionId, updates);
   };
 
   const questionTypes = [
@@ -1805,9 +1873,19 @@ export default function FormCreator() {
       description: "Multi-line text area",
     },
     {
+      value: "boolean",
+      label: "Yes/No",
+      description: "Boolean true/false question",
+    },
+    {
       value: "radio",
       label: "Multiple Choice",
       description: "Select one option from many",
+    },
+    {
+      value: "yesNoNA",
+      label: "Yes / No / N/A",
+      description: "Preset with Yes, No, and N/A options",
     },
     {
       value: "checkbox",
@@ -1831,7 +1909,7 @@ export default function FormCreator() {
 
   if (mode === "list") {
     return (
-      <div className="p-6">
+      <div className="p-4">
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -1971,10 +2049,10 @@ export default function FormCreator() {
   }
 
   return (
-    <div className="w-full min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
+    <div className="w-full overflow-auto bg-gradient-to-br from-blue-50 via-white to-blue-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50 min-w-full">
-        <div className="min-w-full px-6 py-4">
+      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50 w-full">
+        <div className="px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
@@ -2011,10 +2089,10 @@ export default function FormCreator() {
         </div>
       </div>
 
-      <div className="w-full px-6 py-8">
-        <div className="flex gap-6">
+      <div className="w-full py-6 px-4 sm:py-8 sm:px-6">
+        <div className="flex flex-col lg:flex-row gap-6">
           {/* Form Editor */}
-          <div className="flex-1 space-y-6">
+          <div className="flex-1 space-y-6 min-w-0">
             {/* Form Details */}
             <div className="bg-white rounded-xl shadow-sm border-l-4 border-l-blue-500 overflow-hidden">
               <div className="bg-gradient-to-r from-blue-50 to-blue-50 px-6 py-4 border-b border-blue-100">
@@ -2452,9 +2530,12 @@ export default function FormCreator() {
                                   <select
                                     value={question.type}
                                     onChange={(e) =>
-                                      updateQuestion(section.id, question.id, {
-                                        type: e.target.value,
-                                      })
+                                      handleQuestionTypeChange(
+                                        section.id,
+                                        question.id,
+                                        question,
+                                        e.target.value
+                                      )
                                     }
                                     className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                                   >
@@ -2489,6 +2570,7 @@ export default function FormCreator() {
                               </div>
 
                               {(question.type === "radio" ||
+                                question.type === "yesNoNA" ||
                                 question.type === "checkbox" ||
                                 question.type === "select") && (
                                 <div className="mt-5 p-4 bg-blue-50 rounded-lg border border-blue-200">
@@ -2501,6 +2583,8 @@ export default function FormCreator() {
                                         const menuKey = `${section.id}-${question.id}-${index}`;
                                         const isMenuOpen =
                                           openOptionMenu === menuKey;
+                                        const isYesNoNa =
+                                          question.type === "yesNoNA";
 
                                         return (
                                           <div
@@ -2521,166 +2605,175 @@ export default function FormCreator() {
                                                   e.target.value
                                                 )
                                               }
-                                              className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                                              className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-100"
                                               placeholder={`Option ${
                                                 index + 1
                                               }`}
+                                              disabled={isYesNoNa}
+                                              readOnly={isYesNoNa}
                                             />
-                                            <button
-                                              onClick={() =>
-                                                duplicateOption(
-                                                  section.id,
-                                                  question.id,
-                                                  index
-                                                )
-                                              }
-                                              className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all"
-                                              title="Duplicate option"
-                                            >
-                                              <Clipboard className="w-5 h-5" />
-                                            </button>
-                                            <button
-                                              onClick={() =>
-                                                removeOption(
-                                                  section.id,
-                                                  question.id,
-                                                  index
-                                                )
-                                              }
-                                              className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all"
-                                              title="Delete option"
-                                            >
-                                              <X className="w-5 h-5" />
-                                            </button>
+                                            {!isYesNoNa && (
+                                              <>
+                                                <button
+                                                  onClick={() =>
+                                                    duplicateOption(
+                                                      section.id,
+                                                      question.id,
+                                                      index
+                                                    )
+                                                  }
+                                                  className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all"
+                                                  title="Duplicate option"
+                                                >
+                                                  <Clipboard className="w-5 h-5" />
+                                                </button>
+                                                <button
+                                                  onClick={() =>
+                                                    removeOption(
+                                                      section.id,
+                                                      question.id,
+                                                      index
+                                                    )
+                                                  }
+                                                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all"
+                                                  title="Delete option"
+                                                >
+                                                  <X className="w-5 h-5" />
+                                                </button>
+                                              </>
+                                            )}
 
-                                            {/* Three dots menu for follow-up options */}
-                                            <div className="relative">
-                                              <button
-                                                onClick={() =>
-                                                  setOpenOptionMenu(
-                                                    isMenuOpen ? null : menuKey
-                                                  )
-                                                }
-                                                className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all"
-                                                title="Follow-up options"
-                                              >
-                                                <MoreVertical className="w-5 h-5" />
-                                              </button>
+                                            {!isYesNoNa && (
+                                              <div className="relative">
+                                                <button
+                                                  onClick={() =>
+                                                    setOpenOptionMenu(
+                                                      isMenuOpen
+                                                        ? null
+                                                        : menuKey
+                                                    )
+                                                  }
+                                                  className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all"
+                                                  title="Follow-up options"
+                                                >
+                                                  <MoreVertical className="w-5 h-5" />
+                                                </button>
 
-                                              {/* Dropdown menu */}
-                                              {isMenuOpen && (
-                                                <>
-                                                  {/* Backdrop to close menu */}
-                                                  <div
-                                                    className="fixed inset-0 z-10"
-                                                    onClick={() =>
-                                                      setOpenOptionMenu(null)
-                                                    }
-                                                  />
+                                                {isMenuOpen && (
+                                                  <>
+                                                    <div
+                                                      className="fixed inset-0 z-10"
+                                                      onClick={() =>
+                                                        setOpenOptionMenu(null)
+                                                      }
+                                                    />
 
-                                                  <div className="absolute right-0 mt-1 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
-                                                    <div className="py-1">
-                                                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
-                                                        Follow-up Options
+                                                    <div className="absolute right-0 mt-1 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
+                                                      <div className="py-1">
+                                                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
+                                                          Follow-up Options
+                                                        </div>
+                                                        <button
+                                                          onClick={() => {
+                                                            addFollowUpQuestion(
+                                                              section.id,
+                                                              question.id,
+                                                              option
+                                                            );
+                                                            setOpenOptionMenu(
+                                                              null
+                                                            );
+                                                          }}
+                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
+                                                        >
+                                                          <span className="text-lg">
+                                                            📝
+                                                          </span>
+                                                          <div>
+                                                            <div className="font-medium">
+                                                              Follow-up Question
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">
+                                                              Add a question for
+                                                              this option
+                                                            </div>
+                                                          </div>
+                                                        </button>
+
+                                                        <button
+                                                          onClick={() => {
+                                                            linkFollowUpSection(
+                                                              section.id,
+                                                              question.id,
+                                                              option
+                                                            );
+                                                            setOpenOptionMenu(
+                                                              null
+                                                            );
+                                                          }}
+                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-2"
+                                                        >
+                                                          <span className="text-lg">
+                                                            📋
+                                                          </span>
+                                                          <div>
+                                                            <div className="font-medium">
+                                                              Follow-up Section
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">
+                                                              Add a section for
+                                                              this option
+                                                            </div>
+                                                          </div>
+                                                        </button>
+
+                                                        <button
+                                                          onClick={() => {
+                                                            linkFollowUpForm(
+                                                              section.id,
+                                                              question.id,
+                                                              option
+                                                            );
+                                                            setOpenOptionMenu(
+                                                              null
+                                                            );
+                                                          }}
+                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
+                                                        >
+                                                          <span className="text-lg">
+                                                            📄
+                                                          </span>
+                                                          <div>
+                                                            <div className="font-medium">
+                                                              Follow-up Form
+                                                            </div>
+                                                            <div className="text-xs text-gray-500">
+                                                              Link a form for
+                                                              this option
+                                                            </div>
+                                                          </div>
+                                                        </button>
                                                       </div>
-                                                      <button
-                                                        onClick={() => {
-                                                          addFollowUpQuestion(
-                                                            section.id,
-                                                            question.id,
-                                                            option
-                                                          );
-                                                          setOpenOptionMenu(
-                                                            null
-                                                          );
-                                                        }}
-                                                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
-                                                      >
-                                                        <span className="text-lg">
-                                                          📝
-                                                        </span>
-                                                        <div>
-                                                          <div className="font-medium">
-                                                            Follow-up Question
-                                                          </div>
-                                                          <div className="text-xs text-gray-500">
-                                                            Add a question for
-                                                            this option
-                                                          </div>
-                                                        </div>
-                                                      </button>
-
-                                                      <button
-                                                        onClick={() => {
-                                                          linkFollowUpSection(
-                                                            section.id,
-                                                            question.id,
-                                                            option
-                                                          );
-                                                          setOpenOptionMenu(
-                                                            null
-                                                          );
-                                                        }}
-                                                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-2"
-                                                      >
-                                                        <span className="text-lg">
-                                                          📋
-                                                        </span>
-                                                        <div>
-                                                          <div className="font-medium">
-                                                            Follow-up Section
-                                                          </div>
-                                                          <div className="text-xs text-gray-500">
-                                                            Add a section for
-                                                            this option
-                                                          </div>
-                                                        </div>
-                                                      </button>
-
-                                                      <button
-                                                        onClick={() => {
-                                                          linkFollowUpForm(
-                                                            section.id,
-                                                            question.id,
-                                                            option
-                                                          );
-                                                          setOpenOptionMenu(
-                                                            null
-                                                          );
-                                                        }}
-                                                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
-                                                      >
-                                                        <span className="text-lg">
-                                                          📄
-                                                        </span>
-                                                        <div>
-                                                          <div className="font-medium">
-                                                            Follow-up Form
-                                                          </div>
-                                                          <div className="text-xs text-gray-500">
-                                                            Link a form for this
-                                                            option
-                                                          </div>
-                                                        </div>
-                                                      </button>
                                                     </div>
-                                                  </div>
-                                                </>
-                                              )}
-                                            </div>
+                                                  </>
+                                                )}
+                                              </div>
+                                            )}
                                           </div>
                                         );
                                       }
                                     )}
-                                    <button
-                                      onClick={() =>
-                                        addOption(section.id, question.id)
-                                      }
-                                      className="flex items-center gap-2 px-4 py-2 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded-lg text-sm font-medium transition-all"
-                                    >
-                                      <Plus className="w-5 h-5" />
-                                      Add Option
-                                    </button>
+                                    {question.type !== "yesNoNA" && (
+                                      <button
+                                        onClick={() =>
+                                          addOption(section.id, question.id)
+                                        }
+                                        className="flex items-center gap-2 px-4 py-2 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded-lg text-sm font-medium transition-all"
+                                      >
+                                        <Plus className="w-5 h-5" />
+                                        Add Option
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               )}
@@ -2844,193 +2937,6 @@ export default function FormCreator() {
                                 )}
 
                               {/* Follow-up Questions Section - Now with Unlimited Nesting */}
-                              {requiresFollowUp(question.type) &&
-                                question.options &&
-                                question.options.length > 0 && (
-                                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                                    <h5 className="text-xs font-medium text-blue-800 mb-3">
-                                      Follow-up Questions (Unlimited Nesting)
-                                    </h5>
-
-                                    {/* Render nested follow-up questions using the recursive component */}
-                                    {question.followUpQuestions &&
-                                      question.followUpQuestions.length > 0 && (
-                                        <NestedFollowUpRenderer
-                                          followUpQuestions={
-                                            question.followUpQuestions
-                                          }
-                                          sectionId={section.id}
-                                          parentQuestion={{
-                                            id: question.id,
-                                            options: question.options,
-                                          }}
-                                          path={[question.id]}
-                                          onUpdate={(
-                                            sId,
-                                            fqId,
-                                            updates,
-                                            path
-                                          ) => {
-                                            if (path.length === 1) {
-                                              // First level follow-up
-                                              updateFollowUpQuestion(
-                                                sId,
-                                                path[0],
-                                                fqId,
-                                                updates
-                                              );
-                                            } else {
-                                              // Nested follow-up
-                                              updateNestedFollowUpQuestion(
-                                                sId,
-                                                fqId,
-                                                updates,
-                                                path
-                                              );
-                                            }
-                                          }}
-                                          onDelete={(sId, fqId, path) => {
-                                            if (path.length === 1) {
-                                              // First level follow-up
-                                              deleteFollowUpQuestion(
-                                                sId,
-                                                path[0],
-                                                fqId
-                                              );
-                                            } else {
-                                              // Nested follow-up
-                                              deleteNestedFollowUpQuestion(
-                                                sId,
-                                                fqId,
-                                                path
-                                              );
-                                            }
-                                          }}
-                                          onAddNested={
-                                            addNestedFollowUpQuestion
-                                          }
-                                          onAddOption={(sId, fqId, path) => {
-                                            if (path.length === 1) {
-                                              // First level follow-up
-                                              addFollowUpOption(
-                                                sId,
-                                                path[0],
-                                                fqId
-                                              );
-                                            } else {
-                                              // Nested follow-up
-                                              addNestedFollowUpOption(
-                                                sId,
-                                                fqId,
-                                                path
-                                              );
-                                            }
-                                          }}
-                                          onUpdateOption={(
-                                            sId,
-                                            fqId,
-                                            optIndex,
-                                            value,
-                                            path
-                                          ) => {
-                                            if (path.length === 1) {
-                                              // First level follow-up
-                                              updateFollowUpOption(
-                                                sId,
-                                                path[0],
-                                                fqId,
-                                                optIndex,
-                                                value
-                                              );
-                                            } else {
-                                              // Nested follow-up
-                                              updateNestedFollowUpOption(
-                                                sId,
-                                                fqId,
-                                                optIndex,
-                                                value,
-                                                path
-                                              );
-                                            }
-                                          }}
-                                          onRemoveOption={(
-                                            sId,
-                                            fqId,
-                                            optIndex,
-                                            path
-                                          ) => {
-                                            if (path.length === 1) {
-                                              // First level follow-up
-                                              removeFollowUpOption(
-                                                sId,
-                                                path[0],
-                                                fqId,
-                                                optIndex
-                                              );
-                                            } else {
-                                              // Nested follow-up
-                                              removeNestedFollowUpOption(
-                                                sId,
-                                                fqId,
-                                                optIndex,
-                                                path
-                                              );
-                                            }
-                                          }}
-                                          onAddFollowUpSection={
-                                            handleAddFollowUpSection
-                                          }
-                                          onAddFollowUpForm={
-                                            handleAddFollowUpForm
-                                          }
-                                          questionTypes={questionTypes}
-                                          depth={0}
-                                        />
-                                      )}
-
-                                    {(!question.followUpQuestions ||
-                                      question.followUpQuestions.length ===
-                                        0) && (
-                                      <div className="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-dashed border-blue-300 rounded-lg text-center">
-                                        <div className="flex items-center justify-center mb-3">
-                                          <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                                            <Plus className="w-6 h-6 text-blue-600" />
-                                          </div>
-                                        </div>
-                                        <p className="text-sm font-medium text-blue-900 mb-3">
-                                          Add follow-up questions for your
-                                          options
-                                        </p>
-                                        <p className="text-xs text-blue-700 mb-3">
-                                          Select an option to add a follow-up
-                                          question that appears when users
-                                          select it
-                                        </p>
-                                        <div className="flex flex-wrap gap-2 justify-center">
-                                          {question.options?.map(
-                                            (option, optIndex) => (
-                                              <button
-                                                key={optIndex}
-                                                onClick={() => {
-                                                  addFollowUpQuestion(
-                                                    section.id,
-                                                    question.id,
-                                                    option
-                                                  );
-                                                }}
-                                                className="px-3 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                                              >
-                                                Add for "{option}"
-                                              </button>
-                                            )
-                                          )}
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {/* Note: Follow-up options are now available in the three-dots menu for each option */}
-                                  </div>
-                                )}
                             </div>
                           </div>
                         </React.Fragment>
@@ -3141,7 +3047,7 @@ export default function FormCreator() {
           </div>
 
           {/* Sidebar */}
-          <div className="w-80 flex-shrink-0 space-y-6">
+          <div className="w-full lg:w-80 flex-shrink-0 space-y-6">
             {/* Sticky Page Navigation */}
             {(() => {
               const pages = getPagesFromSections();
@@ -3364,7 +3270,10 @@ export default function FormCreator() {
           questionId={formRoutingConfigQuestion.questionId}
           sectionId={formRoutingConfigQuestion.sectionId}
           options={formRoutingConfigQuestion.options}
-          availableForms={forms.map((f) => ({ id: f.id || f._id, title: f.title }))}
+          availableForms={forms.map((f) => ({
+            id: f.id || f._id,
+            title: f.title,
+          }))}
           existingConfig={
             form.sections
               .find((s) => s.id === formRoutingConfigQuestion.sectionId)

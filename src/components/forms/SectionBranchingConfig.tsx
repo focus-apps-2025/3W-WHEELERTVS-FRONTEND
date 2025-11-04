@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ChevronDown, Link2, X, Plus } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Link2, X } from 'lucide-react';
 
 interface BranchingRule {
   optionLabel: string;

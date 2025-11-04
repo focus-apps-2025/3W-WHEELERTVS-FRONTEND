@@ -232,7 +232,7 @@ describe("MultipleChoiceFormBuilder", () => {
       await user.type(carModelQuestion, "Car model?");
 
       const questionTypeSelect = screen.getByLabelText(/question type/i);
-      await user.selectOptions(questionTypeSelect, "multipleChoice");
+      await user.selectOptions(questionTypeSelect, "radio");
 
       // Remove options until we reach minimum
       const removeButtons = screen.getAllByRole("button", {
@@ -300,7 +300,7 @@ describe("MultipleChoiceFormBuilder", () => {
       const questionTypeSelect = screen.getByLabelText(/question type/i);
 
       // Change from default to multiple choice
-      await user.selectOptions(questionTypeSelect, "multipleChoice");
+      await user.selectOptions(questionTypeSelect, "radio");
 
       // Verify options appear
       const optionInputs = screen.getAllByLabelText(/option \d+/i);
@@ -323,7 +323,7 @@ describe("MultipleChoiceFormBuilder", () => {
       await user.type(carModelQuestion, "Car model?");
 
       const questionTypeSelect = screen.getByLabelText(/question type/i);
-      await user.selectOptions(questionTypeSelect, "multipleChoice");
+      await user.selectOptions(questionTypeSelect, "radio");
 
       // Configure follow-up for "RECENTLY PURCHASED" option
       const followUpButton = screen.getByRole("button", {

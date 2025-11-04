@@ -7,13 +7,13 @@ import { useSidebar } from "../context/SidebarContext";
 export default function Header() {
   const { logo } = useLogo();
   const { user, isAuthenticated } = useAuth();
-  const { isCollapsed } = useSidebar();
+  const { isCollapsed, isMobileOpen } = useSidebar();
 
   return (
     <>
       <header
         className={`fixed top-0 right-0 left-0 h-16 bg-white border-b border-neutral-200 z-30 transition-all duration-300 ${
-          isCollapsed ? "lg:pl-16" : "lg:pl-64"
+          !isMobileOpen ? (isCollapsed ? "lg:pl-16" : "lg:pl-64") : "pl-0"
         }`}
       >
         <div className="flex items-center justify-between h-full px-6">

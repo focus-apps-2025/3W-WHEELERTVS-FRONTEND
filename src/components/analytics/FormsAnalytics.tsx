@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FileText,
@@ -18,10 +18,14 @@ import {
   Link2,
   Share2,
   Check,
+  Upload,
+  Download,
 } from "lucide-react";
 import { useForms, useResponses, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
 import { useNotification } from "../../context/NotificationContext";
+import { parseFormWorkbook, downloadFormImportTemplate } from "../../utils/exportUtils";
+import type { Question as FormQuestion } from "../../types";
 
 interface FormItem {
   _id: string;
@@ -53,6 +57,8 @@ export default function FormsAnalytics() {
   const [searchTerm, setSearchTerm] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const { data: formsData, loading, error, execute: refetchForms } = useForms();
@@ -252,6 +258,56 @@ export default function FormsAnalytics() {
     });
   };
 
+  const handleExportTemplate = () => {
+    downloadFormImportTemplate();
+  };
+
+  const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    const isValidType =
+      file.type ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      file.name.toLowerCase().endsWith(".xlsx");
+    if (!isValidType) {
+      showError("Please select a valid .xlsx file", "Invalid File");
+      return;
+    }
+
+    setIsImporting(true);
+
+    try {
+      const parsed = await parseFormWorkbook(file);
+      const formPayload = {
+        ...parsed,
+        isVisible: parsed.isVisible ?? true,
+        followUpQuestions: parsed.followUpQuestions || [],
+      } as FormQuestion;
+      const created = await apiClient.createForm(formPayload);
+      showSuccess("Form imported successfully", "Import Complete");
+      if (created?.form?._id) {
+        navigate(`/forms/${created.form._id}/edit`);
+      }
+      refetchForms();
+    } catch (error: any) {
+      showError(error?.message || "Failed to import form", "Import Failed");
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleImportClick = () => {
+    if (isImporting) {
+      return;
+    }
+    fileInputRef.current?.click();
+  };
+
   const toggleMenu = (formId: string) => {
     setOpenMenuId(openMenuId === formId ? null : formId);
   };
@@ -347,7 +403,14 @@ export default function FormsAnalytics() {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-primary-800">
             Service Analytics
@@ -356,15 +419,32 @@ export default function FormsAnalytics() {
             Create, edit, and analyze service request forms
           </p>
         </div>
-        <button
-          onClick={() =>
-            navigate("/forms/create", { state: { mode: "create" } })
-          }
-          className="btn-primary mt-4 sm:mt-0"
-        >
-          <PlusCircle className="w-4 h-4 mr-2" />
-          Create New Service Form
-        </button>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+          <button
+            onClick={handleExportTemplate}
+            className="btn-secondary flex items-center justify-center"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            Download Import Template
+          </button>
+          <button
+            onClick={handleImportClick}
+            className="btn-secondary flex items-center justify-center"
+            disabled={isImporting}
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            {isImporting ? "Importing..." : "Import Form (Excel)"}
+          </button>
+          <button
+            onClick={() =>
+              navigate("/forms/create", { state: { mode: "create" } })
+            }
+            className="btn-primary flex items-center justify-center"
+          >
+            <PlusCircle className="w-4 h-4 mr-2" />
+            Create New Service Form
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
