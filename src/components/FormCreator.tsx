@@ -18,6 +18,7 @@ import {
   ChevronDown,
   Clipboard,
   Link as LinkIcon,
+  MessageSquarePlus,
 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { questionsApi } from "../api/storage";
@@ -1167,6 +1168,14 @@ export default function FormCreator() {
     parentQuestionId: string,
     triggerValue: string
   ) => {
+    const section = form.sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    const parentQuestion = section.questions.find(
+      (q) => q.id === parentQuestionId
+    );
+    if (!parentQuestion) return;
+
     const newFollowUpQuestion: FollowUpQuestion = {
       id: crypto.randomUUID(),
       text: "Follow-up Question",
@@ -1180,13 +1189,34 @@ export default function FormCreator() {
       },
     };
 
-    const section = form.sections.find((s) => s.id === sectionId);
-    if (!section) return;
+    const followUpConfig = {
+      ...(parentQuestion.followUpConfig || {}),
+    };
 
-    const parentQuestion = section.questions.find(
-      (q) => q.id === parentQuestionId
-    );
-    if (!parentQuestion) return;
+    if (parentQuestion.options && parentQuestion.options.length > 0) {
+      parentQuestion.options.forEach((option) => {
+        if (!followUpConfig[option]) {
+          followUpConfig[option] = {
+            hasFollowUp: false,
+            required: false,
+          };
+        }
+      });
+    }
+
+    if (!followUpConfig[triggerValue]) {
+      followUpConfig[triggerValue] = {
+        hasFollowUp: true,
+        required: newFollowUpQuestion.required || false,
+      };
+    } else {
+      followUpConfig[triggerValue] = {
+        ...followUpConfig[triggerValue],
+        hasFollowUp: true,
+        required:
+          newFollowUpQuestion.required ?? followUpConfig[triggerValue].required,
+      };
+    }
 
     const updatedParentQuestion = {
       ...parentQuestion,
@@ -1194,6 +1224,7 @@ export default function FormCreator() {
         ...(parentQuestion.followUpQuestions || []),
         newFollowUpQuestion,
       ],
+      followUpConfig,
     };
 
     updateSection(sectionId, {
@@ -2850,20 +2881,63 @@ export default function FormCreator() {
                                           Follow-up Form Routing
                                         </label>
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          openFormRoutingConfig(
-                                            section.id,
-                                            question.id,
-                                            question.options || []
-                                          )
-                                        }
-                                        className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-1"
-                                      >
-                                        <LinkIcon className="w-4 h-4" />
-                                        Configure Form Links
-                                      </button>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            openFormRoutingConfig(
+                                              section.id,
+                                              question.id,
+                                              question.options || []
+                                            )
+                                          }
+                                          className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-1"
+                                        >
+                                          <LinkIcon className="w-4 h-4" />
+                                          Configure Form Links
+                                        </button>
+                                        {question.options && question.options.length > 0 && (
+                                          <div className="relative">
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setOpenOptionMenu((current) =>
+                                                  current === `${section.id}-${question.id}-followup-quick-add`
+                                                    ? null
+                                                    : `${section.id}-${question.id}-followup-quick-add`
+                                                )
+                                              }
+                                              className="px-3 py-1.5 text-sm font-medium text-green-700 bg-white border border-green-200 hover:border-green-300 hover:bg-green-50 rounded-lg transition-colors flex items-center gap-1"
+                                            >
+                                              <MessageSquarePlus className="w-4 h-4" />
+                                              Add Follow-up Question
+                                            </button>
+                                            {openOptionMenu === `${section.id}-${question.id}-followup-quick-add` && (
+                                              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-green-200 bg-white shadow-lg z-20">
+                                                <div className="py-2">
+                                                  {question.options.map((option) => (
+                                                    <button
+                                                      key={option}
+                                                      type="button"
+                                                      onClick={() => {
+                                                        addFollowUpQuestion(
+                                                          section.id,
+                                                          question.id,
+                                                          option
+                                                        );
+                                                        setOpenOptionMenu(null);
+                                                      }}
+                                                      className="w-full px-4 py-2 text-left text-sm text-green-700 hover:bg-green-50"
+                                                    >
+                                                      {option}
+                                                    </button>
+                                                  ))}
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                     <p className="text-xs text-green-700 mb-2">
                                       Link answers to follow-up forms
@@ -2937,6 +3011,101 @@ export default function FormCreator() {
                                 )}
 
                               {/* Follow-up Questions Section - Now with Unlimited Nesting */}
+                              {question.followUpQuestions &&
+                                question.followUpQuestions.length > 0 && (
+                                  <div className="mt-6">
+                                    <NestedFollowUpRenderer
+                                      followUpQuestions={
+                                        question.followUpQuestions || []
+                                      }
+                                      sectionId={section.id}
+                                      parentQuestion={{
+                                        id: question.id,
+                                        options: question.options,
+                                      }}
+                                      path={[question.id]}
+                                      onUpdate={(
+                                        nestedSectionId,
+                                        followUpQuestionId,
+                                        updates,
+                                        nestedPath
+                                      ) =>
+                                        updateNestedFollowUpQuestion(
+                                          nestedSectionId,
+                                          followUpQuestionId,
+                                          updates,
+                                          nestedPath
+                                        )
+                                      }
+                                      onDelete={(
+                                        nestedSectionId,
+                                        followUpQuestionId,
+                                        nestedPath
+                                      ) =>
+                                        deleteNestedFollowUpQuestion(
+                                          nestedSectionId,
+                                          followUpQuestionId,
+                                          nestedPath
+                                        )
+                                      }
+                                      onAddNested={(
+                                        nestedSectionId,
+                                        parentFollowUpId,
+                                        triggerValue,
+                                        nestedPath
+                                      ) =>
+                                        addNestedFollowUpQuestion(
+                                          nestedSectionId,
+                                          parentFollowUpId,
+                                          triggerValue,
+                                          nestedPath
+                                        )
+                                      }
+                                      onAddOption={(
+                                        nestedSectionId,
+                                        followUpQuestionId,
+                                        nestedPath
+                                      ) =>
+                                        addNestedFollowUpOption(
+                                          nestedSectionId,
+                                          followUpQuestionId,
+                                          nestedPath
+                                        )
+                                      }
+                                      onUpdateOption={(
+                                        nestedSectionId,
+                                        followUpQuestionId,
+                                        optionIndex,
+                                        value,
+                                        nestedPath
+                                      ) =>
+                                        updateNestedFollowUpOption(
+                                          nestedSectionId,
+                                          followUpQuestionId,
+                                          optionIndex,
+                                          value,
+                                          nestedPath
+                                        )
+                                      }
+                                      onRemoveOption={(
+                                        nestedSectionId,
+                                        followUpQuestionId,
+                                        optionIndex,
+                                        nestedPath
+                                      ) =>
+                                        removeNestedFollowUpOption(
+                                          nestedSectionId,
+                                          followUpQuestionId,
+                                          optionIndex,
+                                          nestedPath
+                                        )
+                                      }
+                                      onAddFollowUpSection={handleAddFollowUpSection}
+                                      onAddFollowUpForm={handleAddFollowUpForm}
+                                      questionTypes={questionTypes}
+                                    />
+                                  </div>
+                                )}
                             </div>
                           </div>
                         </React.Fragment>

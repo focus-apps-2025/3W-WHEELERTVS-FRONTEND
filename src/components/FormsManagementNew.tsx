@@ -460,6 +460,101 @@ export default function FormsManagementNew() {
     }
   };
 
+  const flattenQuestionsRecursively = (sections: any[]) => {
+    return (sections || []).map((section) => {
+      const allQuestions: any[] = [];
+
+      const processQuestionRecursively = (
+        question: any,
+        depth: number = 0
+      ) => {
+        const { followUpQuestions, ...mainQuestion } = question;
+        allQuestions.push(mainQuestion);
+
+        if (followUpQuestions && followUpQuestions.length > 0) {
+          followUpQuestions.forEach((followUp: any) => {
+            const followUpWithShowWhen = {
+              ...followUp,
+              showWhen: followUp.showWhen ? followUp.showWhen : {
+                questionId: question.id,
+                value: "",
+              },
+            };
+            processQuestionRecursively(followUpWithShowWhen, depth + 1);
+          });
+        }
+      };
+
+      section.questions
+        ?.filter((question: any) => !question?.showWhen)
+        .forEach((question: any) => {
+          processQuestionRecursively(question);
+        });
+
+      return {
+        ...section,
+        questions: allQuestions,
+      };
+    });
+  };
+
+  const flattenSectionsWithFollowUps = (sections: any[]) => {
+    return (sections || []).map((section) => {
+      const flattened: any[] = [];
+      const processQuestion = (
+        question: any,
+        parentId?: string,
+        triggerValue?: string | number
+      ) => {
+        if (!question) {
+          return;
+        }
+        const { followUpQuestions, ...rest } = question;
+        const baseQuestion = {
+          ...rest,
+        };
+        if (parentId) {
+          baseQuestion.showWhen = baseQuestion.showWhen || {
+            questionId: parentId,
+            value: triggerValue ?? "",
+          };
+        }
+        flattened.push(baseQuestion);
+        if (Array.isArray(followUpQuestions) && followUpQuestions.length > 0) {
+          followUpQuestions.forEach((followUp: any) => {
+            const value =
+              followUp?.showWhen && followUp.showWhen.value !== undefined
+                ? followUp.showWhen.value
+                : "";
+            processQuestion(
+              {
+                ...followUp,
+                showWhen:
+                  followUp?.showWhen && followUp.showWhen.questionId
+                    ? followUp.showWhen
+                    : {
+                        questionId: baseQuestion.id,
+                        value: value,
+                      },
+              },
+              baseQuestion.id,
+              value
+            );
+          });
+        }
+      };
+      section.questions
+        ?.filter((question: any) => !question?.showWhen)
+        .forEach((question: any) => {
+          processQuestion(question);
+        });
+      return {
+        ...section,
+        questions: flattened,
+      };
+    });
+  };
+
   const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -479,7 +574,16 @@ export default function FormsManagementNew() {
     try {
       const parsed = await parseFormWorkbook(file);
 
-      // Extract branching rules from questions and convert to sectionBranching format
+      const hasFollowUpQuestions = (parsed.sections || []).some((section: any) =>
+        section.questions?.some(
+          (q: any) => q.followUpQuestions && q.followUpQuestions.length > 0
+        )
+      );
+
+      const flattenedSections = hasFollowUpQuestions
+        ? flattenQuestionsRecursively(parsed.sections || [])
+        : parsed.sections || [];
+
       const sectionBranching: any[] = [];
       parsed.sections?.forEach((section: any) => {
         section.questions?.forEach((question: any) => {
@@ -499,10 +603,11 @@ export default function FormsManagementNew() {
 
       const formPayload = {
         ...parsed,
-        isVisible: parsed.isVisible ?? true,
+        sections: flattenedSections,
+        isVisible: true,
         followUpQuestions: parsed.followUpQuestions || [],
         sectionBranching: sectionBranching,
-      } as FormQuestion;
+      } as any;
       const created = await apiClient.createForm(formPayload);
       showSuccess("Form imported successfully", "Import Complete");
       if (created?.form?._id) {

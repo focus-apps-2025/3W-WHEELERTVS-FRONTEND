@@ -1,6 +1,8 @@
-import { utils, writeFile, read } from "xlsx";
 import type { Question, Response } from "../types";
 import type { FollowUpQuestion, Section } from "../types/forms";
+import * as XLSX from "xlsx";
+
+const { utils, writeFile, read } = XLSX;
 
 function generateId() {
   return typeof crypto !== "undefined" && crypto.randomUUID
@@ -218,7 +220,6 @@ function getSectionForOption(
 
   const optionText = options[optionIndex];
 
-  // Parse linkedSection format like "2:Yes,3:No,4:Maybe Later"
   const links = linkedSection.split(",").map((link) => link.trim());
   for (const link of links) {
     const [sectionNum, ...optionParts] = link.split(":");
@@ -232,7 +233,7 @@ function getSectionForOption(
 }
 
 export function downloadFormImportTemplate() {
-  const headers = [
+  const mainHeaders = [
     "Form Title",
     "Form Description",
     "Section Number",
@@ -243,14 +244,23 @@ export function downloadFormImportTemplate() {
     "Question Type",
     "Required",
     "Options",
-    "Option Notes",
-    "Section Navigation",
-    "Follow up Option",
-    "Parent Question",
-    "Follow Up Trigger",
     "Correct Answer",
     "Correct Answers",
   ];
+
+  const followUpHeaders = [];
+  for (let i = 1; i <= 10; i++) {
+    followUpHeaders.push(
+      `FU${i}: Option`,
+      `FU${i}: Question Type`,
+      `FU${i}: Required`,
+      `FU${i}: Question Text`,
+      `FU${i}: Options`,
+      `FU${i}: Correct Answer`
+    );
+  }
+
+  const headers = [...mainHeaders, ...followUpHeaders];
 
   const descriptions = [
     "Name of the form",
@@ -260,392 +270,279 @@ export function downloadFormImportTemplate() {
     "Description of what this section covers",
     "The question text to ask",
     "Additional details about the question",
-    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA (or Yes / No / N/A)",
+    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA",
     "TRUE/FALSE - is this question required?",
     "For multipleChoice/checkboxes/dropdown: option1,option2,option3 (comma-separated)",
-    "Notes about the options",
-    "JUST NUMBERS! e.g., 2;3;4 (section numbers by semicolon). Position matches options.",
-    "YES/NO - does this option trigger follow-up?",
-    "Text of parent question if this is a follow-up question",
-    "Which parent option triggers this follow-up? (must match exactly, case-sensitive)",
     "For quiz: correct answer value",
     "For quiz: multiple correct answers separated by |",
   ];
 
-  // ROW 1: Headers
+  for (let i = 1; i <= 10; i++) {
+    descriptions.push(
+      `Follow-up #${i}: Which option triggers this follow-up (must match main options)`,
+      `Follow-up #${i}: Question type`,
+      `Follow-up #${i}: Required (TRUE/FALSE)`,
+      `Follow-up #${i}: The follow-up question text`,
+      `Follow-up #${i}: Options (comma-separated)`,
+      `Follow-up #${i}: Correct answer (if quiz)`
+    );
+  }
+
   const headerRow = headers.reduce((obj, header) => {
     obj[header] = header;
     return obj;
   }, {} as Record<string, string>);
 
-  // ROW 2: Descriptions
   const descriptionRow = headers.reduce((obj, header, idx) => {
     obj[header] = descriptions[idx];
     return obj;
   }, {} as Record<string, string>);
 
-  // ROW 3: Empty separator
   const separatorRow = headers.reduce((obj, header) => {
     obj[header] = "";
     return obj;
   }, {} as Record<string, string>);
 
-  // ROW 4+: Example data
   const templateData: Record<string, any>[] = [
     headerRow,
     descriptionRow,
     separatorRow,
   ];
 
-  const formTitle = "Comprehensive Assessment Form";
-  const formDesc =
-    "Complete form with 5 sections covering different question types";
+  const formTitle = "Follow-up Testing Form - Nested Support";
+  const formDesc = "Test form with 3 sections demonstrating basic and nested follow-ups";
 
-  const sections = [
+  const rows = [
     {
-      no: "1",
-      title: "Section 1: Basic Information",
-      desc: "Collect basic details and preferences",
-      questions: [
-        {
-          q: "Do you have a valid ID?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Have you used our service before?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Are you a new customer?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Do you have an account with us?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Would you like to receive updates?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-      ],
+      "Form Title": formTitle,
+      "Form Description": formDesc,
+      "Section Number": "1",
+      "Section Title": "Section 1: Basic Screening",
+      "Section Description": "Initial qualification questions - no follow-ups required",
+      Question: "Are you 18 years or older?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
     },
     {
-      no: "2",
-      title: "Section 2: Product/Service Evaluation",
-      desc: "Evaluate your satisfaction and experience",
-      questions: [
-        {
-          q: "How satisfied are you with the product quality?",
-          type: "dropdown",
-          opts: "Very Satisfied,Satisfied,Neutral,Dissatisfied,Very Dissatisfied",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Does the product meet your expectations?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "What specific improvements would you suggest?",
-          type: "longText",
-          opts: "",
-          required: false,
-          parent: "Does the product meet your expectations?",
-          trigger: "No",
-        },
-        {
-          q: "Select all features you find useful",
-          type: "checkboxes",
-          opts: "Easy to Use,Fast Performance,Good Design,Reliable,Cost Effective",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Would you recommend this to others?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Why would you recommend it?",
-          type: "longText",
-          opts: "",
-          required: false,
-          parent: "Would you recommend this to others?",
-          trigger: "Yes",
-        },
-        {
-          q: "Why not? What would convince you?",
-          type: "longText",
-          opts: "",
-          required: false,
-          parent: "Would you recommend this to others?",
-          trigger: "No",
-        },
-        {
-          q: "Which pricing tier interests you?",
-          type: "multipleChoice",
-          opts: "Basic,Standard,Premium,Enterprise",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "How many users will your organization have?",
-          type: "dropdown",
-          opts: "1-10,11-50,51-100,100+",
-          required: false,
-          parent: "Which pricing tier interests you?",
-          trigger: "Enterprise",
-        },
-      ],
+      Question: "Do you have valid identification documents?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
     },
     {
-      no: "3",
-      title: "Section 3: Customer Support Experience",
-      desc: "Feedback on support services",
-      questions: [
-        {
-          q: "Did you contact our support team?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "How would you rate their responsiveness?",
-          type: "dropdown",
-          opts: "Very Fast,Fast,Acceptable,Slow,Very Slow",
-          required: false,
-          parent: "Did you contact our support team?",
-          trigger: "Yes",
-        },
-        {
-          q: "Did they resolve your issue?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: false,
-          parent: "Did you contact our support team?",
-          trigger: "Yes",
-        },
-        {
-          q: "How would you prefer to contact support?",
-          type: "checkboxes",
-          opts: "Phone,Email,Live Chat,Social Media,In-Person",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "What channel did you use?",
-          type: "multipleChoice",
-          opts: "Phone,Email,Live Chat,Social Media,In-Person",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Was the support representative knowledgeable?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Any suggestions for improving support?",
-          type: "longText",
-          opts: "",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-      ],
+      Question: "Have you previously used our service before?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
     },
     {
-      no: "4",
-      title: "Section 4: Purchase & Billing",
-      desc: "Questions about purchasing and billing experience",
-      questions: [
-        {
-          q: "Have you made a purchase?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "How many times have you purchased?",
-          type: "dropdown",
-          opts: "1 time,2-3 times,4-5 times,6+ times",
-          required: false,
-          parent: "Have you made a purchase?",
-          trigger: "Yes",
-        },
-        {
-          q: "What prevented you from purchasing?",
-          type: "longText",
-          opts: "",
-          required: false,
-          parent: "Have you made a purchase?",
-          trigger: "No",
-        },
-        {
-          q: "Was the checkout process easy?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Which payment methods do you prefer?",
-          type: "checkboxes",
-          opts: "Credit Card,Debit Card,PayPal,Bank Transfer,Digital Wallet",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "How did you hear about us?",
-          type: "multipleChoice",
-          opts: "Search Engine,Social Media,Friend/Family,Advertisement,Other",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Please specify the source",
-          type: "shortText",
-          opts: "",
-          required: false,
-          parent: "How did you hear about us?",
-          trigger: "Other",
-        },
-        {
-          q: "Are you interested in our newsletter?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-      ],
+      Question: "Are you available for a follow-up appointment if needed?",
+      "Question Type": "yesNoNA",
+      Required: "FALSE",
+      Options: "Yes,No,N/A",
     },
     {
-      no: "5",
-      title: "Section 5: Overall Feedback & Future",
-      desc: "Summary feedback and future engagement",
-      questions: [
-        {
-          q: "Overall, how would you rate your experience?",
-          type: "dropdown",
-          opts: "Excellent,Very Good,Good,Fair,Poor",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "Would you use our service again?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: true,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "What would make you return?",
-          type: "longText",
-          opts: "",
-          required: false,
-          parent: "Would you use our service again?",
-          trigger: "No",
-        },
-        {
-          q: "Any additional feedback or suggestions?",
-          type: "longText",
-          opts: "",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-        {
-          q: "May we contact you for follow-up?",
-          type: "yesNoNA",
-          opts: "Yes,No,N/A",
-          required: false,
-          parent: "",
-          trigger: "",
-        },
-      ],
+      "Section Number": "2",
+      "Section Title": "Section 2: Service Experience & Nested Follow-ups",
+      "Section Description": "Questions about service experience with multi-level follow-ups",
+      Question: "Are you satisfied with our service quality?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+    },
+    {
+      Question: "Did you complete your desired goal with our help?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+    },
+    {
+      Question: "Would you recommend us to others?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "shortText",
+      "FU1: Required": "TRUE",
+      "FU1: Question Text": "Which aspect of our service would you highlight?",
+      "FU1: Options": "",
+      "FU1: Correct Answer": "",
+      "FU2: Option": "No",
+      "FU2: Question Type": "longText",
+      "FU2: Required": "TRUE",
+      "FU2: Question Text": "What specific improvements would you suggest?",
+      "FU2: Options": "",
+      "FU2: Correct Answer": "",
+      "FU3: Option": "N/A",
+      "FU3: Question Type": "longText",
+      "FU3: Required": "FALSE",
+      "FU3: Question Text": "Why is this not applicable to your situation?",
+      "FU3: Options": "",
+      "FU3: Correct Answer": "",
+    },
+    {
+      Question: "Will you use our service again in the future?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "yesNoNA",
+      "FU1: Required": "TRUE",
+      "FU1: Question Text": "How soon do you plan to use our service again?",
+      "FU1: Options": "Yes,No,N/A",
+      "FU1: Correct Answer": "",
+      "FU2: Option": "No",
+      "FU2: Question Type": "dropdown",
+      "FU2: Required": "TRUE",
+      "FU2: Question Text": "What would change your mind about using our service?",
+      "FU2: Options": "Better pricing,Improved features,Different support,Other",
+      "FU2: Correct Answer": "",
+      "FU3: Option": "N/A",
+      "FU3: Question Type": "longText",
+      "FU3: Required": "FALSE",
+      "FU3: Question Text": "Please explain why this is not applicable",
+      "FU3: Options": "",
+      "FU3: Correct Answer": "",
+    },
+    {
+      Question: "Is your issue completely resolved?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "yesNoNA",
+      "FU1: Required": "FALSE",
+      "FU1: Question Text": "Are there any remaining concerns?",
+      "FU1: Options": "Yes,No,N/A",
+      "FU1: Correct Answer": "",
+      "FU2: Option": "No",
+      "FU2: Question Type": "longText",
+      "FU2: Required": "TRUE",
+      "FU2: Question Text": "What part of your issue remains unresolved?",
+      "FU2: Options": "",
+      "FU2: Correct Answer": "",
+      "FU3: Option": "N/A",
+      "FU3: Question Type": "shortText",
+      "FU3: Required": "FALSE",
+      "FU3: Question Text": "Please elaborate on why this is N/A",
+      "FU3: Options": "",
+      "FU3: Correct Answer": "",
+    },
+    {
+      "Section Number": "3",
+      "Section Title": "Section 3: Follow-up Support & Feedback",
+      "Section Description": "Final section with yes/no/n/a questions and follow-ups",
+      Question: "Do you need additional support or resources?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "dropdown",
+      "FU1: Required": "TRUE",
+      "FU1: Question Text": "What type of support do you need?",
+      "FU1: Options": "Technical,Training,Consulting,Other",
+      "FU1: Correct Answer": "",
+      "FU2: Option": "No",
+      "FU2: Question Type": "shortText",
+      "FU2: Required": "FALSE",
+      "FU2: Question Text": "What made you feel supported?",
+      "FU2: Options": "",
+      "FU2: Correct Answer": "",
+    },
+    {
+      Question: "Can we contact you with service updates?",
+      "Question Type": "yesNoNA",
+      Required: "FALSE",
+      Options: "Yes,No,N/A",
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "multipleChoice",
+      "FU1: Required": "TRUE",
+      "FU1: Question Text": "Preferred contact method:",
+      "FU1: Options": "Email,Phone,SMS,Postal Mail",
+      "FU1: Correct Answer": "",
+    },
+    {
+      Question: "Will you provide feedback on your experience?",
+      "Question Type": "yesNoNA",
+      Required: "FALSE",
+      Options: "Yes,No,N/A",
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "longText",
+      "FU1: Required": "TRUE",
+      "FU1: Question Text": "Please share your detailed feedback:",
+      "FU1: Options": "",
+      "FU1: Correct Answer": "",
+      "FU2: Option": "No",
+      "FU2: Question Type": "shortText",
+      "FU2: Required": "FALSE",
+      "FU2: Question Text": "Would you share why?",
+      "FU2: Options": "",
+      "FU2: Correct Answer": "",
+    },
+    {
+      Question: "Do you consent to data usage for service improvement?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "shortText",
+      "FU1: Required": "FALSE",
+      "FU1: Question Text": "What specific area should we improve?",
+      "FU1: Options": "",
+      "FU1: Correct Answer": "",
+    },
+    {
+      Question: "Is there anything else you'd like to share?",
+      "Question Type": "yesNoNA",
+      Required: "FALSE",
+      Options: "Yes,No,N/A",
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "longText",
+      "FU1: Required": "TRUE",
+      "FU1: Question Text": "Please provide additional comments:",
+      "FU1: Options": "",
+      "FU1: Correct Answer": "",
     },
   ];
 
-  sections.forEach((section) => {
-    section.questions.forEach((q, idx) => {
-      templateData.push({
-        "Form Title": section === sections[0] && idx === 0 ? formTitle : "",
-        "Form Description":
-          section === sections[0] && idx === 0 ? formDesc : "",
-        "Section Number": idx === 0 ? section.no : "",
-        "Section Title": idx === 0 ? section.title : "",
-        "Section Description": idx === 0 ? section.desc : "",
-        Question: q.q,
-        "Question Description": "",
-        "Question Type": q.type,
-        Required: q.required ? "TRUE" : "FALSE",
-        Options: q.opts,
-        "Option Notes": "",
-        "Section Navigation": "",
-        "Follow up Option": q.parent ? "Yes" : "No",
-        "Parent Question": q.parent,
-        "Follow Up Trigger": q.trigger,
-        "Correct Answer": "",
-        "Correct Answers": "",
-      });
-    });
+  rows.forEach((row) => {
+    const fullRow: Record<string, any> = {
+      "Form Title": row["Form Title"] || "",
+      "Form Description": row["Form Description"] || "",
+      "Section Number": row["Section Number"] || "",
+      "Section Title": row["Section Title"] || "",
+      "Section Description": row["Section Description"] || "",
+      Question: row.Question || "",
+      "Question Description": row["Question Description"] || "",
+      "Question Type": row["Question Type"] || "",
+      Required: row.Required || "FALSE",
+      Options: row.Options || "",
+      "Correct Answer": row["Correct Answer"] || "",
+      "Correct Answers": row["Correct Answers"] || "",
+    };
+
+    for (let i = 1; i <= 10; i++) {
+      fullRow[`FU${i}: Option`] = row[`FU${i}: Option`] || "";
+      fullRow[`FU${i}: Question Type`] = row[`FU${i}: Question Type`] || "";
+      fullRow[`FU${i}: Required`] = row[`FU${i}: Required`] || "";
+      fullRow[`FU${i}: Question Text`] = row[`FU${i}: Question Text`] || "";
+      fullRow[`FU${i}: Options`] = row[`FU${i}: Options`] || "";
+      fullRow[`FU${i}: Correct Answer`] = row[`FU${i}: Correct Answer`] || "";
+    }
+
+    templateData.push(fullRow);
   });
 
   const worksheet = utils.json_to_sheet(templateData, {
     header: headers,
   });
 
-  // Set column widths for better readability
   worksheet["!cols"] = headers.map(() => ({ wch: 25 }));
 
   const workbook = utils.book_new();
   utils.book_append_sheet(workbook, worksheet, "Form Template");
-  writeFile(workbook, "form-import-template-5sections.xlsx");
+  writeFile(workbook, "form-import-template-nested-followups.xlsx");
 }
 
 export async function parseFormWorkbook(file: File) {
@@ -667,8 +564,6 @@ export async function parseFormWorkbook(file: File) {
     throw new Error("Sheet is empty");
   }
 
-  // Skip the first 3 rows (header, descriptions, separator)
-  // Only process data starting from row 4
   const dataRows = rawData.slice(3);
 
   if (dataRows.length === 0) {
@@ -697,7 +592,6 @@ function parseNewTemplateFormat(
     const sectionTitle = row["Section Title"]?.toString().trim();
     const sectionDesc = row["Section Description"]?.toString().trim();
     const questionText = row["Question"]?.toString().trim();
-    const parentQuestionText = row["Parent Question"]?.toString().trim();
 
     if (!questionText) {
       return;
@@ -728,10 +622,6 @@ function parseNewTemplateFormat(
     const required =
       requiredStr === "true" || requiredStr === "yes" || requiredStr === "1";
     const optionsStr = row["Options"]?.toString().trim() || "";
-    const optionsNotes = row["Option Notes"]?.toString().trim() || "";
-    const linkedSection = row["Section Navigation"]?.toString().trim();
-    const followUpOption = row["Follow up Option"]?.toString().trim() || "Yes";
-    const triggerOption = row["Follow Up Trigger"]?.toString().trim();
     const correctAnswer = row["Correct Answer"]?.toString().trim();
     const correctAnswersStr = row["Correct Answers"]?.toString().trim();
     const correctAnswers = correctAnswersStr
@@ -748,64 +638,11 @@ function parseNewTemplateFormat(
           .filter(Boolean)
       : undefined;
 
-    // Parse section branching for each option
-    const branchingRules: Array<{
-      optionLabel: string;
-      targetSectionId: string;
-    }> = [];
+    const followUpConfig: Record<string, { hasFollowUp: boolean; required: boolean }> = {};
 
     if (options && options.length > 0) {
-      options.forEach((option, index) => {
-        const optionNumber = index + 1;
-        const sectionColumn = `Option ${optionNumber} →`;
-        const targetSection = row[sectionColumn]?.toString().trim();
-
-        if (targetSection && targetSection !== "") {
-          // Find the target section by title or number
-          let targetSectionId = null;
-
-          // First try to find by section number
-          if (/^\d+$/.test(targetSection)) {
-            const sectionNo = parseInt(targetSection);
-            const targetSectionObj = Array.from(sectionsMap.values()).find(
-              (s) =>
-                s.title === `Section ${sectionNo}` ||
-                s.title.includes(`Section ${sectionNo}`)
-            );
-            if (targetSectionObj) {
-              targetSectionId = targetSectionObj.id;
-            }
-          }
-
-          // If not found by number, try to find by title
-          if (!targetSectionId) {
-            const targetSectionObj = Array.from(sectionsMap.values()).find(
-              (s) => s.title.toLowerCase() === targetSection.toLowerCase()
-            );
-            if (targetSectionObj) {
-              targetSectionId = targetSectionObj.id;
-            }
-          }
-
-          // If still not found, create a new section with the specified title
-          if (!targetSectionId) {
-            const newSectionId = generateId();
-            sectionsMap.set(sectionsMap.size + 1, {
-              id: newSectionId,
-              title: targetSection,
-              description: `Auto-created section for branching`,
-              questions: [],
-            });
-            targetSectionId = newSectionId;
-          }
-
-          if (targetSectionId) {
-            branchingRules.push({
-              optionLabel: option,
-              targetSectionId: targetSectionId,
-            });
-          }
-        }
+      options.forEach((option) => {
+        followUpConfig[option] = { hasFollowUp: false, required: false };
       });
     }
 
@@ -816,40 +653,74 @@ function parseNewTemplateFormat(
       type: questionType as FollowUpQuestion["type"],
       required: required,
       options: options || undefined,
-      description: questionDesc || optionsNotes || undefined,
+      description: questionDesc || undefined,
       followUpQuestions: [],
       sectionId: section.id,
-      branchingRules: branchingRules.length > 0 ? branchingRules : undefined,
       correctAnswer: correctAnswer || undefined,
       correctAnswers: correctAnswers,
     };
 
-    // If this is a followup question
-    if (parentQuestionText) {
-      const parentQuestion = questionMap.get(parentQuestionText);
-      if (parentQuestion && triggerOption) {
-        question.showWhen = {
-          questionId: parentQuestion.id,
-          value: triggerOption,
+    for (let fuIndex = 1; fuIndex <= 10; fuIndex++) {
+      const fuOptionKey = `FU${fuIndex}: Option`;
+      const fuTypeKey = `FU${fuIndex}: Question Type`;
+      const fuRequiredKey = `FU${fuIndex}: Required`;
+      const fuTextKey = `FU${fuIndex}: Question Text`;
+      const fuOptionsKey = `FU${fuIndex}: Options`;
+      const fuCorrectAnswerKey = `FU${fuIndex}: Correct Answer`;
+
+      const fuOption = row[fuOptionKey]?.toString().trim();
+      const fuType = row[fuTypeKey]?.toString().trim();
+      const fuText = row[fuTextKey]?.toString().trim();
+
+      if (fuOption && fuType && fuText) {
+        const fuRequired = (row[fuRequiredKey]?.toString().trim() || "FALSE").toLowerCase() === "true";
+        const fuOptionsStr = row[fuOptionsKey]?.toString().trim() || "";
+        const fuCorrectAnswer = row[fuCorrectAnswerKey]?.toString().trim() || "";
+
+        const fuOptions = fuOptionsStr
+          ? fuOptionsStr
+              .split(",")
+              .map((opt) => opt.trim())
+              .filter(Boolean)
+          : undefined;
+
+        const followUpId = generateId();
+        const followUp: FollowUpQuestion = {
+          id: followUpId,
+          text: fuText,
+          type: fuType as FollowUpQuestion["type"],
+          required: fuRequired,
+          options: fuOptions,
+          followUpQuestions: [],
+          sectionId: section.id,
+          correctAnswer: fuCorrectAnswer || undefined,
+          showWhen: {
+            questionId: questionId,
+            value: fuOption,
+          },
         };
-        parentQuestion.followUpQuestions.push(question);
+
+        question.followUpQuestions = question.followUpQuestions || [];
+        question.followUpQuestions.push(followUp);
+
+        if (!followUpConfig[fuOption]) {
+          followUpConfig[fuOption] = {
+            hasFollowUp: true,
+            required: fuRequired,
+          };
+        } else {
+          followUpConfig[fuOption].hasFollowUp = true;
+          followUpConfig[fuOption].required = fuRequired || followUpConfig[fuOption].required;
+        }
       }
-    } else {
-      // Regular question
-      section.questions.push(question);
-      questionMap.set(questionText, question);
     }
 
-    if (linkedSection) {
-      const links = linkedSection.split(",").map((s) => s.trim());
-      links.forEach((link) => {
-        const [sectionNo, option] = link.split(":").map((s) => s.trim());
-        sectionLinkMap.set(sectionNo, {
-          questionId,
-          option: option || followUpOption,
-        });
-      });
+    if (Object.keys(followUpConfig).length > 0) {
+      (question as any).followUpConfig = followUpConfig;
     }
+
+    section.questions.push(question);
+    questionMap.set(questionText, question);
   });
 
   const sections = Array.from(sectionsMap.values());

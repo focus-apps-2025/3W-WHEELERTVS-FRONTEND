@@ -9,9 +9,14 @@ import {
   CheckCircle,
 } from "lucide-react";
 
+type FollowUpQuestionType = "paragraph" | "text" | "radio";
+
 interface FollowUpConfig {
   hasFollowUp: boolean;
   required: boolean;
+  questionText?: string;
+  questionType?: FollowUpQuestionType;
+  questionOptions?: string[];
 }
 
 interface FormWithFollowUpData {
@@ -30,23 +35,78 @@ interface FormWithFollowUpCreatorProps {
 }
 
 const DEFAULT_OPTIONS = ["Option A", "Option B", "Option C", "Option D"];
-const DEFAULT_FOLLOW_UP_CONFIG = {
-  "Option A": { hasFollowUp: true, required: true },
-  "Option B": { hasFollowUp: false, required: false },
-  "Option C": { hasFollowUp: false, required: false },
-  "Option D": { hasFollowUp: true, required: true },
+const DEFAULT_FOLLOW_UP_OPTIONS = ["Yes", "No", "N/A"];
+
+const getDefaultFollowUpQuestionText = (option: string) =>
+  `Why did you choose ${option}?`;
+
+const createDefaultFollowUpConfig = (
+  options: string[]
+): Record<string, FollowUpConfig> => {
+  return options.reduce((acc, option, index) => {
+    const preset = index === 0 || index === options.length - 1;
+    acc[option] = {
+      hasFollowUp: preset,
+      required: preset,
+      questionText: getDefaultFollowUpQuestionText(option),
+      questionType: "paragraph",
+      questionOptions: DEFAULT_FOLLOW_UP_OPTIONS,
+    };
+    if (!preset) {
+      acc[option].hasFollowUp = false;
+      acc[option].required = false;
+    }
+    return acc;
+  }, {} as Record<string, FollowUpConfig>);
 };
+
+const normalizeFollowUpConfig = (
+  options: string[],
+  config?: Record<string, FollowUpConfig>
+): Record<string, FollowUpConfig> => {
+  return options.reduce((acc, option) => {
+    const existing = config?.[option];
+    const questionText =
+      existing?.questionText && existing.questionText.trim().length > 0
+        ? existing.questionText.trim()
+        : getDefaultFollowUpQuestionText(option);
+    const rawType = existing?.questionType;
+    const questionType: FollowUpQuestionType =
+      rawType === "text" || rawType === "radio" ? rawType : "paragraph";
+    const questionOptions =
+      questionType === "radio"
+        ? existing?.questionOptions && existing.questionOptions.length > 0
+          ? existing.questionOptions
+          : DEFAULT_FOLLOW_UP_OPTIONS
+        : undefined;
+
+    acc[option] = {
+      hasFollowUp: existing?.hasFollowUp ?? false,
+      required: existing?.required ?? false,
+      questionText,
+      questionType,
+      questionOptions,
+    };
+    return acc;
+  }, {} as Record<string, FollowUpConfig>);
+};
+
+const DEFAULT_FOLLOW_UP_CONFIG = createDefaultFollowUpConfig(DEFAULT_OPTIONS);
 
 export const FormWithFollowUpCreator: React.FC<
   FormWithFollowUpCreatorProps
 > = ({ onFormCreated, onPreview, initialData }) => {
+  const initialOptions = initialData?.options || DEFAULT_OPTIONS;
   const [formData, setFormData] = useState<FormWithFollowUpData>({
     title: initialData?.title || "",
     description: initialData?.description || "",
     logoUrl: initialData?.logoUrl || "",
     imageUrl: initialData?.imageUrl || "",
-    options: initialData?.options || DEFAULT_OPTIONS,
-    followUpConfig: initialData?.followUpConfig || DEFAULT_FOLLOW_UP_CONFIG,
+    options: initialOptions,
+    followUpConfig: normalizeFollowUpConfig(
+      initialOptions,
+      initialData?.followUpConfig || createDefaultFollowUpConfig(initialOptions)
+    ),
   });
 
   const [loading, setLoading] = useState(false);
@@ -60,38 +120,65 @@ export const FormWithFollowUpCreator: React.FC<
   };
 
   const handleOptionChange = (index: number, value: string) => {
-    const newOptions = [...formData.options];
-    const oldOption = newOptions[index];
-    newOptions[index] = value;
+    setFormData((prev) => {
+      const newOptions = [...prev.options];
+      const oldOption = newOptions[index];
+      newOptions[index] = value;
 
-    // Update follow-up config keys
-    const newConfig = { ...formData.followUpConfig };
-    if (oldOption in newConfig && oldOption !== value) {
-      newConfig[value] = newConfig[oldOption];
-      delete newConfig[oldOption];
-    } else if (!(value in newConfig)) {
-      newConfig[value] = { hasFollowUp: false, required: false };
-    }
+      const newConfig = { ...prev.followUpConfig };
 
-    setFormData((prev) => ({
-      ...prev,
-      options: newOptions,
-      followUpConfig: newConfig,
-    }));
+      if (oldOption in newConfig && oldOption !== value) {
+        const existingConfig = newConfig[oldOption];
+        newConfig[value] = {
+          ...existingConfig,
+          questionText:
+            existingConfig.questionText &&
+            existingConfig.questionText !==
+              getDefaultFollowUpQuestionText(oldOption)
+              ? existingConfig.questionText
+              : getDefaultFollowUpQuestionText(value),
+        };
+        delete newConfig[oldOption];
+      } else if (!(value in newConfig)) {
+        newConfig[value] = {
+          hasFollowUp: false,
+          required: false,
+          questionText: getDefaultFollowUpQuestionText(value),
+          questionType: "paragraph",
+          questionOptions: DEFAULT_FOLLOW_UP_OPTIONS,
+        };
+      }
+
+      return {
+        ...prev,
+        options: newOptions,
+        followUpConfig: normalizeFollowUpConfig(newOptions, newConfig),
+      };
+    });
+    setError(null);
   };
 
   const addOption = () => {
-    const newOption = `Option ${String.fromCharCode(
-      65 + formData.options.length
-    )}`;
-    setFormData((prev) => ({
-      ...prev,
-      options: [...prev.options, newOption],
-      followUpConfig: {
+    setFormData((prev) => {
+      const newOption = `Option ${String.fromCharCode(65 + prev.options.length)}`;
+      const updatedOptions = [...prev.options, newOption];
+      const updatedConfig = {
         ...prev.followUpConfig,
-        [newOption]: { hasFollowUp: false, required: false },
-      },
-    }));
+        [newOption]: {
+          hasFollowUp: false,
+          required: false,
+          questionText: getDefaultFollowUpQuestionText(newOption),
+          questionType: "paragraph",
+          questionOptions: DEFAULT_FOLLOW_UP_OPTIONS,
+        },
+      };
+
+      return {
+        ...prev,
+        options: updatedOptions,
+        followUpConfig: normalizeFollowUpConfig(updatedOptions, updatedConfig),
+      };
+    });
   };
 
   const removeOption = (index: number) => {
@@ -100,26 +187,93 @@ export const FormWithFollowUpCreator: React.FC<
       return;
     }
 
-    const optionToRemove = formData.options[index];
-    const newOptions = formData.options.filter((_, i) => i !== index);
-    const newConfig = { ...formData.followUpConfig };
-    delete newConfig[optionToRemove];
+    setFormData((prev) => {
+      const optionToRemove = prev.options[index];
+      const updatedOptions = prev.options.filter((_, i) => i !== index);
+      const updatedConfig = { ...prev.followUpConfig };
+      delete updatedConfig[optionToRemove];
 
-    setFormData((prev) => ({
-      ...prev,
-      options: newOptions,
-      followUpConfig: newConfig,
-    }));
+      return {
+        ...prev,
+        options: updatedOptions,
+        followUpConfig: normalizeFollowUpConfig(updatedOptions, updatedConfig),
+      };
+    });
   };
 
-  const updateFollowUpConfig = (option: string, config: FollowUpConfig) => {
-    setFormData((prev) => ({
-      ...prev,
-      followUpConfig: {
+  const updateFollowUpConfig = (
+    option: string,
+    config: Partial<FollowUpConfig>
+  ) => {
+    setFormData((prev) => {
+      const existing = prev.followUpConfig[option] || {
+        hasFollowUp: false,
+        required: false,
+        questionText: getDefaultFollowUpQuestionText(option),
+        questionType: "paragraph",
+        questionOptions: DEFAULT_FOLLOW_UP_OPTIONS,
+      };
+
+      const merged: FollowUpConfig = {
+        ...existing,
+        ...config,
+      };
+
+      if (merged.hasFollowUp && (!merged.questionText || merged.questionText.trim().length === 0)) {
+        merged.questionText = getDefaultFollowUpQuestionText(option);
+      }
+
+      if (merged.questionType === "radio") {
+        merged.questionOptions =
+          merged.questionOptions && merged.questionOptions.length > 0
+            ? merged.questionOptions
+            : DEFAULT_FOLLOW_UP_OPTIONS;
+      } else {
+        merged.questionOptions = undefined;
+      }
+
+      const updatedConfig = {
         ...prev.followUpConfig,
-        [option]: config,
-      },
-    }));
+        [option]: merged,
+      };
+
+      return {
+        ...prev,
+        followUpConfig: normalizeFollowUpConfig(prev.options, updatedConfig),
+      };
+    });
+  };
+
+  const handleFollowUpQuestionTextChange = (option: string, value: string) => {
+    updateFollowUpConfig(option, { questionText: value });
+  };
+
+  const handleFollowUpQuestionTypeChange = (
+    option: string,
+    value: FollowUpQuestionType
+  ) => {
+    updateFollowUpConfig(option, {
+      questionType: value,
+      questionOptions:
+        value === "radio"
+          ? formData.followUpConfig[option]?.questionOptions ||
+            DEFAULT_FOLLOW_UP_OPTIONS
+          : undefined,
+    });
+  };
+
+  const handleFollowUpQuestionOptionsChange = (
+    option: string,
+    value: string
+  ) => {
+    const parsed = value
+      .split("\n")
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+
+    updateFollowUpConfig(option, {
+      questionOptions: parsed.length > 0 ? parsed : DEFAULT_FOLLOW_UP_OPTIONS,
+    });
   };
 
   const validateForm = (): boolean => {
@@ -214,6 +368,31 @@ export const FormWithFollowUpCreator: React.FC<
     if (onPreview) {
       onPreview(formData);
     }
+  };
+
+  const getFollowUpPreviewDetails = (option: string) => {
+    const config = formData.followUpConfig[option];
+    if (!config?.hasFollowUp) {
+      return "No follow-up";
+    }
+
+    const typeLabel =
+      config.questionType === "radio"
+        ? "Multiple Choice"
+        : config.questionType === "text"
+        ? "Short Answer"
+        : "Long Answer";
+    const parts = [
+      config.questionText || getDefaultFollowUpQuestionText(option),
+      typeLabel,
+    ];
+    if (config.required) {
+      parts.push("Required");
+    }
+    if (config.questionType === "radio" && config.questionOptions) {
+      parts.push(`Options: ${config.questionOptions.join(", ")}`);
+    }
+    return parts.join(" · ");
   };
 
   const getFollowUpSummary = () => {
@@ -374,62 +553,126 @@ export const FormWithFollowUpCreator: React.FC<
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {formData.options.map((option, index) => (
-              <div
-                key={option}
-                className="border border-gray-200 rounded-lg p-4 bg-white"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <span className="font-medium text-gray-800">{option}</span>
-                  <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
-                    {String.fromCharCode(65 + index)}
-                  </span>
-                </div>
+            {formData.options.map((option, index) => {
+              const config = formData.followUpConfig[option];
+              const hasFollowUp = config?.hasFollowUp || false;
+              const questionType = config?.questionType || "paragraph";
 
-                <div className="space-y-2">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={
-                        formData.followUpConfig[option]?.hasFollowUp || false
-                      }
-                      onChange={(e) =>
-                        updateFollowUpConfig(option, {
-                          hasFollowUp: e.target.checked,
-                          required:
-                            formData.followUpConfig[option]?.required || false,
-                        })
-                      }
-                      className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <span className="text-sm text-gray-700">
-                      Has follow-up question
+              return (
+                <div
+                  key={option}
+                  className="border border-gray-200 rounded-lg p-4 bg-white space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-gray-800">{option}</span>
+                    <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+                      {String.fromCharCode(65 + index)}
                     </span>
-                  </label>
+                  </div>
 
-                  {formData.followUpConfig[option]?.hasFollowUp && (
-                    <label className="flex items-center ml-6">
+                  <div className="space-y-2">
+                    <label className="flex items-center">
                       <input
                         type="checkbox"
-                        checked={
-                          formData.followUpConfig[option]?.required || false
-                        }
+                        checked={hasFollowUp}
                         onChange={(e) =>
                           updateFollowUpConfig(option, {
-                            hasFollowUp: true,
-                            required: e.target.checked,
+                            hasFollowUp: e.target.checked,
+                            required: e.target.checked
+                              ? config?.required ?? false
+                              : false,
                           })
                         }
-                        className="mr-2 h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                       />
-                      <span className="text-sm text-red-700">
-                        Required follow-up
+                      <span className="text-sm text-gray-700">
+                        Has follow-up question
                       </span>
                     </label>
-                  )}
+
+                    {hasFollowUp && (
+                      <div className="ml-6 space-y-3">
+                        <label className="flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={config?.required || false}
+                            onChange={(e) =>
+                              updateFollowUpConfig(option, {
+                                hasFollowUp: true,
+                                required: e.target.checked,
+                              })
+                            }
+                            className="mr-2 h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                          />
+                          <span className="text-sm text-red-700">
+                            Required follow-up
+                          </span>
+                        </label>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Follow-up question text
+                          </label>
+                          <input
+                            type="text"
+                            value={config?.questionText || ""}
+                            onChange={(e) =>
+                              handleFollowUpQuestionTextChange(option, e.target.value)
+                            }
+                            className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            placeholder={getDefaultFollowUpQuestionText(option)}
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Follow-up question type
+                          </label>
+                          <select
+                            value={questionType}
+                            onChange={(e) =>
+                              handleFollowUpQuestionTypeChange(
+                                option,
+                                e.target.value as FollowUpQuestionType
+                              )
+                            }
+                            className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          >
+                            <option value="paragraph">Long answer</option>
+                            <option value="text">Short answer</option>
+                            <option value="radio">Multiple choice</option>
+                          </select>
+                        </div>
+
+                        {questionType === "radio" && (
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Follow-up options (one per line)
+                            </label>
+                            <textarea
+                              value={(config?.questionOptions || []).join("\n")}
+                              onChange={(e) =>
+                                handleFollowUpQuestionOptionsChange(
+                                  option,
+                                  e.target.value
+                                )
+                              }
+                              rows={3}
+                              className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              placeholder={DEFAULT_FOLLOW_UP_OPTIONS.join("\n")}
+                            />
+                          </div>
+                        )}
+
+                        <div className="text-xs text-gray-500">
+                          Preview: {getFollowUpPreviewDetails(option)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
