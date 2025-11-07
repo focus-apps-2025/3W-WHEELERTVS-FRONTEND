@@ -1,5 +1,5 @@
-// const API_BASE_URL = "http://localhost:5000/api";
-const API_BASE_URL = "https://forms-backend-96nd.onrender.com/api";
+const API_BASE_URL = "http://localhost:5000/api";
+// const API_BASE_URL = "https://forms-backend-96nd.onrender.com/api";
 // https://forms-backend-96nd.onrender.com
 interface ApiResponse<T> {
   success: boolean;
@@ -131,8 +131,33 @@ class ApiClient {
   }
 
   // Users
-  async getUsers() {
-    return this.request<{ users: any[]; total: number }>("/users");
+  async getUsers(params?: {
+    role?: string;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams();
+
+    if (params?.role) {
+      query.set("role", params.role);
+    }
+
+    if (params?.search) {
+      query.set("search", params.search);
+    }
+
+    if (typeof params?.page === "number") {
+      query.set("page", params.page.toString());
+    }
+
+    if (typeof params?.limit === "number") {
+      query.set("limit", params.limit.toString());
+    }
+
+    const endpoint = `/users${query.toString() ? `?${query.toString()}` : ""}`;
+
+    return this.request<{ users: any[]; pagination: any }>(endpoint);
   }
 
   async createUser(userData: any) {

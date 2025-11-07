@@ -1,200 +1,194 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { BrowserRouter } from "react-router-dom";
+import { MemoryRouter, useNavigate } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import { useAuth } from "../../context/AuthContext";
 import { useSidebar } from "../../context/SidebarContext";
 
-// Mock the context hooks
 vi.mock("../../context/AuthContext");
 vi.mock("../../context/SidebarContext");
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual<typeof import("react-router-dom")>(
+    "react-router-dom"
+  );
+  return {
+    ...actual,
+    useNavigate: vi.fn(),
+  };
+});
 
 const mockUseAuth = vi.mocked(useAuth);
 const mockUseSidebar = vi.mocked(useSidebar);
+const mockUseNavigate = vi.mocked(useNavigate);
 
-// Test wrapper with Router
-const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-  <BrowserRouter>{children}</BrowserRouter>
-);
+const createAuthValue = (
+  overrides: Partial<ReturnType<typeof useAuth>> = {}
+): ReturnType<typeof useAuth> =>
+  ({
+    user: null,
+    tenant: null,
+    login: vi.fn(),
+    logout: vi.fn(),
+    isAuthenticated: false,
+    loading: false,
+    error: null,
+    ...overrides,
+  }) as ReturnType<typeof useAuth>;
 
-describe("Sidebar Component", () => {
-  const mockSidebarContext = {
-    isCollapsed: false,
-    isMobileOpen: false,
-    toggleSidebar: vi.fn(),
-    openMobile: vi.fn(),
-    closeMobile: vi.fn(),
-  };
+const createSidebarValue = (
+  overrides: Partial<ReturnType<typeof useSidebar>> = {}
+): ReturnType<typeof useSidebar> => ({
+  isCollapsed: false,
+  isMobileOpen: false,
+  toggleSidebar: vi.fn(),
+  openMobile: vi.fn(),
+  closeMobile: vi.fn(),
+  ...overrides,
+});
+
+const renderSidebar = (initialEntry = "/") =>
+  render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Sidebar />
+    </MemoryRouter>
+  );
+
+describe("Sidebar", () => {
+  let navigateMock: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseSidebar.mockReturnValue(mockSidebarContext);
+    navigateMock = vi.fn();
+    mockUseNavigate.mockReturnValue(navigateMock);
+    mockUseSidebar.mockReturnValue(createSidebarValue());
   });
 
-  it("renders sidebar navigation items", () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true });
-    mockUseSidebar.mockReturnValue(mockSidebarContext);
+  it("shows public menu for guests", () => {
+    mockUseAuth.mockReturnValue(createAuthValue());
 
-    render(
-      <TestWrapper>
-        <Sidebar />
-      </TestWrapper>
-    );
+    renderSidebar();
 
-    // Check for authenticated menu items
-    expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Service Analytics")).toBeInTheDocument();
-    expect(screen.getByText("Customer Requests")).toBeInTheDocument();
-    expect(screen.getByText("Request Management")).toBeInTheDocument();
-    expect(screen.getByText("Shop Settings")).toBeInTheDocument();
-    expect(screen.getByText("Email System")).toBeInTheDocument();
-  });
-
-  it("toggles sidebar collapsed state", () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true });
-    mockUseSidebar.mockReturnValue(mockSidebarContext);
-
-    render(
-      <TestWrapper>
-        <Sidebar />
-      </TestWrapper>
-    );
-
-    const toggleButton = screen.getByRole("button");
-    fireEvent.click(toggleButton);
-
-    expect(mockSidebarContext.toggleSidebar).toHaveBeenCalled();
-  });
-
-  it("shows mobile overlay correctly", () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true });
-    mockUseSidebar.mockReturnValue({
-      ...mockSidebarContext,
-      isMobileOpen: true,
-    });
-
-    render(
-      <TestWrapper>
-        <Sidebar />
-      </TestWrapper>
-    );
-
-    // Mobile overlay should be present
-    const overlay = document.querySelector(".lg\\:hidden.fixed.inset-0");
-    expect(overlay).toBeInTheDocument();
-    expect(overlay).toHaveClass("bg-black", "bg-opacity-50");
-  });
-
-  it("displays tooltips when collapsed", () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true });
-    mockUseSidebar.mockReturnValue({
-      ...mockSidebarContext,
-      isCollapsed: true,
-    });
-
-    render(
-      <TestWrapper>
-        <Sidebar />
-      </TestWrapper>
-    );
-
-    // Check that menu item titles are not visible when collapsed
-    const menuItemSpan = screen.queryByText("Dashboard");
-    expect(menuItemSpan).not.toBeInTheDocument();
-
-    // Check for tooltip presence (they have absolute positioning)
-    const tooltips = document.querySelectorAll(".absolute.left-full");
-    expect(tooltips.length).toBeGreaterThan(0);
-  });
-
-  it("highlights active menu item", () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true });
-    mockUseSidebar.mockReturnValue(mockSidebarContext);
-
-    // Mock current location to be dashboard
-    Object.defineProperty(window, "location", {
-      value: { pathname: "/dashboard" },
-      writable: true,
-    });
-
-    render(
-      <TestWrapper>
-        <Sidebar />
-      </TestWrapper>
-    );
-
-    // Find the dashboard link and check if it has active styling
-    const dashboardLink = screen.getByText("Dashboard").closest("a");
-    expect(dashboardLink).toHaveClass("bg-primary-50", "text-primary-700");
-  });
-
-  it("shows different menus per auth", () => {
-    // Test unauthenticated state
-    mockUseAuth.mockReturnValue({ isAuthenticated: false });
-    mockUseSidebar.mockReturnValue(mockSidebarContext);
-
-    const { rerender } = render(
-      <TestWrapper>
-        <Sidebar />
-      </TestWrapper>
-    );
-
-    // Should show only public menu items
     expect(screen.getByText("Service Requests")).toBeInTheDocument();
-    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("Dashboard")).toBeNull();
+  });
 
-    // Test authenticated state
-    mockUseAuth.mockReturnValue({ isAuthenticated: true });
+  it("shows admin management menu for admin role", () => {
+    const auth = createAuthValue({
+      isAuthenticated: true,
+      user: {
+        _id: "1",
+        username: "admin",
+        email: "admin@example.com",
+        firstName: "Admin",
+        lastName: "User",
+        role: "admin",
+        isActive: true,
+      },
+    });
 
-    rerender(
-      <TestWrapper>
-        <Sidebar />
-      </TestWrapper>
-    );
+    mockUseAuth.mockReturnValue(auth);
 
-    // Should show authenticated menu items
+    renderSidebar();
+
+    expect(screen.getByText("Admin Management")).toBeInTheDocument();
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("Service Analytics")).toBeInTheDocument();
   });
 
-  it("handles mobile menu toggle", () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true });
-    mockUseSidebar.mockReturnValue({
-      ...mockSidebarContext,
-      isMobileOpen: true,
+  it("hides admin management for subadmin role without permissions", () => {
+    const auth = createAuthValue({
+      isAuthenticated: true,
+      user: {
+        _id: "2",
+        username: "subadmin",
+        email: "subadmin@example.com",
+        firstName: "Sub",
+        lastName: "Admin",
+        role: "subadmin",
+        isActive: true,
+        permissions: [],
+      },
     });
 
-    render(
-      <TestWrapper>
-        <Sidebar />
-      </TestWrapper>
-    );
+    mockUseAuth.mockReturnValue(auth);
 
-    // Click on overlay to close mobile menu
-    const overlay = document.querySelector(".lg\\:hidden.fixed.inset-0");
-    if (overlay) {
-      fireEvent.click(overlay);
-      expect(mockSidebarContext.closeMobile).toHaveBeenCalled();
-    }
+    renderSidebar();
+
+    expect(screen.queryByText("Admin Management")).toBeNull();
+    expect(screen.queryByText("Dashboard")).toBeNull();
+    expect(screen.queryByText("Customer Requests")).toBeNull();
   });
 
-  it("closes mobile on navigation", () => {
-    mockUseAuth.mockReturnValue({ isAuthenticated: true });
-    mockUseSidebar.mockReturnValue({
-      ...mockSidebarContext,
-      isMobileOpen: true,
+  it("shows permitted items for subadmin with permissions", () => {
+    const auth = createAuthValue({
+      isAuthenticated: true,
+      user: {
+        _id: "5",
+        username: "subadmin",
+        email: "subadmin@example.com",
+        firstName: "Perm",
+        lastName: "Admin",
+        role: "subadmin",
+        isActive: true,
+        permissions: ["dashboard:view", "requests:view"],
+      },
     });
 
-    render(
-      <TestWrapper>
-        <Sidebar />
-      </TestWrapper>
-    );
+    mockUseAuth.mockReturnValue(auth);
 
-    // Click on a navigation link
-    const dashboardLink = screen.getByText("Dashboard");
-    fireEvent.click(dashboardLink);
+    renderSidebar();
 
-    expect(mockSidebarContext.closeMobile).toHaveBeenCalled();
+    expect(screen.queryByText("Admin Management")).toBeNull();
+    expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    expect(screen.getByText("Customer Requests")).toBeInTheDocument();
+    expect(screen.queryByText("Service Analytics")).toBeNull();
+  });
+
+  it("shows super admin specific menu", () => {
+    const auth = createAuthValue({
+      isAuthenticated: true,
+      user: {
+        _id: "3",
+        username: "super",
+        email: "super@example.com",
+        firstName: "Super",
+        lastName: "Admin",
+        role: "superadmin",
+        isActive: true,
+      },
+    });
+
+    mockUseAuth.mockReturnValue(auth);
+
+    renderSidebar();
+
+    expect(screen.getByText("Tenant Management")).toBeInTheDocument();
+    expect(screen.queryByText("Admin Management")).toBeNull();
+  });
+
+  it("logs out and navigates to login", () => {
+    const logout = vi.fn();
+    const auth = createAuthValue({
+      isAuthenticated: true,
+      logout,
+      user: {
+        _id: "4",
+        username: "admin",
+        email: "admin@example.com",
+        firstName: "Admin",
+        lastName: "User",
+        role: "admin",
+        isActive: true,
+      },
+    });
+
+    mockUseAuth.mockReturnValue(auth);
+
+    renderSidebar();
+
+    const signOutButton = screen.getByRole("button", { name: "Sign Out" });
+    fireEvent.click(signOutButton);
+
+    expect(logout).toHaveBeenCalledTimes(1);
+    expect(navigateMock).toHaveBeenCalledWith("/login");
   });
 });

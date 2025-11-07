@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Users,
   FileText,
@@ -10,6 +10,7 @@ import {
   Plus,
   CheckCircle,
   ExternalLink,
+  Mail,
 } from "lucide-react";
 import { useForms } from "../hooks/useApi";
 import { useAuth } from "../context/AuthContext";
@@ -19,6 +20,47 @@ export default function DashboardNew() {
   const { user, tenant } = useAuth();
   const navigate = useNavigate();
   const { data: formsData, loading: formsLoading } = useForms();
+  const [showTestEmailDialog, setShowTestEmailDialog] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+
+  const handleSendTestEmail = async () => {
+    if (!testEmail.trim()) {
+      alert("Please enter an email address");
+      return;
+    }
+
+    setSendingTestEmail(true);
+    try {
+      console.log("📨 Sending test email to:", testEmail);
+      
+      const token = localStorage.getItem("auth_token");
+      const response = await fetch("http://localhost:5000/api/mail/test-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ to: testEmail }),
+      });
+
+      const data = await response.json();
+      console.log("Response:", data);
+
+      if (response.ok && data.success) {
+        alert("✅ Test email sent successfully to " + testEmail);
+        setShowTestEmailDialog(false);
+        setTestEmail("");
+      } else {
+        alert("❌ Failed to send email: " + (data.message || "Unknown error"));
+      }
+    } catch (error) {
+      console.error("Error sending test email:", error);
+      alert("❌ Error sending email: " + error.message);
+    } finally {
+      setSendingTestEmail(false);
+    }
+  };
 
   const recentForms =
     formsData?.forms?.filter((form: any) => form.isVisible).slice(0, 5) || [];
@@ -136,6 +178,17 @@ export default function DashboardNew() {
           </div>
         </div>
       )}
+
+      {/* Test Email Button */}
+      <div className="mb-6 flex justify-end">
+        <button
+          onClick={() => setShowTestEmailDialog(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Mail className="w-4 h-4" />
+          Send Test Email
+        </button>
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -309,6 +362,68 @@ export default function DashboardNew() {
             </div>
           </div>
         </div>
+
+        {/* Test Email Dialog */}
+        {showTestEmailDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-sm w-full m-4">
+              <div className="px-6 py-4 border-b border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Send Test Email
+                </h3>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={testEmail}
+                    onChange={(e) => setTestEmail(e.target.value)}
+                    placeholder="your.email@example.com"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    disabled={sendingTestEmail}
+                  />
+                </div>
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <p className="text-sm text-blue-700">
+                    A test email will be sent from <strong>priyaraj@focusengineering.in</strong>
+                  </p>
+                </div>
+              </div>
+              <div className="px-6 py-4 border-t border-gray-200 flex gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    setShowTestEmailDialog(false);
+                    setTestEmail("");
+                  }}
+                  disabled={sendingTestEmail}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSendTestEmail}
+                  disabled={sendingTestEmail || !testEmail.trim()}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                >
+                  {sendingTestEmail ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Mail className="w-4 h-4" />
+                      Send Test Email
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

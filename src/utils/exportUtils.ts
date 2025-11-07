@@ -28,6 +28,20 @@ function parseNumber(value: unknown) {
   if (value === "" || value === null || value === undefined) {
     return undefined;
   }
+  if (typeof value === "number") {
+    return Number.isNaN(value) ? undefined : value;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+    const normalized = trimmed.endsWith("%")
+      ? trimmed.slice(0, -1).trim()
+      : trimmed;
+    const parsed = Number(normalized);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  }
   const parsed = Number(value);
   return Number.isNaN(parsed) ? undefined : parsed;
 }
@@ -163,6 +177,7 @@ export function exportFormStructureToExcel(form: Question) {
       SectionId: section.id,
       SectionTitle: section.title,
       SectionDescription: section.description || "",
+      SectionWeightage: (section as any).weightage || 0,
       LinkedToOption: section.linkedToOption || "",
       LinkedToQuestionId: section.linkedToQuestionId || "",
     }))
@@ -239,6 +254,7 @@ export function downloadFormImportTemplate() {
     "Section Number",
     "Section Title",
     "Section Description",
+    "Section Weightage",
     "Question",
     "Question Description",
     "Question Type",
@@ -268,6 +284,7 @@ export function downloadFormImportTemplate() {
     "Which section (1, 2, 3...)",
     "Title of the section",
     "Description of what this section covers",
+    "Percentage weight (0-100, must total 100% if used)",
     "The question text to ask",
     "Additional details about the question",
     "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA",
@@ -310,7 +327,8 @@ export function downloadFormImportTemplate() {
   ];
 
   const formTitle = "Follow-up Testing Form - Nested Support";
-  const formDesc = "Test form with 3 sections demonstrating basic and nested follow-ups";
+  const formDesc =
+    "Test form with 3 sections demonstrating basic and nested follow-ups";
 
   const rows = [
     {
@@ -318,25 +336,30 @@ export function downloadFormImportTemplate() {
       "Form Description": formDesc,
       "Section Number": "1",
       "Section Title": "Section 1: Basic Screening",
-      "Section Description": "Initial qualification questions - no follow-ups required",
+      "Section Description":
+        "Initial qualification questions - no follow-ups required",
+      "Section Weightage": "30",
       Question: "Are you 18 years or older?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
     },
     {
+      "Section Weightage": "30",
       Question: "Do you have valid identification documents?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
     },
     {
+      "Section Weightage": "30",
       Question: "Have you previously used our service before?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
     },
     {
+      "Section Weightage": "30",
       Question: "Are you available for a follow-up appointment if needed?",
       "Question Type": "yesNoNA",
       Required: "FALSE",
@@ -345,19 +368,23 @@ export function downloadFormImportTemplate() {
     {
       "Section Number": "2",
       "Section Title": "Section 2: Service Experience & Nested Follow-ups",
-      "Section Description": "Questions about service experience with multi-level follow-ups",
+      "Section Description":
+        "Questions about service experience with multi-level follow-ups",
+      "Section Weightage": "40",
       Question: "Are you satisfied with our service quality?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
     },
     {
+      "Section Weightage": "40",
       Question: "Did you complete your desired goal with our help?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
     },
     {
+      "Section Weightage": "40",
       Question: "Would you recommend us to others?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -382,6 +409,7 @@ export function downloadFormImportTemplate() {
       "FU3: Correct Answer": "",
     },
     {
+      "Section Weightage": "40",
       Question: "Will you use our service again in the future?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -395,8 +423,10 @@ export function downloadFormImportTemplate() {
       "FU2: Option": "No",
       "FU2: Question Type": "dropdown",
       "FU2: Required": "TRUE",
-      "FU2: Question Text": "What would change your mind about using our service?",
-      "FU2: Options": "Better pricing,Improved features,Different support,Other",
+      "FU2: Question Text":
+        "What would change your mind about using our service?",
+      "FU2: Options":
+        "Better pricing,Improved features,Different support,Other",
       "FU2: Correct Answer": "",
       "FU3: Option": "N/A",
       "FU3: Question Type": "longText",
@@ -406,6 +436,7 @@ export function downloadFormImportTemplate() {
       "FU3: Correct Answer": "",
     },
     {
+      "Section Weightage": "40",
       Question: "Is your issue completely resolved?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -432,7 +463,9 @@ export function downloadFormImportTemplate() {
     {
       "Section Number": "3",
       "Section Title": "Section 3: Follow-up Support & Feedback",
-      "Section Description": "Final section with yes/no/n/a questions and follow-ups",
+      "Section Description":
+        "Final section with yes/no/n/a questions and follow-ups",
+      "Section Weightage": "30",
       Question: "Do you need additional support or resources?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -451,6 +484,7 @@ export function downloadFormImportTemplate() {
       "FU2: Correct Answer": "",
     },
     {
+      "Section Weightage": "30",
       Question: "Can we contact you with service updates?",
       "Question Type": "yesNoNA",
       Required: "FALSE",
@@ -463,6 +497,7 @@ export function downloadFormImportTemplate() {
       "FU1: Correct Answer": "",
     },
     {
+      "Section Weightage": "30",
       Question: "Will you provide feedback on your experience?",
       "Question Type": "yesNoNA",
       Required: "FALSE",
@@ -599,13 +634,20 @@ function parseNewTemplateFormat(
 
     if (sectionNo) {
       currentSectionNo = sectionNo;
+      const sectionWeightage = parseNumber(row["Section Weightage"]);
       if (!sectionsMap.has(sectionNo)) {
         sectionsMap.set(sectionNo, {
           id: generateId(),
           title: sectionTitle || `Section ${sectionNo}`,
           description: sectionDesc || "Section description",
+          weightage: sectionWeightage ?? 0,
           questions: [],
         });
+      } else if (sectionWeightage !== undefined) {
+        const existingSection = sectionsMap.get(sectionNo);
+        if (existingSection) {
+          existingSection.weightage = sectionWeightage;
+        }
       }
     }
 
@@ -638,7 +680,10 @@ function parseNewTemplateFormat(
           .filter(Boolean)
       : undefined;
 
-    const followUpConfig: Record<string, { hasFollowUp: boolean; required: boolean }> = {};
+    const followUpConfig: Record<
+      string,
+      { hasFollowUp: boolean; required: boolean }
+    > = {};
 
     if (options && options.length > 0) {
       options.forEach((option) => {
@@ -673,9 +718,12 @@ function parseNewTemplateFormat(
       const fuText = row[fuTextKey]?.toString().trim();
 
       if (fuOption && fuType && fuText) {
-        const fuRequired = (row[fuRequiredKey]?.toString().trim() || "FALSE").toLowerCase() === "true";
+        const fuRequired =
+          (row[fuRequiredKey]?.toString().trim() || "FALSE").toLowerCase() ===
+          "true";
         const fuOptionsStr = row[fuOptionsKey]?.toString().trim() || "";
-        const fuCorrectAnswer = row[fuCorrectAnswerKey]?.toString().trim() || "";
+        const fuCorrectAnswer =
+          row[fuCorrectAnswerKey]?.toString().trim() || "";
 
         const fuOptions = fuOptionsStr
           ? fuOptionsStr
@@ -710,7 +758,8 @@ function parseNewTemplateFormat(
           };
         } else {
           followUpConfig[fuOption].hasFollowUp = true;
-          followUpConfig[fuOption].required = fuRequired || followUpConfig[fuOption].required;
+          followUpConfig[fuOption].required =
+            fuRequired || followUpConfig[fuOption].required;
         }
       }
     }

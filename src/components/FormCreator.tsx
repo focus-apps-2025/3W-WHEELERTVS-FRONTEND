@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import {
   Save,
@@ -37,6 +37,7 @@ interface FormSection {
   id: string;
   title: string;
   description?: string;
+  weightage?: number;
   questions: Question[];
   parentSectionId?: string; // For subsections
   isSubsection?: boolean; // Mark if this is a subsection
@@ -129,10 +130,12 @@ export default function FormCreator() {
         id: crypto.randomUUID(),
         title: "Section 1",
         description: "",
+        weightage: 0,
         questions: [],
       },
     ] as FormSection[],
   });
+  const [sectionWeightageDrafts, setSectionWeightageDrafts] = useState<Record<string, string>>({});
   const [formSectionBranching, setFormSectionBranching] = useState<any[]>([]);
   const [showFormRoutingConfig, setShowFormRoutingConfig] = useState(false);
   const [formRoutingConfigQuestion, setFormRoutingConfigQuestion] = useState<{
@@ -292,6 +295,7 @@ export default function FormCreator() {
               id: crypto.randomUUID(),
               title: "Section 1",
               description: "",
+              weightage: 0,
               questions: [],
             },
           ] as FormSection[],
@@ -301,6 +305,34 @@ export default function FormCreator() {
       }
     }
   }, [id, location.state]);
+
+  useEffect(() => {
+    setSectionWeightageDrafts((prev) => {
+      const currentIds = new Set(form.sections.map((section) => section.id));
+      const next = { ...prev };
+      let changed = false;
+
+      Object.keys(next).forEach((key) => {
+        if (!currentIds.has(key)) {
+          delete next[key];
+          changed = true;
+        }
+      });
+
+      form.sections.forEach((section) => {
+        if (next[section.id] === undefined) {
+          if (typeof section.weightage === "number" && !Number.isNaN(section.weightage)) {
+            next[section.id] = section.weightage.toString();
+          } else {
+            next[section.id] = "";
+          }
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [form.sections]);
 
   const handleSave = async () => {
     if (!form.title.trim()) {
@@ -590,6 +622,7 @@ export default function FormCreator() {
           id: crypto.randomUUID(),
           title: "Section 1",
           description: "",
+          weightage: 0,
           questions: [],
         },
       ] as FormSection[],
@@ -613,6 +646,7 @@ export default function FormCreator() {
           id: crypto.randomUUID(),
           title: "Personal Information",
           description: "Please provide your basic information",
+          weightage: 50,
           questions: [
             {
               id: q1Id,
@@ -674,6 +708,7 @@ export default function FormCreator() {
           id: crypto.randomUUID(),
           title: "Academic Background",
           description: "Tell us about your educational history",
+          weightage: 50,
           questions: [
             {
               id: q4Id,
@@ -779,6 +814,7 @@ export default function FormCreator() {
           id: crypto.randomUUID(),
           title: `Section ${prev.sections.length + 1}`,
           description: "",
+          weightage: 0,
           questions: [],
           isSubsection: false,
         },
@@ -841,6 +877,62 @@ export default function FormCreator() {
         section.id === sectionId ? { ...section, ...updates } : section
       ),
     }));
+  };
+
+  const resolveSectionWeightageDraft = (section: FormSection) => {
+    if (sectionWeightageDrafts[section.id] !== undefined) {
+      return sectionWeightageDrafts[section.id];
+    }
+    if (typeof section.weightage === "number" && !Number.isNaN(section.weightage)) {
+      return section.weightage.toString();
+    }
+    return "";
+  };
+
+  const handleSaveSectionWeightage = (sectionId: string) => {
+    const rawDraft = sectionWeightageDrafts[sectionId];
+    const trimmedDraft = (rawDraft ?? "").trim();
+    const valueToParse = trimmedDraft === "" ? "0" : trimmedDraft;
+    const parsed = Number(valueToParse);
+
+    if (Number.isNaN(parsed)) {
+      showError("Section weightage must be a number", "Validation Error");
+      return;
+    }
+
+    if (parsed < 0 || parsed > 100) {
+      showError("Section weightage must be between 0 and 100", "Validation Error");
+      return;
+    }
+
+    const rounded = Math.round(parsed * 10) / 10;
+
+    updateSection(sectionId, { weightage: rounded });
+    setSectionWeightageDrafts((prev) => ({
+      ...prev,
+      [sectionId]: rounded.toString(),
+    }));
+  };
+
+  const getSavedSectionWeightage = (section: FormSection) => {
+    if (typeof section.weightage === "number" && !Number.isNaN(section.weightage)) {
+      return Math.round(section.weightage * 10) / 10;
+    }
+    return 0;
+  };
+
+  const formatWeightageDisplay = (value: number) => value.toFixed(1).replace(/\.0$/, "");
+
+  const hasPendingWeightageChange = (section: FormSection) => {
+    const draft = resolveSectionWeightageDraft(section).trim();
+    if (!draft.length) {
+      return getSavedSectionWeightage(section) !== 0;
+    }
+    const parsed = Number(draft);
+    if (Number.isNaN(parsed)) {
+      return true;
+    }
+    return Math.abs(parsed - getSavedSectionWeightage(section)) > 0.05;
   };
 
   const deleteSection = (sectionId: string) => {
@@ -2436,6 +2528,46 @@ export default function FormCreator() {
                             placeholder="Brief description for respondents"
                           />
                         </div>
+
+                        {!section.isSubsection && (
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                              Section Weightage (%)
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step={0.1}
+                                value={resolveSectionWeightageDraft(section)}
+                                onChange={(e) =>
+                                  setSectionWeightageDrafts((prev) => ({
+                                    ...prev,
+                                    [section.id]: e.target.value,
+                                  }))
+                                }
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                                placeholder="Enter weightage for this section"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveSectionWeightage(section.id)}
+                                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                                  hasPendingWeightageChange(section)
+                                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                                    : "bg-gray-200 text-gray-600 cursor-not-allowed"
+                                }`}
+                                disabled={!hasPendingWeightageChange(section)}
+                              >
+                                Save
+                              </button>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Saved: {formatWeightageDisplay(getSavedSectionWeightage(section))}%
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -3239,6 +3371,12 @@ export default function FormCreator() {
                             0
                           );
 
+                          const sectionWeightage =
+                            typeof mainSection?.weightage === "number" &&
+                            !Number.isNaN(mainSection.weightage)
+                              ? mainSection.weightage
+                              : null;
+
                           return (
                             <button
                               key={pageIndex}
@@ -3253,69 +3391,55 @@ export default function FormCreator() {
                                 }
                               `}
                               title={
-                                mainSection?.title || `Page ${pageIndex + 1}`
+                                mainSection?.title?.trim().length
+                                  ? mainSection.title
+                                  : `Page ${pageIndex + 1}`
                               }
                             >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className={`
-                                    flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`
+                                    flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm flex-shrink-0
                                     ${
                                       isCurrent
                                         ? "bg-white text-blue-600"
                                         : "bg-blue-600 text-white"
                                     }
                                   `}
+                                >
+                                  {sectionLabel}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p
+                                    className={`text-sm font-bold truncate ${
+                                      isCurrent ? "text-white" : "text-blue-900"
+                                    }`}
                                   >
-                                    {sectionLabel}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div
-                                      className={`text-sm font-bold truncate ${
-                                        isCurrent
-                                          ? "text-white"
-                                          : "text-blue-900"
+                                    {mainSection?.title?.trim().length
+                                      ? mainSection.title
+                                      : `Page ${pageIndex + 1}`}
+                                  </p>
+                                  <p
+                                    className={`text-xs ${
+                                      isCurrent ? "text-blue-100" : "text-blue-600"
+                                    }`}
+                                  >
+                                    {questionCount} {questionCount === 1 ? "question" : "questions"}
+                                  </p>
+                                  {sectionWeightage !== null && (
+                                    <p
+                                      className={`text-xs font-medium ${
+                                        isCurrent ? "text-blue-100" : "text-blue-500"
                                       }`}
                                     >
-                                      {mainSection?.title ||
-                                        `Section ${pageIndex + 1}`}
-                                    </div>
-                                    <div
-                                      className={`text-xs ${
-                                        isCurrent
-                                          ? "text-blue-100"
-                                          : "text-blue-600"
-                                      }`}
-                                    >
-                                      {questionCount}{" "}
-                                      {questionCount === 1
-                                        ? "question"
-                                        : "questions"}
-                                    </div>
-                                  </div>
+                                      Weightage: {Number(sectionWeightage).toFixed(1).replace(/\.0$/, "")}%
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             </button>
                           );
                         })}
-                      </div>
-
-                      {/* Progress indicator */}
-                      <div className="mt-4 pt-4 border-t border-blue-200">
-                        <div className="text-xs text-center text-blue-700 mb-2 font-medium">
-                          Page {currentPage + 1} of {pages.length}
-                        </div>
-                        <div className="w-full bg-blue-100 rounded-full h-2">
-                          <div
-                            className="bg-gradient-to-r from-blue-600 to-blue-700 h-2 rounded-full transition-all duration-300"
-                            style={{
-                              width: `${
-                                ((currentPage + 1) / pages.length) * 100
-                              }%`,
-                            }}
-                          />
-                        </div>
                       </div>
                     </div>
                   </div>
@@ -3324,63 +3448,46 @@ export default function FormCreator() {
               return null;
             })()}
 
-            <div className="bg-white rounded-lg border border-neutral-200 p-6">
-              <h3 className="font-medium text-primary-800 mb-4">
-                Form Preview
-              </h3>
-              <p className="text-sm text-primary-600 mb-4">
-                See how your form will appear to users
-              </p>
-              <button
-                className="w-full btn-secondary"
-                onClick={() => setShowPreview(true)}
-              >
-                <Eye className="w-4 h-4 mr-2" />
-                Preview Form
-              </button>
-            </div>
-
-            <div className="bg-white rounded-lg border border-neutral-200 p-6">
-              <h3 className="font-medium text-primary-800 mb-4">
-                Form Statistics
-              </h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-primary-600">Sections:</span>
-                  <span className="font-medium">{form.sections.length}</span>
+            <div className="bg-white rounded-lg border border-blue-100 shadow p-4">
+              <h3 className="text-sm font-bold text-blue-900 mb-3">Form Statistics</h3>
+              <div className="space-y-2 text-xs text-blue-700">
+                <div className="flex items-center justify-between">
+                  <span>Sections</span>
+                  <span>{form.sections.length}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-primary-600">Questions:</span>
-                  <span className="font-medium">
+                <div className="flex items-center justify-between">
+                  <span>Questions</span>
+                  <span>
                     {form.sections.reduce(
                       (total, section) => total + section.questions.length,
                       0
                     )}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-primary-600">Follow-ups:</span>
-                  <span className="font-medium">
-                    {form.sections.reduce(
-                      (total, section) =>
-                        total +
-                        section.questions.reduce(
-                          (qTotal, q) =>
-                            qTotal + (q.followUpQuestions?.length || 0),
-                          0
-                        ),
-                      0
-                    )}
+                <div className="flex items-center justify-between">
+                  <span>Follow-ups</span>
+                  <span>
+                    {form.sections.reduce((total, section) => {
+                      const countQuestions = (questions: (Question | FollowUpQuestion)[]): number =>
+                        questions.reduce((count, q) => {
+                          const nested = q.followUpQuestions
+                            ? countQuestions(q.followUpQuestions)
+                            : 0;
+                          return count + (q.followUpQuestions?.length || 0) + nested;
+                        }, 0);
+
+                      return total + countQuestions(section.questions);
+                    }, 0)}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-primary-600">Visibility:</span>
-                  <span
-                    className={`font-medium ${
-                      form.isVisible ? "text-green-600" : "text-yellow-600"
-                    }`}
-                  >
-                    {form.isVisible ? "Public" : "Private"}
+                <div className="flex items-center justify-between">
+                  <span>Total weightage</span>
+                  <span>
+                    {form.sections
+                      .reduce((sum, section) => sum + (section.weightage || 0), 0)
+                      .toFixed(1)
+                      .replace(/\.0$/, "")}
+                    %
                   </span>
                 </div>
               </div>
@@ -3388,75 +3495,6 @@ export default function FormCreator() {
           </div>
         </div>
       </div>
-
-      {/* Preview Modal */}
-      {showPreview && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-            <div className="flex items-center justify-between p-6 border-b">
-              <h2 className="text-2xl font-bold text-primary-900">
-                Form Preview
-              </h2>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="text-neutral-400 hover:text-neutral-600"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            <div className="p-6">
-              <PreviewForm form={form} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Section Branching Configuration Modal */}
-      {showBranchingConfig && branchingConfigQuestion && (
-        <SectionBranchingConfig
-          questionId={branchingConfigQuestion.questionId}
-          sectionId={branchingConfigQuestion.sectionId}
-          options={branchingConfigQuestion.options}
-          sections={form.sections.map((s) => ({ id: s.id, title: s.title }))}
-          existingRules={
-            form.sections
-              .find((s) => s.id === branchingConfigQuestion.sectionId)
-              ?.questions.find(
-                (q) => q.id === branchingConfigQuestion.questionId
-              )?.branchingRules || []
-          }
-          onSave={handleSaveBranchingRules}
-          onClose={() => {
-            setShowBranchingConfig(false);
-            setBranchingConfigQuestion(null);
-          }}
-        />
-      )}
-
-      {/* Form Routing Configuration Modal */}
-      {showFormRoutingConfig && formRoutingConfigQuestion && (
-        <FormRoutingConfig
-          questionId={formRoutingConfigQuestion.questionId}
-          sectionId={formRoutingConfigQuestion.sectionId}
-          options={formRoutingConfigQuestion.options}
-          availableForms={forms.map((f) => ({
-            id: f.id || f._id,
-            title: f.title,
-          }))}
-          existingConfig={
-            form.sections
-              .find((s) => s.id === formRoutingConfigQuestion.sectionId)
-              ?.questions.find(
-                (q) => q.id === formRoutingConfigQuestion.questionId
-              )?.followUpConfig || {}
-          }
-          onSave={handleSaveFormRoutingConfig}
-          onClose={() => {
-            setShowFormRoutingConfig(false);
-            setFormRoutingConfigQuestion(null);
-          }}
-        />
-      )}
     </div>
   );
 }

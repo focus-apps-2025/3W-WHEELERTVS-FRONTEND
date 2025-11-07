@@ -7,6 +7,7 @@ interface NavigationButtonsProps {
   onPrevious: () => void;
   onNext: () => void;
   onSubmit: () => void;
+  submitDisabled: boolean;
 }
 
 export default function NavigationButtons({
@@ -15,7 +16,12 @@ export default function NavigationButtons({
   onPrevious,
   onNext,
   onSubmit,
+  submitDisabled,
 }: NavigationButtonsProps) {
+  const submitButtonClasses = submitDisabled
+    ? "flex items-center px-8 py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed font-medium"
+    : "flex items-center px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium";
+
   return (
     <div className="flex justify-between pt-8 border-t border-gray-200 mt-12">
       {!isFirstSection && (
@@ -29,25 +35,27 @@ export default function NavigationButtons({
         </button>
       )}
 
-      {!isLastSection ? (
-        <button
-          type="button"
-          onClick={onNext}
-          className="flex items-center px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors ml-auto font-medium"
-        >
-          Next
-          <ChevronRight className="w-5 h-5 ml-2" />
-        </button>
-      ) : (
+      <div className="ml-auto flex items-center gap-3">
+        {!isLastSection && (
+          <button
+            type="button"
+            onClick={onNext}
+            className="flex items-center px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            Next
+            <ChevronRight className="w-5 h-5 ml-2" />
+          </button>
+        )}
         <button
           type="submit"
           onClick={onSubmit}
-          className="flex items-center px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors ml-auto font-medium"
+          disabled={submitDisabled}
+          className={submitButtonClasses}
         >
           Submit Response
           <Send className="w-5 h-5 ml-2" />
         </button>
-      )}
+      </div>
     </div>
   );
 }

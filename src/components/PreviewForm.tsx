@@ -184,6 +184,27 @@ export default function PreviewForm({
           },
         ];
 
+  const hasMissingRequiredAnswers = () => {
+    let missing = false;
+    visitedSectionIndices.forEach((sectionIndex) => {
+      const section = sections[sectionIndex];
+      if (!section) {
+        return;
+      }
+      const visibleQuestions = getOrderedVisibleQuestions(
+        section.questions,
+        answers
+      );
+      const hasRequiredAnswers = visibleQuestions.every(
+        (q) => !q.required || answers[q.id]
+      );
+      if (!hasRequiredAnswers) {
+        missing = true;
+      }
+    });
+    return missing;
+  };
+
   const checkForBranching = (
     sectionId: string,
     questionId: string,
@@ -240,25 +261,7 @@ export default function PreviewForm({
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
 
-    // Only validate sections that were actually visited (not skipped by branching)
-    let isValid = true;
-    visitedSectionIndices.forEach((sectionIndex) => {
-      const section = sections[sectionIndex];
-      if (!section) return;
-
-      const visibleQuestions = getOrderedVisibleQuestions(
-        section.questions,
-        answers
-      );
-      const hasRequiredAnswers = visibleQuestions.every(
-        (q) => !q.required || answers[q.id]
-      );
-      if (!hasRequiredAnswers) {
-        isValid = false;
-      }
-    });
-
-    if (!isValid) {
+    if (hasMissingRequiredAnswers()) {
       alert("Please fill in all required fields before submitting.");
       return;
     }
@@ -412,6 +415,7 @@ export default function PreviewForm({
   const currentSection = sections[currentSectionIndex];
   const isLastSection = currentSectionIndex === sections.length - 1;
   const isFirstSection = sectionNavigationHistory.length <= 1;
+  const submitDisabled = hasMissingRequiredAnswers();
 
   return (
     <div className="w-full bg-gradient-to-br from-blue-50 via-white to-blue-50 py-6 sm:py-12">
@@ -454,6 +458,7 @@ export default function PreviewForm({
             onPrevious={handlePrevious}
             onNext={handleNext}
             onSubmit={handleSubmit}
+            submitDisabled={submitDisabled}
           />
         </form>
       </div>

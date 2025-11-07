@@ -10,28 +10,61 @@ import {
   XCircle,
   Mail,
 } from "lucide-react";
-import { Bar } from "react-chartjs-2";
+import { Bar, Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
+  PointElement,
+  LineElement,
   Title,
   Tooltip,
   Legend,
+  Filler,
 } from "chart.js";
 import type { ActiveElement } from "chart.js";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
+import { sendResponseExcelViaEmail } from "../utils/responseExportUtils";
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
-function truncateLabel(label: string, maxLength = 50): string {
+function formatSectionLabel(label: string, maxLength = 20): string {
   if (!label) {
     return "";
   }
-  return label.length > maxLength ? `${label.slice(0, maxLength - 3)}...` : label;
+  const parts = label.match(/[A-Za-z0-9]+/g) || [];
+  if (!parts.length) {
+    return "";
+  }
+  const camel = parts
+    .map((part, index) => {
+      const lower = part.toLowerCase();
+      if (index === 0) {
+        return lower;
+      }
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join("");
+  if (!camel) {
+    return "";
+  }
+  const formatted = camel.charAt(0).toUpperCase() + camel.slice(1);
+  return formatted.length > maxLength
+    ? `${formatted.slice(0, maxLength - 3)}...`
+    : formatted;
 }
 
 interface Form {
@@ -61,6 +94,16 @@ interface GroupedResponses {
   [date: string]: (Response & { formTitle: string })[];
 }
 
+type SectionStat = {
+  id: string;
+  title: string;
+  yes: number;
+  no: number;
+  na: number;
+  total: number;
+  weightage: number;
+};
+
 export default function AllResponses() {
   const { showSuccess, showError, showInfo } = useNotification();
   const [responses, setResponses] = useState<
@@ -77,6 +120,9 @@ export default function AllResponses() {
   const [showStatusUpdate, setShowStatusUpdate] = useState(false);
   const [viewMode, setViewMode] = useState<"dashboard" | "responses">("dashboard");
   const [pendingSectionId, setPendingSectionId] = useState<string | null>(null);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [sendingEmail, setSendingEmail] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -137,7 +183,57 @@ export default function AllResponses() {
   };
 
   const handleSendToMail = () => {
-    showInfo("This feature is coming soon!", "Coming Soon");
+    setShowEmailDialog(true);
+    setEmailInput("");
+  };
+
+  const handleSendEmailReport = async () => {
+    if (!emailInput.trim()) {
+      showError("Please enter an email address");
+      return;
+    }
+
+    if (!selectedResponse || !selectedForm || sectionSummaryRows.length === 0) {
+      showError("Missing required data for report generation");
+      return;
+    }
+
+    setSendingEmail(true);
+    try {
+      const result = await sendResponseExcelViaEmail(
+        selectedResponse,
+        selectedForm,
+        sectionSummaryRows,
+        emailInput.trim()
+      );
+
+      if (result.success) {
+        showSuccess("Report sent successfully to " + emailInput);
+        setShowEmailDialog(false);
+        setEmailInput("");
+      } else if (result.fallback) {
+        const url = URL.createObjectURL(result.blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${selectedForm.title}_Report.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        const mailtoLink = `mailto:${emailInput}?subject=Response Report: ${selectedForm.title}&body=Please find the attached response report.`;
+        window.open(mailtoLink);
+
+        showSuccess("Report downloaded. Opening your mail client...");
+        setShowEmailDialog(false);
+        setEmailInput("");
+      }
+    } catch (err) {
+      console.error("Failed to send email:", err);
+      showError("Failed to send email. Please try again.");
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   const fetchData = async () => {
@@ -195,20 +291,13 @@ export default function AllResponses() {
 
   const sectionStats = useMemo(() => {
     if (!selectedForm || !selectedResponse) {
-      return [] as Array<{
-        id: string;
-        title: string;
-        yes: number;
-        no: number;
-        na: number;
-        total: number;
-      }>;
+      return [] as SectionStat[];
     }
     return getSectionYesNoStats(selectedForm, selectedResponse.answers);
   }, [selectedForm, selectedResponse]);
 
   const filteredSectionStats = useMemo(
-    () => sectionStats.filter((stat) => stat.yes > 0 || stat.no > 0 || stat.na > 0),
+    () => sectionStats.filter((stat) => stat.yes > 0 || stat.no > 0 || stat.na > 0 || stat.weightage > 0),
     [sectionStats]
   );
 
@@ -217,7 +306,7 @@ export default function AllResponses() {
       total ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
 
     return {
-      labels: filteredSectionStats.map((stat) => truncateLabel(stat.title)),
+      labels: filteredSectionStats.map((stat) => formatSectionLabel(stat.title)),
       datasets: [
         {
           label: "Yes",
@@ -304,6 +393,145 @@ export default function AllResponses() {
     [filteredSectionStats]
   );
 
+  const sectionChartHeight = Math.max(320, filteredSectionStats.length * 56);
+
+  const formatPercentageValue = (value: number) =>
+    `${Number.isFinite(value) ? value.toFixed(1) : "0.0"}%`;
+
+  const sectionSummaryRows = useMemo(
+    () =>
+      filteredSectionStats.map((stat) => {
+        let weightage = stat.weightage;
+        if (typeof weightage === "string") {
+          weightage = parseFloat(weightage);
+        }
+        weightage = Number.isFinite(weightage) ? weightage : 0;
+        if (weightage > 1) {
+          weightage = weightage;
+        } else if (weightage > 0) {
+          weightage = weightage * 100;
+        }
+        
+        const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
+        const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
+        const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
+        const yesWeighted = (yesPercent * weightage) / 100;
+        const noWeighted = (noPercent * weightage) / 100;
+        const naWeighted = (naPercent * weightage) / 100;
+
+        return {
+          id: stat.id,
+          title: stat.title,
+          weightage,
+          yesPercent,
+          yesWeighted,
+          noPercent,
+          noWeighted,
+          naPercent,
+          naWeighted,
+        };
+      }),
+    [filteredSectionStats]
+  );
+
+  const weightedPercentageChartData = useMemo(() => {
+    return {
+      labels: sectionSummaryRows.map((row) => formatSectionLabel(row.title)),
+      datasets: [
+        {
+          label: "Yes % × Weightage",
+          data: sectionSummaryRows.map((row) => parseFloat(row.yesWeighted.toFixed(1))),
+          borderColor: "#1d4ed8",
+          backgroundColor: "rgba(29, 78, 216, 0.1)",
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: "#1d4ed8",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
+        },
+        {
+          label: "No % × Weightage",
+          data: sectionSummaryRows.map((row) => parseFloat(row.noWeighted.toFixed(1))),
+          borderColor: "#3b82f6",
+          backgroundColor: "rgba(59, 130, 246, 0.1)",
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: "#3b82f6",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
+        },
+        {
+          label: "N/A % × Weightage",
+          data: sectionSummaryRows.map((row) => parseFloat(row.naWeighted.toFixed(1))),
+          borderColor: "#93c5fd",
+          backgroundColor: "rgba(147, 197, 253, 0.1)",
+          borderWidth: 2,
+          fill: true,
+          tension: 0.4,
+          pointBackgroundColor: "#93c5fd",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
+        },
+      ],
+    };
+  }, [sectionSummaryRows]);
+
+  const weightedPercentageChartOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: { top: 16, right: 32, bottom: 16, left: 8 },
+      },
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: {
+            color: "#0f172a",
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: (context: any) => {
+              const value = context.parsed?.y ?? 0;
+              return `${context.dataset.label}: ${value.toFixed(1)}%`;
+            },
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            callback: (value: any) => `${value}%`,
+            color: "#0f172a",
+          },
+          title: {
+            display: true,
+            text: "Weighted Percentage",
+            color: "#0f172a",
+          },
+        },
+        x: {
+          ticks: {
+            autoSkip: false,
+            color: "#0f172a",
+          },
+          title: {
+            display: true,
+            text: "Sections",
+            color: "#0f172a",
+          },
+        },
+      },
+    }),
+    []
+  );
+
+  const weightedChartHeight = Math.max(320, sectionSummaryRows.length * 32);
+
   function collectYesNoQuestionIds(form: Form): string[] {
     const ids = new Set<string>();
 
@@ -373,17 +601,12 @@ export default function AllResponses() {
   function getSectionYesNoStats(
     form: Form,
     answers: Record<string, any>
-  ): Array<{
-    id: string;
-    title: string;
-    yes: number;
-    no: number;
-    na: number;
-    total: number;
-  }> {
+  ): SectionStat[] {
     const stats =
       form.sections?.map((section: any) => {
         const counts = { yes: 0, no: 0, na: 0, total: 0 };
+        const weightageNumber = Number(section.weightage);
+        const weightage = Number.isFinite(weightageNumber) ? weightageNumber : 0;
 
         const processQuestion = (question: any) => {
           if (!question) {
@@ -434,17 +657,11 @@ export default function AllResponses() {
           no: counts.no,
           na: counts.na,
           total: counts.total,
+          weightage,
         };
       }) ?? [];
 
-    return stats.filter((stat): stat is {
-      id: string;
-      title: string;
-      yes: number;
-      no: number;
-      na: number;
-      total: number;
-    } => Boolean(stat));
+    return stats.filter((stat): stat is SectionStat => Boolean(stat));
   }
 
   const hasAnswerValue = (value: any) => {
@@ -517,6 +734,9 @@ export default function AllResponses() {
       if (!sectionQuestions.length) {
         return;
       }
+      const sectionTitle = section.title || "Untitled Section";
+      const formattedSectionTitle =
+        formatSectionLabel(sectionTitle) || sectionTitle;
 
       content.push(
         <div
@@ -527,8 +747,11 @@ export default function AllResponses() {
           className="border border-primary-100 rounded-lg overflow-hidden"
         >
           <div className="px-4 py-3 bg-primary-50">
-            <div className="text-base font-semibold text-primary-700">
-              {section.title || "Untitled Section"}
+            <div
+              className="text-base font-semibold text-primary-700"
+              title={sectionTitle}
+            >
+              {formattedSectionTitle}
             </div>
             {section.description ? (
               <div className="text-sm text-primary-500 mt-1">
@@ -640,7 +863,7 @@ export default function AllResponses() {
 
     if (!content.length) {
       return (
-        <div className="space-y-4">
+        <div className="space-y-6">
           {Object.entries(selectedResponse.answers).map(([key, value]) => (
             <div key={key} className="border-b border-primary-100 pb-2">
               <div className="font-medium text-primary-700">{key}</div>
@@ -653,7 +876,7 @@ export default function AllResponses() {
       );
     }
 
-    return <div className="space-y-4">{content}</div>;
+    return <div className="space-y-6">{content}</div>;
   };
 
   const getStatusInfo = (status: string) => {
@@ -756,19 +979,6 @@ export default function AllResponses() {
                           <h4 className="font-medium text-primary-700">
                             {response.formTitle}
                           </h4>
-                          {response.status &&
-                            (() => {
-                              const statusInfo = getStatusInfo(response.status);
-                              const IconComponent = statusInfo.icon;
-                              return (
-                                <span
-                                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${statusInfo.color} ${statusInfo.bgColor}`}
-                                >
-                                  <IconComponent className="w-3 h-3 mr-1" />
-                                  {statusInfo.label}
-                                </span>
-                              );
-                            })()}
                           {response.yesNoScore && response.yesNoScore.total > 0 && (
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100">
                               {response.yesNoScore.yes}/{response.yesNoScore.total}
@@ -815,8 +1025,8 @@ export default function AllResponses() {
       {/* Response Preview Modal */}
       {selectedResponse && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-primary-200 flex justify-between items-center">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] flex flex-col">
+            <div className="sticky top-0 z-10 bg-white px-6 py-4 border-b border-primary-200 flex justify-between items-center">
               <div>
                 <h3 className="text-xl font-semibold text-primary-700">
                   {selectedResponse.formTitle}
@@ -824,124 +1034,8 @@ export default function AllResponses() {
                 <p className="text-sm text-primary-500">
                   Submitted on {formatTimestamp(selectedResponse.createdAt)}
                 </p>
-                {(selectedResponse.status ||
-                  (selectedResponse.yesNoScore &&
-                    selectedResponse.yesNoScore.total > 0)) && (
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    {selectedResponse.status && (
-                      <>
-                        <span className="text-sm font-medium text-gray-700">
-                          Status:
-                        </span>
-                        {(() => {
-                          const statusInfo = getStatusInfo(selectedResponse.status);
-                          const IconComponent = statusInfo.icon;
-                          return (
-                            <span
-                              className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.color} ${statusInfo.bgColor}`}
-                            >
-                              <IconComponent className="w-4 h-4 mr-2" />
-                              {statusInfo.label}
-                            </span>
-                          );
-                        })()}
-                        <button
-                          onClick={() => setShowStatusUpdate(!showStatusUpdate)}
-                          className="px-3 py-1 text-sm bg-primary-100 text-primary-700 rounded-md hover:bg-primary-200 transition-colors"
-                        >
-                          Update
-                        </button>
-                      </>
-                    )}
-                    {selectedResponse.yesNoScore &&
-                      selectedResponse.yesNoScore.total > 0 && (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold text-green-700 bg-green-50 border border-green-100">
-                          Score: {selectedResponse.yesNoScore.yes}/
-                          {selectedResponse.yesNoScore.total}
-                        </span>
-                      )}
-                  </div>
-                )}
-                {showStatusUpdate && (
-                  <div className="mt-2 flex gap-2">
-                    <button
-                      onClick={() =>
-                        handleStatusUpdate(selectedResponse.id, "pending")
-                      }
-                      disabled={
-                        updatingStatus ||
-                        selectedResponse.status.toLowerCase() === "pending"
-                      }
-                      className="px-3 py-1 text-sm rounded-md text-yellow-700 bg-yellow-100 hover:bg-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Pending
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleStatusUpdate(selectedResponse.id, "confirmed")
-                      }
-                      disabled={
-                        updatingStatus ||
-                        selectedResponse.status.toLowerCase() === "confirmed"
-                      }
-                      className="px-3 py-1 text-sm rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Confirmed
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleStatusUpdate(selectedResponse.id, "verified")
-                      }
-                      disabled={
-                        updatingStatus ||
-                        selectedResponse.status.toLowerCase() === "verified"
-                      }
-                      className="px-3 py-1 text-sm rounded-md text-green-700 bg-green-100 hover:bg-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Verified
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleStatusUpdate(selectedResponse.id, "rejected")
-                      }
-                      disabled={
-                        updatingStatus ||
-                        selectedResponse.status.toLowerCase() === "rejected"
-                      }
-                      className="px-3 py-1 text-sm rounded-md text-red-700 bg-red-100 hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Rejected
-                    </button>
-                  </div>
-                )}
               </div>
               <div className="flex items-center gap-2">
-                <div className="flex gap-1">
-                  <button
-                    onClick={() =>
-                      handleStatusUpdate(selectedResponse._id, "confirmed")
-                    }
-                    disabled={
-                      updatingStatus || selectedResponse.status === "confirmed"
-                    }
-                    className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Mark as Confirmed"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleStatusUpdate(selectedResponse._id, "verified")
-                    }
-                    disabled={
-                      updatingStatus || selectedResponse.status === "verified"
-                    }
-                    className="p-2 rounded-lg text-green-600 hover:bg-green-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Mark as Verified"
-                  >
-                    <CheckCircle className="w-4 h-4" />
-                  </button>
-                </div>
                 <button
                   onClick={handleSendToMail}
                   className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
@@ -964,61 +1058,204 @@ export default function AllResponses() {
                 </button>
               </div>
             </div>
-            <div className="p-6">
-              {formLoading ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  <div className="flex items-center gap-2 bg-primary-50 rounded-lg p-2 w-fit">
-                    <button
-                      onClick={() => setViewMode("dashboard")}
-                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                        viewMode === "dashboard"
-                          ? "bg-primary-600 text-white"
-                          : "text-primary-600 hover:bg-primary-100"
-                      }`}
-                    >
-                      Dashboard
-                    </button>
-                    <button
-                      onClick={() => setViewMode("responses")}
-                      className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                        viewMode === "responses"
-                          ? "bg-primary-600 text-white"
-                          : "text-primary-600 hover:bg-primary-100"
-                      }`}
-                    >
-                      Responses
-                    </button>
+            <div className="overflow-y-auto flex-1">
+              <div className="p-6">
+                {formLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
                   </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="sticky top-0 z-20 bg-white flex items-center gap-2 bg-primary-50 rounded-lg p-2 mb-4">
+                      <button
+                        onClick={() => setViewMode("dashboard")}
+                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                          viewMode === "dashboard"
+                            ? "bg-primary-600 text-white"
+                            : "text-primary-600 hover:bg-primary-100"
+                        }`}
+                      >
+                        Dashboard
+                      </button>
+                      <button
+                        onClick={() => setViewMode("responses")}
+                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                          viewMode === "responses"
+                            ? "bg-primary-600 text-white"
+                            : "text-primary-600 hover:bg-primary-100"
+                        }`}
+                      >
+                        Responses
+                      </button>
+                    </div>
 
-                  {viewMode === "dashboard" && filteredSectionStats.length > 0 && (
-                    <div className="h-72">
-                      <Bar
-                        data={sectionChartData}
-                        options={{
-                          ...sectionChartOptions,
-                          onClick: (_event, elements) => {
-                            const firstElement = elements[0] as ActiveElement | undefined;
-                            if (!firstElement) {
-                              return;
-                            }
-                            const sectionId = filteredSectionStats[firstElement.index]?.id;
-                            if (sectionId) {
-                              setPendingSectionId(sectionId);
-                              setViewMode("responses");
-                            }
-                          },
-                        }}
-                      />
+                    {viewMode === "dashboard" && filteredSectionStats.length > 0 && (
+                    <div className="space-y-6">
+                      <div className="w-full" style={{ height: sectionChartHeight }}>
+                        <Bar
+                          data={sectionChartData}
+                          options={{
+                            ...sectionChartOptions,
+                            onClick: (_event, elements) => {
+                              const firstElement = elements[0] as ActiveElement | undefined;
+                              if (!firstElement) {
+                                return;
+                              }
+                              const sectionId = filteredSectionStats[firstElement.index]?.id;
+                              if (sectionId) {
+                                setPendingSectionId(sectionId);
+                                setViewMode("responses");
+                              }
+                            },
+                          }}
+                        />
+                      </div>
+                      <div className="overflow-x-auto rounded-lg border border-primary-100">
+                        <table className="w-full divide-y divide-primary-100 text-sm table-fixed">
+                          <thead className="bg-primary-50 sticky top-0">
+                            <tr>
+                              <th className="px-4 py-3 text-left font-medium text-primary-600 w-32">
+                                Section
+                              </th>
+                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-20">
+                                Yes %
+                              </th>
+                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-20">
+                                No %
+                              </th>
+                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-20">
+                                N/A %
+                              </th>
+                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-24">
+                                Weightage
+                              </th>
+                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-28">
+                                Yes % × Weightage
+                              </th>
+                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-28">
+                                No % × Weightage
+                              </th>
+                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-28">
+                                N/A % × Weightage
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-primary-100 bg-white">
+                            {sectionSummaryRows.map((row) => (
+                              <tr key={row.id} className="hover:bg-primary-50">
+                                <td className="px-4 py-3 font-medium text-primary-700 w-32">
+                                  {row.title}
+                                </td>
+                                <td className="px-4 py-3 text-center text-primary-600 w-20">
+                                  {formatPercentageValue(row.yesPercent)}
+                                </td>
+                                <td className="px-4 py-3 text-center text-primary-600 w-20">
+                                  {formatPercentageValue(row.noPercent)}
+                                </td>
+                                <td className="px-4 py-3 text-center text-primary-600 w-20">
+                                  {formatPercentageValue(row.naPercent)}
+                                </td>
+                                <td className="px-4 py-3 text-center text-primary-600 w-24">
+                                  {formatPercentageValue(row.weightage)}
+                                </td>
+                                <td className="px-4 py-3 text-center text-primary-600 w-28">
+                                  {formatPercentageValue(row.yesWeighted)}
+                                </td>
+                                <td className="px-4 py-3 text-center text-primary-600 w-28">
+                                  {formatPercentageValue(row.noWeighted)}
+                                </td>
+                                <td className="px-4 py-3 text-center text-primary-600 w-28">
+                                  {formatPercentageValue(row.naWeighted)}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="mt-8">
+                        <h3 className="text-lg font-semibold text-primary-700 mb-4">
+                          Section-wise Weighted Percentages
+                        </h3>
+                        <div className="w-full" style={{ height: weightedChartHeight }}>
+                          <Line
+                            data={weightedPercentageChartData}
+                            options={weightedPercentageChartOptions}
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 
                   {viewMode === "responses" && renderFormContent()}
                 </div>
               )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEmailDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full m-4">
+            <div className="px-6 py-4 border-b border-primary-200">
+              <h3 className="text-lg font-semibold text-primary-700">
+                Send Report via Email
+              </h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  <strong>From:</strong> priyaraj@focusengineering.in (System Email)
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-primary-700 mb-2">
+                  Recipient Email Address
+                </label>
+                <input
+                  type="email"
+                  value={emailInput}
+                  onChange={(e) => setEmailInput(e.target.value)}
+                  placeholder="Enter email address"
+                  className="w-full px-3 py-2 border border-primary-200 rounded-lg text-primary-700 placeholder-primary-400 focus:outline-none focus:border-primary-600"
+                  disabled={sendingEmail}
+                />
+              </div>
+              <div className="bg-primary-50 p-3 rounded-lg">
+                <p className="text-sm text-primary-600">
+                  An Excel file with dashboard data and response details will be sent.
+                </p>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-primary-200 flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowEmailDialog(false);
+                  setEmailInput("");
+                }}
+                disabled={sendingEmail}
+                className="px-4 py-2 text-sm font-medium text-primary-700 bg-primary-100 rounded-lg hover:bg-primary-200 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendEmailReport}
+                disabled={sendingEmail || !emailInput.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
+              >
+                {sendingEmail ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="w-4 h-4" />
+                    Send Report
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

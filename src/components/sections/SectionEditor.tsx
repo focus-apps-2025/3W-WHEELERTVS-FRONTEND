@@ -57,6 +57,25 @@ export default function SectionEditor({
             className="input-field resize-none"
             rows={2}
           />
+
+          <div>
+            <label className="block text-sm font-medium text-neutral-600 mb-2">
+              Section Weightage (%)
+            </label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              step={0.1}
+              value={section.weightage ?? 0}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                onUpdate({ weightage: Number.isNaN(value) ? 0 : value });
+              }}
+              placeholder="Enter weightage"
+              className="input-field"
+            />
+          </div>
         </div>
 
         <div className="flex items-center space-x-2 ml-4">

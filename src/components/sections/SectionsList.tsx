@@ -16,6 +16,7 @@ export default function SectionsList({
     const newSection: Section = {
       id: crypto.randomUUID(),
       title: "",
+      weightage: 0,
       questions: [],
     };
     onSectionsChange([...sections, newSection]);

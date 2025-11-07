@@ -22,7 +22,16 @@ interface MenuItem {
   icon: React.ComponentType<{ className?: string }>;
   path: string;
   description: string;
+  roles?: string[];
+  permission?: string;
 }
+
+const MODULE_PERMISSIONS = {
+  DASHBOARD: "dashboard:view",
+  ANALYTICS: "analytics:view",
+  CUSTOMER_REQUESTS: "requests:view",
+  REQUEST_MANAGEMENT: "requests:manage",
+} as const;
 
 export default function Sidebar() {
   const location = useLocation();
@@ -66,51 +75,78 @@ export default function Sidebar() {
     },
   ];
 
-  const authenticatedMenuItems: MenuItem[] = [
+  const tenantMenuItems: MenuItem[] = [
     {
       title: "Dashboard",
       icon: LayoutDashboard,
       path: "/dashboard",
       description: "View shop analytics and service statistics",
+      permission: MODULE_PERMISSIONS.DASHBOARD,
     },
     {
       title: "Service Analytics",
       icon: BarChart2,
       path: "/forms/analytics",
       description: "Detailed service analytics and insights",
+      permission: MODULE_PERMISSIONS.ANALYTICS,
     },
     {
       title: "Customer Requests",
       icon: FileText,
       path: "/responses/all",
       description: "View customer service requests",
+      permission: MODULE_PERMISSIONS.CUSTOMER_REQUESTS,
     },
     {
       title: "Request Management",
       icon: ListTodo,
       path: "/forms/management",
       description: "Manage and organize service requests",
-    },
-    {
-      title: "Shop Settings",
-      icon: Settings,
-      path: "/system/management",
-      description: "Configure shop settings and preferences",
-    },
-    {
-      title: "Email System",
-      icon: Mail,
-      path: "/mail/test",
-      description: "Test and configure email notifications",
+      permission: MODULE_PERMISSIONS.REQUEST_MANAGEMENT,
     },
   ];
 
-  // Determine which menu items to show based on user role
-  let menuItems = publicMenuItems;
-  if (isAuthenticated && user) {
-    menuItems =
-      user.role === "superadmin" ? superAdminMenuItems : authenticatedMenuItems;
-  }
+  const adminManagementMenuItem: MenuItem = {
+    title: "Admin Management",
+    icon: Users,
+    path: "/admin/management",
+    description: "Manage tenant administrators and permissions",
+    roles: ["admin"],
+  };
+
+  const permissionSet = new Set(user?.permissions || []);
+
+  const menuItems: MenuItem[] = (() => {
+    if (!isAuthenticated || !user) {
+      return publicMenuItems;
+    }
+
+    if (user.role === "superadmin") {
+      return superAdminMenuItems;
+    }
+
+    const filteredItems = tenantMenuItems.filter((item) => {
+      if (item.roles && !item.roles.includes(user.role)) {
+        return false;
+      }
+
+      if (!item.permission) {
+        return true;
+      }
+
+      if (user.role === "admin") {
+        return true;
+      }
+
+      return permissionSet.has(item.permission);
+    });
+
+    if (user.role === "admin") {
+      filteredItems.push(adminManagementMenuItem);
+    }
+
+    return filteredItems;
+  })();
 
   return (
     <>

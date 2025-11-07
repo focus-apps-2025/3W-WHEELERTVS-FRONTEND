@@ -26,10 +26,18 @@ import FormResponses from "./components/FormResponses";
 import AllResponses from "./components/AllResponses";
 import DashboardNew from "./components/DashboardNew";
 import TenantManagement from "./components/superadmin/TenantManagement";
+import AdminManagement from "./components/admin/AdminManagement";
 import LoginPage from "./components/auth/LoginPage";
 import NotificationContainer from "./components/ui/NotificationContainer";
 import Sidebar from "./components/layout/Sidebar";
 import Header from "./components/Header";
+
+const ROUTE_PERMISSIONS = {
+  DASHBOARD: "dashboard:view",
+  ANALYTICS: "analytics:view",
+  CUSTOMER_REQUESTS: "requests:view",
+  REQUEST_MANAGEMENT: "requests:manage",
+} as const;
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
@@ -63,6 +71,52 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AccessDenied() {
+  return (
+    <div className="p-6">
+      <div className="mx-auto max-w-3xl rounded-lg border border-neutral-200 bg-white p-6 text-center">
+        <h2 className="text-lg font-semibold text-neutral-900">Access restricted</h2>
+        <p className="mt-2 text-sm text-neutral-600">
+          You do not have permission to view this area.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AccessControl({
+  children,
+  allowedRoles,
+  requiredPermission,
+}: {
+  children: React.ReactNode;
+  allowedRoles?: string[];
+  requiredPermission?: string;
+}) {
+  const { user } = useAuth();
+
+  if (!user) {
+    return null;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <AccessDenied />;
+  }
+
+  if (
+    requiredPermission &&
+    user.role !== "admin" &&
+    user.role !== "superadmin"
+  ) {
+    const permissionSet = new Set(user.permissions || []);
+    if (!permissionSet.has(requiredPermission)) {
+      return <AccessDenied />;
+    }
+  }
+
+  return <>{children}</>;
+}
+
 function RootRedirect() {
   const { isAuthenticated } = useAuth();
 
@@ -84,6 +138,14 @@ const withAuthenticatedLayout = (node: React.ReactNode) => (
   </PrivateRoute>
 );
 
+const withAccessControl = (
+  node: React.ReactNode,
+  options?: { allowedRoles?: string[]; requiredPermission?: string }
+) =>
+  withAuthenticatedLayout(
+    <AccessControl {...options}>{node}</AccessControl>
+  );
+
 const router = createBrowserRouter(
   [
     {
@@ -101,19 +163,27 @@ const router = createBrowserRouter(
         },
         {
           path: "/dashboard",
-          element: withAuthenticatedLayout(<DashboardNew />),
+          element: withAccessControl(<DashboardNew />, {
+            requiredPermission: ROUTE_PERMISSIONS.DASHBOARD,
+          }),
         },
         {
           path: "/forms/analytics",
-          element: withAuthenticatedLayout(<FormsAnalytics />),
+          element: withAccessControl(<FormsAnalytics />, {
+            requiredPermission: ROUTE_PERMISSIONS.ANALYTICS,
+          }),
         },
         {
           path: "/forms/:id/analytics",
-          element: withAuthenticatedLayout(<FormAnalyticsDashboard />),
+          element: withAccessControl(<FormAnalyticsDashboard />, {
+            requiredPermission: ROUTE_PERMISSIONS.ANALYTICS,
+          }),
         },
         {
           path: "/forms/management",
-          element: withAuthenticatedLayout(<FormsManagementNew />),
+          element: withAccessControl(<FormsManagementNew />, {
+            requiredPermission: ROUTE_PERMISSIONS.REQUEST_MANAGEMENT,
+          }),
         },
         {
           path: "/forms/followup/management",
@@ -157,7 +227,15 @@ const router = createBrowserRouter(
         },
         {
           path: "/responses/all",
-          element: withAuthenticatedLayout(<AllResponses />),
+          element: withAccessControl(<AllResponses />, {
+            requiredPermission: ROUTE_PERMISSIONS.CUSTOMER_REQUESTS,
+          }),
+        },
+        {
+          path: "/admin/management",
+          element: withAccessControl(<AdminManagement />, {
+            allowedRoles: ["admin"],
+          }),
         },
         {
           path: "/superadmin/tenants",
