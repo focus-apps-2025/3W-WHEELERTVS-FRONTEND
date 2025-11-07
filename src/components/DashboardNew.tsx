@@ -33,16 +33,19 @@ export default function DashboardNew() {
     setSendingTestEmail(true);
     try {
       console.log("📨 Sending test email to:", testEmail);
-      
+
       const token = localStorage.getItem("auth_token");
-      const response = await fetch("http://localhost:5000/api/mail/test-email", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ to: testEmail }),
-      });
+      const response = await fetch(
+        "http://localhost:5000/api/mail/test-email",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({ to: testEmail }),
+        }
+      );
 
       const data = await response.json();
       console.log("Response:", data);
@@ -128,7 +131,7 @@ export default function DashboardNew() {
   }
 
   const customerPortalUrl = tenant
-    ? `https://formsresponse.netlify.app/${tenant.slug}`
+    ? `https://formsresponse.netlify.app/focus-engineering/${tenant.slug}`
     : null;
 
   // Debug logging
@@ -388,7 +391,8 @@ export default function DashboardNew() {
                 </div>
                 <div className="bg-blue-50 p-3 rounded-lg">
                   <p className="text-sm text-blue-700">
-                    A test email will be sent from <strong>priyaraj@focusengineering.in</strong>
+                    A test email will be sent from{" "}
+                    <strong>priyaraj@focusengineering.in</strong>
                   </p>
                 </div>
               </div>

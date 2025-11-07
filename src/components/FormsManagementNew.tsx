@@ -31,7 +31,10 @@ import {
   downloadFormImportTemplate,
   parseFormWorkbook,
 } from "../utils/exportUtils";
-import type { Question as FormSchema, Section as FormSection } from "../types/forms";
+import type {
+  Question as FormSchema,
+  Section as FormSection,
+} from "../types/forms";
 import type { Question as FormQuestion } from "../types";
 
 interface Form {
@@ -464,10 +467,7 @@ export default function FormsManagementNew() {
     return (sections || []).map((section) => {
       const allQuestions: any[] = [];
 
-      const processQuestionRecursively = (
-        question: any,
-        depth: number = 0
-      ) => {
+      const processQuestionRecursively = (question: any, depth: number = 0) => {
         const { followUpQuestions, ...mainQuestion } = question;
         allQuestions.push(mainQuestion);
 
@@ -475,10 +475,12 @@ export default function FormsManagementNew() {
           followUpQuestions.forEach((followUp: any) => {
             const followUpWithShowWhen = {
               ...followUp,
-              showWhen: followUp.showWhen ? followUp.showWhen : {
-                questionId: question.id,
-                value: "",
-              },
+              showWhen: followUp.showWhen
+                ? followUp.showWhen
+                : {
+                    questionId: question.id,
+                    value: "",
+                  },
             };
             processQuestionRecursively(followUpWithShowWhen, depth + 1);
           });
@@ -555,7 +557,9 @@ export default function FormsManagementNew() {
     });
   };
 
-  const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileInputChange = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -574,10 +578,11 @@ export default function FormsManagementNew() {
     try {
       const parsed = await parseFormWorkbook(file);
 
-      const hasFollowUpQuestions = (parsed.sections || []).some((section: any) =>
-        section.questions?.some(
-          (q: any) => q.followUpQuestions && q.followUpQuestions.length > 0
-        )
+      const hasFollowUpQuestions = (parsed.sections || []).some(
+        (section: any) =>
+          section.questions?.some(
+            (q: any) => q.followUpQuestions && q.followUpQuestions.length > 0
+          )
       );
 
       const flattenedSections = hasFollowUpQuestions
@@ -652,8 +657,8 @@ export default function FormsManagementNew() {
     // For production, use your actual customer frontend URL
     const baseUrl = window.location.origin.includes("localhost")
       ? "http://localhost:5174"
-      : "https://formsresponse.netlify.app";
-      // : "https://formsuser.focusengineeringapp.com";
+      : "https://formsresponse.netlify.app/focus-engineering/";
+    // : "https://formsuser.focusengineeringapp.com";
     return `${baseUrl}/${tenantSlug}/forms/${formId}`;
   };
 
@@ -815,194 +820,198 @@ export default function FormsManagementNew() {
           </div>
         </div>
 
-      {/* Search */}
-      <div className="mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-400 w-4 h-4" />
-          <input
-            type="text"
-            placeholder="Search service forms..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 input-field"
-          />
+        {/* Search */}
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search service forms..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 input-field"
+            />
+          </div>
         </div>
-      </div>
 
-      {/* Forms List */}
-      {filteredForms.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-neutral-200">
-          <FileText className="w-12 h-12 text-primary-300 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-primary-600 mb-2">
-            {(() => {
-              if (!hasAnyForms) {
-                return "No service forms created yet";
-              }
-              if (!hasActiveForms) {
-                return "No active service forms";
-              }
-              return "No service forms found";
-            })()}
-          </h3>
-          <p className="text-primary-500 mb-6">
-            {(() => {
-              if (!hasAnyForms) {
-                return "Create your first service form to get started";
-              }
-              if (!hasActiveForms) {
-                return "Activate a form to make it available here";
-              }
-              return "Try adjusting your search criteria";
-            })()}
-          </p>
-          {!hasAnyForms && (
-            <button onClick={handleCreateForm} className="btn-primary">
-              <PlusCircle className="w-4 h-4 mr-2" />
-              Create Your First Form
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredForms.map((form: Form) => {
-            const childForms = getChildFormsForParent(form._id);
-            return (
-              <div key={form._id} className="space-y-2">
-                {/* Parent/Standalone Form */}
-                {renderFormCard(form, false)}
-
-                {/* Child Forms (nested under parent) */}
-                {childForms.length > 0 && (
-                  <div className="space-y-2">
-                    {childForms.map((childForm: Form) =>
-                      renderFormCard(childForm, true)
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Child Forms Management Modal */}
-      {showChildFormsModal && selectedParentForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-primary-900">
-                  Manage Child Forms
-                </h2>
-                <p className="text-sm text-primary-600 mt-1">
-                  Parent: {selectedParentForm.title}
-                </p>
-              </div>
-              <button
-                onClick={handleCloseChildFormsModal}
-                className="p-1 hover:bg-neutral-100 rounded"
-              >
-                <X className="w-5 h-5 text-primary-400" />
+        {/* Forms List */}
+        {filteredForms.length === 0 ? (
+          <div className="text-center py-12 bg-white rounded-lg border border-neutral-200">
+            <FileText className="w-12 h-12 text-primary-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-primary-600 mb-2">
+              {(() => {
+                if (!hasAnyForms) {
+                  return "No service forms created yet";
+                }
+                if (!hasActiveForms) {
+                  return "No active service forms";
+                }
+                return "No service forms found";
+              })()}
+            </h3>
+            <p className="text-primary-500 mb-6">
+              {(() => {
+                if (!hasAnyForms) {
+                  return "Create your first service form to get started";
+                }
+                if (!hasActiveForms) {
+                  return "Activate a form to make it available here";
+                }
+                return "Try adjusting your search criteria";
+              })()}
+            </p>
+            {!hasAnyForms && (
+              <button onClick={handleCreateForm} className="btn-primary">
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Create Your First Form
               </button>
-            </div>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredForms.map((form: Form) => {
+              const childForms = getChildFormsForParent(form._id);
+              return (
+                <div key={form._id} className="space-y-2">
+                  {/* Parent/Standalone Form */}
+                  {renderFormCard(form, false)}
 
-            {/* Modal Body */}
-            <div className="px-6 py-4 overflow-y-auto flex-1">
-              <p className="text-sm text-primary-600 mb-4">
-                Select forms to link as child forms. Child forms will appear
-                after users complete this parent form.
-              </p>
+                  {/* Child Forms (nested under parent) */}
+                  {childForms.length > 0 && (
+                    <div className="space-y-2">
+                      {childForms.map((childForm: Form) =>
+                        renderFormCard(childForm, true)
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
-              {getAvailableChildForms().length === 0 ? (
-                <div className="text-center py-8">
-                  <FileText className="w-12 h-12 text-primary-300 mx-auto mb-3" />
-                  <p className="text-primary-600">
-                    No available forms to link as child forms.
-                  </p>
-                  <p className="text-sm text-primary-500 mt-2">
-                    Create more forms or unlink existing child forms from other
-                    parents.
+        {/* Child Forms Management Modal */}
+        {showChildFormsModal && selectedParentForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-primary-900">
+                    Manage Child Forms
+                  </h2>
+                  <p className="text-sm text-primary-600 mt-1">
+                    Parent: {selectedParentForm.title}
                   </p>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {getAvailableChildForms().map((form: Form) => {
-                    const isSelected = selectedChildFormIds.includes(form._id);
-                    return (
-                      <div
-                        key={form._id}
-                        className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                          isSelected
-                            ? "border-primary-500 bg-primary-50"
-                            : "border-neutral-200 hover:border-primary-300 hover:bg-primary-50"
-                        }`}
-                        onClick={() => handleToggleChildForm(form._id)}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="font-medium text-primary-900">
-                                {form.title}
-                              </h3>
-                              {isSelected && (
-                                <Check className="w-5 h-5 text-primary-600" />
-                              )}
-                            </div>
-                            <p className="text-sm text-primary-600 mt-1 line-clamp-2">
-                              {form.description}
-                            </p>
-                            <div className="flex items-center gap-4 mt-2 text-xs text-primary-500">
-                              <span className="flex items-center">
-                                <Users className="w-3 h-3 mr-1" />
-                                {form.responseCount || 0} responses
-                              </span>
-                              <span className="flex items-center">
-                                <Calendar className="w-3 h-3 mr-1" />
-                                {new Date(form.createdAt).toLocaleDateString()}
-                              </span>
+                <button
+                  onClick={handleCloseChildFormsModal}
+                  className="p-1 hover:bg-neutral-100 rounded"
+                >
+                  <X className="w-5 h-5 text-primary-400" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="px-6 py-4 overflow-y-auto flex-1">
+                <p className="text-sm text-primary-600 mb-4">
+                  Select forms to link as child forms. Child forms will appear
+                  after users complete this parent form.
+                </p>
+
+                {getAvailableChildForms().length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 text-primary-300 mx-auto mb-3" />
+                    <p className="text-primary-600">
+                      No available forms to link as child forms.
+                    </p>
+                    <p className="text-sm text-primary-500 mt-2">
+                      Create more forms or unlink existing child forms from
+                      other parents.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {getAvailableChildForms().map((form: Form) => {
+                      const isSelected = selectedChildFormIds.includes(
+                        form._id
+                      );
+                      return (
+                        <div
+                          key={form._id}
+                          className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                            isSelected
+                              ? "border-primary-500 bg-primary-50"
+                              : "border-neutral-200 hover:border-primary-300 hover:bg-primary-50"
+                          }`}
+                          onClick={() => handleToggleChildForm(form._id)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-medium text-primary-900">
+                                  {form.title}
+                                </h3>
+                                {isSelected && (
+                                  <Check className="w-5 h-5 text-primary-600" />
+                                )}
+                              </div>
+                              <p className="text-sm text-primary-600 mt-1 line-clamp-2">
+                                {form.description}
+                              </p>
+                              <div className="flex items-center gap-4 mt-2 text-xs text-primary-500">
+                                <span className="flex items-center">
+                                  <Users className="w-3 h-3 mr-1" />
+                                  {form.responseCount || 0} responses
+                                </span>
+                                <span className="flex items-center">
+                                  <Calendar className="w-3 h-3 mr-1" />
+                                  {new Date(
+                                    form.createdAt
+                                  ).toLocaleDateString()}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-neutral-200 flex items-center justify-between">
-              <div className="text-sm text-primary-600">
-                {selectedChildFormIds.length} form
-                {selectedChildFormIds.length !== 1 ? "s" : ""} selected
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={handleCloseChildFormsModal}
-                  className="px-4 py-2 text-sm font-medium text-primary-700 hover:bg-neutral-100 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveChildForms}
-                  disabled={
-                    linkChildFormMutation.loading ||
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-neutral-200 flex items-center justify-between">
+                <div className="text-sm text-primary-600">
+                  {selectedChildFormIds.length} form
+                  {selectedChildFormIds.length !== 1 ? "s" : ""} selected
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={handleCloseChildFormsModal}
+                    className="px-4 py-2 text-sm font-medium text-primary-700 hover:bg-neutral-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveChildForms}
+                    disabled={
+                      linkChildFormMutation.loading ||
+                      unlinkChildFormMutation.loading
+                    }
+                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {linkChildFormMutation.loading ||
                     unlinkChildFormMutation.loading
-                  }
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {linkChildFormMutation.loading ||
-                  unlinkChildFormMutation.loading
-                    ? "Saving..."
-                    : "Save Changes"}
-                </button>
+                      ? "Saving..."
+                      : "Save Changes"}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  </>
+        )}
+      </div>
+    </>
   );
 }
