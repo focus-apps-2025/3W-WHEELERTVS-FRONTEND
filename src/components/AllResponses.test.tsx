@@ -23,6 +23,7 @@ vi.mock("../context/NotificationContext", () => ({
 
 vi.mock("../utils/responseExportUtils", () => ({
   sendResponseExcelViaEmail: vi.fn(),
+  generateResponseExcelReport: vi.fn(),
 }));
 
 vi.mock("chart.js", () => ({

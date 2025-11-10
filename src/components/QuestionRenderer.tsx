@@ -179,15 +179,32 @@ export default function QuestionRenderer({
     }
   };
 
+  const questionText = question.text?.trim() || "";
+  const showLabel = questionText.length > 0;
+
   return (
-    <div className="space-y-2">
-      <label className="block font-medium text-gray-700">
-        {question.text}
-        {question.required && <span className="text-red-500 ml-1">*</span>}
-      </label>
-      {question.description && (
+    <div className="space-y-3">
+      {question.imageUrl ? (
+        <div className="relative inline-flex">
+          <img
+            src={question.imageUrl}
+            alt={questionText || "Question image"}
+            className="max-h-48 rounded-lg border border-gray-200 bg-white object-contain"
+          />
+          {question.required && !showLabel ? (
+            <span className="absolute top-2 right-2 text-lg font-semibold text-red-500">*</span>
+          ) : null}
+        </div>
+      ) : null}
+      {showLabel ? (
+        <label className="block font-medium text-gray-700">
+          {questionText}
+          {question.required && <span className="text-red-500 ml-1">*</span>}
+        </label>
+      ) : null}
+      {question.description ? (
         <p className="text-sm text-gray-500 mb-2">{question.description}</p>
-      )}
+      ) : null}
       {renderInput()}
     </div>
   );

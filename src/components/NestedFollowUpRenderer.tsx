@@ -12,7 +12,9 @@ interface FollowUpQuestion {
   type: string;
   required: boolean;
   options?: string[];
+  allowedFileTypes?: string[];
   description?: string;
+  imageUrl?: string;
   showWhen?: ShowWhen;
   parentId: string;
   followUpQuestions?: FollowUpQuestion[];
@@ -32,6 +34,17 @@ interface NestedFollowUpRendererProps {
     sectionId: string,
     followUpQuestionId: string,
     updates: Partial<FollowUpQuestion>,
+    path: string[]
+  ) => void;
+  onImageUpload: (
+    sectionId: string,
+    followUpQuestionId: string,
+    file: File,
+    path: string[]
+  ) => void;
+  onImageRemove: (
+    sectionId: string,
+    followUpQuestionId: string,
     path: string[]
   ) => void;
   onDelete: (
@@ -89,6 +102,8 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
   parentQuestion,
   path,
   onUpdate,
+  onImageUpload,
+  onImageRemove,
   onDelete,
   onAddNested,
   onAddOption,
@@ -156,45 +171,58 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
     return colors[depth % colors.length];
   };
 
+  const fileTypeOptions = [
+    { value: "any", label: "Any file type" },
+    { value: "image", label: "Images (JPG, PNG, GIF)" },
+    { value: "pdf", label: "PDF" },
+    { value: "excel", label: "Excel (XLS, XLSX)" },
+  ];
+
   return (
     <div className={`space-y-4 ${getIndentClass(depth)}`}>
-      {followUpQuestions.map((followUpQ, fqIndex) => (
-        <div
-          key={followUpQ.id}
-          className={`bg-gradient-to-br from-white to-gray-50 p-5 rounded-xl border-2 ${getBorderColor(
-            depth
-          )} shadow-sm hover:shadow-md transition-shadow duration-200`}
-        >
-          {/* Header */}
-          <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
-            <div className="flex items-center space-x-2">
-              <span
-                className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                  depth === 0
-                    ? "bg-blue-100 text-blue-700"
-                    : depth === 1
-                    ? "bg-green-100 text-green-700"
-                    : depth === 2
-                    ? "bg-purple-100 text-purple-700"
-                    : "bg-orange-100 text-orange-700"
-                }`}
-              >
-                Level {depth + 1} · Q{fqIndex + 1}
-              </span>
-              <span className="text-xs text-gray-500">Follow-up Question</span>
-            </div>
-            <button
-              onClick={() => onDelete(sectionId, followUpQ.id, path)}
-              className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
-              title="Delete follow-up question"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
+      {followUpQuestions.map((followUpQ, fqIndex) => {
+        const selectedFileType = followUpQ.allowedFileTypes?.[0] ?? "any";
+        const selectedFileTypeOption = fileTypeOptions.find(
+          (option) => option.value === selectedFileType
+        );
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Show When - Full Width */}
-            <div className="lg:col-span-2">
+        return (
+          <div
+            key={followUpQ.id}
+            className={`bg-gradient-to-br from-white to-gray-50 p-5 rounded-xl border-2 ${getBorderColor(
+              depth
+            )} shadow-sm hover:shadow-md transition-shadow duration-200`}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+              <div className="flex items-center space-x-2">
+                <span
+                  className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                    depth === 0
+                      ? "bg-blue-100 text-blue-700"
+                      : depth === 1
+                      ? "bg-green-100 text-green-700"
+                      : depth === 2
+                      ? "bg-purple-100 text-purple-700"
+                      : "bg-orange-100 text-orange-700"
+                  }`}
+                >
+                  Level {depth + 1} · Q{fqIndex + 1}
+                </span>
+                <span className="text-xs text-gray-500">Follow-up Question</span>
+              </div>
+              <button
+                onClick={() => onDelete(sectionId, followUpQ.id, path)}
+                className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
+                title="Delete follow-up question"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Show When - Full Width */}
+              <div className="lg:col-span-2">
               <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
                   1
@@ -233,7 +261,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
                   2
                 </span>
-                Question Text
+                Question Text (optional when using image)
               </label>
               <input
                 type="text"
@@ -251,30 +279,80 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
               />
             </div>
 
+            <div className="lg:col-span-2">
+              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
+                  3
+                </span>
+                Question Image (optional)
+              </label>
+              <div className="space-y-3">
+                {followUpQ.imageUrl ? (
+                  <div className="flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <img
+                      src={followUpQ.imageUrl}
+                      alt={`Follow-up question ${fqIndex + 1} image`}
+                      className="h-20 w-20 object-contain rounded-md border border-gray-200 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onImageRemove(sectionId, followUpQ.id, path)}
+                      className="px-3 py-2 text-sm font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 rounded-lg transition-colors"
+                    >
+                      Remove Image
+                    </button>
+                  </div>
+                ) : null}
+                <div className="flex flex-col gap-2">
+                  <label className="inline-flex items-center justify-center px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          onImageUpload(sectionId, followUpQ.id, file, path);
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                    Upload Image
+                  </label>
+                  <p className="text-xs text-gray-500">JPEG or PNG up to 50KB.</p>
+                </div>
+              </div>
+            </div>
+
             {/* Question Type */}
             <div>
               <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
-                  3
+                  4
                 </span>
                 Question Type
               </label>
               <select
                 value={followUpQ.type}
-                onChange={(e) =>
-                  onUpdate(
-                    sectionId,
-                    followUpQ.id,
-                    {
-                      type: e.target.value,
-                      options:
-                        requiresFollowUp(e.target.value) && !followUpQ.options
-                          ? ["Option 1", "Option 2"]
-                          : followUpQ.options,
-                    },
-                    path
-                  )
-                }
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  const updates: Partial<FollowUpQuestion> = {
+                    type: nextType,
+                    options:
+                      requiresFollowUp(nextType) && !followUpQ.options
+                        ? ["Option 1", "Option 2"]
+                        : followUpQ.options,
+                  };
+                  if (nextType === "file") {
+                    updates.allowedFileTypes =
+                      followUpQ.allowedFileTypes && followUpQ.allowedFileTypes.length > 0
+                        ? followUpQ.allowedFileTypes
+                        : ["image", "pdf", "excel"];
+                  } else if (followUpQ.allowedFileTypes) {
+                    updates.allowedFileTypes = undefined;
+                  }
+                  onUpdate(sectionId, followUpQ.id, updates, path);
+                }}
                 className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
               >
                 {questionTypes.map((type) => (
@@ -285,11 +363,48 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
               </select>
             </div>
 
+            {followUpQ.type === "file" ? (
+              <div className="lg:col-span-2">
+                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
+                    5
+                  </span>
+                  Allowed file type
+                </label>
+                <select
+                  value={selectedFileType}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    onUpdate(
+                      sectionId,
+                      followUpQ.id,
+                      {
+                        allowedFileTypes: value === "any" ? undefined : [value],
+                      },
+                      path
+                    );
+                  }}
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                >
+                  {fileTypeOptions.map((option) => (
+                    <option key={`${followUpQ.id}-file-type-${option.value}`} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {selectedFileType === "any"
+                    ? "Respondents can upload any file type."
+                    : `Respondents must upload files matching ${selectedFileTypeOption?.label}.`}
+                </p>
+              </div>
+            ) : null}
+
             {/* Required Checkbox - Styled */}
             <div>
               <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
-                  4
+                  6
                 </span>
                 Options
               </label>
@@ -321,7 +436,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
             <div className="lg:col-span-2">
               <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
-                  5
+                  7
                 </span>
                 Description (Optional)
               </label>
@@ -346,7 +461,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
               <div className="lg:col-span-2">
                 <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
                   <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
-                    6
+                    8
                   </span>
                   Answer Options
                 </label>
@@ -530,6 +645,8 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                       }}
                       path={[...path, followUpQ.id]}
                       onUpdate={onUpdate}
+                      onImageUpload={onImageUpload}
+                      onImageRemove={onImageRemove}
                       onDelete={onDelete}
                       onAddNested={onAddNested}
                       onAddOption={onAddOption}
@@ -544,7 +661,8 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
               </div>
             )}
         </div>
-      ))}
+      );
+      })}
     </div>
   );
 };

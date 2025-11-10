@@ -49,7 +49,9 @@ interface Question {
   type: string;
   required: boolean;
   options?: string[];
+  allowedFileTypes?: string[];
   description?: string;
+  imageUrl?: string;
   followUpQuestions?: FollowUpQuestion[];
   showWhen?: ShowWhen;
   parentId?: string;
@@ -80,7 +82,9 @@ interface FollowUpQuestion {
   type: string;
   required: boolean;
   options?: string[];
+  allowedFileTypes?: string[];
   description?: string;
+  imageUrl?: string;
   showWhen?: ShowWhen;
   parentId: string;
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
@@ -390,22 +394,27 @@ export default function FormCreator() {
           );
           return;
         }
-        if (!question.text || !question.text.trim()) {
+
+        const questionHasText = Boolean(question.text && question.text.trim());
+        const questionHasImage = Boolean(question.imageUrl && question.imageUrl.trim());
+        const questionLabel = question.text?.trim() || "Image question";
+
+        if (!questionHasText && !questionHasImage) {
           showError(
-            `Question in section "${section.title}" is missing text`,
-            "Validation Error"
-          );
-          return;
-        }
-        if (!question.type) {
-          showError(
-            `Question "${question.text}" in section "${section.title}" is missing a type`,
+            `Question in section "${section.title}" must include text or an image`,
             "Validation Error"
           );
           return;
         }
 
-        // Validate follow-up questions
+        if (!question.type) {
+          showError(
+            `Question "${questionLabel}" in section "${section.title}" is missing a type`,
+            "Validation Error"
+          );
+          return;
+        }
+
         if (
           question.followUpQuestions &&
           question.followUpQuestions.length > 0
@@ -413,21 +422,32 @@ export default function FormCreator() {
           for (const followUp of question.followUpQuestions) {
             if (!followUp.id) {
               showError(
-                `Follow-up question for "${question.text}" is missing an ID`,
+                `Follow-up question for "${questionLabel}" is missing an ID`,
                 "Validation Error"
               );
               return;
             }
-            if (!followUp.text || !followUp.text.trim()) {
+
+            const followUpHasText = Boolean(
+              followUp.text && followUp.text.trim()
+            );
+            const followUpHasImage = Boolean(
+              followUp.imageUrl && followUp.imageUrl.trim()
+            );
+
+            if (!followUpHasText && !followUpHasImage) {
               showError(
-                `Follow-up question for "${question.text}" is missing text`,
+                `Follow-up question for "${questionLabel}" must include text or an image`,
                 "Validation Error"
               );
               return;
             }
+
+            const followUpLabel = followUp.text?.trim() || "Image question";
+
             if (!followUp.type) {
               showError(
-                `Follow-up question "${followUp.text}" is missing a type`,
+                `Follow-up question "${followUpLabel}" is missing a type`,
                 "Validation Error"
               );
               return;
@@ -451,15 +471,14 @@ export default function FormCreator() {
           depth: number = 0
         ) => {
           const indent = "  ".repeat(depth);
+          const questionLabelForLog = question.text?.trim() || "Image question";
           console.log(
-            `${indent}Processing question: "${question.text}" (depth: ${depth})`
+            `${indent}Processing question: "${questionLabelForLog}" (depth: ${depth})`
           );
 
-          // Add the main question (without followUpQuestions to avoid duplication)
           const { followUpQuestions, ...mainQuestion } = question;
           allQuestions.push(mainQuestion as Question);
 
-          // Recursively add its follow-up questions
           if (followUpQuestions && followUpQuestions.length > 0) {
             console.log(
               `${indent}Found ${followUpQuestions.length} follow-up questions`
@@ -472,11 +491,12 @@ export default function FormCreator() {
                   value: followUp.showWhen?.value || "",
                 },
               };
+              const followUpLabelForLog =
+                followUpWithShowWhen.text?.trim() || "Image question";
               console.log(
-                `${indent}Adding follow-up: "${followUpWithShowWhen.text}"`
+                `${indent}Adding follow-up: "${followUpLabelForLog}"`
               );
 
-              // Recursively process this follow-up's nested follow-ups
               processQuestionRecursively(
                 followUpWithShowWhen as Question,
                 depth + 1
@@ -954,6 +974,7 @@ export default function FormCreator() {
       type: "text",
       required: false,
       description: "",
+      imageUrl: "",
     };
 
     updateSection(sectionId, {
@@ -975,6 +996,7 @@ export default function FormCreator() {
       type: "text",
       required: false,
       description: "",
+      imageUrl: "",
     };
 
     const questions = [...section.questions];
@@ -1072,6 +1094,142 @@ export default function FormCreator() {
         q.id === questionId ? { ...q, ...updates } : q
       ),
     });
+  };
+
+  const MAX_QUESTION_IMAGE_BYTES = 50 * 1024;
+
+  const compressQuestionImage = async (file: File): Promise<string> => {
+    const readFileAsDataUrl = () =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Failed to read image"));
+        reader.readAsDataURL(file);
+      });
+
+    const loadImageElement = (dataUrl: string) =>
+      new Promise<HTMLImageElement>((resolve, reject) => {
+        const imageElement = new Image();
+        imageElement.onload = () => resolve(imageElement);
+        imageElement.onerror = () => reject(new Error("Failed to load image"));
+        imageElement.src = dataUrl;
+      });
+
+    const dataUrl = await readFileAsDataUrl();
+    const imageElement = await loadImageElement(dataUrl);
+    const canvas = document.createElement("canvas");
+
+    if (typeof canvas.toBlob !== "function") {
+      if (file.size <= MAX_QUESTION_IMAGE_BYTES) {
+        return dataUrl;
+      }
+      throw new Error("Unable to process image. Please upload a smaller file under 50KB.");
+    }
+
+    if (!canvas.getContext("2d")) {
+      if (file.size <= MAX_QUESTION_IMAGE_BYTES) {
+        return dataUrl;
+      }
+      throw new Error("Unable to process image. Please upload a smaller file under 50KB.");
+    }
+
+    const drawImage = (width: number, height: number) => {
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        throw new Error("Canvas not supported");
+      }
+      context.drawImage(imageElement, 0, 0, width, height);
+    };
+
+    const createBlob = async (quality: number) =>
+      new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((blob) => resolve(blob), "image/jpeg", quality)
+      );
+
+    const maxDimension = 1024;
+    const initialScale = Math.min(
+      1,
+      maxDimension / imageElement.width,
+      maxDimension / imageElement.height
+    );
+
+    let width = Math.max(1, Math.round(imageElement.width * initialScale));
+    let height = Math.max(1, Math.round(imageElement.height * initialScale));
+    drawImage(width, height);
+
+    let quality = 0.9;
+    let blob = await createBlob(quality);
+    if (!blob) {
+      if (file.size <= MAX_QUESTION_IMAGE_BYTES) {
+        return dataUrl;
+      }
+      throw new Error("Unable to process image");
+    }
+
+    const minQuality = 0.2;
+
+    while (blob.size > MAX_QUESTION_IMAGE_BYTES && quality > minQuality) {
+      quality = Math.max(minQuality, quality - 0.1);
+      const nextBlob = await createBlob(quality);
+      if (!nextBlob) {
+        break;
+      }
+      blob = nextBlob;
+    }
+
+    while (blob.size > MAX_QUESTION_IMAGE_BYTES && (width > 120 || height > 120)) {
+      width = Math.max(120, Math.floor(width * 0.85));
+      height = Math.max(120, Math.floor(height * 0.85));
+      drawImage(width, height);
+      quality = 0.9;
+      let nextBlob = await createBlob(quality);
+      if (!nextBlob) {
+        break;
+      }
+      blob = nextBlob;
+      while (blob.size > MAX_QUESTION_IMAGE_BYTES && quality > minQuality) {
+        quality = Math.max(minQuality, quality - 0.1);
+        const smallerBlob = await createBlob(quality);
+        if (!smallerBlob) {
+          break;
+        }
+        blob = smallerBlob;
+      }
+    }
+
+    if (blob.size > MAX_QUESTION_IMAGE_BYTES) {
+      throw new Error("Unable to compress image below 50KB. Try a smaller image.");
+    }
+
+    return await new Promise<string>((resolve, reject) => {
+      const resultReader = new FileReader();
+      resultReader.onload = () => resolve(resultReader.result as string);
+      resultReader.onerror = () => reject(new Error("Failed to read compressed image"));
+      resultReader.readAsDataURL(blob);
+    });
+  };
+
+  const handleQuestionImageUpload = async (
+    sectionId: string,
+    questionId: string,
+    file: File
+  ) => {
+    try {
+      const compressed = await compressQuestionImage(file);
+      updateQuestion(sectionId, questionId, { imageUrl: compressed });
+    } catch (error) {
+      console.error("Image compression failed:", error);
+      showError(
+        error instanceof Error ? error.message : "Failed to process image",
+        "Image Upload Error"
+      );
+    }
+  };
+
+  const clearQuestionImage = (sectionId: string, questionId: string) => {
+    updateQuestion(sectionId, questionId, { imageUrl: undefined });
   };
 
   const deleteQuestion = (sectionId: string, questionId: string) => {
@@ -1274,6 +1432,7 @@ export default function FormCreator() {
       type: "text",
       required: false,
       description: "",
+      imageUrl: "",
       parentId: parentQuestionId,
       showWhen: {
         questionId: parentQuestionId,
@@ -1394,6 +1553,7 @@ export default function FormCreator() {
       type: "text",
       required: false,
       description: "",
+      imageUrl: "",
       parentId: parentQuestionId,
       showWhen: {
         questionId: parentQuestionId,
@@ -1638,7 +1798,6 @@ export default function FormCreator() {
             ) as FollowUpQuestion[],
           };
         } else if (q.followUpQuestions && q.followUpQuestions.length > 0) {
-          // Search in all follow-ups recursively
           const updated = updateInQuestions(q.followUpQuestions, pathIndex);
           if (updated !== q.followUpQuestions) {
             return { ...q, followUpQuestions: updated as FollowUpQuestion[] };
@@ -1651,6 +1810,42 @@ export default function FormCreator() {
     updateSection(sectionId, {
       questions: updateInQuestions(section.questions) as Question[],
     });
+  };
+
+  const handleNestedFollowUpImageUpload = async (
+    sectionId: string,
+    followUpQuestionId: string,
+    file: File,
+    path: string[]
+  ) => {
+    try {
+      const compressed = await compressQuestionImage(file);
+      updateNestedFollowUpQuestion(
+        sectionId,
+        followUpQuestionId,
+        { imageUrl: compressed },
+        path
+      );
+    } catch (error) {
+      console.error("Nested image compression failed:", error);
+      showError(
+        error instanceof Error ? error.message : "Failed to process image",
+        "Image Upload Error"
+      );
+    }
+  };
+
+  const clearNestedFollowUpImage = (
+    sectionId: string,
+    followUpQuestionId: string,
+    path: string[]
+  ) => {
+    updateNestedFollowUpQuestion(
+      sectionId,
+      followUpQuestionId,
+      { imageUrl: undefined },
+      path
+    );
   };
 
   // Recursive function to delete nested follow-up question
@@ -1981,6 +2176,15 @@ export default function FormCreator() {
       updates.followUpConfig = undefined;
     }
 
+    if (newType === "file") {
+      updates.allowedFileTypes =
+        currentQuestion.allowedFileTypes && currentQuestion.allowedFileTypes.length > 0
+          ? [...currentQuestion.allowedFileTypes]
+          : ["image", "pdf", "excel"];
+    } else if (currentQuestion.allowedFileTypes) {
+      updates.allowedFileTypes = undefined;
+    }
+
     updateQuestion(sectionId, questionId, updates);
   };
 
@@ -2028,6 +2232,13 @@ export default function FormCreator() {
       label: "File Upload",
       description: "Upload files/documents",
     },
+  ];
+
+  const fileTypeOptions = [
+    { value: "any", label: "Any file type" },
+    { value: "image", label: "Images (JPG, PNG, GIF)" },
+    { value: "pdf", label: "PDF" },
+    { value: "excel", label: "Excel (XLS, XLSX)" },
   ];
 
   if (mode === "list") {
@@ -2586,25 +2797,31 @@ export default function FormCreator() {
                         </div>
                       )}
 
-                      {section.questions.map((question, questionIndex) => (
-                        <React.Fragment key={question.id}>
-                          {/* Insert button between questions */}
-                          {questionIndex > 0 && (
-                            <div className="flex justify-center -my-3 relative z-10">
-                              <button
-                                onClick={() =>
-                                  insertQuestionAt(section.id, questionIndex)
-                                }
-                                className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 border-2 border-blue-400 rounded-full p-2 text-white transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110"
-                                title="Insert question here"
-                              >
-                                <Plus className="w-5 h-5" />
-                              </button>
-                            </div>
-                          )}
+                      {section.questions.map((question, questionIndex) => {
+                        const selectedFileType = question.allowedFileTypes?.[0] ?? "any";
+                        const selectedFileTypeOption = fileTypeOptions.find(
+                          (option) => option.value === selectedFileType
+                        );
 
-                          {/* Question Card */}
-                          <div className="bg-white border-2 border-gray-200 rounded-xl shadow-sm hover:shadow-lg hover:border-blue-300 transition-all duration-200">
+                        return (
+                          <React.Fragment key={question.id}>
+                            {/* Insert button between questions */}
+                            {questionIndex > 0 && (
+                              <div className="flex justify-center -my-3 relative z-10">
+                                <button
+                                  onClick={() =>
+                                    insertQuestionAt(section.id, questionIndex)
+                                  }
+                                  className="group bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 border-2 border-blue-400 rounded-full p-2 text-white transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-110"
+                                  title="Insert question here"
+                                >
+                                  <Plus className="w-5 h-5" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Question Card */}
+                            <div className="bg-white border-2 border-gray-200 rounded-xl shadow-sm hover:shadow-lg hover:border-blue-300 transition-all duration-200">
                             {/* Question Header */}
                             <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 rounded-t-xl">
                               <div className="flex items-center gap-3">
@@ -2671,7 +2888,7 @@ export default function FormCreator() {
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                   <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
-                                    Question Title
+                                    Question Text (optional when using image)
                                   </label>
                                   <input
                                     type="text"
@@ -2684,6 +2901,48 @@ export default function FormCreator() {
                                     className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                                     placeholder="Enter your question"
                                   />
+                                  <div className="mt-3 space-y-3">
+                                    {question.imageUrl ? (
+                                      <div className="flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                        <img
+                                          src={question.imageUrl}
+                                          alt={`Question ${questionIndex + 1} image`}
+                                          className="h-20 w-20 object-contain rounded-md border border-gray-200 bg-white"
+                                        />
+                                        <button
+                                          type="button"
+                                          onClick={() => clearQuestionImage(section.id, question.id)}
+                                          className="px-3 py-2 text-sm font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 rounded-lg transition-colors"
+                                        >
+                                          Remove Image
+                                        </button>
+                                      </div>
+                                    ) : null}
+                                    <div className="flex flex-col gap-2">
+                                      <label className="inline-flex items-center justify-center px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              void handleQuestionImageUpload(
+                                                section.id,
+                                                question.id,
+                                                file
+                                              );
+                                              e.target.value = "";
+                                            }
+                                          }}
+                                        />
+                                        Upload Image
+                                      </label>
+                                      <p className="text-xs text-gray-500">
+                                        JPEG or PNG up to 50KB.
+                                      </p>
+                                    </div>
+                                  </div>
                                 </div>
 
                                 <div>
@@ -2713,6 +2972,40 @@ export default function FormCreator() {
                                   </select>
                                 </div>
                               </div>
+
+                              {question.type === "file" ? (
+                                <div className="mt-4">
+                                  <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                                    Allowed file type
+                                  </label>
+                                  <select
+                                    value={selectedFileType}
+                                    onChange={(e) =>
+                                      updateQuestion(section.id, question.id, {
+                                        allowedFileTypes:
+                                          e.target.value === "any"
+                                            ? undefined
+                                            : [e.target.value],
+                                      })
+                                    }
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                                  >
+                                    {fileTypeOptions.map((option) => (
+                                      <option
+                                        key={`${question.id}-file-type-${option.value}`}
+                                        value={option.value}
+                                      >
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {selectedFileType === "any"
+                                      ? "Respondents can upload any file type."
+                                      : `Respondents must upload files matching ${selectedFileTypeOption?.label}.`}
+                                  </p>
+                                </div>
+                              ) : null}
 
                               <div className="mt-4">
                                 <label className="flex items-center cursor-pointer group">
@@ -3169,6 +3462,30 @@ export default function FormCreator() {
                                           nestedPath
                                         )
                                       }
+                                      onImageUpload={(
+                                        nestedSectionId,
+                                        followUpQuestionId,
+                                        file,
+                                        nestedPath
+                                      ) =>
+                                        handleNestedFollowUpImageUpload(
+                                          nestedSectionId,
+                                          followUpQuestionId,
+                                          file,
+                                          nestedPath
+                                        )
+                                      }
+                                      onImageRemove={(
+                                        nestedSectionId,
+                                        followUpQuestionId,
+                                        nestedPath
+                                      ) =>
+                                        clearNestedFollowUpImage(
+                                          nestedSectionId,
+                                          followUpQuestionId,
+                                          nestedPath
+                                        )
+                                      }
                                       onDelete={(
                                         nestedSectionId,
                                         followUpQuestionId,
@@ -3240,8 +3557,9 @@ export default function FormCreator() {
                                 )}
                             </div>
                           </div>
-                        </React.Fragment>
-                      ))}
+                          </React.Fragment>
+                        );
+                      })}
 
                       {/* Add question button at the end */}
                       {section.questions.length > 0 && (

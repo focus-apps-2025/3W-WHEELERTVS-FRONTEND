@@ -26,6 +26,7 @@ export interface FollowUpQuestion {
   type: QuestionType;
   required?: boolean;
   options?: string[];
+  allowedFileTypes?: string[];
   correctAnswer?: string; // Single correct answer (backward compatibility)
   correctAnswers?: string[]; // Multiple correct answers
   gridOptions?: GridOption;

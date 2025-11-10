@@ -9,6 +9,7 @@ import {
   Clock,
   XCircle,
   Mail,
+  Download,
 } from "lucide-react";
 import { Bar, Line } from "react-chartjs-2";
 import {
@@ -27,7 +28,11 @@ import type { ActiveElement } from "chart.js";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
-import { sendResponseExcelViaEmail } from "../utils/responseExportUtils";
+import {
+  generateResponseExcelReport,
+  sendResponseExcelViaEmail,
+} from "../utils/responseExportUtils";
+import FilePreview from "./FilePreview";
 
 ChartJS.register(
   CategoryScale,
@@ -123,6 +128,7 @@ export default function AllResponses() {
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailInput, setEmailInput] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -185,6 +191,32 @@ export default function AllResponses() {
   const handleSendToMail = () => {
     setShowEmailDialog(true);
     setEmailInput("");
+  };
+
+  const handleExportExcel = () => {
+    if (exportingExcel) {
+      return;
+    }
+
+    if (!selectedResponse || !selectedForm) {
+      showError("Missing required data for export.");
+      return;
+    }
+
+    setExportingExcel(true);
+    try {
+      generateResponseExcelReport(
+        selectedResponse,
+        selectedForm,
+        sectionSummaryRows
+      );
+      showSuccess("Excel exported successfully.");
+    } catch (error) {
+      console.error("Failed to export Excel:", error);
+      showError("Failed to export Excel. Please try again.");
+    } finally {
+      setExportingExcel(false);
+    }
   };
 
   const handleSendEmailReport = async () => {
@@ -680,20 +712,102 @@ export default function AllResponses() {
     return true;
   };
 
-  const renderAnswerDisplay = (value: any): React.ReactNode => {
+  const renderAnswerDisplay = (value: any, question?: any): React.ReactNode => {
+    const resolveFileData = (input: any) => {
+      if (!input) {
+        return null;
+      }
+      const candidate = Array.isArray(input) && input.length === 1 ? input[0] : input;
+      if (typeof candidate === "string") {
+        if (candidate.startsWith("data:")) {
+          return { data: candidate, fileName: question?.fileName || question?.name }; 
+        }
+        if (candidate.startsWith("http")) {
+          return { url: candidate, fileName: question?.fileName || question?.name }; 
+        }
+        return null;
+      }
+      if (typeof candidate === "object") {
+        const dataValue = candidate.data || candidate.value || candidate.file || candidate.base64 || candidate.url;
+        const nameValue = candidate.fileName || candidate.filename || candidate.name;
+        if (typeof dataValue === "string" && dataValue.startsWith("data:")) {
+          return { data: dataValue, fileName: nameValue };
+        }
+        if (typeof dataValue === "string" && dataValue.startsWith("http")) {
+          return { url: dataValue, fileName: nameValue };
+        }
+      }
+      return null;
+    };
+
+    if (question?.type === "file" || question?.type === "radio-image") {
+      const fileData = resolveFileData(value);
+      if (fileData?.data) {
+        return <FilePreview data={fileData.data} fileName={fileData.fileName} />;
+      }
+      if (fileData?.url) {
+        const fileLabel = fileData.fileName || "Download uploaded file";
+        return (
+          <a
+            href={fileData.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800"
+          >
+            {fileLabel}
+          </a>
+        );
+      }
+    }
+
     if (value === null || value === undefined) {
       return <span className="text-primary-400">No response</span>;
     }
+
     if (typeof value === "string") {
+      if (value.startsWith("data:")) {
+        return <FilePreview data={value} fileName={question?.fileName || question?.name} />;
+      }
+      if (value.startsWith("http")) {
+        return (
+          <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+            {question?.fileName || "Download uploaded file"}
+          </a>
+        );
+      }
       const trimmed = value.trim();
       return trimmed ? trimmed : <span className="text-primary-400">No response</span>;
     }
+
     if (Array.isArray(value)) {
-      return value.length
-        ? value.join(", ")
-        : <span className="text-primary-400">No response</span>;
+      if (value.length === 0) {
+        return <span className="text-primary-400">No response</span>;
+      }
+      const first = value[0];
+      if (typeof first === "string" && first.startsWith("data:")) {
+        return <FilePreview data={first} fileName={question?.fileName || question?.name} />;
+      }
+      return value.join(", ");
     }
+
     if (typeof value === "object") {
+      const fileData = resolveFileData(value);
+      if (fileData?.data) {
+        return <FilePreview data={fileData.data} fileName={fileData.fileName} />;
+      }
+      if (fileData?.url) {
+        const fileLabel = fileData.fileName || "Download uploaded file";
+        return (
+          <a
+            href={fileData.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800"
+          >
+            {fileLabel}
+          </a>
+        );
+      }
       if (!Object.keys(value).length) {
         return <span className="text-primary-400">No response</span>;
       }
@@ -703,6 +817,7 @@ export default function AllResponses() {
         </pre>
       );
     }
+
     return String(value);
   };
 
@@ -770,7 +885,7 @@ export default function AllResponses() {
                     {question.text || question.id}
                   </div>
                   <div className="mt-1 text-primary-600">
-                    {renderAnswerDisplay(answer)}
+                    {renderAnswerDisplay(answer, question)}
                   </div>
                   {question.followUpQuestions?.map((followUp: any) => {
                     const followAnswer = selectedResponse.answers[followUp.id];
@@ -787,7 +902,7 @@ export default function AllResponses() {
                           {followUp.text || followUp.id}
                         </div>
                         <div className="mt-1 text-sm text-primary-600">
-                          {renderAnswerDisplay(followAnswer)}
+                          {renderAnswerDisplay(followAnswer, followUp)}
                         </div>
                       </div>
                     );
@@ -822,7 +937,7 @@ export default function AllResponses() {
                     {followUp.text || followUp.id}
                   </div>
                   <div className="mt-1 text-primary-600">
-                    {renderAnswerDisplay(answer)}
+                    {renderAnswerDisplay(answer, followUp)}
                   </div>
                 </div>
               );
@@ -1036,6 +1151,19 @@ export default function AllResponses() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={handleExportExcel}
+                  disabled={exportingExcel}
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-60"
+                  title="Export Excel"
+                >
+                  {exportingExcel ? (
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-green-400 border-t-transparent" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  Export Excel
+                </button>
                 <button
                   onClick={handleSendToMail}
                   className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
