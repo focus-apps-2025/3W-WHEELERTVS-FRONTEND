@@ -10,6 +10,8 @@ import {
   XCircle,
   Mail,
   Download,
+  Trash2,
+  Edit2,
 } from "lucide-react";
 import { Bar, Line } from "react-chartjs-2";
 import {
@@ -33,6 +35,7 @@ import {
   sendResponseExcelViaEmail,
 } from "../utils/responseExportUtils";
 import FilePreview from "./FilePreview";
+import ResponseEdit from "./ResponseEdit";
 
 ChartJS.register(
   CategoryScale,
@@ -76,6 +79,8 @@ interface Form {
   _id: string;
   id?: string;
   title: string;
+  description?: string;
+  parentFormId?: string;
   sections?: any[];
   followUpQuestions?: any[];
 }
@@ -84,6 +89,8 @@ interface Response {
   _id: string;
   id: string;
   questionId: string;
+  formId?: string;
+  parentResponseId?: string;
   answers: Record<string, any>;
   createdAt: string;
   updatedAt: string;
@@ -110,7 +117,7 @@ type SectionStat = {
 };
 
 export default function AllResponses() {
-  const { showSuccess, showError, showInfo } = useNotification();
+  const { showSuccess, showError, showConfirm } = useNotification();
   const [responses, setResponses] = useState<
     (Response & { formTitle: string })[]
   >([]);
@@ -129,6 +136,13 @@ export default function AllResponses() {
   const [emailInput, setEmailInput] = useState("");
   const [sendingEmail, setSendingEmail] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
+  const [deletingResponseId, setDeletingResponseId] = useState<string | null>(null);
+  const [editingResponse, setEditingResponse] = useState<
+    (Response & { formTitle: string }) | null
+  >(null);
+  const [editingForm, setEditingForm] = useState<Form | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editingFormLoading, setEditingFormLoading] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -155,7 +169,11 @@ export default function AllResponses() {
     sectionRefs.current = {};
     setFormLoading(true);
     try {
-      const formData = await apiClient.getForm(response.questionId);
+      const formIdentifier = response.questionId || response.formId;
+      if (!formIdentifier) {
+        throw new Error("Missing form identifier for response");
+      }
+      const formData = await apiClient.getForm(formIdentifier);
       setSelectedForm(formData.form);
     } catch (err) {
       console.error("Failed to load form details:", err);
@@ -169,7 +187,6 @@ export default function AllResponses() {
     setUpdatingStatus(true);
     try {
       await apiClient.updateResponse(responseId, { status: newStatus });
-      // Update the local state
       setResponses((prev) =>
         prev.map((r) =>
           r._id === responseId ? { ...r, status: newStatus } : r
@@ -177,7 +194,7 @@ export default function AllResponses() {
       );
       if (selectedResponse && selectedResponse._id === responseId) {
         setSelectedResponse({ ...selectedResponse, status: newStatus });
-        setShowStatusUpdate(false); // Hide the update options after successful update
+        setShowStatusUpdate(false);
       }
       showSuccess(`Status updated to ${getStatusInfo(newStatus).label}`);
     } catch (err) {
@@ -185,6 +202,112 @@ export default function AllResponses() {
       showError("Failed to update status. Please try again.");
     } finally {
       setUpdatingStatus(false);
+    }
+  };
+
+  const handleDeleteResponse = (response: Response & { formTitle: string }) => {
+    showConfirm(
+      "Are you sure you want to delete this request? This action cannot be undone.",
+      async () => {
+        setDeletingResponseId(response.id);
+        try {
+          await apiClient.deleteResponse(response.id);
+          setResponses((prev) => prev.filter((r) => r.id !== response.id));
+          if (selectedResponse && selectedResponse.id === response.id) {
+            setSelectedResponse(null);
+            setSelectedForm(null);
+          }
+          showSuccess("Request deleted successfully.");
+        } catch (err) {
+          console.error("Failed to delete response:", err);
+          showError("Failed to delete request. Please try again.");
+        } finally {
+          setDeletingResponseId(null);
+        }
+      },
+      "Delete Request",
+      "Delete",
+      "Cancel"
+    );
+  };
+
+  const handleEditResponse = async (
+    response: Response & { formTitle: string }
+  ) => {
+    setEditingResponse(response);
+    setEditingForm(null);
+    setEditingFormLoading(true);
+    try {
+      const formIdentifier = response.questionId || response.formId;
+      if (!formIdentifier) {
+        throw new Error("Missing form identifier for response");
+      }
+      const formData = await apiClient.getForm(formIdentifier);
+      setEditingForm(formData.form);
+    } catch (err) {
+      console.error("Failed to load form for editing:", err);
+      showError("Failed to load form for editing. Please try again.");
+      setEditingResponse(null);
+    } finally {
+      setEditingFormLoading(false);
+    }
+  };
+
+  const handleCloseEdit = () => {
+    setEditingResponse(null);
+    setEditingForm(null);
+    setSavingEdit(false);
+    setEditingFormLoading(false);
+  };
+
+  const handleSaveEditedResponse = async (updated: any) => {
+    if (savingEdit) {
+      return;
+    }
+    const responseId = updated?.id;
+    if (!responseId) {
+      showError("Missing response identifier. Please try again.");
+      return;
+    }
+    setSavingEdit(true);
+    const updatedTimestamp = updated.timestamp || new Date().toISOString();
+    const updatedScore = editingForm
+      ? computeYesNoScore(updated.answers, editingForm)
+      : undefined;
+    try {
+      await apiClient.updateResponse(responseId, { answers: updated.answers, status: updated.status, notes: updated.notes });
+      setResponses((prev) =>
+        prev.map((r) =>
+          r.id === responseId
+            ? {
+                ...r,
+                answers: updated.answers,
+                updatedAt: updatedTimestamp,
+                yesNoScore:
+                  updatedScore !== undefined ? updatedScore : r.yesNoScore,
+              }
+            : r
+        )
+      );
+      if (selectedResponse && selectedResponse.id === responseId) {
+        const nextSelected = {
+          ...selectedResponse,
+          answers: updated.answers,
+          updatedAt: updatedTimestamp,
+        };
+        if (updatedScore !== undefined) {
+          nextSelected.yesNoScore = updatedScore;
+        }
+        setSelectedResponse(nextSelected);
+      }
+      setEditingResponse(null);
+      setEditingForm(null);
+      showSuccess("Request updated successfully.");
+    } catch (err) {
+      console.error("Failed to update response:", err);
+      showError("Failed to update request. Please try again.");
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -1034,6 +1157,37 @@ export default function AllResponses() {
     }
   };
 
+  const editingResponsePayload = editingResponse
+    ? {
+        id: editingResponse.id,
+        questionId: editingResponse.questionId || editingResponse.formId || "",
+        answers: editingResponse.answers,
+        timestamp:
+          editingResponse.updatedAt ||
+          editingResponse.createdAt ||
+          new Date().toISOString(),
+        parentResponseId: editingResponse.parentResponseId,
+        assignedTo: editingResponse.assignedTo,
+        status: editingResponse.status,
+      }
+    : null;
+
+  const editingQuestionPayload = editingForm
+    ? {
+        id:
+          editingForm._id ||
+          editingForm.id ||
+          editingResponse?.questionId ||
+          editingResponse?.formId ||
+          "",
+        title: editingForm.title,
+        description: editingForm.description || "",
+        sections: editingForm.sections || [],
+        followUpQuestions: editingForm.followUpQuestions || [],
+        parentFormId: editingForm.parentFormId,
+      }
+    : null;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-64">
@@ -1108,13 +1262,35 @@ export default function AllResponses() {
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleViewDetails(response)}
-                      className="btn-secondary flex items-center"
-                    >
-                      <Eye className="w-4 h-4 mr-2" />
-                      View Details
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleViewDetails(response)}
+                        className="btn-secondary flex items-center"
+                      >
+                        <Eye className="w-4 h-4 mr-2" />
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => handleEditResponse(response)}
+                        disabled={
+                          !!editingResponse &&
+                          editingResponse.id === response.id &&
+                          (editingFormLoading || savingEdit)
+                        }
+                        className="flex items-center px-3 py-2 text-sm text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-60"
+                      >
+                        <Edit2 className="w-4 h-4 mr-2" />
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteResponse(response)}
+                        disabled={deletingResponseId === response.id}
+                        className="flex items-center px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-60"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        {deletingResponseId === response.id ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1322,6 +1498,27 @@ export default function AllResponses() {
           </div>
         </div>
       )}
+
+      {editingResponse && editingFormLoading && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl px-6 py-4 flex items-center gap-3">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
+            <div className="text-primary-600 font-medium">Loading form details...</div>
+          </div>
+        </div>
+      )}
+
+      {editingResponse &&
+        editingResponsePayload &&
+        editingQuestionPayload &&
+        !editingFormLoading && (
+          <ResponseEdit
+            response={editingResponsePayload as any}
+            question={editingQuestionPayload as any}
+            onSave={handleSaveEditedResponse}
+            onCancel={handleCloseEdit}
+          />
+        )}
 
       {showEmailDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
