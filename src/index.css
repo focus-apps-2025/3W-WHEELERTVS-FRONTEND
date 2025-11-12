@@ -6,7 +6,7 @@
 
 @layer base {
   body {
-    @apply bg-white text-primary-600 font-sans antialiased text-sm;
+    @apply bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100 font-sans antialiased text-sm;
   }
 
   h1,
@@ -15,7 +15,7 @@
   h4,
   h5,
   h6 {
-    @apply text-primary-600 font-medium text-base;
+    @apply text-gray-900 dark:text-gray-100 font-medium text-base;
   }
 
   h1 {
@@ -23,39 +23,39 @@
   }
 
   button {
-    @apply font-medium text-sm;
+    @apply font-medium text-sm text-gray-800 dark:text-gray-100;
   }
 }
 
 @layer components {
   .btn-primary {
-    @apply bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-all duration-200 font-medium;
+    @apply bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-all duration-200 font-medium dark:bg-primary-500 dark:hover:bg-primary-400;
   }
 
   .btn-secondary {
-    @apply bg-white text-primary-600 px-4 py-2 rounded-lg hover:bg-primary-50 transition-all duration-200 font-medium;
+    @apply bg-white text-primary-600 px-4 py-2 rounded-lg hover:bg-primary-50 transition-all duration-200 font-medium border border-primary-100 dark:bg-gray-800 dark:text-primary-200 dark:hover:bg-gray-700 dark:border-gray-700;
   }
 
   .input-field {
-    @apply w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-primary-600 bg-white transition-all duration-200 border-0 shadow-sm;
+    @apply w-full px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 transition-all duration-200 border border-neutral-200 dark:border-gray-700 shadow-sm placeholder-gray-400 dark:placeholder-gray-500;
   }
 
   /* Floating label styles */
   .input-field:focus + label,
   .input-field:not(:placeholder-shown) + label {
-    @apply transform -translate-y-2 scale-90 px-2 bg-white;
+    @apply transform -translate-y-2 scale-90 px-2 bg-white dark:bg-gray-800;
   }
 
   .card {
-    @apply bg-white rounded-lg;
+    @apply bg-white rounded-lg border border-neutral-200 dark:bg-gray-900 dark:border-gray-800;
   }
 
   .sidebar-item {
-    @apply flex items-center px-4 py-3 text-primary-600 hover:bg-primary-50 transition-colors duration-200 cursor-pointer;
+    @apply flex items-center px-4 py-3 text-primary-600 hover:bg-primary-50 transition-colors duration-200 cursor-pointer dark:text-primary-200 dark:hover:bg-primary-900/40;
   }
 
   .sidebar-item.active {
-    @apply bg-primary-50 text-primary-700;
+    @apply bg-primary-50 text-primary-700 dark:bg-primary-900/50 dark:text-primary-200;
   }
 
   /* Text truncation utilities */
@@ -81,15 +81,15 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-neutral-100;
+  @apply bg-neutral-100 dark:bg-gray-800;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-neutral-300 rounded-full;
+  @apply bg-neutral-300 dark:bg-gray-600 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-neutral-400;
+  @apply bg-neutral-400 dark:bg-gray-500;
 }
 
 /* Smooth transitions */
@@ -143,104 +143,59 @@ input[type="date"],
 input[type="time"],
 textarea,
 select {
-  border: none !important;
-  outline: none !important;
+  @apply border-none outline-none bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
-  background-color: #ffffff !important;
-  color: #1e3a8a !important;
 }
 
-/* Ensure radio and checkbox inputs are visible */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="url"],
+.dark input[type="tel"],
+.dark input[type="number"],
+.dark input[type="password"],
+.dark input[type="date"],
+.dark input[type="time"],
+.dark textarea,
+.dark select {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+}
+
 input[type="radio"],
 input[type="checkbox"] {
-  accent-color: #1e3a8a !important;
-  background-color: #ffffff !important;
+  @apply accent-primary-600 dark:accent-primary-400;
 }
 
-/* Ensure labels and spans have proper text color */
 label,
 label span {
-  color: #1e3a8a !important;
-}
-
-/* Globally remove ALL dark theme classes */
-.dark\:bg-gray-800,
-.dark\:bg-gray-700,
-.dark\:bg-gray-700\/50,
-.dark\:bg-blue-900\/20,
-.dark\:text-white,
-.dark\:text-gray-400,
-.dark\:text-gray-300,
-.dark\:border-gray-600,
-.dark\:border-gray-700,
-.dark\:hover\:bg-blue-900\/40,
-.dark\:hover\:border-blue-400 {
-  color: inherit !important;
-  background-color: inherit !important;
-  border-color: inherit !important;
+  @apply text-gray-900 dark:text-gray-100;
 }
 
 /* Professional card styling with subtle elevation */
 .card {
-  background: #ffffff;
-  border-radius: 8px;
+  @apply bg-white dark:bg-gray-900 rounded-lg border border-neutral-200 dark:border-gray-800;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
 }
 
-/* Force backgrounds to white */
-body,
-.bg-white,
-.bg-neutral-50,
-.bg-neutral-100,
-.hover\:bg-neutral-50,
-.hover\:bg-primary-50 {
-  background-color: #ffffff !important;
-}
-
-/* Override any colored backgrounds to dark blue */
-.bg-blue-500,
-.bg-green-500,
-.bg-purple-500,
-.bg-orange-500 {
-  background-color: #1e3a8a !important;
-}
-
-/* Override status colors to dark blue */
-.bg-green-100,
-.text-green-600,
-.text-green-800,
-.bg-yellow-100,
-.text-yellow-800,
-.bg-red-50,
-.text-red-600,
-.text-red-800 {
-  color: #1e3a8a !important;
-  background-color: #ffffff !important;
+.dark .card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
 }
 
 .btn-primary {
-  background-color: #1e3a8a !important;
-  color: #ffffff !important;
+  @apply bg-primary-600 dark:bg-primary-500 text-white hover:bg-primary-700 dark:hover:bg-primary-400;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.875rem !important;
+  border-radius: 4px !important;
   border: none !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 0.5rem !important;
 }
 
-.btn-secondary,
-.hover\:bg-primary-50,
-.hover\:bg-neutral-100 {
-  background-color: #ffffff !important;
-  color: #1e3a8a !important;
-  border: 1px solid #1e3a8a !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 0.5rem !important;
-}
-
-/* Make buttons minimal */
-.btn-primary,
 .btn-secondary {
+  @apply bg-white dark:bg-gray-800 text-primary-600 dark:text-primary-300 border border-primary-600 dark:border-primary-400 hover:bg-primary-50 dark:hover:bg-gray-700;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
   padding: 0.25rem 0.5rem !important;
   font-size: 0.875rem !important;
   border-radius: 4px !important;
@@ -258,4 +213,72 @@ body,
 }
 .text-lg {
   font-size: 0.75rem !important;
+}
+
+/* Floating circles animation for login page */
+.floating-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  animation: float 6s ease-in-out infinite;
+}
+
+.floating-circle-1 {
+  width: 80px;
+  height: 80px;
+  top: 10%;
+  left: 10%;
+  animation-delay: 0s;
+}
+
+.floating-circle-2 {
+  width: 60px;
+  height: 60px;
+  top: 20%;
+  right: 15%;
+  animation-delay: 1s;
+}
+
+.floating-circle-3 {
+  width: 100px;
+  height: 100px;
+  bottom: 15%;
+  left: 20%;
+  animation-delay: 2s;
+}
+
+.floating-circle-4 {
+  width: 70px;
+  height: 70px;
+  top: 60%;
+  right: 10%;
+  animation-delay: 3s;
+}
+
+.floating-circle-5 {
+  width: 50px;
+  height: 50px;
+  bottom: 30%;
+  left: 60%;
+  animation-delay: 4s;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+    opacity: 0.7;
+  }
+  25% {
+    transform: translateY(-20px) rotate(90deg);
+    opacity: 0.9;
+  }
+  50% {
+    transform: translateY(-10px) rotate(180deg);
+    opacity: 0.6;
+  }
+  75% {
+    transform: translateY(-30px) rotate(270deg);
+    opacity: 0.8;
+  }
 }

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { useAuth } from "./AuthContext";
 
 interface LogoContextType {
   logo: string;
@@ -6,21 +7,56 @@ interface LogoContextType {
 }
 
 const LogoContext = createContext<LogoContextType>({
-  logo: '',
+  logo: "",
   updateLogo: () => {},
 });
 
 export function LogoProvider({ children }: { children: React.ReactNode }) {
-  const [logo, setLogo] = useState(() => {
-    return localStorage.getItem('companyLogo') || '';
+  const { tenant } = useAuth();
+  const [logo, setLogo] = useState<string>(() => {
+    if (tenant?.settings?.logo) {
+      return tenant.settings.logo;
+    }
+    if (tenant?._id) {
+      return localStorage.getItem(`tenant_logo_${tenant._id}`) || "";
+    }
+    return localStorage.getItem("companyLogo") || "";
   });
 
   useEffect(() => {
-    localStorage.setItem('companyLogo', logo);
-  }, [logo]);
+    if (tenant?.settings?.logo) {
+      setLogo(tenant.settings.logo);
+      if (tenant._id) {
+        localStorage.setItem(`tenant_logo_${tenant._id}`, tenant.settings.logo);
+      }
+      return;
+    }
+
+    if (tenant?._id) {
+      const stored = localStorage.getItem(`tenant_logo_${tenant._id}`) || "";
+      setLogo(stored);
+      return;
+    }
+
+    const fallback = localStorage.getItem("companyLogo") || "";
+    setLogo(fallback);
+  }, [tenant?._id, tenant?.settings?.logo]);
 
   const updateLogo = (newLogo: string) => {
     setLogo(newLogo);
+    if (tenant?._id) {
+      if (newLogo) {
+        localStorage.setItem(`tenant_logo_${tenant._id}`, newLogo);
+      } else {
+        localStorage.removeItem(`tenant_logo_${tenant._id}`);
+      }
+    } else {
+      if (newLogo) {
+        localStorage.setItem("companyLogo", newLogo);
+      } else {
+        localStorage.removeItem("companyLogo");
+      }
+    }
   };
 
   return (

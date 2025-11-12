@@ -17,11 +17,11 @@ export default function TeamMembersList({
       <label className="block text-sm font-medium text-primary-700 mb-1">
         Team Members
       </label>
-      <div className="border border-neutral-200 rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto bg-white">
+      <div className="border border-neutral-200 dark:border-gray-700 rounded-lg p-4 space-y-2 max-h-48 overflow-y-auto bg-white dark:bg-gray-900">
         {staff.map((member) => (
           <label
             key={member.id}
-            className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+            className="flex items-center space-x-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 rounded-lg cursor-pointer transition-colors"
           >
             <input
               type="checkbox"

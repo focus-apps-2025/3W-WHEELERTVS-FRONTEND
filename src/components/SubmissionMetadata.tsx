@@ -77,7 +77,7 @@ export default function SubmissionMetadata({
 
   if (compact) {
     return (
-      <div className="flex flex-wrap gap-3 text-xs text-gray-600">
+      <div className="flex flex-wrap gap-3 text-xs text-gray-600 dark:text-gray-400">
         {metadata.location && (
           <div className="flex items-center">
             <MapPin className="w-3 h-3 mr-1 text-blue-500" />
@@ -92,7 +92,7 @@ export default function SubmissionMetadata({
         )}
         {metadata.submittedAt && (
           <div className="flex items-center">
-            <Clock className="w-3 h-3 mr-1 text-gray-500" />
+            <Clock className="w-3 h-3 mr-1 text-gray-500 dark:text-gray-500" />
             <span>{formatDateTime(metadata.submittedAt)}</span>
           </div>
         )}
@@ -102,7 +102,7 @@ export default function SubmissionMetadata({
 
   return (
     <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-      <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center">
         <Globe className="w-4 h-4 mr-2 text-blue-600" />
         Submission Information
       </h4>
@@ -111,10 +111,10 @@ export default function SubmissionMetadata({
         {/* Date & Time */}
         {metadata.submittedAt && (
           <div className="flex items-start">
-            <Clock className="w-4 h-4 mr-2 text-gray-500 mt-0.5 flex-shrink-0" />
+            <Clock className="w-4 h-4 mr-2 text-gray-500 dark:text-gray-500 mt-0.5 flex-shrink-0" />
             <div>
-              <div className="text-xs text-gray-500">Submitted At</div>
-              <div className="text-sm font-medium text-gray-700">
+              <div className="text-xs text-gray-500 dark:text-gray-500">Submitted At</div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {formatDateTime(metadata.submittedAt)}
               </div>
             </div>
@@ -126,12 +126,12 @@ export default function SubmissionMetadata({
           <div className="flex items-start">
             <MapPin className="w-4 h-4 mr-2 text-blue-500 mt-0.5 flex-shrink-0" />
             <div>
-              <div className="text-xs text-gray-500">Location</div>
-              <div className="text-sm font-medium text-gray-700">
+              <div className="text-xs text-gray-500 dark:text-gray-500">Location</div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {getLocationString(metadata.location)}
               </div>
               {metadata.location.timezone && (
-                <div className="text-xs text-gray-500 mt-0.5">
+                <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
                   Timezone: {metadata.location.timezone}
                 </div>
               )}
@@ -144,12 +144,12 @@ export default function SubmissionMetadata({
           <div className="flex items-start">
             {getDeviceIcon(metadata.device)}
             <div className="ml-2">
-              <div className="text-xs text-gray-500">Device</div>
-              <div className="text-sm font-medium text-gray-700">
+              <div className="text-xs text-gray-500 dark:text-gray-500">Device</div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {metadata.device}
               </div>
               {metadata.os && (
-                <div className="text-xs text-gray-500 mt-0.5">
+                <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
                   OS: {metadata.os}
                 </div>
               )}
@@ -162,8 +162,8 @@ export default function SubmissionMetadata({
           <div className="flex items-start">
             <Globe className="w-4 h-4 mr-2 text-green-500 mt-0.5 flex-shrink-0" />
             <div>
-              <div className="text-xs text-gray-500">Browser</div>
-              <div className="text-sm font-medium text-gray-700">
+              <div className="text-xs text-gray-500 dark:text-gray-500">Browser</div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {metadata.browser}
               </div>
             </div>
@@ -175,12 +175,12 @@ export default function SubmissionMetadata({
           <div className="flex items-start">
             <Wifi className="w-4 h-4 mr-2 text-purple-500 mt-0.5 flex-shrink-0" />
             <div>
-              <div className="text-xs text-gray-500">IP Address</div>
-              <div className="text-sm font-medium text-gray-700 font-mono">
+              <div className="text-xs text-gray-500 dark:text-gray-500">IP Address</div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300 font-mono">
                 {metadata.ipAddress}
               </div>
               {metadata.location?.isp && (
-                <div className="text-xs text-gray-500 mt-0.5">
+                <div className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
                   ISP: {metadata.location.isp}
                 </div>
               )}
@@ -193,8 +193,8 @@ export default function SubmissionMetadata({
           <div className="flex items-start col-span-full">
             <MapPin className="w-4 h-4 mr-2 text-red-500 mt-0.5 flex-shrink-0" />
             <div>
-              <div className="text-xs text-gray-500">Coordinates</div>
-              <div className="text-sm font-medium text-gray-700">
+              <div className="text-xs text-gray-500 dark:text-gray-500">Coordinates</div>
+              <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 {metadata.location.latitude.toFixed(4)},{" "}
                 {metadata.location.longitude.toFixed(4)}
               </div>

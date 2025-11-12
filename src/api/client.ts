@@ -1,5 +1,5 @@
 // const API_BASE_URL = "http://localhost:5000/api";
-const API_BASE_URL = "https://formsapi.focusengineeringapp.com/api";
+/const API_BASE_URL = "https://formsapi.focusengineeringapp.com/api";
 // https://forms-backend-96nd.onrender.com
 interface ApiResponse<T> {
   success: boolean;
@@ -425,12 +425,10 @@ class ApiClient {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("category", category);
+    formData.append("token", this.token);
 
     const response = await fetch(`${this.baseUrl}/files/upload`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-      },
       body: formData,
     });
 
@@ -441,6 +439,50 @@ class ApiClient {
     }
 
     return data.data;
+  }
+
+  resolveUploadedFileUrl(uploadResult: any) {
+    if (!uploadResult) {
+      return "";
+    }
+
+    if (typeof uploadResult === "string") {
+      return uploadResult;
+    }
+
+    if (uploadResult.url) {
+      return uploadResult.url;
+    }
+
+    if (uploadResult.secureUrl) {
+      return uploadResult.secureUrl;
+    }
+
+    if (uploadResult.location) {
+      return uploadResult.location;
+    }
+
+    if (uploadResult.path) {
+      return this.getFileUrl(uploadResult.path);
+    }
+
+    if (uploadResult.filename) {
+      return this.getFileUrl(uploadResult.filename);
+    }
+
+    if (uploadResult.file?.url) {
+      return uploadResult.file.url;
+    }
+
+    if (uploadResult.file?.filename) {
+      return this.getFileUrl(uploadResult.file.filename);
+    }
+
+    if (uploadResult.key) {
+      return this.getFileUrl(uploadResult.key);
+    }
+
+    return "";
   }
 
   async getUserFiles() {

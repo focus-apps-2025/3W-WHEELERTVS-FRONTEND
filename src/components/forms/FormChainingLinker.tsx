@@ -161,13 +161,13 @@ export const FormChainingLinker: React.FC<FormChainingLinkerProps> = ({
   );
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-6 bg-white rounded-lg border border-gray-200">
+    <div className="w-full max-w-2xl mx-auto p-6 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
       <div className="mb-6">
-        <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
           <Link2 className="h-5 w-5 text-blue-600" />
           Form Chaining
         </h3>
-        <p className="text-gray-600 text-sm mt-2">
+        <p className="text-gray-600 dark:text-gray-400 text-sm mt-2">
           Link this form to another form. After submission, customers will automatically see the linked form.
         </p>
       </div>
@@ -195,8 +195,8 @@ export const FormChainingLinker: React.FC<FormChainingLinkerProps> = ({
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <p className="text-sm text-blue-600 font-medium mb-2">Linked to:</p>
-              <h4 className="text-xl font-semibold text-gray-800">{linkedForm.title}</h4>
-              <p className="text-gray-600 text-sm mt-2">{linkedForm.description}</p>
+              <h4 className="text-xl font-semibold text-gray-800 dark:text-gray-200">{linkedForm.title}</h4>
+              <p className="text-gray-600 dark:text-gray-400 text-sm mt-2">{linkedForm.description}</p>
             </div>
             <button
               onClick={handleUnlinkForm}
@@ -218,8 +218,8 @@ export const FormChainingLinker: React.FC<FormChainingLinkerProps> = ({
           </div>
         </div>
       ) : (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-          <p className="text-gray-600 mb-4">No form linked yet</p>
+        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6 text-center">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">No form linked yet</p>
           <button
             onClick={() => setShowSelector(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -232,34 +232,34 @@ export const FormChainingLinker: React.FC<FormChainingLinkerProps> = ({
 
       {showSelector && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-96 flex flex-col">
-            <div className="flex items-center justify-between p-6 border-b border-gray-200">
-              <h4 className="text-lg font-semibold text-gray-800">Select Form to Link</h4>
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-96 flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h4 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Select Form to Link</h4>
               <button
                 onClick={() => {
                   setShowSelector(false);
                   setSearchQuery('');
                   setSelectedFormId('');
                 }}
-                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-colors"
               >
-                <X className="h-5 w-5 text-gray-600" />
+                <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </button>
             </div>
 
-            <div className="p-4 border-b border-gray-200">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <input
                 type="text"
                 placeholder="Search forms..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
 
             <div className="flex-1 overflow-y-auto">
               {filteredForms.length === 0 ? (
-                <div className="p-6 text-center text-gray-600">
+                <div className="p-6 text-center text-gray-600 dark:text-gray-400">
                   No forms available
                 </div>
               ) : (
@@ -272,22 +272,22 @@ export const FormChainingLinker: React.FC<FormChainingLinkerProps> = ({
                         selectedFormId === form.id ? 'bg-blue-50 border-l-4 border-blue-600' : ''
                       }`}
                     >
-                      <h5 className="font-semibold text-gray-800">{form.title}</h5>
-                      <p className="text-sm text-gray-600 mt-1">{form.description}</p>
+                      <h5 className="font-semibold text-gray-800 dark:text-gray-200">{form.title}</h5>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{form.description}</p>
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="flex gap-3 p-6 border-t border-gray-200">
+            <div className="flex gap-3 p-6 border-t border-gray-200 dark:border-gray-700">
               <button
                 onClick={() => {
                   setShowSelector(false);
                   setSearchQuery('');
                   setSelectedFormId('');
                 }}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-colors font-medium"
               >
                 Cancel
               </button>

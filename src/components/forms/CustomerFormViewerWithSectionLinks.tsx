@@ -61,9 +61,9 @@ export const CustomerFormViewerWithSectionLinks: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-12 max-w-md w-full text-center">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-12 max-w-md w-full text-center">
           <Loader className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Loading form...</p>
+          <p className="text-gray-600 dark:text-gray-400 font-medium">Loading form...</p>
         </div>
       </div>
     );
@@ -72,20 +72,20 @@ export const CustomerFormViewerWithSectionLinks: React.FC = () => {
   if (error || !form) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-red-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-red-200 p-12 max-w-md w-full">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-red-200 p-12 max-w-md w-full">
           <div className="flex items-center justify-center h-16 w-16 mx-auto bg-red-100 rounded-full mb-6">
             <AlertCircle className="h-8 w-8 text-red-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 text-center mb-2">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 text-center mb-2">
             Form Not Found
           </h2>
-          <p className="text-gray-600 text-center mb-6">
+          <p className="text-gray-600 dark:text-gray-400 text-center mb-6">
             {error ||
               "The form you're looking for doesn't exist or is no longer available."}
           </p>
           <button
             onClick={() => window.history.back()}
-            className="w-full px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+            className="w-full px-4 py-2 bg-gray-200 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 font-medium transition-colors"
           >
             ← Go Back
           </button>
@@ -97,17 +97,17 @@ export const CustomerFormViewerWithSectionLinks: React.FC = () => {
   if (submitted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 via-white to-green-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-xl border border-green-200 p-12 max-w-md w-full text-center">
+        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-green-200 p-12 max-w-md w-full text-center">
           <div className="flex items-center justify-center h-16 w-16 mx-auto bg-green-100 rounded-full mb-6">
             <CheckCircle className="h-8 w-8 text-green-600" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             Thank You!
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
             {submittedMessage || "Your response has been submitted successfully."}
           </p>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-500">
             Redirecting in a moment...
           </p>
         </div>
@@ -116,7 +116,7 @@ export const CustomerFormViewerWithSectionLinks: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-800">
       {/* Form with Section Linking Responder */}
       <FormWithSectionLinksResponder
         formId={formId!}

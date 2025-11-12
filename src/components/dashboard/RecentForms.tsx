@@ -15,11 +15,11 @@ export default function RecentForms({ questions, onViewForm }: RecentFormsProps)
       {recentForms.map((form) => (
         <div
           key={form.id}
-          className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+          className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg"
         >
           <div>
-            <h3 className="font-medium text-gray-900">{form.title}</h3>
-            <p className="text-sm text-gray-500 line-clamp-1">{form.description}</p>
+            <h3 className="font-medium text-gray-900 dark:text-gray-100">{form.title}</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-500 line-clamp-1">{form.description}</p>
           </div>
           <button
             onClick={() => onViewForm(form.id)}
@@ -31,7 +31,7 @@ export default function RecentForms({ questions, onViewForm }: RecentFormsProps)
         </div>
       ))}
       {recentForms.length === 0 && (
-        <p className="text-center text-gray-500 py-4">No forms created yet</p>
+        <p className="text-center text-gray-500 dark:text-gray-500 py-4">No forms created yet</p>
       )}
     </div>
   );

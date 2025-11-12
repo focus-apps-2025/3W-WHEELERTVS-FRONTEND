@@ -19,7 +19,7 @@ export default function ManagementTabs({
   onTabChange,
 }: ManagementTabsProps) {
   return (
-    <div className="border-b border-neutral-200 bg-white">
+    <div className="border-b border-neutral-200 dark:border-gray-700 bg-white dark:bg-gray-900">
       <nav className="flex px-6 overflow-x-auto">
         {tabs.map(({ id, label, icon: Icon }) => (
           <button

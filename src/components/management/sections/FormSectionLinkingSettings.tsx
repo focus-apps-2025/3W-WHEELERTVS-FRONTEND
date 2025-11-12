@@ -66,19 +66,19 @@ export const FormSectionLinkingSettings: React.FC<
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
         <Loader className="animate-spin h-8 w-8 text-blue-600 mx-auto" />
-        <p className="mt-3 text-gray-600">Loading section linking settings...</p>
+        <p className="mt-3 text-gray-600 dark:text-gray-400">Loading section linking settings...</p>
       </div>
     );
   }
 
   if (!sections || sections.length === 0) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
         <div className="text-center py-8">
           <AlertCircle className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             No sections found in this form. Create sections first before setting up links.
           </p>
         </div>
@@ -95,23 +95,23 @@ export const FormSectionLinkingSettings: React.FC<
         </div>
       )}
 
-      <div className="bg-white rounded-lg border border-gray-200">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
         <button
           onClick={() => toggleSection("info")}
-          className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 border-b border-gray-200"
+          className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700"
         >
-          <h3 className="text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
             Section Linking Configuration
           </h3>
           {expandedSection === "info" ? (
-            <ChevronUp className="h-5 w-5 text-gray-600" />
+            <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
           ) : (
-            <ChevronDown className="h-5 w-5 text-gray-600" />
+            <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
           )}
         </button>
 
         {expandedSection === "info" && (
-          <div className="p-6 bg-blue-50 border-t border-gray-200">
+          <div className="p-6 bg-blue-50 border-t border-gray-200 dark:border-gray-700">
             <p className="text-sm text-blue-800">
               <strong>Form:</strong> {formTitle || formId}
             </p>
@@ -128,8 +128,8 @@ export const FormSectionLinkingSettings: React.FC<
         )}
       </div>
 
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="flex border-b border-gray-200">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex border-b border-gray-200 dark:border-gray-700">
           <button
             onClick={() => setActiveTab("manage")}
             className={`flex-1 px-6 py-4 text-center font-medium transition-colors ${

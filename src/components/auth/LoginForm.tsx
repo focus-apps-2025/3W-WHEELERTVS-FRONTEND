@@ -23,18 +23,18 @@ export default function LoginForm({ onClose }: LoginFormProps) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl w-full max-w-md shadow-2xl border border-gray-100 overflow-hidden">
         {/* Header with gradient background */}
         <div className="bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800 px-8 py-6 relative">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition-all duration-200"
+            className="absolute top-4 right-4 p-1.5 text-white/80 hover:text-white hover:bg-white dark:bg-gray-900/20 rounded-lg transition-all duration-200"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 backdrop-blur-sm rounded-2xl mb-3">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-white dark:bg-gray-900/10 backdrop-blur-sm rounded-2xl mb-3">
               <LogIn className="w-8 h-8 text-white" />
             </div>
             <h2 className="text-2xl font-bold text-white mb-1">Welcome Back</h2>
@@ -58,7 +58,7 @@ export default function LoginForm({ onClose }: LoginFormProps) {
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Email field */}
             <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                 Email Address
               </label>
               <div className="relative">
@@ -69,7 +69,7 @@ export default function LoginForm({ onClose }: LoginFormProps) {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-gray-50/50 hover:bg-white focus:bg-white text-gray-900 placeholder-gray-500"
+                  className="w-full pl-12 pr-4 py-3.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-gray-50 dark:bg-gray-800/50 hover:bg-white focus:bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-500"
                   placeholder="admin@focus.com"
                   required
                 />
@@ -78,7 +78,7 @@ export default function LoginForm({ onClose }: LoginFormProps) {
 
             {/* Password field */}
             <div className="space-y-2">
-              <label className="block text-sm font-semibold text-gray-700">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300">
                 Password
               </label>
               <div className="relative">
@@ -89,14 +89,14 @@ export default function LoginForm({ onClose }: LoginFormProps) {
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-12 py-3.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-gray-50/50 hover:bg-white focus:bg-white text-gray-900 placeholder-gray-500"
+                  className="w-full pl-12 pr-12 py-3.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all duration-200 bg-gray-50 dark:bg-gray-800/50 hover:bg-white focus:bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-500"
                   placeholder="Enter your password"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors duration-200"
+                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors duration-200"
                 >
                   {showPassword ? (
                     <EyeOff className="w-5 h-5" />
@@ -130,7 +130,7 @@ export default function LoginForm({ onClose }: LoginFormProps) {
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 py-3.5 px-6 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 text-gray-700 dark:text-gray-300 py-3.5 px-6 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
               >
                 Cancel
               </button>
@@ -140,27 +140,27 @@ export default function LoginForm({ onClose }: LoginFormProps) {
           {/* Demo credentials */}
           <div className="mt-8 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-100">
             <div className="text-center">
-              <h4 className="font-semibold text-gray-800 mb-2 text-sm">
+              <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2 text-sm">
                 Demo Credentials
               </h4>
-              <div className="space-y-1 text-xs text-gray-600">
+              <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
                 <div className="flex items-center justify-center space-x-2">
                   <span className="font-medium">Admin:</span>
-                  <code className="bg-white px-2 py-1 rounded text-blue-600">
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-blue-600">
                     admin@focus.com
                   </code>
                   <span>/</span>
-                  <code className="bg-white px-2 py-1 rounded text-blue-600">
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-blue-600">
                     admin123#
                   </code>
                 </div>
                 <div className="flex items-center justify-center space-x-2">
                   <span className="font-medium">Mechanic:</span>
-                  <code className="bg-white px-2 py-1 rounded text-purple-600">
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-purple-600">
                     mechanic@focus.com
                   </code>
                   <span>/</span>
-                  <code className="bg-white px-2 py-1 rounded text-purple-600">
+                  <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-purple-600">
                     mechanic123
                   </code>
                 </div>

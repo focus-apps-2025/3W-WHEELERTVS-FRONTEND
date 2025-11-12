@@ -60,7 +60,7 @@ export default function QuestionRenderer({
               return (
                 <label
                   key={option}
-                  className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50"
+                  className="flex items-center space-x-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800"
                 >
                   <input
                     type={inputType}
@@ -94,7 +94,7 @@ export default function QuestionRenderer({
                       readOnly ? "cursor-not-allowed" : ""
                     }`}
                   />
-                  <span className="text-gray-700">{option}</span>
+                  <span className="text-gray-700 dark:text-gray-300">{option}</span>
                 </label>
               );
             })}
@@ -189,7 +189,7 @@ export default function QuestionRenderer({
           <img
             src={question.imageUrl}
             alt={questionText || "Question image"}
-            className="max-h-48 rounded-lg border border-gray-200 bg-white object-contain"
+            className="max-h-48 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 object-contain"
           />
           {question.required && !showLabel ? (
             <span className="absolute top-2 right-2 text-lg font-semibold text-red-500">*</span>
@@ -197,13 +197,13 @@ export default function QuestionRenderer({
         </div>
       ) : null}
       {showLabel ? (
-        <label className="block font-medium text-gray-700">
+        <label className="block font-medium text-gray-700 dark:text-gray-300">
           {questionText}
           {question.required && <span className="text-red-500 ml-1">*</span>}
         </label>
       ) : null}
       {question.description ? (
-        <p className="text-sm text-gray-500 mb-2">{question.description}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-500 mb-2">{question.description}</p>
       ) : null}
       {renderInput()}
     </div>

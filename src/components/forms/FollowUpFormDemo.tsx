@@ -275,10 +275,10 @@ export const FollowUpFormDemo: React.FC = () => {
             <Zap className="h-8 w-8 text-white" />
           </div>
         </div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-200 mb-4">
           Form Creation System with Follow-up Questions
         </h1>
-        <p className="text-lg text-gray-600 max-w-3xl mx-auto mb-6">
+        <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl mx-auto mb-6">
           A complete, production-ready system for creating intelligent forms
           with conditional follow-up questions. Built with React, Node.js,
           Express, and MongoDB. Features real-time validation, dynamic question
@@ -302,45 +302,45 @@ export const FollowUpFormDemo: React.FC = () => {
 
       {/* Key Features */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-white p-6 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow">
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
           <FileText className="h-8 w-8 text-blue-600 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
             Smart Form Creation
           </h3>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
             Create forms with 4 customizable options. Configure which options
             trigger follow-up questions with mandatory/optional settings.
           </p>
         </div>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow">
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
           <Users className="h-8 w-8 text-green-600 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
             Dynamic Responses
           </h3>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
             Intelligent response flow that shows follow-up questions based on
             user selections. Step-by-step navigation with real-time validation.
           </p>
         </div>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow">
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
           <Settings className="h-8 w-8 text-purple-600 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
             Complete Management
           </h3>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
             Full CRUD operations, visibility controls, duplication, follow-up
             configuration, and comprehensive form management tools.
           </p>
         </div>
 
-        <div className="bg-white p-6 rounded-lg border border-gray-200 hover:shadow-lg transition-shadow">
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
           <BarChart3 className="h-8 w-8 text-orange-600 mb-4" />
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
             Analytics & Insights
           </h3>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
             Detailed analytics, response tracking, performance metrics, and
             comprehensive reporting for data-driven decisions.
           </p>
@@ -349,7 +349,7 @@ export const FollowUpFormDemo: React.FC = () => {
 
       {/* Demo Steps */}
       <div className="space-y-6">
-        <h2 className="text-2xl font-bold text-gray-800 text-center">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 text-center">
           System Components
         </h2>
 
@@ -357,21 +357,21 @@ export const FollowUpFormDemo: React.FC = () => {
           {demoSteps.map((step, index) => (
             <div
               key={step.id}
-              className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-all duration-300"
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-lg transition-all duration-300"
             >
               <div className="flex items-center mb-4">
                 <div className="flex-shrink-0 w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mr-4">
                   <step.icon className="h-6 w-6 text-blue-600" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-800">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
                     {step.title}
                   </h3>
-                  <div className="text-sm text-gray-500">Step {index + 1}</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-500">Step {index + 1}</div>
                 </div>
               </div>
 
-              <p className="text-gray-600 mb-4 text-sm leading-relaxed">
+              <p className="text-gray-600 dark:text-gray-400 mb-4 text-sm leading-relaxed">
                 {step.description}
               </p>
 
@@ -388,16 +388,16 @@ export const FollowUpFormDemo: React.FC = () => {
       </div>
 
       {/* Technical Specifications */}
-      <div className="bg-gray-50 rounded-lg p-6">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6">
+        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4">
           Technical Implementation
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h4 className="font-semibold text-gray-800 mb-2">
+            <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">
               Backend Features
             </h4>
-            <ul className="text-sm text-gray-600 space-y-1">
+            <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
               <li>• RESTful API with Express.js</li>
               <li>• MongoDB with Mongoose ODM</li>
               <li>• JWT Authentication & Authorization</li>
@@ -409,10 +409,10 @@ export const FollowUpFormDemo: React.FC = () => {
             </ul>
           </div>
           <div>
-            <h4 className="font-semibold text-gray-800 mb-2">
+            <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">
               Frontend Features
             </h4>
-            <ul className="text-sm text-gray-600 space-y-1">
+            <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
               <li>• React with TypeScript</li>
               <li>• Responsive design with Tailwind CSS</li>
               <li>• Dynamic form rendering</li>
@@ -427,9 +427,9 @@ export const FollowUpFormDemo: React.FC = () => {
       </div>
 
       {/* Testing Section */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-xl font-bold text-gray-800">
+          <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200">
             System Integration Testing
           </h3>
           <button
@@ -446,7 +446,7 @@ export const FollowUpFormDemo: React.FC = () => {
           </button>
         </div>
 
-        <p className="text-gray-600 mb-4">
+        <p className="text-gray-600 dark:text-gray-400 mb-4">
           Run comprehensive integration tests to verify all system components
           are working correctly.
         </p>
@@ -456,7 +456,7 @@ export const FollowUpFormDemo: React.FC = () => {
             {testResults.map((result, index) => (
               <div
                 key={index}
-                className="flex items-center p-2 bg-gray-50 rounded"
+                className="flex items-center p-2 bg-gray-50 dark:bg-gray-800 rounded"
               >
                 {result.status === "passed" && (
                   <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
@@ -482,7 +482,7 @@ export const FollowUpFormDemo: React.FC = () => {
         return (
           <div className="max-w-6xl mx-auto p-6">
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-800">
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
                 Form Creation Demo
               </h2>
               <button
@@ -500,7 +500,7 @@ export const FollowUpFormDemo: React.FC = () => {
         return (
           <div className="max-w-6xl mx-auto p-6">
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-800">
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
                 Response Demo
               </h2>
               <button
@@ -545,7 +545,7 @@ export const FollowUpFormDemo: React.FC = () => {
         return (
           <div className="max-w-7xl mx-auto p-6">
             <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-800">
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
                 Management Demo
               </h2>
               <button
@@ -564,7 +564,7 @@ export const FollowUpFormDemo: React.FC = () => {
     }
   };
 
-  return <div className="min-h-screen bg-gray-50">{renderCurrentMode()}</div>;
+  return <div className="min-h-screen bg-gray-50 dark:bg-gray-800">{renderCurrentMode()}</div>;
 };
 
 export default FollowUpFormDemo;

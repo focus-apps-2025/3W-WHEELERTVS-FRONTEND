@@ -28,7 +28,7 @@ export default function TeamList({
         return (
           <div
             key={team.id}
-            className="bg-white rounded-lg shadow-sm border border-neutral-200 p-6"
+            className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-neutral-200 dark:border-gray-700 p-6"
           >
             <div className="flex items-start justify-between">
               <div className="flex items-start space-x-4">
@@ -73,7 +73,7 @@ export default function TeamList({
                 {team.memberDetails.map((member) => (
                   <div
                     key={member.id}
-                    className="flex items-center space-x-2 px-3 py-1.5 bg-gray-50 rounded-full border border-neutral-200"
+                    className="flex items-center space-x-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800 rounded-full border border-neutral-200 dark:border-gray-700"
                   >
                     {member.avatar ? (
                       <img
@@ -96,7 +96,7 @@ export default function TeamList({
       })}
 
       {teams.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg border border-neutral-200">
+        <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg border border-neutral-200 dark:border-gray-700">
           <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-primary-900 mb-2">
             No Teams Created

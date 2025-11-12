@@ -19,12 +19,27 @@ interface User {
   tenantId?: string;
 }
 
+interface TenantSettings {
+  logo?: string;
+  primaryColor?: string;
+  companyEmail?: string;
+  companyPhone?: string;
+}
+
+interface TenantSubscription {
+  plan: string;
+  maxUsers: number;
+  maxForms: number;
+}
+
 interface Tenant {
   _id: string;
   name: string;
   slug: string;
   companyName: string;
   isActive: boolean;
+  settings?: TenantSettings;
+  subscription?: TenantSubscription;
 }
 
 interface AuthContextType {
@@ -39,6 +54,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   loading: boolean;
   error: string | null;
+  updateTenant: (tenant: Tenant | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -49,6 +65,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   loading: false,
   error: null,
+  updateTenant: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -56,6 +73,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const updateTenantState = (nextTenant: Tenant | null) => {
+    setTenant(nextTenant);
+    if (nextTenant) {
+      localStorage.setItem("tenant_info", JSON.stringify(nextTenant));
+    } else {
+      localStorage.removeItem("tenant_info");
+    }
+  };
 
   const isAuthenticated = !!user;
 
@@ -75,9 +101,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setTenant(JSON.parse(storedTenant));
           }
         } catch (err) {
-          // Token is invalid, clear it
           apiClient.clearToken();
-          localStorage.removeItem("tenant_info");
+          updateTenantState(null);
         }
       }
       setLoading(false);
@@ -102,12 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       setUser(response.user);
-
-      // Store tenant info if available
-      if (response.tenant) {
-        setTenant(response.tenant);
-        localStorage.setItem("tenant_info", JSON.stringify(response.tenant));
-      }
+      updateTenantState(response.tenant || null);
 
       setLoading(false);
       return true;
@@ -133,14 +153,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     apiClient.logout();
     setUser(null);
-    setTenant(null);
+    updateTenantState(null);
     setError(null);
-    localStorage.removeItem("tenant_info");
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, tenant, login, logout, isAuthenticated, loading, error }}
+      value={{ user, tenant, login, logout, isAuthenticated, loading, error, updateTenant: updateTenantState }}
     >
       {children}
     </AuthContext.Provider>

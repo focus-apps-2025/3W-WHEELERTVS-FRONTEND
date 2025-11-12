@@ -134,7 +134,7 @@ export const SectionBranchingPreview: React.FC<SectionBranchingPreviewProps> = (
         </div>
 
         {hasNextSections && expandedPaths.has(section.id) && (
-          <div className="ml-8 mt-4 border-l-2 border-gray-300 pl-4 space-y-4">
+          <div className="ml-8 mt-4 border-l-2 border-gray-300 dark:border-gray-600 pl-4 space-y-4">
             {Object.entries(section.nextSections).map(([optionLabel, nextSectionId]) => {
               const nextSection = getSectionById(nextSectionId);
               return (
@@ -160,17 +160,17 @@ export const SectionBranchingPreview: React.FC<SectionBranchingPreviewProps> = (
       <div className="mb-8">
         <div className="flex items-center gap-2 mb-2">
           <Eye className="h-6 w-6 text-blue-600" />
-          <h1 className="text-3xl font-bold text-gray-800">
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-200">
             {isAdminPreview ? 'Section Flow Preview (Admin)' : 'Section Flow Preview'}
           </h1>
         </div>
-        <p className="text-gray-600 text-lg">{sectionFlow.description}</p>
+        <p className="text-gray-600 dark:text-gray-400 text-lg">{sectionFlow.description}</p>
       </div>
 
-      <div className="bg-white rounded-lg shadow-lg p-8">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-8">
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Form Flow</h2>
-          <p className="text-gray-600 mb-6">
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Form Flow</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
             Click on sections to expand and see where each option leads:
           </p>
         </div>
@@ -188,9 +188,9 @@ export const SectionBranchingPreview: React.FC<SectionBranchingPreviewProps> = (
           ))}
         </div>
 
-        <div className="mt-8 pt-8 border-t border-gray-200">
-          <h3 className="font-semibold text-gray-800 mb-4">How It Works:</h3>
-          <ul className="space-y-2 text-gray-600">
+        <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700">
+          <h3 className="font-semibold text-gray-800 dark:text-gray-200 mb-4">How It Works:</h3>
+          <ul className="space-y-2 text-gray-600 dark:text-gray-400">
             <li className="flex items-start">
               <span className="text-blue-600 mr-3 font-semibold">1.</span>
               <span>Customer starts with the first section</span>
@@ -211,7 +211,7 @@ export const SectionBranchingPreview: React.FC<SectionBranchingPreviewProps> = (
         </div>
 
         {isAdminPreview && (
-          <div className="mt-8 pt-8 border-t border-gray-200 bg-blue-50 p-4 rounded-lg">
+          <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-700 bg-blue-50 p-4 rounded-lg">
             <p className="text-blue-800">
               <span className="font-semibold">Admin View:</span> This preview shows how your form's section branching logic will work for customers. Each section's question options are linked to follow-up sections that will appear based on customer selections.
             </p>

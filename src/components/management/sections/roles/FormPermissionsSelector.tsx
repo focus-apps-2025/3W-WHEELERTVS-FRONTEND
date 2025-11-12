@@ -80,35 +80,35 @@ export default function FormPermissionsSelector({
 
   return (
     <div className="space-y-4">
-      <h6 className="text-sm font-medium text-primary-700">
+      <h6 className="text-sm font-medium text-primary-700 dark:text-primary-200">
         Form-Specific Permissions
       </h6>
-      <div className="bg-white rounded-lg overflow-hidden border border-neutral-200">
-        <table className="min-w-full divide-y divide-neutral-200">
-          <thead className="bg-gray-50">
+      <div className="bg-white dark:bg-gray-900 rounded-lg overflow-hidden border border-neutral-200 dark:border-gray-700 shadow-sm">
+        <table className="min-w-full divide-y divide-neutral-200 dark:divide-gray-800">
+          <thead className="bg-gray-50 dark:bg-gray-800/80">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-primary-700 dark:text-primary-200 uppercase tracking-wider">
                 Form Title
               </th>
               {permissionLabels.map(({ key, label }) => (
                 <th
                   key={key}
-                  className="px-4 py-3 text-center text-xs font-medium text-primary-700 uppercase tracking-wider"
+                  className="px-4 py-3 text-center text-xs font-medium text-primary-700 dark:text-primary-200 uppercase tracking-wider"
                 >
                   {label}
                 </th>
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-neutral-200">
+          <tbody className="bg-white dark:bg-gray-900 divide-y divide-neutral-200 dark:divide-gray-800">
             {forms.map((form) => {
               const permissions = getFormPermission(form.id);
               return (
                 <tr
                   key={form.id}
-                  className="hover:bg-gray-50 transition-colors"
+                  className="bg-white hover:bg-gray-50 dark:bg-gray-900/50 dark:hover:bg-gray-800 transition-colors"
                 >
-                  <td className="px-4 py-3 text-sm text-primary-900">
+                  <td className="px-4 py-3 text-sm text-primary-900 dark:text-gray-100">
                     {form.title}
                   </td>
                   {permissionLabels.map(({ key, label }) => (
@@ -118,9 +118,9 @@ export default function FormPermissionsSelector({
                           type="checkbox"
                           checked={permissions[key]}
                           onChange={() => handleTogglePermission(form.id, key)}
-                          className="rounded text-primary-600 focus:ring-primary-500 h-4 w-4"
+                          className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500 h-4 w-4 dark:bg-gray-900 dark:border-gray-700"
                         />
-                        <span className="text-sm text-primary-600 group-hover:text-primary-900">
+                        <span className="text-sm text-primary-600 group-hover:text-primary-900 dark:text-primary-200 dark:group-hover:text-primary-100">
                           {label}
                         </span>
                       </label>
@@ -130,10 +130,10 @@ export default function FormPermissionsSelector({
               );
             })}
             {forms.length === 0 && (
-              <tr>
+              <tr className="bg-white dark:bg-gray-900/40">
                 <td
                   colSpan={7}
-                  className="px-4 py-8 text-center text-primary-500"
+                  className="px-4 py-8 text-center text-primary-500 dark:text-gray-300"
                 >
                   No forms available. Create forms to manage permissions.
                 </td>

@@ -15,15 +15,15 @@ export default function ManagementCard({
 }: ManagementCardProps) {
   return (
     <div
-      className={`bg-white rounded-lg shadow-sm border border-gray-200 ${className}`}
+      className={`bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 ${className}`}
     >
       {(title || description) && (
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           {title && (
-            <h4 className="text-md font-medium text-gray-900">{title}</h4>
+            <h4 className="text-md font-medium text-gray-900 dark:text-gray-100">{title}</h4>
           )}
           {description && (
-            <p className="text-sm text-gray-500 mt-1">{description}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">{description}</p>
           )}
         </div>
       )}

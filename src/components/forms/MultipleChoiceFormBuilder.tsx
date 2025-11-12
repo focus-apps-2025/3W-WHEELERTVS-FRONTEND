@@ -1088,9 +1088,9 @@ export const MultipleChoiceFormBuilder: React.FC<
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         {formData.sections.length > 0 && (
           <nav className="md:w-28 md:flex-shrink-0">
-            <div className="sticky top-1/2 -translate-y-1/2 transform bg-white/95 backdrop-blur-sm border border-gray-200 rounded-2xl p-3 shadow-lg flex flex-col items-center gap-3">
-              <div className="w-full px-2 pb-3 border-b border-gray-200 text-center">
-                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+            <div className="sticky top-1/2 -translate-y-1/2 transform bg-white dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-2xl p-3 shadow-lg flex flex-col items-center gap-3">
+              <div className="w-full px-2 pb-3 border-b border-gray-200 dark:border-gray-700 text-center">
+                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
                   Weightage
                 </p>
                 <p
@@ -1165,12 +1165,12 @@ export const MultipleChoiceFormBuilder: React.FC<
           </nav>
         )}
         <div className="flex-1">
-          <div className="bg-white rounded-lg shadow-lg p-6">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6">
             <div className="mb-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+              <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">
                 Customer Service Request Form Builder
               </h2>
-              <p className="text-gray-600">
+              <p className="text-gray-600 dark:text-gray-400">
                 Create a comprehensive form with sections and multiple choice
                 questions
               </p>
@@ -1192,8 +1192,8 @@ export const MultipleChoiceFormBuilder: React.FC<
 
             <div className="space-y-8">
               {/* Form Details */}
-              <div className="bg-gray-50 p-6 rounded-lg">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+              <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
                   Form Details
                 </h3>
 
@@ -1201,7 +1201,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                   <div>
                     <label
                       htmlFor="form-title"
-                      className="block text-sm font-medium text-gray-700 mb-2"
+                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                     >
                       Form Title *
                     </label>
@@ -1213,14 +1213,14 @@ export const MultipleChoiceFormBuilder: React.FC<
                         handleFormFieldChange("title", e.target.value)
                       }
                       placeholder="Enter form title (e.g., 'Customer Service Request')"
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
                   <div>
                     <label
                       htmlFor="form-description"
-                      className="block text-sm font-medium text-gray-700 mb-2"
+                      className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                     >
                       Description
                     </label>
@@ -1232,7 +1232,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                       }
                       placeholder="Describe your form purpose (e.g., 'Collect customer feedback and service requests')"
                       rows={3}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
 
@@ -1244,11 +1244,11 @@ export const MultipleChoiceFormBuilder: React.FC<
                       onChange={(e) =>
                         handleFormFieldChange("isPublic", e.target.checked)
                       }
-                      className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      className="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
                     />
                     <label
                       htmlFor="public-visibility"
-                      className="ml-2 block text-sm text-gray-700"
+                      className="ml-2 block text-sm text-gray-700 dark:text-gray-300"
                     >
                       Make form publicly visible
                     </label>
@@ -1256,7 +1256,7 @@ export const MultipleChoiceFormBuilder: React.FC<
 
                   {/* Marks Visibility Settings */}
                   <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h4 className="text-sm font-semibold text-gray-800 mb-3">
+                    <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">
                       Marks & Scoring Settings
                     </h4>
                     <div className="space-y-3">
@@ -1271,15 +1271,15 @@ export const MultipleChoiceFormBuilder: React.FC<
                               e.target.checked
                             )
                           }
-                          className="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                          className="h-4 w-4 text-green-600 border-gray-300 dark:border-gray-600 rounded focus:ring-green-500"
                         />
                         <label
                           htmlFor="show-marks-to-customer"
-                          className="ml-2 block text-sm text-gray-700"
+                          className="ml-2 block text-sm text-gray-700 dark:text-gray-300"
                         >
                           Show marks to customers
                         </label>
-                        <span className="ml-2 text-xs text-gray-500">
+                        <span className="ml-2 text-xs text-gray-500 dark:text-gray-500">
                           (
                           {formData.showMarksToCustomer
                             ? "Customers can see marks"
@@ -1291,7 +1291,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                       <div>
                         <label
                           htmlFor="marks-per-question"
-                          className="block text-sm font-medium text-gray-700 mb-2"
+                          className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                         >
                           Marks per Question
                         </label>
@@ -1309,15 +1309,15 @@ export const MultipleChoiceFormBuilder: React.FC<
                               )
                             }
                             placeholder="1"
-                            className="w-20 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            className="w-20 p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                           />
-                          <span className="text-sm text-gray-600">
+                          <span className="text-sm text-gray-600 dark:text-gray-400">
                             points per correct answer
                           </span>
                         </div>
                       </div>
 
-                      <div className="mt-3 p-2 bg-white rounded border border-gray-200 text-xs text-gray-600">
+                      <div className="mt-3 p-2 bg-white dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400">
                         <div className="font-semibold mb-1">
                           📊 Total Form Score:
                         </div>
@@ -1347,10 +1347,10 @@ export const MultipleChoiceFormBuilder: React.FC<
                   ref={(element) => {
                     sectionRefs.current[sectionIndex] = element;
                   }}
-                  className="bg-gray-50 p-6 rounded-lg"
+                  className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg"
                 >
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-gray-800">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
                       Section {sectionIndex + 1}
                     </h3>
                     {formData.sections.length > 1 && (
@@ -1369,7 +1369,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                     <div>
                       <label
                         htmlFor={`section-${sectionIndex}-title`}
-                        className="block text-sm font-medium text-gray-700 mb-2"
+                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                       >
                         Section Title
                       </label>
@@ -1385,14 +1385,14 @@ export const MultipleChoiceFormBuilder: React.FC<
                           )
                         }
                         placeholder={`Section title (e.g., "Personal Information", "Service Details")`}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
 
                     <div>
                       <label
                         htmlFor={`section-${sectionIndex}-description`}
-                        className="block text-sm font-medium text-gray-700 mb-2"
+                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                       >
                         Section Description
                       </label>
@@ -1408,14 +1408,14 @@ export const MultipleChoiceFormBuilder: React.FC<
                           )
                         }
                         placeholder="Brief description of this section's purpose"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     </div>
 
                     <div>
                       <label
                         htmlFor={`section-${sectionIndex}-weightage`}
-                        className="block text-sm font-medium text-gray-700 mb-2"
+                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                       >
                         Section Weightage (%)
                       </label>
@@ -1434,9 +1434,9 @@ export const MultipleChoiceFormBuilder: React.FC<
                           )
                         }
                         placeholder="e.g., 20 for 20%"
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                         Total weightage:{" "}
                         {formData.sections
                           .reduce((sum, s) => sum + (s.weightage || 0), 0)
@@ -1460,17 +1460,17 @@ export const MultipleChoiceFormBuilder: React.FC<
 
                     {/* Questions */}
                     <div className="mt-6">
-                      <h4 className="text-md font-medium text-gray-800 mb-3">
+                      <h4 className="text-md font-medium text-gray-800 dark:text-gray-200 mb-3">
                         Questions
                       </h4>
 
                       {section.questions.map((question, questionIndex) => (
                         <div
                           key={question.id}
-                          className="border border-gray-200 p-4 rounded-lg mb-4 bg-white"
+                          className="border border-gray-200 dark:border-gray-700 p-4 rounded-lg mb-4 bg-white dark:bg-gray-900"
                         >
                           <div className="flex items-center justify-between mb-4">
-                            <span className="text-sm font-medium text-gray-600">
+                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
                               Question {questionIndex + 1}
                             </span>
                             {section.questions.length > 1 && (
@@ -1490,7 +1490,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                             <div>
                               <label
                                 htmlFor={`question-${sectionIndex}-${questionIndex}-text`}
-                                className="block text-sm font-medium text-gray-700 mb-2"
+                                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                               >
                                 Question Text
                               </label>
@@ -1507,14 +1507,14 @@ export const MultipleChoiceFormBuilder: React.FC<
                                   )
                                 }
                                 placeholder="What would you like to ask?"
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               />
                             </div>
 
                             <div>
                               <label
                                 htmlFor={`question-${sectionIndex}-${questionIndex}-type`}
-                                className="block text-sm font-medium text-gray-700 mb-2"
+                                className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                               >
                                 Question Type
                               </label>
@@ -1585,7 +1585,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                     );
                                   }
                                 }}
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               >
                                 <option value="text">
                                   Short Text - Single line text input
@@ -1623,11 +1623,11 @@ export const MultipleChoiceFormBuilder: React.FC<
                                   e.target.checked
                                 )
                               }
-                              className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              className="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
                             />
                             <label
                               htmlFor={`question-${sectionIndex}-${questionIndex}-required`}
-                              className="ml-2 block text-sm text-gray-700"
+                              className="ml-2 block text-sm text-gray-700 dark:text-gray-300"
                             >
                               Required
                             </label>
@@ -1640,7 +1640,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                             question.type === "yesNoNA") &&
                             question.options && (
                               <div className="mt-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                                   {question.type === "yesNoNA"
                                     ? "Preset Options"
                                     : "Options (one per line)"}
@@ -1660,7 +1660,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                         >
                                           <div className="flex items-center space-x-2">
                                             {question.type === "yesNoNA" ? (
-                                              <div className="flex-1 p-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 font-medium">
+                                              <div className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium">
                                                 {option}
                                               </div>
                                             ) : (
@@ -1681,7 +1681,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                 placeholder={`Option ${
                                                   optionIndex + 1
                                                 }`}
-                                                className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                               />
                                             )}
 
@@ -1717,7 +1717,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                     : menuId
                                                 );
                                               }}
-                                              className="p-1 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors relative"
+                                              className="p-1 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-colors relative"
                                               title="More actions"
                                             >
                                               <MoreVertical className="w-4 h-4" />
@@ -1725,7 +1725,7 @@ export const MultipleChoiceFormBuilder: React.FC<
 
                                             {openOptionMenu ===
                                               `${sectionIndex}-${questionIndex}-${optionIndex}` && (
-                                              <div className="absolute left-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-max">
+                                              <div className="absolute left-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 min-w-max">
                                                 <button
                                                   type="button"
                                                   onClick={() => {
@@ -1816,7 +1816,7 @@ export const MultipleChoiceFormBuilder: React.FC<
 
                                           {/* Go to Section Display */}
                                           <div className="ml-8 flex items-center space-x-2">
-                                            <div className="flex-1 text-xs text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-200">
+                                            <div className="flex-1 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded-lg border border-gray-200 dark:border-gray-700">
                                               {currentGoToSection ? (
                                                 currentGoToSection ===
                                                 "submit" ? (
@@ -1856,7 +1856,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                   </span>
                                                 )
                                               ) : (
-                                                <span className="text-gray-500">
+                                                <span className="text-gray-500 dark:text-gray-500">
                                                   ➡️ Continue to next section
                                                 </span>
                                               )}
@@ -1897,7 +1897,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                       Add Option
                                     </button>
 
-                                    <div className="mt-2 text-xs text-gray-500">
+                                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-500">
                                       💡 Tip: Each line becomes a selectable
                                       option for your users
                                     </div>
@@ -1922,7 +1922,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                           (followUp, followUpIndex) => (
                                             <div
                                               key={followUp.id}
-                                              className="bg-white p-3 rounded-lg border border-blue-200"
+                                              className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-blue-200"
                                             >
                                               <div className="flex items-start justify-between mb-2">
                                                 <span className="text-xs font-medium text-blue-600">
@@ -1958,7 +1958,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                   )
                                                 }
                                                 placeholder="Follow-up question text"
-                                                className="w-full p-2 mb-2 border border-gray-300 rounded-lg text-sm"
+                                                className="w-full p-2 mb-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm"
                                               />
 
                                               <div className="grid grid-cols-2 gap-2">
@@ -1973,7 +1973,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                       e.target.value
                                                     )
                                                   }
-                                                  className="p-2 border border-gray-300 rounded-lg text-sm"
+                                                  className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm"
                                                 >
                                                   <option value="text">
                                                     Short Text
@@ -2007,7 +2007,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                     }
                                                     className="h-4 w-4 text-blue-600"
                                                   />
-                                                  <span className="text-sm text-gray-700">
+                                                  <span className="text-sm text-gray-700 dark:text-gray-300">
                                                     Required
                                                   </span>
                                                 </label>
@@ -2083,7 +2083,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                   }
                 }}
               >
-                <div className="bg-white rounded-lg shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
+                <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
                   {/* Modal Header */}
                   <div className="bg-gradient-to-r from-green-600 to-green-500 px-6 py-4 text-white">
                     <h3 className="text-xl font-semibold">
@@ -2113,14 +2113,14 @@ export const MultipleChoiceFormBuilder: React.FC<
                           );
                           setSectionModal(null);
                         }}
-                        className="w-full text-left p-4 border-2 border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
+                        className="w-full text-left p-4 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="font-semibold text-gray-900 group-hover:text-blue-700">
+                            <div className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-700">
                               ➡️ Continue to Next Section
                             </div>
-                            <div className="text-sm text-gray-500 mt-1">
+                            <div className="text-sm text-gray-500 dark:text-gray-500 mt-1">
                               Follow the default sequential flow
                             </div>
                           </div>
@@ -2163,7 +2163,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                   📋 Section {index + 1}
                                   {section.title && `: ${section.title}`}
                                 </div>
-                                <div className="text-sm text-gray-500 mt-1">
+                                <div className="text-sm text-gray-500 dark:text-gray-500 mt-1">
                                   {section.questions.length} question
                                   {section.questions.length !== 1 ? "s" : ""}
                                   {section.description &&
@@ -2196,10 +2196,10 @@ export const MultipleChoiceFormBuilder: React.FC<
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="font-semibold text-gray-900 group-hover:text-purple-700">
+                            <div className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-purple-700">
                               ✅ Submit Form
                             </div>
-                            <div className="text-sm text-gray-500 mt-1">
+                            <div className="text-sm text-gray-500 dark:text-gray-500 mt-1">
                               End the form immediately after this answer
                             </div>
                           </div>
@@ -2209,7 +2209,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                   </div>
 
                   {/* Modal Footer */}
-                  <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex justify-end">
+                  <div className="bg-gray-50 dark:bg-gray-800 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
                     <button
                       type="button"
                       onClick={() => setSectionModal(null)}

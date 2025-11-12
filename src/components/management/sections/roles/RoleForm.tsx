@@ -53,14 +53,14 @@ export default function RoleForm({ onSubmit, initialData }: RoleFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 shadow-sm">
-      <h4 className="text-lg font-medium text-primary-600 mb-6">
+    <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 shadow-sm dark:bg-gray-800 dark:border dark:border-gray-700">
+      <h4 className="text-lg font-medium text-primary-600 mb-6 dark:text-primary-300">
         {initialData ? "Edit Role" : "Create New Role"}
       </h4>
 
       <div className="space-y-6">
         <div>
-          <label className="block text-sm font-medium text-primary-600 mb-1">
+          <label className="block text-sm font-medium text-primary-600 mb-1 dark:text-primary-200">
             Role Name
           </label>
           <input
@@ -73,7 +73,7 @@ export default function RoleForm({ onSubmit, initialData }: RoleFormProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-primary-600 mb-1">
+          <label className="block text-sm font-medium text-primary-600 mb-1 dark:text-primary-200">
             Description
           </label>
           <textarea
@@ -88,21 +88,21 @@ export default function RoleForm({ onSubmit, initialData }: RoleFormProps) {
         </div>
 
         <div>
-          <label className="flex items-center space-x-2 text-sm font-medium text-primary-600">
+          <label className="flex items-center space-x-2 text-sm font-medium text-primary-600 dark:text-primary-200">
             <input
               type="checkbox"
               checked={formData.canCreateForms}
               onChange={(e) =>
                 setFormData({ ...formData, canCreateForms: e.target.checked })
               }
-              className="rounded text-primary-600 focus:ring-primary-500"
+              className="rounded text-primary-600 focus:ring-primary-500 dark:bg-gray-900 dark:border-gray-700"
             />
             <span>Can Create New Forms</span>
           </label>
         </div>
 
         <div>
-          <h5 className="text-sm font-medium text-primary-700 mb-4">
+          <h5 className="text-sm font-medium text-primary-700 mb-4 dark:text-primary-200">
             System Permissions
           </h5>
           <div className="space-y-6">

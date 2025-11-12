@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
-import type { Question, Response, Section } from "../types";
+import type { Question, Response, Section, FollowUpQuestion } from "../types";
 import { useQuestionLogic } from "../hooks/useQuestionLogic";
 import ThankYouMessage from "./ThankYouMessage";
 import FormHeader from "./preview/FormHeader";
@@ -9,6 +9,113 @@ import SectionProgress from "./preview/SectionProgress";
 import SectionContent from "./preview/SectionContent";
 import NavigationButtons from "./preview/NavigationButtons";
 import { apiClient } from "../api/client";
+
+const SAMPLE_IMAGE_DATA =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==";
+
+const getSampleText = (question: FollowUpQuestion) => {
+  const cleaned = question.text?.replace(/[*:]/g, "").trim();
+  return cleaned ? `Sample ${cleaned}` : "Sample answer";
+};
+
+const createSampleAnswer = (question: FollowUpQuestion): any => {
+  const sampleText = getSampleText(question);
+
+  switch (question.type) {
+    case "text":
+    case "paragraph":
+      return sampleText;
+    case "email":
+      return "sample@example.com";
+    case "url":
+      return "https://example.com";
+    case "tel":
+      return "+1234567890";
+    case "yesNoNA":
+    case "radio":
+      return question.options?.[0] ?? sampleText;
+    case "checkbox":
+      if (question.options?.length) {
+        const values = question.options.slice(
+          0,
+          Math.min(2, question.options.length)
+        );
+        return values.length ? values : [sampleText];
+      }
+      return [sampleText];
+    case "search-select":
+      return question.options?.[0] ?? sampleText;
+    case "date":
+      return new Date().toISOString().split("T")[0];
+    case "time":
+      return "12:00";
+    case "file":
+      if (question.allowedFileTypes?.includes("image")) {
+        return SAMPLE_IMAGE_DATA;
+      }
+      return "Sample file uploaded";
+    case "range": {
+      const min = question.min ?? 0;
+      const max = question.max ?? min + 10;
+      const step = question.step && question.step > 0 ? question.step : 1;
+      const steps = Math.floor((max - min) / step);
+      const value = min + step * Math.floor(steps / 2);
+      return Math.min(max, value).toString();
+    }
+    case "rating": {
+      const min = question.min ?? 1;
+      const max = question.max ?? Math.max(min, 5);
+      const value = Math.max(min, Math.min(max, min === max ? min : min + 1));
+      return value.toString();
+    }
+    case "scale": {
+      const min = question.min ?? 0;
+      const max = question.max ?? 10;
+      const step = question.step && question.step > 0 ? question.step : 1;
+      const steps = Math.floor((max - min) / step);
+      const value = min + step * Math.floor(steps / 2);
+      return Math.min(max, value).toString();
+    }
+    case "radio-grid": {
+      const value: Record<string, string> = {};
+      const rows = question.gridOptions?.rows ?? [];
+      const column = question.gridOptions?.columns?.[0] ?? "";
+      rows.forEach((row) => {
+        value[row] = column;
+      });
+      return value;
+    }
+    case "checkbox-grid": {
+      const value: Record<string, string[]> = {};
+      const rows = question.gridOptions?.rows ?? [];
+      const column = question.gridOptions?.columns?.[0];
+      rows.forEach((row) => {
+        value[row] = column ? [column] : [];
+      });
+      return value;
+    }
+    case "radio-image":
+      return question.options?.[0] ?? "";
+    default:
+      return sampleText;
+  }
+};
+
+const normalizeTriggerValue = (
+  question: FollowUpQuestion | undefined,
+  value: any
+) => {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  if (!question) {
+    return value;
+  }
+  if (question.type === "checkbox") {
+    return Array.isArray(value) ? value : [value];
+  }
+  return value;
+};
 
 interface PreviewFormProps {
   questions: Question[];
@@ -54,10 +161,10 @@ export default function PreviewForm({
     return (
       <div className="w-full bg-gradient-to-br from-blue-50 via-white to-blue-50 py-12">
         <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2 text-center">
             Form Preview
           </h1>
-          <p className="text-gray-600 mb-6 text-center">
+          <p className="text-gray-600 dark:text-gray-400 mb-6 text-center">
             See how your form will appear to users
           </p>
           <div className="max-w-md mx-auto bg-red-50 border border-red-200 rounded-lg p-6 space-y-4">
@@ -84,7 +191,7 @@ export default function PreviewForm({
     if (linkedFollowUpForm) {
       return (
         <div className="w-full bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center py-6 sm:py-12 px-4 sm:px-6 min-h-screen">
-          <div className="max-w-2xl w-full bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
+          <div className="max-w-2xl w-full bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
             <div className="text-center">
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
                 <svg
@@ -101,10 +208,10 @@ export default function PreviewForm({
                   />
                 </svg>
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
                 Form Submitted!
               </h2>
-              <p className="text-gray-600 mb-6">
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
                 Your response has been recorded successfully.
               </p>
 
@@ -120,11 +227,11 @@ export default function PreviewForm({
                       the live customer form, users would be automatically
                       redirected to the next form.
                     </p>
-                    <div className="bg-white rounded-md p-3 border border-blue-200">
-                      <p className="text-xs text-gray-600 mb-1">
+                    <div className="bg-white dark:bg-gray-900 rounded-md p-3 border border-blue-200">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
                         Linked Form ID:
                       </p>
-                      <p className="font-mono text-sm text-gray-900">
+                      <p className="font-mono text-sm text-gray-900 dark:text-gray-100">
                         {linkedFollowUpForm}
                       </p>
                     </div>
@@ -159,7 +266,7 @@ export default function PreviewForm({
 
               <button
                 onClick={() => navigate("/forms")}
-                className="text-gray-600 hover:text-gray-800 font-medium transition-colors"
+                className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:text-gray-200 font-medium transition-colors"
               >
                 Back to Forms
               </button>
@@ -391,13 +498,10 @@ export default function PreviewForm({
     );
     console.log("[handlePrevious] Current section index:", currentSectionIndex);
 
-    // Navigate back in history stack
     if (sectionNavigationHistory.length > 1) {
-      // Remove current section from history
       const newHistory = [...sectionNavigationHistory];
       newHistory.pop();
 
-      // Get the previous section from history
       const previousSectionIndex = newHistory[newHistory.length - 1];
       console.log(
         "[handlePrevious] Going back to section index:",
@@ -410,6 +514,45 @@ export default function PreviewForm({
     } else {
       console.log("[handlePrevious] Already at first section in history");
     }
+  };
+
+  const handleLoadSampleAnswers = () => {
+    const allQuestions: FollowUpQuestion[] = [];
+    sections.forEach((section) => {
+      (section.questions || []).forEach((item) => {
+        allQuestions.push(item);
+      });
+    });
+
+    const questionMap = new Map<string, FollowUpQuestion>();
+    allQuestions.forEach((item) => {
+      questionMap.set(item.id, item);
+    });
+
+    const sampleAnswers: Record<string, any> = {};
+    allQuestions.forEach((item) => {
+      sampleAnswers[item.id] = createSampleAnswer(item);
+    });
+
+    allQuestions.forEach((item) => {
+      const condition = item.showWhen;
+      if (!condition?.questionId) {
+        return;
+      }
+      if (condition.value === undefined || condition.value === null) {
+        return;
+      }
+      const parentQuestion = questionMap.get(condition.questionId);
+      const normalizedValue = normalizeTriggerValue(
+        parentQuestion,
+        condition.value
+      );
+      if (normalizedValue !== undefined) {
+        sampleAnswers[condition.questionId] = normalizedValue;
+      }
+    });
+
+    setAnswers(sampleAnswers);
   };
 
   const currentSection = sections[currentSectionIndex];
@@ -444,6 +587,16 @@ export default function PreviewForm({
               totalCount={sections.length}
             />
           )}
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleLoadSampleAnswers}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            >
+              Load Sample Answers
+            </button>
+          </div>
 
           <SectionContent
             section={currentSection}

@@ -96,11 +96,11 @@ export default function TeamManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-gray-200 pb-4">
+      <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
         <div className="flex justify-between items-start">
           <div>
-            <h3 className="text-lg font-medium text-gray-900">Teams</h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Teams</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
               Create and manage teams to organize your staff members
             </p>
           </div>

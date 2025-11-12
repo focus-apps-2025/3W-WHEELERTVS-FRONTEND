@@ -25,7 +25,7 @@ export default function ManagementContent({
     GeneralManagement;
 
   return (
-    <div className="bg-gray-50 p-6 min-h-[400px]">
+    <div className="bg-gray-50 dark:bg-gray-800 p-6 min-h-[400px]">
       <ContentComponent />
     </div>
   );

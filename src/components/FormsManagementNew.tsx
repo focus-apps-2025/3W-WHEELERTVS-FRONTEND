@@ -219,10 +219,10 @@ export default function FormsManagementNew() {
   const renderFormCard = (form: Form, isChild: boolean = false) => (
     <div
       key={form._id}
-      className={`bg-white rounded-lg border p-4 hover:shadow-sm transition-shadow ${
+      className={`rounded-lg border p-4 hover:shadow-sm transition-shadow bg-white dark:bg-gray-900 border-neutral-200 dark:border-gray-700 ${
         isChild
-          ? "ml-8 border-l-4 border-l-blue-400 bg-blue-50/30 border-neutral-200"
-          : "border-neutral-200"
+          ? "ml-8 border-l-4 border-l-blue-400 bg-blue-50/30 dark:border-l-blue-500 dark:bg-blue-900/40"
+          : ""
       }`}
     >
       <div className="flex items-start justify-between mb-4">
@@ -272,7 +272,7 @@ export default function FormsManagementNew() {
 
           {/* Dropdown Menu */}
           {openDropdownId === form._id && (
-            <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-neutral-200 py-1 z-10">
+            <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-neutral-200 dark:border-gray-700 py-1 z-10">
               {!isChild && (
                 <button
                   onClick={() => handleOpenChildFormsModal(form)}
@@ -463,100 +463,6 @@ export default function FormsManagementNew() {
     }
   };
 
-  const flattenQuestionsRecursively = (sections: any[]) => {
-    return (sections || []).map((section) => {
-      const allQuestions: any[] = [];
-
-      const processQuestionRecursively = (question: any, depth: number = 0) => {
-        const { followUpQuestions, ...mainQuestion } = question;
-        allQuestions.push(mainQuestion);
-
-        if (followUpQuestions && followUpQuestions.length > 0) {
-          followUpQuestions.forEach((followUp: any) => {
-            const followUpWithShowWhen = {
-              ...followUp,
-              showWhen: followUp.showWhen
-                ? followUp.showWhen
-                : {
-                    questionId: question.id,
-                    value: "",
-                  },
-            };
-            processQuestionRecursively(followUpWithShowWhen, depth + 1);
-          });
-        }
-      };
-
-      section.questions
-        ?.filter((question: any) => !question?.showWhen)
-        .forEach((question: any) => {
-          processQuestionRecursively(question);
-        });
-
-      return {
-        ...section,
-        questions: allQuestions,
-      };
-    });
-  };
-
-  const flattenSectionsWithFollowUps = (sections: any[]) => {
-    return (sections || []).map((section) => {
-      const flattened: any[] = [];
-      const processQuestion = (
-        question: any,
-        parentId?: string,
-        triggerValue?: string | number
-      ) => {
-        if (!question) {
-          return;
-        }
-        const { followUpQuestions, ...rest } = question;
-        const baseQuestion = {
-          ...rest,
-        };
-        if (parentId) {
-          baseQuestion.showWhen = baseQuestion.showWhen || {
-            questionId: parentId,
-            value: triggerValue ?? "",
-          };
-        }
-        flattened.push(baseQuestion);
-        if (Array.isArray(followUpQuestions) && followUpQuestions.length > 0) {
-          followUpQuestions.forEach((followUp: any) => {
-            const value =
-              followUp?.showWhen && followUp.showWhen.value !== undefined
-                ? followUp.showWhen.value
-                : "";
-            processQuestion(
-              {
-                ...followUp,
-                showWhen:
-                  followUp?.showWhen && followUp.showWhen.questionId
-                    ? followUp.showWhen
-                    : {
-                        questionId: baseQuestion.id,
-                        value: value,
-                      },
-              },
-              baseQuestion.id,
-              value
-            );
-          });
-        }
-      };
-      section.questions
-        ?.filter((question: any) => !question?.showWhen)
-        .forEach((question: any) => {
-          processQuestion(question);
-        });
-      return {
-        ...section,
-        questions: flattened,
-      };
-    });
-  };
-
   const handleFileInputChange = async (
     event: ChangeEvent<HTMLInputElement>
   ) => {
@@ -578,17 +484,6 @@ export default function FormsManagementNew() {
     try {
       const parsed = await parseFormWorkbook(file);
 
-      const hasFollowUpQuestions = (parsed.sections || []).some(
-        (section: any) =>
-          section.questions?.some(
-            (q: any) => q.followUpQuestions && q.followUpQuestions.length > 0
-          )
-      );
-
-      const flattenedSections = hasFollowUpQuestions
-        ? flattenQuestionsRecursively(parsed.sections || [])
-        : parsed.sections || [];
-
       const sectionBranching: any[] = [];
       parsed.sections?.forEach((section: any) => {
         section.questions?.forEach((question: any) => {
@@ -608,7 +503,7 @@ export default function FormsManagementNew() {
 
       const formPayload = {
         ...parsed,
-        sections: flattenedSections,
+        sections: parsed.sections || [],
         isVisible: true,
         followUpQuestions: parsed.followUpQuestions || [],
         sectionBranching: sectionBranching,
@@ -836,7 +731,7 @@ export default function FormsManagementNew() {
 
         {/* Forms List */}
         {filteredForms.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg border border-neutral-200">
+          <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg border border-neutral-200 dark:border-gray-700">
             <FileText className="w-12 h-12 text-primary-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-primary-600 mb-2">
               {(() => {
@@ -893,9 +788,9 @@ export default function FormsManagementNew() {
         {/* Child Forms Management Modal */}
         {showChildFormsModal && selectedParentForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
               {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-neutral-200 flex items-center justify-between">
+              <div className="px-6 py-4 border-b border-neutral-200 dark:border-gray-700 flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-primary-900">
                     Manage Child Forms
@@ -981,7 +876,7 @@ export default function FormsManagementNew() {
               </div>
 
               {/* Modal Footer */}
-              <div className="px-6 py-4 border-t border-neutral-200 flex items-center justify-between">
+              <div className="px-6 py-4 border-t border-neutral-200 dark:border-gray-700 flex items-center justify-between">
                 <div className="text-sm text-primary-600">
                   {selectedChildFormIds.length} form
                   {selectedChildFormIds.length !== 1 ? "s" : ""} selected

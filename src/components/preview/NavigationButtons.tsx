@@ -23,12 +23,12 @@ export default function NavigationButtons({
     : "flex items-center px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium";
 
   return (
-    <div className="flex justify-between pt-8 border-t border-gray-200 mt-12">
+    <div className="flex justify-between pt-8 border-t border-gray-200 dark:border-gray-700 mt-12">
       {!isFirstSection && (
         <button
           type="button"
           onClick={onPrevious}
-          className="flex items-center px-8 py-3 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+          className="flex items-center px-8 py-3 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-colors font-medium"
         >
           <ChevronLeft className="w-5 h-5 mr-2" />
           Previous

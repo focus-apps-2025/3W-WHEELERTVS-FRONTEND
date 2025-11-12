@@ -1237,10 +1237,10 @@ export default function AllResponses() {
                 {groupedResponses[date].map((response) => (
                   <div
                     key={response._id}
-                    className="flex items-center justify-between p-4 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                    className="flex items-center justify-between p-4 bg-primary-50 dark:bg-gray-800 rounded-lg border border-primary-100 dark:border-gray-700 hover:bg-primary-100 dark:hover:bg-gray-700 transition-colors"
                   >
                     <div className="flex items-center space-x-4">
-                      <div className="p-2 bg-white rounded-lg">
+                      <div className="p-2 bg-white dark:bg-gray-900 rounded-lg">
                         <FileText className="w-5 h-5 text-primary-600" />
                       </div>
                       <div>
@@ -1249,7 +1249,7 @@ export default function AllResponses() {
                             {response.formTitle}
                           </h4>
                           {response.yesNoScore && response.yesNoScore.total > 0 && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100">
+                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800">
                               {response.yesNoScore.yes}/{response.yesNoScore.total}
                             </span>
                           )}
@@ -1277,7 +1277,7 @@ export default function AllResponses() {
                           editingResponse.id === response.id &&
                           (editingFormLoading || savingEdit)
                         }
-                        className="flex items-center px-3 py-2 text-sm text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-60"
+                        className="flex items-center px-3 py-2 text-sm text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-60 dark:text-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60"
                       >
                         <Edit2 className="w-4 h-4 mr-2" />
                         Edit
@@ -1285,7 +1285,7 @@ export default function AllResponses() {
                       <button
                         onClick={() => handleDeleteResponse(response)}
                         disabled={deletingResponseId === response.id}
-                        className="flex items-center px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-60"
+                        className="flex items-center px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-60 dark:text-red-300 dark:bg-red-900/40 dark:hover:bg-red-900/60"
                       >
                         <Trash2 className="w-4 h-4 mr-2" />
                         {deletingResponseId === response.id ? "Deleting..." : "Delete"}
@@ -1299,8 +1299,8 @@ export default function AllResponses() {
 
         {responses.length === 0 && (
           <div className="text-center py-16 card">
-            <div className="p-4 bg-primary-50 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-              <FileText className="w-10 h-10 text-primary-600" />
+            <div className="p-4 bg-primary-50 dark:bg-gray-800 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+              <FileText className="w-10 h-10 text-primary-600 dark:text-primary-300" />
             </div>
             <h3 className="text-lg font-medium text-primary-600 mb-2">
               No Customer Requests
@@ -1316,8 +1316,8 @@ export default function AllResponses() {
       {/* Response Preview Modal */}
       {selectedResponse && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] flex flex-col">
-            <div className="sticky top-0 z-10 bg-white px-6 py-4 border-b border-primary-200 flex justify-between items-center">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] flex flex-col">
+            <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 px-6 py-4 border-b border-primary-200 flex justify-between items-center">
               <div>
                 <h3 className="text-xl font-semibold text-primary-700">
                   {selectedResponse.formTitle}
@@ -1342,7 +1342,7 @@ export default function AllResponses() {
                 </button>
                 <button
                   onClick={handleSendToMail}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
                   title="Send to Mail"
                 >
                   <Mail className="w-4 h-4" />
@@ -1370,7 +1370,7 @@ export default function AllResponses() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    <div className="sticky top-0 z-20 bg-white flex items-center gap-2 bg-primary-50 rounded-lg p-2 mb-4">
+                    <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 flex items-center gap-2 bg-primary-50 rounded-lg p-2 mb-4">
                       <button
                         onClick={() => setViewMode("dashboard")}
                         className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
@@ -1444,7 +1444,7 @@ export default function AllResponses() {
                               </th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-primary-100 bg-white">
+                          <tbody className="divide-y divide-primary-100 bg-white dark:bg-gray-900">
                             {sectionSummaryRows.map((row) => (
                               <tr key={row.id} className="hover:bg-primary-50">
                                 <td className="px-4 py-3 font-medium text-primary-700 w-32">
@@ -1501,7 +1501,7 @@ export default function AllResponses() {
 
       {editingResponse && editingFormLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl px-6 py-4 flex items-center gap-3">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl px-6 py-4 flex items-center gap-3">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
             <div className="text-primary-600 font-medium">Loading form details...</div>
           </div>
@@ -1522,7 +1522,7 @@ export default function AllResponses() {
 
       {showEmailDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-sm w-full m-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full m-4">
             <div className="px-6 py-4 border-b border-primary-200">
               <h3 className="text-lg font-semibold text-primary-700">
                 Send Report via Email

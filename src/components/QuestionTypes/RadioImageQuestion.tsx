@@ -39,7 +39,7 @@ export default function RadioImageQuestion({
             checked={value === imageUrl}
             onChange={(e) => !readOnly && onChange(e.target.value)}
             disabled={readOnly}
-            className="absolute top-2 right-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+            className="absolute top-2 right-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
             required={question.required && !value}
           />
           <div

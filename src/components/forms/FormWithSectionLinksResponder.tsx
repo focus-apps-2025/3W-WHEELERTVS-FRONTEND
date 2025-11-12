@@ -222,17 +222,17 @@ export const FormWithSectionLinksResponder: React.FC<
   return (
     <div className="max-w-4xl mx-auto p-6">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{form.title}</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">{form.title}</h1>
         {form.description && (
-          <p className="text-gray-600">{form.description}</p>
+          <p className="text-gray-600 dark:text-gray-400">{form.description}</p>
         )}
 
         <div className="mt-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Section {currentSectionIndex + 1} of {visibleSections.length}
             </span>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-gray-500 dark:text-gray-500">
               {Math.round(((currentSectionIndex + 1) / visibleSections.length) * 100)}% complete
             </span>
           </div>
@@ -277,10 +277,10 @@ export const FormWithSectionLinksResponder: React.FC<
       )}
 
       {currentSection && (
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-8">
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-2xl font-bold text-gray-900">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
                 {currentSection.title}
               </h2>
               <span className="text-xs font-semibold px-3 py-1 bg-blue-100 text-blue-700 rounded-full">
@@ -288,14 +288,14 @@ export const FormWithSectionLinksResponder: React.FC<
               </span>
             </div>
             {currentSection.description && (
-              <p className="text-gray-600">{currentSection.description}</p>
+              <p className="text-gray-600 dark:text-gray-400">{currentSection.description}</p>
             )}
           </div>
 
           <div className="space-y-6">
             {currentSection.questions.map((question) => (
               <div key={question.id}>
-                <label className="block text-sm font-medium text-gray-900 mb-2">
+                <label className="block text-sm font-medium text-gray-900 dark:text-gray-100 mb-2">
                   {question.text}
                   {question.required && (
                     <span className="text-red-600 ml-1">*</span>
@@ -303,7 +303,7 @@ export const FormWithSectionLinksResponder: React.FC<
                 </label>
 
                 {question.description && (
-                  <p className="text-sm text-gray-600 mb-2">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                     {question.description}
                   </p>
                 )}
@@ -338,7 +338,7 @@ export const FormWithSectionLinksResponder: React.FC<
                           }
                           className="w-4 h-4"
                         />
-                        <span className="text-gray-700">{option}</span>
+                        <span className="text-gray-700 dark:text-gray-300">{option}</span>
                       </label>
                     ))}
                   </div>
@@ -364,7 +364,7 @@ export const FormWithSectionLinksResponder: React.FC<
                           }}
                           className="w-4 h-4"
                         />
-                        <span className="text-gray-700">{option}</span>
+                        <span className="text-gray-700 dark:text-gray-300">{option}</span>
                       </label>
                     ))}
                   </div>
@@ -398,7 +398,7 @@ export const FormWithSectionLinksResponder: React.FC<
         <button
           onClick={handlePrevious}
           disabled={isFirstSection || submitting}
-          className="flex items-center gap-2 px-6 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex items-center gap-2 px-6 py-2 bg-gray-300 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-400 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ArrowLeft className="h-4 w-4" />
           Previous

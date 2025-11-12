@@ -110,7 +110,7 @@ export default function SearchSelect({
                 </span>
               ))
             ) : (
-              <span className="text-gray-500">{placeholder}</span>
+              <span className="text-gray-500 dark:text-gray-500">{placeholder}</span>
             )
           ) : (
             <span className={value ? "text-gray-900" : "text-gray-500"}>
@@ -126,8 +126,8 @@ export default function SearchSelect({
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
-          <div className="p-2 border-b border-gray-200">
+        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg">
+          <div className="p-2 border-b border-gray-200 dark:border-gray-700">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
               <input
@@ -135,7 +135,7 @@ export default function SearchSelect({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Search..."
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-gray-900"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
                 onClick={(e) => e.stopPropagation()}
               />
             </div>
@@ -160,7 +160,7 @@ export default function SearchSelect({
                 </div>
               ))
             ) : (
-              <div className="px-4 py-2 text-gray-500">No options found</div>
+              <div className="px-4 py-2 text-gray-500 dark:text-gray-500">No options found</div>
             )}
           </div>
         </div>

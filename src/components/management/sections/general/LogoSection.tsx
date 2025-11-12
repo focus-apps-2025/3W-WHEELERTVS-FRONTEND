@@ -37,7 +37,7 @@ export default function LogoSection() {
       </div>
 
       <div className="flex items-center space-x-6">
-        <div className="flex-shrink-0 w-24 h-24 bg-white rounded-lg overflow-hidden shadow-sm">
+        <div className="flex-shrink-0 w-24 h-24 bg-white dark:bg-gray-900 rounded-lg overflow-hidden shadow-sm">
           {logo ? (
             <img
               src={logo}
@@ -52,7 +52,7 @@ export default function LogoSection() {
         </div>
 
         <div className="flex-1">
-          <label className="flex flex-col items-center px-6 py-8 bg-white rounded-lg cursor-pointer hover:bg-neutral-50 transition-colors shadow-sm">
+          <label className="flex flex-col items-center px-6 py-8 bg-white dark:bg-gray-900 rounded-lg cursor-pointer hover:bg-neutral-50 transition-colors shadow-sm">
             <div className="flex items-center">
               <Image className="w-6 h-6 text-primary-600 mr-2" />
               <span className="text-primary-600 font-medium">

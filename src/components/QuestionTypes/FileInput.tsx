@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo } from "react";
-import { Upload } from "lucide-react";
+import React, { useCallback, useMemo, useState } from "react";
+import { Upload, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import type { FollowUpQuestion } from "../../types";
+import { apiClient } from "../../api/client";
 
 interface FileInputProps {
   question: FollowUpQuestion;
@@ -49,6 +50,9 @@ export default function FileInput({
   onChange,
   readOnly = false,
 }: FileInputProps) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const accept = useMemo(() => {
     if (!question.allowedFileTypes || question.allowedFileTypes.length === 0) {
       return undefined;
@@ -63,7 +67,7 @@ export default function FileInput({
   }, [question.allowedFileTypes]);
 
   const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
       if (readOnly) return;
       const file = e.target.files?.[0];
       if (file) {
@@ -83,11 +87,19 @@ export default function FileInput({
           }
         }
 
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          onChange(reader.result as string);
-        };
-        reader.readAsDataURL(file);
+        try {
+          setUploading(true);
+          setError(null);
+          const result = await apiClient.uploadFile(file, "form");
+          onChange(result.url);
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : "Failed to upload file";
+          setError(errorMsg);
+          console.error("File upload error:", err);
+          e.target.value = "";
+        } finally {
+          setUploading(false);
+        }
       }
     },
     [onChange, question.allowedFileTypes, readOnly]
@@ -96,45 +108,72 @@ export default function FileInput({
   return (
     <div className="space-y-4">
       <label
-        className={`flex flex-col items-center px-4 py-6 border-2 border-dashed border-gray-300 rounded-lg ${
-          readOnly
-            ? "cursor-not-allowed bg-gray-100"
-            : "cursor-pointer hover:bg-gray-50"
-        }`}
+        className={`flex flex-col items-center px-4 py-6 border-2 border-dashed rounded-lg ${
+          readOnly || uploading
+            ? "cursor-not-allowed bg-gray-100 dark:bg-gray-800"
+            : "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+        } border-gray-300 dark:border-gray-600 ${error ? "border-red-300 dark:border-red-600" : ""}`}
       >
-        <Upload className="w-8 h-8 text-gray-400 mb-2" />
-        <span className="text-sm text-gray-500">
-          {readOnly
-            ? "File upload disabled"
-            : "Click to upload or drag and drop"}
-        </span>
+        {uploading ? (
+          <>
+            <Loader2 className="w-8 h-8 text-blue-400 mb-2 animate-spin" />
+            <span className="text-sm text-blue-600 dark:text-blue-400">
+              Uploading file...
+            </span>
+          </>
+        ) : (
+          <>
+            <Upload className="w-8 h-8 text-gray-400 mb-2" />
+            <span className="text-sm text-gray-500 dark:text-gray-500">
+              {readOnly
+                ? "File upload disabled"
+                : "Click to upload or drag and drop"}
+            </span>
+          </>
+        )}
         <input
           type="file"
           accept={accept}
           onChange={handleFileChange}
-          disabled={readOnly}
+          disabled={readOnly || uploading}
           className="hidden"
           required={question.required && !value}
         />
       </label>
 
-      {value && (
-        <div className="mt-4">
-          {value.startsWith("data:image") ? (
-            <img
-              src={value}
-              alt="Uploaded file"
-              className="max-w-full h-auto rounded-lg"
-            />
-          ) : (
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">
-                File uploaded successfully
-              </p>
-            </div>
-          )}
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg">
+          <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0" />
+          <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         </div>
       )}
+
+      {value && !value.startsWith("/uploads") && value.startsWith("data:") ? (
+        <div className="mt-4">
+          <img
+            src={value}
+            alt="Uploaded file"
+            className="max-w-full h-auto rounded-lg"
+          />
+        </div>
+      ) : value && value.startsWith("/uploads") ? (
+        <div className="mt-4 flex items-center gap-2">
+          <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+          <div className="flex-1">
+            {value.includes("image") || value.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+              <img
+                src={value}
+                alt="Uploaded file"
+                className="max-w-full h-auto rounded-lg max-h-64"
+              />
+            ) : (
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                File uploaded successfully
+              </p>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

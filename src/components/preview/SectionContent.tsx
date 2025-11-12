@@ -28,11 +28,11 @@ export default function SectionContent({
     <div className="w-full space-y-8">
       {section.title !== formTitle && (
         <div className="mb-8">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
             {section.title}
           </h2>
           {section.description && (
-            <p className="text-base text-gray-600">{section.description}</p>
+            <p className="text-base text-gray-600 dark:text-gray-400">{section.description}</p>
           )}
         </div>
       )}

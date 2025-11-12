@@ -62,10 +62,10 @@ export const CustomerFormView: React.FC<CustomerFormViewProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-800">
         <div className="text-center">
           <Loader className="animate-spin h-12 w-12 text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600 text-lg">Loading form...</p>
+          <p className="text-gray-600 dark:text-gray-400 text-lg">Loading form...</p>
         </div>
       </div>
     );
@@ -73,13 +73,13 @@ export const CustomerFormView: React.FC<CustomerFormViewProps> = ({
 
   if (error || !form) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-800 p-4">
+        <div className="max-w-md w-full bg-white dark:bg-gray-900 rounded-lg shadow-lg p-8 text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             Form Not Found
           </h2>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
             {error || "The form you're looking for doesn't exist."}
           </p>
           <a
@@ -94,7 +94,7 @@ export const CustomerFormView: React.FC<CustomerFormViewProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-800">
       {hasFlowConfig && showFlowInfo && (
         <div className="bg-blue-50 border-b border-blue-200">
           <div className="max-w-4xl mx-auto px-6 py-4">

@@ -81,11 +81,11 @@ export const FormSectionLinkingPage: React.FC = () => {
         <div className="mb-6 flex items-center gap-2">
           <button
             onClick={() => navigate("/forms/management")}
-            className="p-2 hover:bg-gray-100 rounded-lg"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
             Section Linking
           </h1>
         </div>
@@ -110,29 +110,29 @@ export const FormSectionLinkingPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-800">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center gap-3 mb-4">
             <button
               onClick={() => navigate("/forms/management")}
-              className="p-2 hover:bg-gray-100 rounded-lg transition"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition"
               title="Back to forms"
             >
-              <ArrowLeft className="h-5 w-5 text-gray-600" />
+              <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
                 <Link2 className="h-7 w-7 text-blue-600" />
                 Section Linking
               </h1>
-              <p className="text-gray-600 mt-1">{form.title}</p>
+              <p className="text-gray-600 dark:text-gray-400 mt-1">{form.title}</p>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-2 border-t border-gray-200 pt-4">
+          <div className="flex gap-2 border-t border-gray-200 dark:border-gray-700 pt-4">
             <button
               onClick={() => setActiveTab("manage")}
               className={`flex items-center gap-2 px-4 py-2 font-medium rounded-t-lg transition-colors ${

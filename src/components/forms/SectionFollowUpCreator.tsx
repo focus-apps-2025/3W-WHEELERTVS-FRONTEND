@@ -324,12 +324,12 @@ export const SectionFollowUpCreator: React.FC = () => {
   };
 
   return (
-    <div className="max-w-5xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+    <div className="max-w-5xl mx-auto p-6 bg-white dark:bg-gray-900 rounded-lg shadow-lg">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">
           Create Form with Follow-up Sections
         </h2>
-        <p className="text-gray-600">
+        <p className="text-gray-600 dark:text-gray-400">
           Create a multi-section form where each option can link to follow-up sections
         </p>
       </div>
@@ -349,14 +349,14 @@ export const SectionFollowUpCreator: React.FC = () => {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-gray-50 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+        <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
             Form Information
           </h3>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Form Title *
               </label>
               <input
@@ -368,13 +368,13 @@ export const SectionFollowUpCreator: React.FC = () => {
                     formTitle: e.target.value,
                   }))
                 }
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Enter form title"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Form Description *
               </label>
               <textarea
@@ -386,7 +386,7 @@ export const SectionFollowUpCreator: React.FC = () => {
                   }))
                 }
                 rows={3}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Describe what this form is for"
               />
             </div>
@@ -395,7 +395,7 @@ export const SectionFollowUpCreator: React.FC = () => {
 
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-800">Sections</h3>
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Sections</h3>
             <button
               type="button"
               onClick={addSection}
@@ -409,22 +409,22 @@ export const SectionFollowUpCreator: React.FC = () => {
           {formData.sections.map((section, sectionIndex) => (
             <div
               key={section.id}
-              className="border border-gray-200 rounded-lg overflow-hidden bg-white"
+              className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-white dark:bg-gray-900"
             >
-              <div className="bg-gray-50 p-4 flex items-center justify-between cursor-pointer hover:bg-gray-100"
+              <div className="bg-gray-50 dark:bg-gray-800 p-4 flex items-center justify-between cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700"
                 onClick={() => toggleSectionExpanded(section.id)}>
                 <div className="flex items-center space-x-3">
                   {expandedSections.has(section.id) ? (
-                    <ChevronUp className="h-5 w-5 text-gray-600" />
+                    <ChevronUp className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                   ) : (
-                    <ChevronDown className="h-5 w-5 text-gray-600" />
+                    <ChevronDown className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                   )}
                   <div>
-                    <h4 className="font-semibold text-gray-800">
+                    <h4 className="font-semibold text-gray-800 dark:text-gray-200">
                       {section.title || `Section ${sectionIndex + 1}`}
                     </h4>
                     {section.parentSectionId && (
-                      <p className="text-xs text-gray-500">
+                      <p className="text-xs text-gray-500 dark:text-gray-500">
                         Parent: {getFollowUpSectionLabel(section.parentSectionId)}
                       </p>
                     )}
@@ -445,9 +445,9 @@ export const SectionFollowUpCreator: React.FC = () => {
               </div>
 
               {expandedSections.has(section.id) && (
-                <div className="p-6 space-y-4 border-t border-gray-200">
+                <div className="p-6 space-y-4 border-t border-gray-200 dark:border-gray-700">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Section Title *
                     </label>
                     <input
@@ -456,13 +456,13 @@ export const SectionFollowUpCreator: React.FC = () => {
                       onChange={(e) =>
                         updateSectionTitle(section.id, e.target.value)
                       }
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="e.g., Section 1"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Section Description (Optional)
                     </label>
                     <textarea
@@ -471,13 +471,13 @@ export const SectionFollowUpCreator: React.FC = () => {
                         updateSectionDescription(section.id, e.target.value)
                       }
                       rows={2}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Add a description for this section"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Question (Single Choice) *
                     </label>
                     <input
@@ -486,20 +486,20 @@ export const SectionFollowUpCreator: React.FC = () => {
                       onChange={(e) =>
                         updateSectionQuestion(section.id, e.target.value)
                       }
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="e.g., What is your preference?"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Options (4 Options - Select Only 1)
                     </label>
                     <div className="space-y-3">
                       {section.options.map((option, optionIndex) => (
                         <div
                           key={option.id}
-                          className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                          className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-800"
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center space-x-3 flex-1">
@@ -518,7 +518,7 @@ export const SectionFollowUpCreator: React.FC = () => {
                                     e.target.value
                                   )
                                 }
-                                className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                                className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                                 placeholder={`Option ${optionIndex + 1}`}
                               />
                             </div>
@@ -559,8 +559,8 @@ export const SectionFollowUpCreator: React.FC = () => {
                           )}
 
                           {showSectionSelector === option.id && (
-                            <div className="ml-7 mt-2 bg-white border border-blue-300 rounded-lg p-3">
-                              <p className="text-xs text-gray-600 mb-2">
+                            <div className="ml-7 mt-2 bg-white dark:bg-gray-900 border border-blue-300 rounded-lg p-3">
+                              <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
                                 Select section to link to:
                               </p>
                               <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -577,7 +577,7 @@ export const SectionFollowUpCreator: React.FC = () => {
                                           s.id
                                         );
                                       }}
-                                      className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-blue-100 rounded transition-colors"
+                                      className="w-full text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-100 rounded transition-colors"
                                     >
                                       {s.title}
                                     </button>
@@ -586,7 +586,7 @@ export const SectionFollowUpCreator: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => setShowSectionSelector(null)}
-                                className="w-full mt-2 px-3 py-1 text-xs text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                                className="w-full mt-2 px-3 py-1 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded transition-colors"
                               >
                                 Cancel
                               </button>
@@ -602,7 +602,7 @@ export const SectionFollowUpCreator: React.FC = () => {
           ))}
         </div>
 
-        <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+        <div className="flex justify-end space-x-3 pt-6 border-t border-gray-200 dark:border-gray-700">
           <button
             type="submit"
             disabled={loading}

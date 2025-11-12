@@ -49,9 +49,9 @@ export default function StaffForm({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-neutral-200">
+        <div className="px-6 py-4 border-b border-neutral-200 dark:border-gray-700">
           <h3 className="text-xl font-semibold text-primary-900">
             {initialData ? "Edit Staff Member" : "Add Staff Member"}
           </h3>
@@ -70,7 +70,7 @@ export default function StaffForm({
                     className="w-32 h-32 rounded-full object-cover ring-4 ring-white shadow-lg"
                   />
                 ) : (
-                  <div className="w-32 h-32 bg-gray-100 rounded-full flex items-center justify-center ring-4 ring-white shadow-lg">
+                  <div className="w-32 h-32 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center ring-4 ring-white shadow-lg">
                     <Camera className="w-12 h-12 text-gray-400" />
                   </div>
                 )}
@@ -96,7 +96,7 @@ export default function StaffForm({
                   setFormData((prev) => ({ ...prev, name: e.target.value }))
                 }
                 required
-                className="bg-white"
+                className="bg-white dark:bg-gray-900"
               />
 
               <FormField
@@ -107,7 +107,7 @@ export default function StaffForm({
                   setFormData((prev) => ({ ...prev, email: e.target.value }))
                 }
                 required
-                className="bg-white"
+                className="bg-white dark:bg-gray-900"
               />
 
               <FormField
@@ -118,7 +118,7 @@ export default function StaffForm({
                   setFormData((prev) => ({ ...prev, mobile: e.target.value }))
                 }
                 required
-                className="bg-white"
+                className="bg-white dark:bg-gray-900"
               />
 
               <div>
@@ -133,7 +133,7 @@ export default function StaffForm({
                       role: e.target.value as StaffMember["role"],
                     }))
                   }
-                  className="w-full px-4 py-2 bg-white border border-neutral-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-primary-900"
+                  className="w-full px-4 py-2 bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent text-primary-900"
                   required
                 >
                   <option value="viewer">Viewer</option>
@@ -147,7 +147,7 @@ export default function StaffForm({
                 type="text"
                 value={formData.userId}
                 readOnly
-                className="bg-gray-100 cursor-not-allowed"
+                className="bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
               />
 
               <FormField
@@ -155,19 +155,19 @@ export default function StaffForm({
                 type="text"
                 value={formData.password}
                 readOnly
-                className="bg-gray-100 cursor-not-allowed"
+                className="bg-gray-100 dark:bg-gray-700 cursor-not-allowed"
               />
             </div>
           </form>
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 border-t border-neutral-200 bg-gray-50">
+        <div className="px-6 py-4 border-t border-neutral-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
           <div className="flex flex-col-reverse sm:flex-row justify-end gap-3">
             <button
               type="button"
               onClick={onCancel}
-              className="w-full sm:w-auto px-4 py-2 text-primary-700 bg-white border border-neutral-200 rounded-lg hover:bg-gray-50 transition-colors"
+              className="w-full sm:w-auto px-4 py-2 text-primary-700 bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-colors"
             >
               Cancel
             </button>

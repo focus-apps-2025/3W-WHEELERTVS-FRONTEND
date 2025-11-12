@@ -1,13 +1,120 @@
 import React, { useState, useEffect } from "react";
 import { Send, ArrowLeft, AlertCircle } from "lucide-react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import type { Question, Response } from "../types";
+import type { Question, Response, FollowUpQuestion } from "../types";
 import QuestionRenderer from "./QuestionRenderer";
 import { useQuestionLogic } from "../hooks/useQuestionLogic";
 import ThankYouMessage from "./ThankYouMessage";
 import { responsesApi } from "../api/storage";
 import ParentResponseSelector from "./ParentResponseSelector";
 import { apiClient } from "../api/client";
+
+const SAMPLE_IMAGE_DATA =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==";
+
+const getSampleText = (question: FollowUpQuestion) => {
+  const cleaned = question.text?.replace(/[*:]/g, "").trim();
+  return cleaned ? `Sample ${cleaned}` : "Sample answer";
+};
+
+const createSampleAnswer = (question: FollowUpQuestion): any => {
+  const sampleText = getSampleText(question);
+
+  switch (question.type) {
+    case "text":
+    case "paragraph":
+      return sampleText;
+    case "email":
+      return "sample@example.com";
+    case "url":
+      return "https://example.com";
+    case "tel":
+      return "+1234567890";
+    case "yesNoNA":
+    case "radio":
+      return question.options?.[0] ?? sampleText;
+    case "checkbox":
+      if (question.options?.length) {
+        const values = question.options.slice(
+          0,
+          Math.min(2, question.options.length)
+        );
+        return values.length ? values : [sampleText];
+      }
+      return [sampleText];
+    case "search-select":
+      return question.options?.[0] ?? sampleText;
+    case "date":
+      return new Date().toISOString().split("T")[0];
+    case "time":
+      return "12:00";
+    case "file":
+      if (question.allowedFileTypes?.includes("image")) {
+        return SAMPLE_IMAGE_DATA;
+      }
+      return "Sample file uploaded";
+    case "range": {
+      const min = question.min ?? 0;
+      const max = question.max ?? min + 10;
+      const step = question.step && question.step > 0 ? question.step : 1;
+      const steps = Math.floor((max - min) / step);
+      const value = min + step * Math.floor(steps / 2);
+      return Math.min(max, value).toString();
+    }
+    case "rating": {
+      const min = question.min ?? 1;
+      const max = question.max ?? Math.max(min, 5);
+      const value = Math.max(min, Math.min(max, min === max ? min : min + 1));
+      return value.toString();
+    }
+    case "scale": {
+      const min = question.min ?? 0;
+      const max = question.max ?? 10;
+      const step = question.step && question.step > 0 ? question.step : 1;
+      const steps = Math.floor((max - min) / step);
+      const value = min + step * Math.floor(steps / 2);
+      return Math.min(max, value).toString();
+    }
+    case "radio-grid": {
+      const value: Record<string, string> = {};
+      const rows = question.gridOptions?.rows ?? [];
+      const column = question.gridOptions?.columns?.[0] ?? "";
+      rows.forEach((row) => {
+        value[row] = column;
+      });
+      return value;
+    }
+    case "checkbox-grid": {
+      const value: Record<string, string[]> = {};
+      const rows = question.gridOptions?.rows ?? [];
+      const column = question.gridOptions?.columns?.[0];
+      rows.forEach((row) => {
+        value[row] = column ? [column] : [];
+      });
+      return value;
+    }
+    case "radio-image":
+      return question.options?.[0] ?? "";
+    default:
+      return sampleText;
+  }
+};
+
+const normalizeTriggerValue = (
+  question: FollowUpQuestion | undefined,
+  value: any
+) => {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  if (!question) {
+    return value;
+  }
+  if (question.type === "checkbox") {
+    return Array.isArray(value) ? value : [value];
+  }
+  return value;
+};
 
 interface ResponseFormProps {
   questions?: Question[];
@@ -392,6 +499,45 @@ export default function ResponseForm({
     }
   };
 
+  const handleLoadSampleAnswers = () => {
+    const allQuestions: FollowUpQuestion[] = [];
+    formSections.forEach((section) => {
+      (section.questions || []).forEach((item) => {
+        allQuestions.push(item);
+      });
+    });
+
+    const questionMap = new Map<string, FollowUpQuestion>();
+    allQuestions.forEach((item) => {
+      questionMap.set(item.id, item);
+    });
+
+    const sampleAnswers: Record<string, any> = {};
+    allQuestions.forEach((item) => {
+      sampleAnswers[item.id] = createSampleAnswer(item);
+    });
+
+    allQuestions.forEach((item) => {
+      const condition = item.showWhen;
+      if (!condition?.questionId) {
+        return;
+      }
+      if (condition.value === undefined || condition.value === null) {
+        return;
+      }
+      const parentQuestion = questionMap.get(condition.questionId);
+      const normalizedValue = normalizeTriggerValue(
+        parentQuestion,
+        condition.value
+      );
+      if (normalizedValue !== undefined) {
+        sampleAnswers[condition.questionId] = normalizedValue;
+      }
+    });
+
+    setAnswers(sampleAnswers);
+  };
+
   useEffect(() => {
     if (currentSectionIndex >= formSections.length && formSections.length > 0) {
       setCurrentSectionIndex(formSections.length - 1);
@@ -510,6 +656,16 @@ export default function ResponseForm({
                 )}
               </div>
             )}
+
+            <div className="flex justify-end mb-6">
+              <button
+                type="button"
+                onClick={handleLoadSampleAnswers}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                Load Sample Answers
+              </button>
+            </div>
 
             {/* Questions */}
             <div className="space-y-8">

@@ -92,9 +92,9 @@ export default function CreateTenantModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-neutral-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
               <Building2 className="w-5 h-5 text-primary-600" />
@@ -330,7 +330,7 @@ export default function CreateTenantModal({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-neutral-200">
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-neutral-200 dark:border-gray-700">
             <button
               type="button"
               onClick={onClose}

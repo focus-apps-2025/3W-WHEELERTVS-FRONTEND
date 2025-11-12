@@ -509,7 +509,7 @@ export default function FormsAnalytics() {
       </div>
 
       {filteredForms.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-neutral-200">
+        <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg border border-neutral-200 dark:border-gray-700">
           <FileText className="w-12 h-12 text-primary-300 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-primary-600 mb-2">
             {searchTerm
@@ -579,7 +579,7 @@ export default function FormsAnalytics() {
 
                       {/* Dropdown menu */}
                       {openMenuId === formId && (
-                        <div className="absolute right-0 top-8 w-56 bg-white rounded-lg shadow-xl border border-primary-200 py-2 z-50 animate-fadeIn">
+                        <div className="absolute right-0 top-8 w-56 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-primary-200 py-2 z-50 animate-fadeIn">
                           <button
                             onClick={() => handleManageChildForms(formId)}
                             className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
@@ -745,7 +745,7 @@ export default function FormsAnalytics() {
                 </div>
 
                 {children.length > 0 && (
-                  <div className="border-t border-neutral-200 pt-6 mt-6 bg-gradient-to-r from-primary-50/30 to-purple-50/30 -mx-6 px-6 pb-6 rounded-b-lg">
+                  <div className="border-t border-neutral-200 dark:border-gray-700 pt-6 mt-6 bg-gradient-to-r from-primary-50/30 to-purple-50/30 -mx-6 px-6 pb-6 rounded-b-lg">
                     <div className="flex items-center justify-between mb-5">
                       <div className="flex items-center">
                         <div className="p-2 bg-gradient-to-br from-primary-500 to-purple-500 rounded-lg mr-3 shadow-sm">
@@ -775,7 +775,7 @@ export default function FormsAnalytics() {
                         return (
                           <div
                             key={childId}
-                            className="relative bg-white rounded-xl p-4 border-2 border-primary-100 hover:border-primary-300 hover:shadow-lg transition-all duration-300 group transform hover:-translate-y-1"
+                            className="relative bg-white dark:bg-gray-900 rounded-xl p-4 border-2 border-primary-100 hover:border-primary-300 hover:shadow-lg transition-all duration-300 group transform hover:-translate-y-1"
                             style={{
                               animationDelay: `${index * 50}ms`,
                               animation: "fadeInUp 0.5s ease-out forwards",

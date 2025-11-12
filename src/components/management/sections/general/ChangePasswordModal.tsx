@@ -84,20 +84,20 @@ export default function ChangePasswordModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center space-x-3">
             <div className="p-2 bg-primary-50 rounded-lg">
               <Lock className="w-5 h-5 text-primary-600" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               Change Password
             </h3>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
@@ -123,7 +123,7 @@ export default function ChangePasswordModal({
 
           {/* Current Password */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Current Password
             </label>
             <div className="relative">
@@ -139,7 +139,7 @@ export default function ChangePasswordModal({
               <button
                 type="button"
                 onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-400"
               >
                 {showCurrentPassword ? (
                   <EyeOff className="w-5 h-5" />
@@ -152,7 +152,7 @@ export default function ChangePasswordModal({
 
           {/* New Password */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               New Password
             </label>
             <div className="relative">
@@ -168,7 +168,7 @@ export default function ChangePasswordModal({
               <button
                 type="button"
                 onClick={() => setShowNewPassword(!showNewPassword)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-400"
               >
                 {showNewPassword ? (
                   <EyeOff className="w-5 h-5" />
@@ -181,7 +181,7 @@ export default function ChangePasswordModal({
 
           {/* Confirm Password */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Confirm New Password
             </label>
             <div className="relative">
@@ -197,7 +197,7 @@ export default function ChangePasswordModal({
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-400"
               >
                 {showConfirmPassword ? (
                   <EyeOff className="w-5 h-5" />
@@ -209,11 +209,11 @@ export default function ChangePasswordModal({
           </div>
 
           {/* Password Requirements */}
-          <div className="p-3 bg-gray-50 rounded-lg">
-            <p className="text-xs font-medium text-gray-700 mb-2">
+          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
               Password Requirements:
             </p>
-            <ul className="text-xs text-gray-600 space-y-1">
+            <ul className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
               <li className="flex items-center">
                 <span className="w-1 h-1 bg-gray-400 rounded-full mr-2"></span>
                 At least 8 characters long

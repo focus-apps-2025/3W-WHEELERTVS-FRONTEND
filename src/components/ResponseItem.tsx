@@ -19,10 +19,10 @@ export default function ResponseItem({
   const formattedTimestamp = formatTimestamp(response.timestamp);
 
   return (
-    <div className="flex justify-between items-center p-4 border rounded-lg hover:bg-gray-50">
+    <div className="flex justify-between items-center p-4 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800">
       <div>
-        <p className="text-sm text-gray-500">{formattedTimestamp}</p>
-        <p className="text-gray-700">{summary}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-500">{formattedTimestamp}</p>
+        <p className="text-gray-700 dark:text-gray-300">{summary}</p>
       </div>
       <button
         onClick={() => onView(response)}

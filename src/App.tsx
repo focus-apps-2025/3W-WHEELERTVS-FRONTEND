@@ -57,7 +57,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const { isCollapsed, isMobileOpen } = useSidebar();
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white dark:bg-gray-950">
       <Sidebar />
       <Header />
       <main
@@ -74,9 +74,9 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 function AccessDenied() {
   return (
     <div className="p-6">
-      <div className="mx-auto max-w-3xl rounded-lg border border-neutral-200 bg-white p-6 text-center">
-        <h2 className="text-lg font-semibold text-neutral-900">Access restricted</h2>
-        <p className="mt-2 text-sm text-neutral-600">
+      <div className="mx-auto max-w-3xl rounded-lg border border-neutral-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 text-center">
+        <h2 className="text-lg font-semibold text-neutral-900 dark:text-gray-100">Access restricted</h2>
+        <p className="mt-2 text-sm text-neutral-600 dark:text-gray-400">
           You do not have permission to view this area.
         </p>
       </div>

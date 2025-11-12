@@ -16,6 +16,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useSidebar } from "../../context/SidebarContext";
+import { useLogo } from "../../context/LogoContext";
+import { useTheme } from "../../context/ThemeContext";
 
 interface MenuItem {
   title: string;
@@ -36,7 +38,9 @@ const MODULE_PERMISSIONS = {
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { isAuthenticated, logout, user } = useAuth();
+  const { isAuthenticated, logout, user, tenant } = useAuth();
+  const { logo } = useLogo();
+  const { darkMode } = useTheme();
   const { isCollapsed, isMobileOpen, toggleSidebar, openMobile, closeMobile } =
     useSidebar();
 
@@ -161,7 +165,8 @@ export default function Sidebar() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 h-full bg-blue-900 z-40 transition-all duration-300
+          fixed top-0 left-0 h-full z-40 transition-all duration-300
+          ${darkMode ? "bg-blue-900" : "bg-white border-r border-gray-200"}
           ${isCollapsed ? "w-16" : "w-64"}
           ${
             isMobileOpen
@@ -171,15 +176,32 @@ export default function Sidebar() {
         `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-blue-800">
-          {!isCollapsed && (
-            <div className="flex items-center">
-              <FileText className="w-8 h-8 text-white" />
-              <span className="ml-3 text-lg font-medium text-white">
-                Focus Form
-              </span>
-            </div>
-          )}
+        <div className={`flex items-center justify-between h-16 px-4 border-b ${darkMode ? "border-blue-800" : "border-gray-200"}`}>
+          <div className="flex items-center">
+            {logo ? (
+              <>
+                <img
+                  src={logo}
+                  alt="Tenant logo"
+                  className={`${isCollapsed ? "h-8 w-8" : "h-10 w-auto"} object-contain`}
+                />
+                {!isCollapsed && (
+                  <span className={`ml-3 text-lg font-medium truncate ${darkMode ? "text-white" : "text-gray-900"}`}>
+                    {tenant?.companyName || tenant?.name || "Focus Form"}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                <FileText className={`${isCollapsed ? "w-6 h-6" : "w-8 h-8"} ${darkMode ? "text-white" : "text-gray-600"}`} />
+                {!isCollapsed && (
+                  <span className={`ml-3 text-lg font-medium ${darkMode ? "text-white" : "text-gray-900"}`}>
+                    Focus Form
+                  </span>
+                )}
+              </>
+            )}
+          </div>
           <button
             onClick={toggleSidebar}
             className="hidden lg:flex p-2 hover:bg-blue-800 rounded-lg transition-colors"
@@ -208,20 +230,20 @@ export default function Sidebar() {
                     group relative flex items-center px-3 py-3 rounded-lg transition-all duration-200
                     ${
                       isActive
-                        ? "bg-blue-700 text-white"
-                        : "text-white hover:bg-blue-800 hover:text-white"
+                        ? darkMode ? "bg-blue-700 text-white" : "bg-primary-100 text-primary-900"
+                        : darkMode ? "text-white hover:bg-blue-800 hover:text-white" : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                     }
                   `}
                   title={isCollapsed ? item.title : ""}
                 >
-                  <Icon className="w-5 h-5 flex-shrink-0 text-white" />
+                  <Icon className={`w-5 h-5 flex-shrink-0 ${darkMode ? "text-white" : "text-gray-600"}`} />
                   {!isCollapsed && (
                     <span className="ml-3 font-medium">{item.title}</span>
                   )}
 
                   {/* Tooltip for collapsed state */}
                   {isCollapsed && (
-                    <div className="absolute left-full ml-2 px-2 py-1 bg-blue-800 text-white text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
+                    <div className={`absolute left-full ml-2 px-2 py-1 text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 ${darkMode ? "bg-blue-800 text-white" : "bg-gray-800 text-white"}`}>
                       {item.title}
                     </div>
                   )}
@@ -238,11 +260,11 @@ export default function Sidebar() {
               onClick={handleLogout}
               className={`
                 group relative flex items-center w-full px-3 py-3 rounded-lg transition-all duration-200
-                text-white hover:bg-red-600 hover:text-white
+                ${darkMode ? "text-white hover:bg-red-600 hover:text-white" : "text-gray-700 hover:bg-red-50 hover:text-red-700"}
               `}
               title={isCollapsed ? "Sign Out" : ""}
             >
-              <LogOut className="w-5 h-5 flex-shrink-0 text-white" />
+              <LogOut className={`w-5 h-5 flex-shrink-0 ${darkMode ? "text-white" : "text-gray-600"}`} />
               {!isCollapsed && (
                 <span className="ml-3 font-medium">Sign Out</span>
               )}

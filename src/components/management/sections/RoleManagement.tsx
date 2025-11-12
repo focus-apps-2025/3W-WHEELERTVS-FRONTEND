@@ -1,7 +1,8 @@
-https://auth.zencoder.ai/extension/signin?redirect_uri=vscode://zencoderai.zencoder/20e02e7d7d4d2652cd82e93e0b62091d%3FwindowId%3D1&code_challenge=vFSMBMgYzt3FA5TJo5NM-gbRSnia26eg7KYp2SojvyUimport React, { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import type { Role } from "../../../types";
 import RoleList from "./roles/RoleList";
 import RoleForm from "./roles/RoleForm";
+import ManagementCard from "../shared/ManagementCard";
 import { rolesApi } from "../../../api/roles";
 import { useNotification } from "../../../context/NotificationContext";
 
@@ -88,27 +89,24 @@ export default function RoleManagement() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="border-b border-gray-200 pb-4">
-        <h3 className="text-lg font-medium text-gray-900">Role Management</h3>
-        <p className="text-sm text-gray-500 mt-1">
-          Create and manage roles to control access to system features
-        </p>
-      </div>
-
+    <ManagementCard
+      title="Role Management"
+      description="Create and manage roles to control access to system features"
+      className="space-y-6"
+    >
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4">
+        <div className="bg-red-50 border border-red-200 rounded-md p-4 dark:bg-red-900/30 dark:border-red-800">
           <div className="flex">
             <div className="ml-3">
-              <h3 className="text-sm font-medium text-red-800">Error</h3>
-              <div className="mt-2 text-sm text-red-700">
+              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Error</h3>
+              <div className="mt-2 text-sm text-red-700 dark:text-red-300">
                 <p>{error}</p>
               </div>
               <div className="mt-3">
                 <button
                   type="button"
                   onClick={loadRoles}
-                  className="bg-red-100 px-3 py-1 text-sm font-medium text-red-800 rounded-md hover:bg-red-200"
+                  className="bg-red-100 px-3 py-1 text-sm font-medium text-red-800 rounded-md hover:bg-red-200 dark:bg-red-900/40 dark:text-red-200 dark:hover:bg-red-900/60"
                 >
                   Retry
                 </button>
@@ -118,9 +116,9 @@ export default function RoleManagement() {
         </div>
       )}
 
-      <div className="space-y-6">
+      <div className="space-y-6 text-gray-900 dark:text-gray-100">
         <div>
-          <h4 className="text-md font-medium text-gray-900 mb-4">
+          <h4 className="text-md font-medium text-gray-900 mb-4 dark:text-white">
             {editingRole ? "Edit Role" : "Create New Role"}
           </h4>
           {editingRole ? (
@@ -136,12 +134,12 @@ export default function RoleManagement() {
         </div>
 
         <div>
-          <h4 className="text-md font-medium text-gray-900 mb-4">
+          <h4 className="text-md font-medium text-gray-900 mb-4 dark:text-white">
             Existing Roles
           </h4>
           {loading ? (
             <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 dark:border-primary-400"></div>
             </div>
           ) : (
             <RoleList
@@ -152,6 +150,6 @@ export default function RoleManagement() {
           )}
         </div>
       </div>
-    </div>
+    </ManagementCard>
   );
 }

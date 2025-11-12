@@ -393,7 +393,7 @@ export const FormWithFollowUpResponder: React.FC<
             type="text"
             value={value || ""}
             onChange={(e) => handleInputChange(question.id, e.target.value)}
-            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-primary-600"
+            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-900 text-primary-600"
             placeholder="Enter your answer"
           />
         )}
@@ -403,7 +403,7 @@ export const FormWithFollowUpResponder: React.FC<
             value={value || ""}
             onChange={(e) => handleInputChange(question.id, e.target.value)}
             rows={4}
-            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-primary-600"
+            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-900 text-primary-600"
             placeholder="Enter your detailed response"
           />
         )}
@@ -413,7 +413,7 @@ export const FormWithFollowUpResponder: React.FC<
             type="email"
             value={value || ""}
             onChange={(e) => handleInputChange(question.id, e.target.value)}
-            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-primary-600"
+            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-900 text-primary-600"
             placeholder="Enter your email address"
           />
         )}
@@ -423,7 +423,7 @@ export const FormWithFollowUpResponder: React.FC<
             type="tel"
             value={value || ""}
             onChange={(e) => handleInputChange(question.id, e.target.value)}
-            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-primary-600"
+            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-900 text-primary-600"
             placeholder="Enter your phone number"
           />
         )}
@@ -433,7 +433,7 @@ export const FormWithFollowUpResponder: React.FC<
             type="date"
             value={value || ""}
             onChange={(e) => handleInputChange(question.id, e.target.value)}
-            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white text-primary-600"
+            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-900 text-primary-600"
           />
         )}
 
@@ -473,7 +473,7 @@ export const FormWithFollowUpResponder: React.FC<
   const isFirstStep = currentStep === 0;
 
   return (
-    <div className="max-w-3xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+    <div className="max-w-3xl mx-auto p-6 bg-white dark:bg-gray-900 rounded-lg shadow-lg">
       {/* Form Header */}
       <div className="mb-8">
         {form.logoUrl && (
@@ -603,8 +603,8 @@ export const FormWithFollowUpResponder: React.FC<
 
         {/* Form Summary (only show on last step) */}
         {isLastStep && allQuestions.length > 1 && (
-          <div className="mt-8 p-6 bg-gray-50 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">
+          <div className="mt-8 p-6 bg-gray-50 dark:bg-gray-800 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
               Review Your Responses
             </h3>
             <div className="space-y-4">
@@ -615,12 +615,12 @@ export const FormWithFollowUpResponder: React.FC<
                 return (
                   <div
                     key={question.id}
-                    className="border-b border-gray-200 pb-2"
+                    className="border-b border-gray-200 dark:border-gray-700 pb-2"
                   >
-                    <div className="text-sm font-medium text-gray-800">
+                    <div className="text-sm font-medium text-gray-800 dark:text-gray-200">
                       {question.text}
                     </div>
-                    <div className="text-sm text-gray-600 mt-1">
+                    <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                       {Array.isArray(response)
                         ? response.join(", ")
                         : response || "No response"}

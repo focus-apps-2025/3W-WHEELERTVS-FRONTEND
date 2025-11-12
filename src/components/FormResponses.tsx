@@ -556,7 +556,7 @@ export default function FormResponses() {
                     className="flex items-center justify-between p-4 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
                   >
                     <div className="flex items-center space-x-4">
-                      <div className="p-2 bg-white rounded-lg">
+                      <div className="p-2 bg-white dark:bg-gray-900 rounded-lg">
                         <FileText className="w-5 h-5 text-primary-600" />
                       </div>
                       <div>
@@ -629,8 +629,8 @@ export default function FormResponses() {
       {/* Response Preview Modal */}
       {selectedResponse && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-primary-200 sticky top-0 bg-white z-10">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-4 border-b border-primary-200 sticky top-0 bg-white dark:bg-gray-900 z-10">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <h3 className="text-xl font-semibold text-primary-700">
@@ -840,7 +840,7 @@ export default function FormResponses() {
                                   <div className="text-sm font-medium text-purple-800 mb-1">
                                     {getQuestionText(key)}
                                   </div>
-                                  <div className="text-sm text-purple-700 bg-white p-2 rounded border border-purple-100">
+                                  <div className="text-sm text-purple-700 bg-white dark:bg-gray-900 p-2 rounded border border-purple-100">
                                     {Array.isArray(value)
                                       ? value.join(", ")
                                       : typeof value === "object"
@@ -865,7 +865,7 @@ export default function FormResponses() {
       {/* Table View Modal */}
       {showTableView && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-primary-200 flex items-start justify-between">
               <div>
                 <h3 className="text-xl font-semibold text-primary-700">
@@ -909,7 +909,7 @@ export default function FormResponses() {
                     ))}
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-primary-100">
+                <tbody className="bg-white dark:bg-gray-900 divide-y divide-primary-100">
                   {responses.map((responseItem) => {
                     const location =
                       responseItem.submissionMetadata?.location ?? undefined;

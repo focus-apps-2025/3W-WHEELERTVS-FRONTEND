@@ -24,7 +24,7 @@ export default function Management() {
         description="Manage organization structure, teams, roles, and staff access control."
       />
 
-      <div className="bg-white rounded-lg shadow-sm border border-neutral-200 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-neutral-200 dark:border-gray-700 overflow-hidden">
         <ManagementTabs
           tabs={MANAGEMENT_TABS}
           activeTab={activeTab}

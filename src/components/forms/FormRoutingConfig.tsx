@@ -71,19 +71,19 @@ export const FormRoutingConfig: React.FC<FormRoutingConfigProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
         <div className="sticky top-0 bg-gradient-to-r from-green-50 to-blue-50 border-b border-green-200 px-6 py-4 flex justify-between items-center">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               🔗 Configure Follow-up Form Routing
             </h3>
-            <p className="text-xs text-gray-600 mt-1">
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
               Link answers to different forms
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 dark:text-gray-400"
           >
             <X className="h-5 w-5" />
           </button>
@@ -103,7 +103,7 @@ export const FormRoutingConfig: React.FC<FormRoutingConfigProps> = ({
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-md font-medium text-gray-900">
+            <h4 className="text-md font-medium text-gray-900 dark:text-gray-100">
               Option → Form Linking
             </h4>
             {options.map((option) => {
@@ -111,17 +111,17 @@ export const FormRoutingConfig: React.FC<FormRoutingConfigProps> = ({
               return (
                 <div
                   key={option}
-                  className="flex items-center gap-4 p-4 bg-gradient-to-r from-gray-50 to-green-50 rounded-lg border border-gray-200"
+                  className="flex items-center gap-4 p-4 bg-gradient-to-r from-gray-50 to-green-50 rounded-lg border border-gray-200 dark:border-gray-700"
                 >
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-700">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
                       {option}
                     </p>
                   </div>
                   <select
                     value={linkedFormId}
                     onChange={(e) => handleOptionChange(option, e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-green-500 focus:border-green-500 min-w-[250px]"
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:ring-green-500 focus:border-green-500 min-w-[250px]"
                   >
                     <option value="">No follow-up form</option>
                     {availableForms.map((form) => (
@@ -160,10 +160,10 @@ export const FormRoutingConfig: React.FC<FormRoutingConfigProps> = ({
           )}
         </div>
 
-        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+        <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800"
           >
             Cancel
           </button>

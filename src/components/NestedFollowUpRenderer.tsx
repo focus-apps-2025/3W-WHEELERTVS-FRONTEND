@@ -194,7 +194,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
             )} shadow-sm hover:shadow-md transition-shadow duration-200`}
           >
             {/* Header */}
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center space-x-2">
                 <span
                   className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
@@ -209,7 +209,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                 >
                   Level {depth + 1} · Q{fqIndex + 1}
                 </span>
-                <span className="text-xs text-gray-500">Follow-up Question</span>
+                <span className="text-xs text-gray-500 dark:text-gray-500">Follow-up Question</span>
               </div>
               <button
                 onClick={() => onDelete(sectionId, followUpQ.id, path)}
@@ -223,7 +223,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Show When - Full Width */}
               <div className="lg:col-span-2">
-              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+              <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
                   1
                 </span>
@@ -244,7 +244,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     path
                   )
                 }
-                className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
               >
                 <option value="">Select trigger option...</option>
                 {parentQuestion.options?.map((option, optIndex) => (
@@ -257,7 +257,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
 
             {/* Question Text - Full Width */}
             <div className="lg:col-span-2">
-              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+              <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
                   2
                 </span>
@@ -274,13 +274,13 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     path
                   )
                 }
-                className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
                 placeholder="Enter your follow-up question..."
               />
             </div>
 
             <div className="lg:col-span-2">
-              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+              <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
                   3
                 </span>
@@ -288,11 +288,11 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
               </label>
               <div className="space-y-3">
                 {followUpQ.imageUrl ? (
-                  <div className="flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                     <img
                       src={followUpQ.imageUrl}
                       alt={`Follow-up question ${fqIndex + 1} image`}
-                      className="h-20 w-20 object-contain rounded-md border border-gray-200 bg-white"
+                      className="h-20 w-20 object-contain rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
                     />
                     <button
                       type="button"
@@ -304,7 +304,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                   </div>
                 ) : null}
                 <div className="flex flex-col gap-2">
-                  <label className="inline-flex items-center justify-center px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
+                  <label className="inline-flex items-center justify-center px-3 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
                     <input
                       type="file"
                       accept="image/*"
@@ -319,14 +319,14 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     />
                     Upload Image
                   </label>
-                  <p className="text-xs text-gray-500">JPEG or PNG up to 50KB.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">JPEG or PNG up to 50KB.</p>
                 </div>
               </div>
             </div>
 
             {/* Question Type */}
             <div>
-              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+              <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
                   4
                 </span>
@@ -353,7 +353,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                   }
                   onUpdate(sectionId, followUpQ.id, updates, path);
                 }}
-                className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
               >
                 {questionTypes.map((type) => (
                   <option key={type.value} value={type.value}>
@@ -365,7 +365,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
 
             {followUpQ.type === "file" ? (
               <div className="lg:col-span-2">
-                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
                     5
                   </span>
@@ -384,7 +384,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                       path
                     );
                   }}
-                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
                 >
                   {fileTypeOptions.map((option) => (
                     <option key={`${followUpQ.id}-file-type-${option.value}`} value={option.value}>
@@ -392,7 +392,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                   {selectedFileType === "any"
                     ? "Respondents can upload any file type."
                     : `Respondents must upload files matching ${selectedFileTypeOption?.label}.`}
@@ -402,13 +402,13 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
 
             {/* Required Checkbox - Styled */}
             <div>
-              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+              <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
                   6
                 </span>
                 Options
               </label>
-              <div className="flex items-center h-[42px] px-4 py-2.5 border-2 border-gray-300 rounded-lg bg-gray-50">
+              <div className="flex items-center h-[42px] px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
                 <input
                   type="checkbox"
                   id={`required-${followUpQ.id}`}
@@ -421,11 +421,11 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                       path
                     )
                   }
-                  className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 rounded"
+                  className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                 />
                 <label
                   htmlFor={`required-${followUpQ.id}`}
-                  className="ml-3 text-sm font-medium text-gray-700 cursor-pointer"
+                  className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer"
                 >
                   Required Question
                 </label>
@@ -434,7 +434,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
 
             {/* Description - Full Width */}
             <div className="lg:col-span-2">
-              <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+              <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
                   7
                 </span>
@@ -450,7 +450,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     path
                   )
                 }
-                className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm resize-none"
+                className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm resize-none"
                 rows={2}
                 placeholder="Add helpful context or instructions..."
               />
@@ -459,7 +459,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
             {/* Options for radio, checkbox, select, search-select - Full Width */}
             {requiresFollowUp(followUpQ.type) && (
               <div className="lg:col-span-2">
-                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
                     8
                   </span>
@@ -469,7 +469,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                   {followUpQ.options?.map((option, index) => (
                     <div key={index} className="relative">
                       <div className="flex items-center space-x-2">
-                        <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 text-gray-600 rounded-lg text-xs font-medium">
+                        <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg text-xs font-medium">
                           {index + 1}
                         </span>
                         <input
@@ -484,21 +484,21 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                               path
                             )
                           }
-                          className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
+                          className="flex-1 px-4 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
                           placeholder={`Option ${index + 1}`}
                         />
                         <div className="relative">
                           <button
                             type="button"
                             onClick={() => toggleMenu(`${followUpQ.id}-${index}`)}
-                            className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all duration-200"
+                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-all duration-200"
                             title="More options"
                           >
                             <MoreVertical className="w-4 h-4" />
                           </button>
 
                           {openMenus[`${followUpQ.id}-${index}`] && (
-                            <div className="absolute top-10 right-0 bg-white border border-gray-200 rounded-lg shadow-md z-50 min-w-max">
+                            <div className="absolute top-10 right-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md z-50 min-w-max">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -577,7 +577,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
             {/* Correct Answer Section */}
             {followUpQ.options && followUpQ.options.length > 0 && (
               <div className="lg:col-span-2">
-                <label className="flex items-center text-sm font-semibold text-gray-700 mb-2">
+                <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                   <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-100 text-green-600 text-xs mr-2">
                     ✓
                   </span>
@@ -595,7 +595,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                       path
                     )
                   }
-                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-sm"
+                  className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors text-sm"
                 >
                   <option value="">No correct answer</option>
                   {followUpQ.options.map((option, index) => (

@@ -30,7 +30,7 @@ export default function ParagraphInput({
         rows={6}
       />
       {question.description && (
-        <p className="text-sm text-gray-500">{question.description}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-500">{question.description}</p>
       )}
     </div>
   );

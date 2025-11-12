@@ -150,7 +150,7 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
         >
           <button
             onClick={handleClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors"
             disabled={isLoading}
           >
             <X className="w-5 h-5" />
@@ -169,19 +169,19 @@ const NotificationModal: React.FC<NotificationModalProps> = ({
 
         {/* Body */}
         <div className="px-6 py-6">
-          <p className="text-gray-700 text-base leading-relaxed">
+          <p className="text-gray-700 dark:text-gray-300 text-base leading-relaxed">
             {safeMessage}
           </p>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end space-x-3">
+        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800 rounded-b-lg flex justify-end space-x-3">
           {type === "confirm" ? (
             <>
               <button
                 onClick={handleCancel}
                 disabled={isLoading}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {cancelText}
               </button>

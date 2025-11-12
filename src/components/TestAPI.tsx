@@ -82,14 +82,14 @@ export default function TestAPI() {
       <h1 className="text-2xl font-bold mb-6">API Test Page</h1>
 
       {/* User Status */}
-      <div className="bg-white rounded-lg border p-4 mb-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border p-4 mb-6">
         <h2 className="text-lg font-semibold mb-2">Authentication Status</h2>
         {user ? (
           <div>
             <p className="text-green-600">
               ✅ Logged in as: {user.firstName} {user.lastName} ({user.email})
             </p>
-            <p className="text-sm text-gray-600">Role: {user.role}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">Role: {user.role}</p>
             <button
               onClick={logout}
               className="mt-2 bg-red-500 text-white px-4 py-2 rounded"
@@ -121,7 +121,7 @@ export default function TestAPI() {
       </div>
 
       {/* Test Buttons */}
-      <div className="bg-white rounded-lg border p-4 mb-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border p-4 mb-6">
         <h2 className="text-lg font-semibold mb-4">API Tests</h2>
         <div className="space-x-2 space-y-2">
           <button
@@ -158,11 +158,11 @@ export default function TestAPI() {
       </div>
 
       {/* Results */}
-      <div className="bg-white rounded-lg border p-4">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border p-4">
         <h2 className="text-lg font-semibold mb-4">Test Results</h2>
-        <div className="bg-gray-100 p-4 rounded max-h-96 overflow-y-auto">
+        <div className="bg-gray-100 dark:bg-gray-700 p-4 rounded max-h-96 overflow-y-auto">
           {testResults.length === 0 ? (
-            <p className="text-gray-500">
+            <p className="text-gray-500 dark:text-gray-500">
               No test results yet. Click a test button above.
             </p>
           ) : (

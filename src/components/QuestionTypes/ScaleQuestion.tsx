@@ -18,7 +18,7 @@ export default function ScaleQuestion({
 
   return (
     <div className="space-y-2">
-      <div className="flex justify-between text-sm text-gray-600">
+      <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
         <span>{min}</span>
         <span>{max}</span>
       </div>
@@ -31,7 +31,7 @@ export default function ScaleQuestion({
         onChange={(e) => onChange(e.target.value)}
         className="w-full"
       />
-      <div className="text-center text-lg font-medium text-gray-700">
+      <div className="text-center text-lg font-medium text-gray-700 dark:text-gray-300">
         {value || min}
       </div>
     </div>

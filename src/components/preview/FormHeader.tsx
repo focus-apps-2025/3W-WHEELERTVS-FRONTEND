@@ -12,10 +12,10 @@ export default function FormHeader({
   imageUrl,
 }: FormHeaderProps) {
   return (
-    <div className="w-full border-b border-gray-200 pb-8">
-      <h1 className="text-4xl font-bold text-gray-900 mb-4">{title}</h1>
+    <div className="w-full border-b border-gray-200 dark:border-gray-700 pb-8">
+      <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">{title}</h1>
       {description && (
-        <p className="text-lg text-gray-600 leading-relaxed">{description}</p>
+        <p className="text-lg text-gray-600 dark:text-gray-400 leading-relaxed">{description}</p>
       )}
       {imageUrl && (
         <img

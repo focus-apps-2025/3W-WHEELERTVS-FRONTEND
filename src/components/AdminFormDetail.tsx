@@ -56,7 +56,7 @@ export const AdminFormDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-800">
         <Loader className="animate-spin h-8 w-8 text-blue-600" />
       </div>
     );
@@ -64,7 +64,7 @@ export const AdminFormDetail: React.FC = () => {
 
   if (error || !form) {
     return (
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-800 p-6">
         <div className="max-w-4xl mx-auto">
           <button
             onClick={() => navigate("/forms")}
@@ -74,7 +74,7 @@ export const AdminFormDetail: React.FC = () => {
             Back to Forms
           </button>
 
-          <div className="bg-white rounded-lg border border-red-200 p-8 text-center">
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-red-200 p-8 text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
             <p className="text-red-700 text-lg">{error || "Form not found"}</p>
           </div>
@@ -84,8 +84,8 @@ export const AdminFormDetail: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-800">
+      <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <button
@@ -97,17 +97,17 @@ export const AdminFormDetail: React.FC = () => {
             </button>
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 font-medium"
+              className="px-4 py-2 bg-gray-200 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 font-medium"
             >
               Refresh
             </button>
           </div>
 
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">{form.title}</h1>
-            <p className="text-gray-600 mt-2">{form.description}</p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{form.title}</h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">{form.description}</p>
 
-            <div className="mt-4 text-sm text-gray-600">
+            <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
               <span className="font-medium">Sections:</span> {form.sections?.length || 0}
               <span className="mx-2">•</span>
               <span>
@@ -119,8 +119,8 @@ export const AdminFormDetail: React.FC = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 py-6">
-        <div className="bg-white rounded-lg border border-gray-200">
-          <div className="flex border-b border-gray-200">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+          <div className="flex border-b border-gray-200 dark:border-gray-700">
             <button
               onClick={() => setActiveTab("links")}
               className={`flex-1 px-6 py-4 text-center font-medium transition-colors flex items-center justify-center gap-2 ${
@@ -168,10 +168,10 @@ export const AdminFormDetail: React.FC = () => {
             {activeTab === "edit" && (
               <div className="text-center py-12">
                 <Settings className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 text-lg mb-4">
+                <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
                   Form Settings & Details
                 </p>
-                <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                <p className="text-gray-500 dark:text-gray-500 mb-6 max-w-md mx-auto">
                   General form settings like visibility, active status, and form
                   metadata are managed from the Forms Management page.
                 </p>
@@ -188,10 +188,10 @@ export const AdminFormDetail: React.FC = () => {
             {activeTab === "preview" && (
               <div className="text-center py-12">
                 <Eye className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600 text-lg mb-4">
+                <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
                   Form Preview
                 </p>
-                <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                <p className="text-gray-500 dark:text-gray-500 mb-6 max-w-md mx-auto">
                   View the form as customers will see it, including all section
                   linking and conditional navigation.
                 </p>

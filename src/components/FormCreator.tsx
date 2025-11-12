@@ -193,13 +193,13 @@ export default function FormCreator() {
           }
 
           // Transform backend form to frontend format
-          // Reconstruct nested follow-up questions from flat array
+          // Reconstruct nested follow-up questions from flat array or use existing nested structure
           const sectionsWithNestedFollowUps = (backendForm.sections || []).map(
             (section: any) => {
               const mainQuestions: Question[] = [];
               const followUpMap = new Map<string, FollowUpQuestion[]>();
 
-              // First pass: separate main questions and follow-ups
+              // First pass: separate main questions and follow-ups (for backward compatibility with flat structure)
               section.questions.forEach((q: any) => {
                 if (q.showWhen && q.showWhen.questionId) {
                   // This is a follow-up question
@@ -216,7 +216,10 @@ export default function FormCreator() {
 
               // Second pass: attach follow-ups to their parent questions and initialize followUpConfig
               const questionsWithFollowUps = mainQuestions.map((q) => {
-                const followUps = followUpMap.get(q.id) || [];
+                // Use existing nested follow-ups if present, otherwise reconstruct from flat array
+                const followUps = (q.followUpQuestions && q.followUpQuestions.length > 0)
+                  ? q.followUpQuestions
+                  : (followUpMap.get(q.id) || []);
 
                 // Initialize followUpConfig if not present
                 const followUpConfig = q.followUpConfig || {};
@@ -2265,7 +2268,7 @@ export default function FormCreator() {
         </div>
 
         {forms.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg border border-neutral-200">
+          <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg border border-neutral-200 dark:border-gray-700">
             <FileText className="w-12 h-12 text-primary-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-primary-600 mb-2">
               No service forms created yet
@@ -2283,7 +2286,7 @@ export default function FormCreator() {
             {forms.map((form: any) => (
               <div
                 key={form.id}
-                className="bg-white rounded-lg border border-neutral-200 p-6 hover:shadow-md transition-shadow"
+                className="bg-white dark:bg-gray-900 rounded-lg border border-neutral-200 dark:border-gray-700 p-6 hover:shadow-md transition-shadow"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
@@ -2383,23 +2386,23 @@ export default function FormCreator() {
   }
 
   return (
-    <div className="w-full overflow-auto bg-gradient-to-br from-blue-50 via-white to-blue-50">
+    <div className="w-full overflow-auto bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50 w-full">
+      <div className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50 w-full">
         <div className="px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate("/forms/management")}
-                className="p-2 hover:bg-blue-50 rounded-lg transition-colors group"
+                className="p-2 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors group"
               >
-                <ArrowLeft className="w-5 h-5 text-gray-600 group-hover:text-blue-600" />
+                <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600" />
               </button>
               <div>
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
                   {id ? "✏️ Edit Form" : "✨ Create New Form"}
                 </h1>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
                   Build amazing forms with ease
                 </p>
               </div>
@@ -2407,7 +2410,7 @@ export default function FormCreator() {
             <div className="flex gap-3">
               <button
                 onClick={() => navigate("/forms/management")}
-                className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-all"
+                className="px-5 py-2.5 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-all"
               >
                 Cancel
               </button>
@@ -2428,19 +2431,19 @@ export default function FormCreator() {
           {/* Form Editor */}
           <div className="flex-1 space-y-6 min-w-0">
             {/* Form Details */}
-            <div className="bg-white rounded-xl shadow-sm border-l-4 border-l-blue-500 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-50 to-blue-50 px-6 py-4 border-b border-blue-100">
-                <h2 className="text-lg font-bold text-blue-900">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm border-l-4 border-l-blue-500 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-50 to-blue-50 dark:from-blue-950/60 dark:to-blue-900/60 px-6 py-4 border-b border-blue-100 dark:border-blue-900/60">
+                <h2 className="text-lg font-bold text-blue-900 dark:text-blue-100">
                   📋 Form Details
                 </h2>
-                <p className="text-sm text-blue-700 mt-1">
+                <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
                   Set your form's basic information
                 </p>
               </div>
 
               <div className="p-6 space-y-5">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                     Form Title *
                   </label>
                   <input
@@ -2449,13 +2452,13 @@ export default function FormCreator() {
                     onChange={(e) =>
                       setForm((prev) => ({ ...prev, title: e.target.value }))
                     }
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base font-medium"
+                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base font-medium"
                     placeholder="e.g., Customer Feedback Survey"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                     Description
                   </label>
                   <textarea
@@ -2466,7 +2469,7 @@ export default function FormCreator() {
                         description: e.target.value,
                       }))
                     }
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none text-sm"
+                    className="w-full px-4 py-3 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all resize-none text-sm"
                     rows={3}
                     placeholder="Describe the purpose of your form..."
                   />
@@ -2515,7 +2518,7 @@ export default function FormCreator() {
                   />
                   <label
                     htmlFor="isVisible"
-                    className="ml-2 text-sm text-primary-700"
+                    className="ml-2 text-sm text-primary-700 dark:text-primary-200"
                   >
                     Make form publicly visible
                   </label>
@@ -2536,14 +2539,14 @@ export default function FormCreator() {
                   />
                   <label
                     htmlFor="locationEnabled"
-                    className="ml-2 text-sm text-primary-700"
+                    className="ml-2 text-sm text-primary-700 dark:text-primary-200"
                   >
                     Enable location tracking for responses
                   </label>
                 </div>
 
                 {/* Load Demo Data Button */}
-                <div className="pt-4 border-t border-neutral-200">
+                <div className="pt-4 border-t border-neutral-200 dark:border-gray-700">
                   <button
                     type="button"
                     onClick={loadDemoData}
@@ -2564,9 +2567,9 @@ export default function FormCreator() {
               const pages = getPagesFromSections();
               if (pages.length > 1) {
                 return (
-                  <div className="bg-white rounded-xl shadow-md border border-blue-200 p-4 mb-6">
+                  <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-blue-200 dark:border-blue-900/60 p-4 mb-6">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-gray-700">
+                      <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                         Form Pages:
                       </h4>
                       <div className="flex items-center gap-2">
@@ -2577,7 +2580,7 @@ export default function FormCreator() {
                             className={`w-10 h-10 rounded-lg font-bold text-sm transition-all duration-200 ${
                               currentPage === pageIndex
                                 ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg scale-110"
-                                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                             }`}
                           >
                             {pageIndex + 1}
@@ -2585,7 +2588,7 @@ export default function FormCreator() {
                         ))}
                       </div>
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                       Viewing Page {currentPage + 1} of {pages.length} · Each
                       main section is a separate page
                     </p>
@@ -2619,7 +2622,7 @@ export default function FormCreator() {
                 return (
                   <div
                     key={section.id}
-                    className={`bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden ${
+                    className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden ${
                       section.isSubsection
                         ? "border-l-4 border-l-green-500 ml-6"
                         : "border-l-4 border-l-blue-500"
@@ -2629,8 +2632,8 @@ export default function FormCreator() {
                     <div
                       className={`px-6 py-4 border-b ${
                         section.isSubsection
-                          ? "bg-gradient-to-r from-green-50 to-teal-50 border-green-100"
-                          : "bg-gradient-to-r from-blue-50 to-blue-50 border-blue-100"
+                          ? "bg-gradient-to-r from-green-50 to-teal-50 border-green-100 dark:from-green-950/60 dark:to-teal-900/60 dark:border-green-900/60"
+                          : "bg-gradient-to-r from-blue-50 to-blue-50 border-blue-100 dark:from-blue-950/60 dark:to-blue-900/60 dark:border-blue-900/60"
                       }`}
                     >
                       <div className="flex items-start justify-between">
@@ -2648,8 +2651,8 @@ export default function FormCreator() {
                             <h3
                               className={`text-lg font-bold ${
                                 section.isSubsection
-                                  ? "text-green-900"
-                                  : "text-blue-900"
+                                  ? "text-green-900 dark:text-green-100"
+                                  : "text-blue-900 dark:text-blue-100"
                               }`}
                             >
                               {section.isSubsection ? "Subsection" : "Section"}{" "}
@@ -2658,8 +2661,8 @@ export default function FormCreator() {
                                 <span
                                   className={`font-normal ml-2 ${
                                     section.isSubsection
-                                      ? "text-green-600"
-                                      : "text-blue-600"
+                                      ? "text-green-600 dark:text-green-300"
+                                      : "text-blue-600 dark:text-blue-300"
                                   }`}
                                 >
                                   · {section.title}
@@ -2671,8 +2674,8 @@ export default function FormCreator() {
                             <p
                               className={`text-sm ml-11 ${
                                 section.isSubsection
-                                  ? "text-green-700"
-                                  : "text-blue-700"
+                                  ? "text-green-700 dark:text-green-300"
+                                  : "text-blue-700 dark:text-blue-300"
                               }`}
                             >
                               {section.description}
@@ -2704,10 +2707,10 @@ export default function FormCreator() {
                     </div>
 
                     {/* Section Details (Optional) */}
-                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                    <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
                       <div className="space-y-3">
                         <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
                             Section Title (Optional)
                           </label>
                           <input
@@ -2718,13 +2721,13 @@ export default function FormCreator() {
                                 title: e.target.value,
                               })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
                             placeholder="e.g., Personal Information, Contact Details"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                          <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
                             Section Description (Optional)
                           </label>
                           <textarea
@@ -2734,7 +2737,7 @@ export default function FormCreator() {
                                 description: e.target.value,
                               })
                             }
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none text-sm"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none text-sm"
                             rows={2}
                             placeholder="Brief description for respondents"
                           />
@@ -2742,7 +2745,7 @@ export default function FormCreator() {
 
                         {!section.isSubsection && (
                           <div>
-                            <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
                               Section Weightage (%)
                             </label>
                             <div className="flex items-center gap-2">
@@ -2758,7 +2761,7 @@ export default function FormCreator() {
                                     [section.id]: e.target.value,
                                   }))
                                 }
-                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
+                                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all text-sm"
                                 placeholder="Enter weightage for this section"
                               />
                               <button
@@ -2774,7 +2777,7 @@ export default function FormCreator() {
                                 Save
                               </button>
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">
+                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                               Saved: {formatWeightageDisplay(getSavedSectionWeightage(section))}%
                             </p>
                           </div>
@@ -2789,7 +2792,7 @@ export default function FormCreator() {
                         <div className="flex justify-center -mb-3 relative z-10">
                           <button
                             onClick={() => insertQuestionAt(section.id, 0)}
-                            className="group bg-white border-2 border-dashed border-blue-300 rounded-full p-2 text-blue-400 hover:bg-blue-50 hover:border-blue-500 hover:text-blue-600 transition-all duration-200"
+                            className="group bg-white dark:bg-gray-900 border-2 border-dashed border-blue-300 rounded-full p-2 text-blue-400 hover:bg-blue-50 hover:border-blue-500 hover:text-blue-600 transition-all duration-200"
                             title="Insert question at the beginning"
                           >
                             <Plus className="w-5 h-5" />
@@ -2821,14 +2824,14 @@ export default function FormCreator() {
                             )}
 
                             {/* Question Card */}
-                            <div className="bg-white border-2 border-gray-200 rounded-xl shadow-sm hover:shadow-lg hover:border-blue-300 transition-all duration-200">
+                            <div className="bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-lg hover:border-blue-300 transition-all duration-200">
                             {/* Question Header */}
-                            <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 rounded-t-xl">
+                            <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 dark:border-gray-700 rounded-t-xl">
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs shadow">
                                   {questionIndex + 1}
                                 </div>
-                                <span className="text-sm font-semibold text-gray-700">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                                   Question {questionIndex + 1}
                                 </span>
                               </div>
@@ -2887,7 +2890,7 @@ export default function FormCreator() {
                             <div className="p-5">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                  <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                                     Question Text (optional when using image)
                                   </label>
                                   <input
@@ -2898,16 +2901,16 @@ export default function FormCreator() {
                                         text: e.target.value,
                                       })
                                     }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                                     placeholder="Enter your question"
                                   />
                                   <div className="mt-3 space-y-3">
                                     {question.imageUrl ? (
-                                      <div className="flex items-center gap-4 bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                      <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                                         <img
                                           src={question.imageUrl}
                                           alt={`Question ${questionIndex + 1} image`}
-                                          className="h-20 w-20 object-contain rounded-md border border-gray-200 bg-white"
+                                          className="h-20 w-20 object-contain rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
                                         />
                                         <button
                                           type="button"
@@ -2919,7 +2922,7 @@ export default function FormCreator() {
                                       </div>
                                     ) : null}
                                     <div className="flex flex-col gap-2">
-                                      <label className="inline-flex items-center justify-center px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
+                                      <label className="inline-flex items-center justify-center px-3 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
                                         <input
                                           type="file"
                                           accept="image/*"
@@ -2938,7 +2941,7 @@ export default function FormCreator() {
                                         />
                                         Upload Image
                                       </label>
-                                      <p className="text-xs text-gray-500">
+                                      <p className="text-xs text-gray-500 dark:text-gray-500">
                                         JPEG or PNG up to 50KB.
                                       </p>
                                     </div>
@@ -2946,7 +2949,7 @@ export default function FormCreator() {
                                 </div>
 
                                 <div>
-                                  <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                                     Question Type
                                   </label>
                                   <select
@@ -2959,7 +2962,7 @@ export default function FormCreator() {
                                         e.target.value
                                       )
                                     }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                                   >
                                     {questionTypes.map((type) => (
                                       <option
@@ -2975,7 +2978,7 @@ export default function FormCreator() {
 
                               {question.type === "file" ? (
                                 <div className="mt-4">
-                                  <label className="block text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide">
+                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                                     Allowed file type
                                   </label>
                                   <select
@@ -2988,7 +2991,7 @@ export default function FormCreator() {
                                             : [e.target.value],
                                       })
                                     }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                                   >
                                     {fileTypeOptions.map((option) => (
                                       <option
@@ -2999,7 +3002,7 @@ export default function FormCreator() {
                                       </option>
                                     ))}
                                   </select>
-                                  <p className="text-xs text-gray-500 mt-1">
+                                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                                     {selectedFileType === "any"
                                       ? "Respondents can upload any file type."
                                       : `Respondents must upload files matching ${selectedFileTypeOption?.label}.`}
@@ -3017,9 +3020,9 @@ export default function FormCreator() {
                                         required: e.target.checked,
                                       })
                                     }
-                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all"
+                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all"
                                   />
-                                  <span className="ml-2.5 text-sm text-gray-700 group-hover:text-blue-700 font-medium transition-colors">
+                                  <span className="ml-2.5 text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-700 font-medium transition-colors">
                                     Required question
                                   </span>
                                 </label>
@@ -3061,7 +3064,7 @@ export default function FormCreator() {
                                                   e.target.value
                                                 )
                                               }
-                                              className="flex-1 px-3 py-2 border-2 border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-100"
+                                              className="flex-1 px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-100 dark:bg-gray-700"
                                               placeholder={`Option ${
                                                 index + 1
                                               }`}
@@ -3109,7 +3112,7 @@ export default function FormCreator() {
                                                         : menuKey
                                                     )
                                                   }
-                                                  className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-all"
+                                                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-all"
                                                   title="Follow-up options"
                                                 >
                                                   <MoreVertical className="w-5 h-5" />
@@ -3124,9 +3127,9 @@ export default function FormCreator() {
                                                       }
                                                     />
 
-                                                    <div className="absolute right-0 mt-1 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-20">
+                                                    <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-20">
                                                       <div className="py-1">
-                                                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 uppercase">
+                                                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase">
                                                           Follow-up Options
                                                         </div>
                                                         <button
@@ -3140,7 +3143,7 @@ export default function FormCreator() {
                                                               null
                                                             );
                                                           }}
-                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
+                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
                                                         >
                                                           <span className="text-lg">
                                                             📝
@@ -3149,7 +3152,7 @@ export default function FormCreator() {
                                                             <div className="font-medium">
                                                               Follow-up Question
                                                             </div>
-                                                            <div className="text-xs text-gray-500">
+                                                            <div className="text-xs text-gray-500 dark:text-gray-500">
                                                               Add a question for
                                                               this option
                                                             </div>
@@ -3167,7 +3170,7 @@ export default function FormCreator() {
                                                               null
                                                             );
                                                           }}
-                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-2"
+                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-2"
                                                         >
                                                           <span className="text-lg">
                                                             📋
@@ -3176,7 +3179,7 @@ export default function FormCreator() {
                                                             <div className="font-medium">
                                                               Follow-up Section
                                                             </div>
-                                                            <div className="text-xs text-gray-500">
+                                                            <div className="text-xs text-gray-500 dark:text-gray-500">
                                                               Add a section for
                                                               this option
                                                             </div>
@@ -3194,7 +3197,7 @@ export default function FormCreator() {
                                                               null
                                                             );
                                                           }}
-                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
+                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
                                                         >
                                                           <span className="text-lg">
                                                             📄
@@ -3203,7 +3206,7 @@ export default function FormCreator() {
                                                             <div className="font-medium">
                                                               Follow-up Form
                                                             </div>
-                                                            <div className="text-xs text-gray-500">
+                                                            <div className="text-xs text-gray-500 dark:text-gray-500">
                                                               Link a form for
                                                               this option
                                                             </div>
@@ -3269,7 +3272,7 @@ export default function FormCreator() {
                                     </p>
                                     {question.branchingRules &&
                                       question.branchingRules.length > 0 && (
-                                        <div className="text-xs text-purple-600 bg-white rounded p-2">
+                                        <div className="text-xs text-purple-600 bg-white dark:bg-gray-900 rounded p-2">
                                           <div className="font-medium mb-1">
                                             Active routing:
                                           </div>
@@ -3332,13 +3335,13 @@ export default function FormCreator() {
                                                     : `${section.id}-${question.id}-followup-quick-add`
                                                 )
                                               }
-                                              className="px-3 py-1.5 text-sm font-medium text-green-700 bg-white border border-green-200 hover:border-green-300 hover:bg-green-50 rounded-lg transition-colors flex items-center gap-1"
+                                              className="px-3 py-1.5 text-sm font-medium text-green-700 bg-white dark:bg-gray-900 border border-green-200 hover:border-green-300 hover:bg-green-50 rounded-lg transition-colors flex items-center gap-1"
                                             >
                                               <MessageSquarePlus className="w-4 h-4" />
                                               Add Follow-up Question
                                             </button>
                                             {openOptionMenu === `${section.id}-${question.id}-followup-quick-add` && (
-                                              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-green-200 bg-white shadow-lg z-20">
+                                              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-green-200 bg-white dark:bg-gray-900 shadow-lg z-20">
                                                 <div className="py-2">
                                                   {question.options.map((option) => (
                                                     <button
@@ -3374,7 +3377,7 @@ export default function FormCreator() {
                                           question.followUpConfig?.[k]
                                             ?.linkedFormId
                                       ) && (
-                                        <div className="text-xs text-green-600 bg-white rounded p-2">
+                                        <div className="text-xs text-green-600 bg-white dark:bg-gray-900 rounded p-2">
                                           <div className="font-medium mb-1">
                                             ✅ Active form links:
                                           </div>
@@ -3587,7 +3590,7 @@ export default function FormCreator() {
                             <p className="text-lg font-semibold text-blue-700">
                               Add Your First Question
                             </p>
-                            <p className="text-sm text-gray-600">
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
                               Click to start building your form
                             </p>
                           </div>
@@ -3618,7 +3621,7 @@ export default function FormCreator() {
                     Add New Page (Section)
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 mt-2">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                   Create a new main section on a separate page
                 </p>
               </button>
@@ -3646,7 +3649,7 @@ export default function FormCreator() {
                         Want to link follow-up forms that appear after users
                         complete this form?
                       </p>
-                      <div className="bg-white border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
+                      <div className="bg-white dark:bg-gray-900 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
                         <p className="font-medium mb-2">📝 How it works:</p>
                         <ol className="list-decimal list-inside space-y-1 text-blue-800">
                           <li>Save this form first</li>
@@ -3673,7 +3676,7 @@ export default function FormCreator() {
               if (pages.length > 1) {
                 return (
                   <div className="sticky top-1/2 -translate-y-1/2 h-0">
-                    <div className="bg-white rounded-lg border-2 border-blue-200 shadow-lg p-4 -translate-y-1/2">
+                    <div className="bg-white dark:bg-gray-900 rounded-lg border-2 border-blue-200 shadow-lg p-4 -translate-y-1/2">
                       <h3 className="text-sm font-bold text-blue-900 mb-3 text-center">
                         📄 Pages
                       </h3>
@@ -3766,7 +3769,7 @@ export default function FormCreator() {
               return null;
             })()}
 
-            <div className="bg-white rounded-lg border border-blue-100 shadow p-4">
+            <div className="bg-white dark:bg-gray-900 rounded-lg border border-blue-100 shadow p-4">
               <h3 className="text-sm font-bold text-blue-900 mb-3">Form Statistics</h3>
               <div className="space-y-2 text-xs text-blue-700">
                 <div className="flex items-center justify-between">

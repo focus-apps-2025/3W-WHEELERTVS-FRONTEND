@@ -409,12 +409,12 @@ export const FormWithFollowUpCreator: React.FC<
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-lg">
+    <div className="max-w-4xl mx-auto p-6 bg-white dark:bg-gray-900 rounded-lg shadow-lg">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">
           Create Form with Follow-up Questions
         </h2>
-        <p className="text-gray-600">
+        <p className="text-gray-600 dark:text-gray-400">
           Create a form with multiple choice options and configurable follow-up
           questions
         </p>
@@ -436,72 +436,72 @@ export const FormWithFollowUpCreator: React.FC<
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Basic Form Information */}
-        <div className="bg-gray-50 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+        <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
             Basic Information
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Form Title *
               </label>
               <input
                 type="text"
                 value={formData.title}
                 onChange={(e) => handleInputChange("title", e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="Enter form title"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Logo URL (Optional)
               </label>
               <input
                 type="url"
                 value={formData.logoUrl}
                 onChange={(e) => handleInputChange("logoUrl", e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder="https://example.com/logo.png"
               />
             </div>
           </div>
 
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Form Description *
             </label>
             <textarea
               value={formData.description}
               onChange={(e) => handleInputChange("description", e.target.value)}
               rows={3}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Describe what this form is for"
               required
             />
           </div>
 
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Image URL (Optional)
             </label>
             <input
               type="url"
               value={formData.imageUrl}
               onChange={(e) => handleInputChange("imageUrl", e.target.value)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="https://example.com/image.jpg"
             />
           </div>
         </div>
 
         {/* Options Configuration */}
-        <div className="bg-gray-50 p-6 rounded-lg">
+        <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
               Form Options
             </h3>
             <button
@@ -524,7 +524,7 @@ export const FormWithFollowUpCreator: React.FC<
                   type="text"
                   value={option}
                   onChange={(e) => handleOptionChange(index, e.target.value)}
-                  className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder={`Option ${String.fromCharCode(65 + index)}`}
                   required
                 />
@@ -543,11 +543,11 @@ export const FormWithFollowUpCreator: React.FC<
         </div>
 
         {/* Follow-up Questions Configuration */}
-        <div className="bg-gray-50 p-6 rounded-lg">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+        <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
             Follow-up Questions Configuration
           </h3>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Configure which options should trigger follow-up questions and
             whether they're required.
           </p>
@@ -561,11 +561,11 @@ export const FormWithFollowUpCreator: React.FC<
               return (
                 <div
                   key={option}
-                  className="border border-gray-200 rounded-lg p-4 bg-white space-y-3"
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-gray-900 space-y-3"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-gray-800">{option}</span>
-                    <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+                    <span className="font-medium text-gray-800 dark:text-gray-200">{option}</span>
+                    <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
                       {String.fromCharCode(65 + index)}
                     </span>
                   </div>
@@ -583,9 +583,9 @@ export const FormWithFollowUpCreator: React.FC<
                               : false,
                           })
                         }
-                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                       />
-                      <span className="text-sm text-gray-700">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">
                         Has follow-up question
                       </span>
                     </label>
@@ -602,7 +602,7 @@ export const FormWithFollowUpCreator: React.FC<
                                 required: e.target.checked,
                               })
                             }
-                            className="mr-2 h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                            className="mr-2 h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 dark:border-gray-600 rounded"
                           />
                           <span className="text-sm text-red-700">
                             Required follow-up
@@ -610,7 +610,7 @@ export const FormWithFollowUpCreator: React.FC<
                         </label>
 
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Follow-up question text
                           </label>
                           <input
@@ -619,13 +619,13 @@ export const FormWithFollowUpCreator: React.FC<
                             onChange={(e) =>
                               handleFollowUpQuestionTextChange(option, e.target.value)
                             }
-                            className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             placeholder={getDefaultFollowUpQuestionText(option)}
                           />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                          <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                             Follow-up question type
                           </label>
                           <select
@@ -636,7 +636,7 @@ export const FormWithFollowUpCreator: React.FC<
                                 e.target.value as FollowUpQuestionType
                               )
                             }
-                            className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                           >
                             <option value="paragraph">Long answer</option>
                             <option value="text">Short answer</option>
@@ -646,7 +646,7 @@ export const FormWithFollowUpCreator: React.FC<
 
                         {questionType === "radio" && (
                           <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                            <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                               Follow-up options (one per line)
                             </label>
                             <textarea
@@ -658,13 +658,13 @@ export const FormWithFollowUpCreator: React.FC<
                                 )
                               }
                               rows={3}
-                              className="w-full p-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              className="w-full p-2 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                               placeholder={DEFAULT_FOLLOW_UP_OPTIONS.join("\n")}
                             />
                           </div>
                         )}
 
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-gray-500 dark:text-gray-500">
                           Preview: {getFollowUpPreviewDetails(option)}
                         </div>
                       </div>
@@ -740,20 +740,20 @@ const FormPreviewModal: React.FC<FormPreviewModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-gray-800">Form Preview</h3>
+            <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200">Form Preview</h3>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 text-2xl"
+              className="text-gray-400 hover:text-gray-600 dark:text-gray-400 text-2xl"
             >
               ×
             </button>
           </div>
 
           {/* Preview Form */}
-          <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+          <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6">
             {formData.logoUrl && (
               <div className="mb-4">
                 <img
@@ -764,10 +764,10 @@ const FormPreviewModal: React.FC<FormPreviewModalProps> = ({
               </div>
             )}
 
-            <h2 className="text-xl font-bold text-gray-800 mb-2">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-2">
               {formData.title}
             </h2>
-            <p className="text-gray-600 mb-6">{formData.description}</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-6">{formData.description}</p>
 
             {formData.imageUrl && (
               <div className="mb-6">
@@ -780,13 +780,13 @@ const FormPreviewModal: React.FC<FormPreviewModalProps> = ({
             )}
 
             <div className="space-y-3">
-              <p className="font-medium text-gray-800">
+              <p className="font-medium text-gray-800 dark:text-gray-200">
                 Please select one option:
               </p>
               {formData.options.map((option, index) => (
                 <label
                   key={option}
-                  className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                  className="flex items-center p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 cursor-pointer"
                 >
                   <input
                     type="radio"
@@ -794,7 +794,7 @@ const FormPreviewModal: React.FC<FormPreviewModalProps> = ({
                     value={option}
                     checked={selectedOption === option}
                     onChange={(e) => setSelectedOption(e.target.value)}
-                    className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                    className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
                   />
                   <span className="flex-1">{option}</span>
                   {formData.followUpConfig[option]?.hasFollowUp && (
@@ -816,7 +816,7 @@ const FormPreviewModal: React.FC<FormPreviewModalProps> = ({
 
             {showFollowUp && (
               <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Please provide additional details for {selectedOption}:
                   {selectedConfig?.required && (
                     <span className="text-red-500 ml-1">*</span>
@@ -826,11 +826,11 @@ const FormPreviewModal: React.FC<FormPreviewModalProps> = ({
                   value={followUpAnswer}
                   onChange={(e) => setFollowUpAnswer(e.target.value)}
                   rows={3}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   placeholder="Enter your response here..."
                   required={selectedConfig?.required}
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                   This follow-up question is{" "}
                   {selectedConfig?.required ? "mandatory" : "optional"} for{" "}
                   {selectedOption}

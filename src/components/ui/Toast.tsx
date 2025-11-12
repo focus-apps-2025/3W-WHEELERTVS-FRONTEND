@@ -109,7 +109,7 @@ const Toast: React.FC<ToastProps> = ({
       >
         <button
           onClick={handleClose}
-          className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 transition-colors"
+          className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:text-gray-400 transition-colors"
         >
           <X className="w-4 h-4" />
         </button>
@@ -122,7 +122,7 @@ const Toast: React.FC<ToastProps> = ({
                 {title}
               </h4>
             )}
-            <p className="text-sm text-gray-700 leading-relaxed">{message}</p>
+            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{message}</p>
           </div>
         </div>
 

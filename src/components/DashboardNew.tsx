@@ -116,15 +116,15 @@ export default function DashboardNew() {
 
   if (formsLoading) {
     return (
-      <div className="min-h-screen bg-white p-6 flex items-center justify-center">
+      <div className="min-h-screen bg-white dark:bg-gray-900 p-6 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mx-auto mb-4">
+          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mx-auto mb-4">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
           </div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-1">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
             Loading Dashboard
           </h2>
-          <p className="text-gray-600 text-sm">Fetching your latest data...</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">Fetching your latest data...</p>
         </div>
       </div>
     );
@@ -139,25 +139,25 @@ export default function DashboardNew() {
   console.log("Dashboard - Customer Portal URL:", customerPortalUrl);
 
   return (
-    <div className="min-h-screen bg-white p-6">
+    <div className="min-h-screen bg-white dark:bg-gray-900 p-6">
       {/* Tenant Info Banner */}
       {tenant && (
-        <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
+        <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-gray-700 mb-1">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
                 Your Tenant Information
               </h3>
               <div className="flex items-center space-x-4 text-sm">
                 <div>
-                  <span className="text-gray-600">Business Name:</span>{" "}
-                  <span className="font-medium text-gray-900">
+                  <span className="text-gray-600 dark:text-gray-400">Business Name:</span>{" "}
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
                     {tenant.businessName}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-600">Tenant ID:</span>{" "}
-                  <span className="font-medium text-gray-900">
+                  <span className="text-gray-600 dark:text-gray-400">Tenant ID:</span>{" "}
+                  <span className="font-medium text-gray-900 dark:text-gray-100">
                     {tenant.slug}
                   </span>
                 </div>
@@ -165,14 +165,14 @@ export default function DashboardNew() {
             </div>
             {customerPortalUrl && (
               <div className="text-right">
-                <p className="text-xs text-gray-600 mb-1">
+                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
                   Customer Portal URL:
                 </p>
                 <a
                   href={customerPortalUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                  className="text-sm font-medium text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 hover:underline"
                 >
                   {customerPortalUrl}
                 </a>
@@ -198,17 +198,17 @@ export default function DashboardNew() {
         {statsCards.map((stat, index) => (
           <div
             key={index}
-            className="bg-white rounded-lg p-6 shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100"
+            className="bg-white dark:bg-gray-900 rounded-lg p-6 shadow-md hover:shadow-lg transition-all duration-300 border border-gray-100 dark:border-gray-800"
           >
             <div className="flex items-center justify-between mb-4">
-              <div className="p-2 bg-blue-50 rounded-lg">
-                <stat.icon className="w-5 h-5 text-blue-600" />
+              <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+                <stat.icon className="w-5 h-5 text-blue-600 dark:text-blue-300" />
               </div>
               <div className="text-right">
-                <p className="text-xl font-semibold text-gray-900">
+                <p className="text-xl font-semibold text-gray-900 dark:text-gray-100">
                   {stat.value}
                 </p>
-                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-500 uppercase tracking-wide">
                   {stat.title}
                 </p>
               </div>
@@ -220,13 +220,13 @@ export default function DashboardNew() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Forms */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-                  <FileText className="w-4 h-4 text-blue-600" />
+                <div className="w-8 h-8 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                  <FileText className="w-4 h-4 text-blue-600 dark:text-blue-300" />
                 </div>
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   Recent Service Forms
                 </h2>
               </div>
@@ -241,17 +241,17 @@ export default function DashboardNew() {
             {formsLoading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600 text-sm">Loading forms...</p>
+                <p className="mt-2 text-gray-600 dark:text-gray-400 text-sm">Loading forms...</p>
               </div>
             ) : recentForms.length === 0 ? (
               <div className="text-center py-8">
-                <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center mx-auto mb-4">
                   <FileText className="w-6 h-6 text-blue-500" />
                 </div>
-                <h3 className="text-base font-medium text-gray-900 mb-1">
+                <h3 className="text-base font-medium text-gray-900 dark:text-gray-100 mb-1">
                   No forms created yet
                 </h3>
-                <p className="text-gray-500 text-sm mb-4">
+                <p className="text-gray-500 dark:text-gray-500 text-sm mb-4">
                   Get started by creating your first service form
                 </p>
                 <button
@@ -267,16 +267,16 @@ export default function DashboardNew() {
                 {recentForms.map((form: any) => (
                   <div
                     key={form._id}
-                    className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                    className="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-colors duration-200"
                   >
                     <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100">
                         {form.title}
                       </h3>
-                      <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
                         {form.description}
                       </p>
-                      <div className="flex items-center mt-2 text-xs text-gray-500">
+                      <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-500">
                         <div className="flex items-center mr-3">
                           <Calendar className="w-3 h-3 mr-1 text-gray-400" />
                           {new Date(form.createdAt).toLocaleDateString()}
@@ -292,7 +292,7 @@ export default function DashboardNew() {
                         onClick={() =>
                           navigate(`/forms/${form.id || form._id}/preview`)
                         }
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200"
+                        className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded-md transition-colors duration-200"
                         title="Preview form"
                       >
                         <Eye className="w-4 h-4" />
@@ -301,7 +301,7 @@ export default function DashboardNew() {
                         onClick={() =>
                           navigate(`/forms/${form.id || form._id}/analytics`)
                         }
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors duration-200"
+                        className="p-2 text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/40 rounded-md transition-colors duration-200"
                         title="View analytics"
                       >
                         <BarChart3 className="w-4 h-4" />
@@ -317,12 +317,12 @@ export default function DashboardNew() {
         {/* Quick Actions & Activity */}
         <div className="space-y-6">
           {/* Quick Actions */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
             <div className="flex items-center space-x-3 mb-4">
-              <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-                <Plus className="w-4 h-4 text-blue-600" />
+              <div className="w-8 h-8 bg-blue-50 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
+                <Plus className="w-4 h-4 text-blue-600 dark:text-blue-300" />
               </div>
-              <h2 className="text-lg font-semibold text-gray-900">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Quick Actions
               </h2>
             </div>
@@ -336,14 +336,14 @@ export default function DashboardNew() {
               </button>
               <button
                 onClick={() => navigate("/forms/management")}
-                className="w-full p-3 bg-white border border-gray-200 text-gray-700 rounded-md hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors duration-200 flex items-center justify-center font-medium"
+                className="w-full p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:border-blue-300 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:text-blue-700 dark:hover:text-blue-200 transition-colors duration-200 flex items-center justify-center font-medium"
               >
                 <FileText className="w-4 h-4 mr-2" />
                 Manage Forms
               </button>
               <button
                 onClick={() => navigate("/forms/analytics")}
-                className="w-full p-3 bg-white border border-gray-200 text-gray-700 rounded-md hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 transition-colors duration-200 flex items-center justify-center font-medium"
+                className="w-full p-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-md hover:border-blue-300 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:text-blue-700 dark:hover:text-blue-200 transition-colors duration-200 flex items-center justify-center font-medium"
               >
                 <BarChart3 className="w-4 h-4 mr-2" />
                 View Analytics
@@ -355,8 +355,8 @@ export default function DashboardNew() {
                 disabled={!customerPortalUrl}
                 className={`w-full p-3 rounded-md transition-colors duration-200 flex items-center justify-center font-medium ${
                   customerPortalUrl
-                    ? "bg-white border border-gray-200 text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                    : "bg-gray-100 border border-gray-200 text-gray-400 cursor-not-allowed"
+                    ? "bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/40 hover:text-blue-700 dark:hover:text-blue-200"
+                    : "bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
                 }`}
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
@@ -369,15 +369,15 @@ export default function DashboardNew() {
         {/* Test Email Dialog */}
         {showTestEmailDialog && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-sm w-full m-4">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full m-4">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   Send Test Email
                 </h3>
               </div>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Email Address
                   </label>
                   <input
@@ -385,25 +385,25 @@ export default function DashboardNew() {
                     value={testEmail}
                     onChange={(e) => setTestEmail(e.target.value)}
                     placeholder="your.email@example.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                     disabled={sendingTestEmail}
                   />
                 </div>
-                <div className="bg-blue-50 p-3 rounded-lg">
-                  <p className="text-sm text-blue-700">
+                <div className="bg-blue-50 dark:bg-blue-900/30 p-3 rounded-lg">
+                  <p className="text-sm text-blue-700 dark:text-blue-200">
                     A test email will be sent from{" "}
                     <strong>priyaraj@focusengineering.in</strong>
                   </p>
                 </div>
               </div>
-              <div className="px-6 py-4 border-t border-gray-200 flex gap-2 justify-end">
+              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex gap-2 justify-end">
                 <button
                   onClick={() => {
                     setShowTestEmailDialog(false);
                     setTestEmail("");
                   }}
                   disabled={sendingTestEmail}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 transition-colors"
                 >
                   Cancel
                 </button>

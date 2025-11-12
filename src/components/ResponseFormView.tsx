@@ -33,20 +33,20 @@ export default function ResponseFormView({
   const handleAnswerChange = () => {};
 
   return (
-    <div className="fixed inset-0 bg-white flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl m-4 max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
+    <div className="fixed inset-0 bg-white dark:bg-gray-900 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-4xl m-4 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
           <div>
-            <h3 className="text-xl font-semibold text-gray-900">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
               Response View
             </h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
               Submitted on {formatTimestamp(response.timestamp)}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
+            className="text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:text-gray-300"
           >
             <X className="w-6 h-6" />
           </button>
@@ -61,7 +61,7 @@ export default function ResponseFormView({
 
           <form className="space-y-8">
             {sections.length > 1 && (
-              <div className="text-center text-sm text-gray-500">
+              <div className="text-center text-sm text-gray-500 dark:text-gray-500">
                 Section Progress: Viewing Response
               </div>
             )}

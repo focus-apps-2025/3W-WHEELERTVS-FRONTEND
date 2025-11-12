@@ -15,15 +15,15 @@ migrateLocalStorageForms();
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ThemeProvider>
-      <LogoProvider>
-        <AuthProvider>
+      <AuthProvider>
+        <LogoProvider>
           <SidebarProvider>
             <NotificationProvider>
               <App />
             </NotificationProvider>
           </SidebarProvider>
-        </AuthProvider>
-      </LogoProvider>
+        </LogoProvider>
+      </AuthProvider>
     </ThemeProvider>
   </StrictMode>
 );

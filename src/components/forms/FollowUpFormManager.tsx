@@ -256,10 +256,10 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">
             Forms with Follow-up Questions
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             Create and manage forms with configurable follow-up questions
           </p>
         </div>
@@ -291,14 +291,14 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search forms..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
 
         <select
           value={visibilityFilter}
           onChange={(e) => setVisibilityFilter(e.target.value as any)}
-          className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         >
           <option value="all">All Forms</option>
           <option value="visible">Published</option>
@@ -325,15 +325,15 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
       {loading ? (
         <div className="flex items-center justify-center p-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          <span className="ml-2 text-gray-600">Loading forms...</span>
+          <span className="ml-2 text-gray-600 dark:text-gray-400">Loading forms...</span>
         </div>
       ) : forms.length === 0 ? (
-        <div className="text-center p-8 bg-gray-50 rounded-lg">
+        <div className="text-center p-8 bg-gray-50 dark:bg-gray-800 rounded-lg">
           <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-800 mb-2">
+          <h3 className="text-lg font-medium text-gray-800 dark:text-gray-200 mb-2">
             No forms found
           </h3>
-          <p className="text-gray-600 mb-4">
+          <p className="text-gray-600 dark:text-gray-400 mb-4">
             {searchTerm
               ? "Try adjusting your search criteria"
               : "Get started by creating your first form with follow-up questions"}
@@ -350,12 +350,12 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
           {forms.map((form) => (
             <div
               key={form.id}
-              className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow"
+              className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-6 hover:shadow-lg transition-shadow"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-800">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
                       {form.title}
                     </h3>
                     {form.isVisible ? (
@@ -363,15 +363,15 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
                         Published
                       </span>
                     ) : (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-800 text-xs font-medium rounded-full">
+                      <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-xs font-medium rounded-full">
                         Draft
                       </span>
                     )}
                   </div>
 
-                  <p className="text-gray-600 mb-3">{form.description}</p>
+                  <p className="text-gray-600 dark:text-gray-400 mb-3">{form.description}</p>
 
-                  <div className="text-sm text-gray-500 mb-3">
+                  <div className="text-sm text-gray-500 dark:text-gray-500 mb-3">
                     <div>
                       Created by{" "}
                       {form.createdBy.firstName || form.createdBy.username} on{" "}
@@ -394,7 +394,7 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
 
                   <button
                     onClick={() => handleEditForm(form)}
-                    className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 rounded-lg transition-colors"
                     title="Edit"
                   >
                     <Edit className="h-4 w-4" />
@@ -452,12 +452,12 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
           <button
             onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
             disabled={currentPage === 1}
-            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Previous
           </button>
 
-          <span className="px-3 py-2 text-gray-600">
+          <span className="px-3 py-2 text-gray-600 dark:text-gray-400">
             Page {currentPage} of {totalPages}
           </span>
 
@@ -466,7 +466,7 @@ export const FollowUpFormManager: React.FC<FollowUpFormManagerProps> = ({
               setCurrentPage(Math.min(totalPages, currentPage + 1))
             }
             disabled={currentPage === totalPages}
-            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Next
           </button>
@@ -638,12 +638,12 @@ const FollowUpConfigEditor: React.FC<FollowUpConfigEditorProps> = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+    <div className="max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-200 mb-2">
           Configure Follow-up Questions
         </h2>
-        <p className="text-gray-600">
+        <p className="text-gray-600 dark:text-gray-400">
           Configure which options trigger follow-up questions for:{" "}
           <strong>{form.title}</strong>
         </p>
@@ -658,10 +658,10 @@ const FollowUpConfigEditor: React.FC<FollowUpConfigEditorProps> = ({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         {options.map((option, index) => (
-          <div key={option} className="border border-gray-200 rounded-lg p-4">
+          <div key={option} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-semibold text-gray-800">{option}</h3>
-              <span className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-full">
+              <h3 className="font-semibold text-gray-800 dark:text-gray-200">{option}</h3>
+              <span className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
                 {String.fromCharCode(65 + index)}
               </span>
             </div>
@@ -677,9 +677,9 @@ const FollowUpConfigEditor: React.FC<FollowUpConfigEditorProps> = ({
                       required: config[option]?.required || false,
                     })
                   }
-                  className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                 />
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-gray-700 dark:text-gray-300">
                   Enable follow-up question
                 </span>
               </label>
@@ -695,7 +695,7 @@ const FollowUpConfigEditor: React.FC<FollowUpConfigEditorProps> = ({
                         required: e.target.checked,
                       })
                     }
-                    className="mr-3 h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                    className="mr-3 h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 dark:border-gray-600 rounded"
                   />
                   <span className="text-sm text-red-700">
                     Make follow-up required
@@ -710,7 +710,7 @@ const FollowUpConfigEditor: React.FC<FollowUpConfigEditorProps> = ({
       <div className="flex justify-end space-x-4">
         <button
           onClick={onConfigUpdated}
-          className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          className="px-6 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-colors"
         >
           Cancel
         </button>

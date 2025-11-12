@@ -5,9 +5,11 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Image as ImageIcon, Upload, Trash2 } from "lucide-react";
 import { apiClient, ApiError } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
+import { useLogo } from "../../context/LogoContext";
+import { useNotification } from "../../context/NotificationContext";
 
 const MODULE_OPTIONS = [
   { key: "dashboard:view", label: "Dashboard" },
@@ -47,12 +49,15 @@ const createInitialFormState = (): CreateFormState => ({
 });
 
 export default function AdminManagement() {
-  const { user } = useAuth();
+  const { user, tenant, updateTenant } = useAuth();
+  const { logo, updateLogo } = useLogo();
+  const { showSuccess, showError } = useNotification();
   const [admins, setAdmins] = useState<SubAdmin[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [brandingSaving, setBrandingSaving] = useState(false);
   const [form, setForm] = useState<CreateFormState>(() => createInitialFormState());
 
   const isAdmin = user?.role === "admin";
@@ -80,6 +85,71 @@ export default function AdminManagement() {
   useEffect(() => {
     loadSubAdmins();
   }, [loadSubAdmins]);
+
+  const handleBrandingFileChange = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!tenant?._id) {
+      return;
+    }
+
+    const input = event.target;
+    const file = input.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (file.size > 1024 * 1024) {
+      showError("File size should be less than 1MB", "File Too Large");
+      input.value = "";
+      return;
+    }
+
+    setBrandingSaving(true);
+    setError(null);
+
+    try {
+      const uploadResult = await apiClient.uploadFile(file, "tenant_logo");
+      const logoUrl = apiClient.resolveUploadedFileUrl(uploadResult) + '?t=' + Date.now();
+      const settings = { ...(tenant.settings || {}), logo: logoUrl };
+      await apiClient.updateTenant(tenant._id, { settings });
+      updateTenant({ ...tenant, settings });
+      updateLogo(logoUrl);
+      showSuccess("Tenant logo updated successfully", "Logo Updated");
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Failed to upload logo";
+      setError(message);
+      showError(message, "Error");
+    } finally {
+      setBrandingSaving(false);
+      input.value = "";
+    }
+  };
+
+  const handleBrandingRemove = async () => {
+    if (!tenant?._id || brandingSaving) {
+      return;
+    }
+
+    setBrandingSaving(true);
+    setError(null);
+
+    try {
+      const settings = { ...(tenant.settings || {}), logo: "" };
+      await apiClient.updateTenant(tenant._id, { settings });
+      updateTenant({ ...tenant, settings });
+      updateLogo("");
+      showSuccess("Tenant logo removed", "Logo Removed");
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "Failed to remove logo";
+      setError(message);
+      showError(message, "Error");
+    } finally {
+      setBrandingSaving(false);
+    }
+  };
 
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -181,9 +251,9 @@ export default function AdminManagement() {
   if (!isAdmin) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-6">
-        <div className="bg-white border border-neutral-200 rounded-lg p-6">
-          <h1 className="text-xl font-semibold text-neutral-900">Access restricted</h1>
-          <p className="mt-2 text-neutral-600">
+        <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
+          <h1 className="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Access restricted</h1>
+          <p className="mt-2 text-neutral-600 dark:text-neutral-300">
             You need administrator rights to manage tenant administrators.
           </p>
         </div>
@@ -193,25 +263,69 @@ export default function AdminManagement() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
-      <div className="bg-white border border-neutral-200 rounded-lg p-6">
+      <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-neutral-900">Admin Management</h1>
-            <p className="mt-2 text-neutral-600">
+            <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Admin Management</h1>
+            <p className="mt-2 text-neutral-600 dark:text-neutral-300">
               Create and manage sub-admins for your tenant and control their module access.
             </p>
           </div>
         </div>
       </div>
 
+      {tenant && (
+        <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-20 h-20 rounded-lg border border-neutral-200 dark:border-gray-700 bg-neutral-50 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
+                {logo ? (
+                  <img src={logo} alt="Tenant logo" className="w-full h-full object-contain" />
+                ) : (
+                  <ImageIcon className="w-10 h-10 text-neutral-400 dark:text-neutral-500" />
+                )}
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Tenant Branding</h2>
+                <p className="text-sm text-neutral-600 dark:text-neutral-300">Upload a logo to personalize the portal experience for your team.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <label className={`inline-flex items-center gap-2 rounded-lg border border-primary-200 dark:border-primary-500 px-4 py-2 text-sm font-medium text-primary-700 dark:text-primary-200 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/40 dark:bg-primary-900/20 transition ${brandingSaving ? "opacity-60 cursor-not-allowed" : ""}`}>
+                <Upload className="w-4 h-4" />
+                <span>{brandingSaving ? "Uploading..." : "Upload Logo"}</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleBrandingFileChange}
+                  disabled={brandingSaving}
+                />
+              </label>
+              {logo && (
+                <button
+                  type="button"
+                  onClick={handleBrandingRemove}
+                  disabled={brandingSaving}
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-200 dark:border-red-800 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/40 dark:bg-red-900/20 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Remove
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-200 px-4 py-3 rounded-lg">
           {error}
         </div>
       )}
 
-      <div className="bg-white border border-neutral-200 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-neutral-900">Create sub-admin</h2>
+      <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Create sub-admin</h2>
         <form className="mt-4 space-y-4" onSubmit={handleCreate}>
           <div className="grid gap-4 md:grid-cols-2">
             <input
@@ -220,7 +334,7 @@ export default function AdminManagement() {
               onChange={handleInputChange}
               required
               placeholder="First name"
-              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-lg border border-neutral-200 dark:border-gray-700 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <input
               name="lastName"
@@ -228,7 +342,7 @@ export default function AdminManagement() {
               onChange={handleInputChange}
               required
               placeholder="Last name"
-              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-lg border border-neutral-200 dark:border-gray-700 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <input
               name="email"
@@ -237,7 +351,7 @@ export default function AdminManagement() {
               onChange={handleInputChange}
               required
               placeholder="Email address"
-              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-lg border border-neutral-200 dark:border-gray-700 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <input
               name="username"
@@ -245,7 +359,7 @@ export default function AdminManagement() {
               onChange={handleInputChange}
               required
               placeholder="Username"
-              className="w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="w-full rounded-lg border border-neutral-200 dark:border-gray-700 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
             <input
               name="password"
@@ -254,25 +368,25 @@ export default function AdminManagement() {
               onChange={handleInputChange}
               required
               placeholder="Temporary password"
-              className="md:col-span-2 w-full rounded-lg border border-neutral-200 px-3 py-2 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="md:col-span-2 w-full rounded-lg border border-neutral-200 dark:border-gray-700 px-3 py-2 text-sm text-neutral-900 dark:text-neutral-100 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
 
           <div>
-            <p className="text-sm font-medium text-neutral-900">Module access</p>
+            <p className="text-sm font-medium text-neutral-900 dark:text-neutral-100">Module access</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               {MODULE_OPTIONS.map((option) => (
                 <label
                   key={option.key}
-                  className="flex items-center gap-3 rounded-lg border border-neutral-200 px-3 py-2"
+                  className="flex items-center gap-3 rounded-lg border border-neutral-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-800"
                 >
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                    className="h-4 w-4 rounded border-neutral-300 dark:border-gray-600 text-primary-600 dark:text-primary-400 focus:ring-primary-500"
                     checked={form.permissions.has(option.key)}
                     onChange={() => toggleFormPermission(option.key)}
                   />
-                  <span className="text-sm font-medium text-neutral-700">{option.label}</span>
+                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">{option.label}</span>
                 </label>
               ))}
             </div>
@@ -281,16 +395,16 @@ export default function AdminManagement() {
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex w-full items-center justify-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+            className="inline-flex w-full items-center justify-center rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 dark:hover:bg-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add sub-admin"}
           </button>
         </form>
       </div>
 
-      <div className="bg-white border border-neutral-200 rounded-lg p-6">
+      <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-neutral-900">Existing sub-admins</h2>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Existing sub-admins</h2>
         </div>
 
         {loading ? (
@@ -298,7 +412,7 @@ export default function AdminManagement() {
             <Loader2 className="h-6 w-6 animate-spin text-primary-600" />
           </div>
         ) : admins.length === 0 ? (
-          <p className="mt-4 text-sm text-neutral-600">
+          <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-300">
             No sub-admins have been created yet. Add one using the form above.
           </p>
         ) : (
@@ -310,21 +424,21 @@ export default function AdminManagement() {
                 <div
                   key={admin._id}
                   data-testid={`subadmin-card-${admin._id}`}
-                  className="rounded-lg border border-neutral-200 px-4 py-4"
+                  className="rounded-lg border border-neutral-200 dark:border-gray-700 px-4 py-4 bg-white dark:bg-gray-800"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-neutral-900">
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                         {admin.firstName} {admin.lastName}
                       </p>
-                      <p className="text-sm text-neutral-600">{admin.email}</p>
-                      <p className="text-xs text-neutral-500">Username: {admin.username}</p>
+                      <p className="text-sm text-neutral-600 dark:text-neutral-300">{admin.email}</p>
+                      <p className="text-xs text-neutral-500 dark:text-neutral-400">Username: {admin.username}</p>
                     </div>
                     <span
                       className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
                         admin.isActive
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-neutral-100 text-neutral-500"
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                          : "bg-neutral-100 text-neutral-500 dark:bg-gray-800 dark:text-neutral-400"
                       }`}
                     >
                       {admin.isActive ? "Active" : "Inactive"}
@@ -335,15 +449,15 @@ export default function AdminManagement() {
                     {MODULE_OPTIONS.map((option) => (
                       <label
                         key={`${admin._id}-${option.key}`}
-                        className="flex items-center justify-between rounded-lg border border-neutral-200 px-3 py-2"
+                        className="flex items-center justify-between rounded-lg border border-neutral-200 dark:border-gray-700 px-3 py-2 bg-white dark:bg-gray-800"
                       >
-                        <span className="text-sm font-medium text-neutral-700">
+                        <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
                           {option.label}
                         </span>
                         <input
                           data-testid={`permission-${admin._id}-${option.key}`}
                           type="checkbox"
-                          className="h-4 w-4 rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                          className="h-4 w-4 rounded border-neutral-300 dark:border-gray-600 text-primary-600 dark:text-primary-400 focus:ring-primary-500"
                           checked={permissionSet.has(option.key)}
                           onChange={() => handleTogglePermission(admin._id, option.key)}
                           disabled={updatingId === admin._id}

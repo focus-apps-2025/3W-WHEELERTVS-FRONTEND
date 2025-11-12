@@ -192,15 +192,15 @@ export default function MailTest({}: MailTestProps) {
         </nav>
       </div>
 
-      <div className="bg-white rounded-lg border border-neutral-200 p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg border border-neutral-200 dark:border-gray-700 p-6">
         {activeTab === "demo" && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
                 Demo Email Templates
               </h3>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Test Email Address
                 </label>
                 <input
@@ -210,18 +210,18 @@ export default function MailTest({}: MailTestProps) {
                   placeholder="your-email@example.com"
                   className="input-field"
                 />
-                <p className="mt-1 text-xs text-gray-500">
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
                   Enter your email to receive demo notifications
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 border border-gray-200 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-2">
+              <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
                   🚗 Service Request Notification
                 </h4>
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                   Demo email that gets sent when a customer submits a service
                   request
                 </p>
@@ -235,11 +235,11 @@ export default function MailTest({}: MailTestProps) {
                 </button>
               </div>
 
-              <div className="p-4 border border-gray-200 rounded-lg">
-                <h4 className="font-medium text-gray-900 mb-2">
+              <div className="p-4 border border-gray-200 dark:border-gray-700 rounded-lg">
+                <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
                   📧 Status Update
                 </h4>
-                <p className="text-sm text-gray-600 mb-3">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                   Demo email that gets sent to update customers on their service
                   status
                 </p>
@@ -258,7 +258,7 @@ export default function MailTest({}: MailTestProps) {
 
         {activeTab === "test" && (
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
               Connection Testing
             </h3>
 
@@ -295,24 +295,24 @@ export default function MailTest({}: MailTestProps) {
 
         {activeTab === "config" && (
           <div className="space-y-4">
-            <h3 className="text-lg font-medium text-gray-900">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">
               Email Configuration
             </h3>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-2">
+            <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+              <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
                 Current Configuration
               </h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">SMTP Host:</span>
+                  <span className="text-gray-600 dark:text-gray-400">SMTP Host:</span>
                   <span className="font-mono">smtp.gmail.com</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">SMTP Port:</span>
+                  <span className="text-gray-600 dark:text-gray-400">SMTP Port:</span>
                   <span className="font-mono">587</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Shop Email:</span>
+                  <span className="text-gray-600 dark:text-gray-400">Shop Email:</span>
                   <span className="font-mono">admin@focus.com</span>
                 </div>
               </div>
@@ -362,7 +362,7 @@ export default function MailTest({}: MailTestProps) {
               {result.message}
             </p>
             {result.data && (
-              <pre className="mt-2 text-xs bg-white p-2 rounded border overflow-auto">
+              <pre className="mt-2 text-xs bg-white dark:bg-gray-900 p-2 rounded border overflow-auto">
                 {JSON.stringify(result.data, null, 2)}
               </pre>
             )}

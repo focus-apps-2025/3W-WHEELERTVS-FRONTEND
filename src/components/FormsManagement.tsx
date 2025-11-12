@@ -130,7 +130,7 @@ export default function FormsManagement() {
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-neutral-200">
+            <tbody className="bg-white dark:bg-gray-900 divide-y divide-neutral-200">
               {filteredForms.map((form) => {
                 const parentForm = form.parentFormId
                   ? forms.find((f) => f.id === form.parentFormId)
@@ -193,7 +193,7 @@ export default function FormsManagement() {
                             handleVisibilityChange(form.id, e.target.checked)
                           }
                         />
-                        <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
+                        <div className="w-11 h-6 bg-neutral-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white dark:bg-gray-900 after:border-neutral-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-600"></div>
                       </label>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

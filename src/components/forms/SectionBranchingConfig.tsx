@@ -78,12 +78,12 @@ export const SectionBranchingConfig: React.FC<SectionBranchingConfigProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
-        <div className="sticky top-0 bg-gray-50 border-b border-gray-200 px-6 py-4 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-900">Configure Section Routing</h3>
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-96 overflow-y-auto">
+        <div className="sticky top-0 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Configure Section Routing</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 dark:text-gray-400"
           >
             <X className="h-5 w-5" />
           </button>
@@ -97,18 +97,18 @@ export const SectionBranchingConfig: React.FC<SectionBranchingConfigProps> = ({
           </div>
 
           <div className="space-y-4">
-            <h4 className="text-md font-medium text-gray-900">Option Routing</h4>
+            <h4 className="text-md font-medium text-gray-900 dark:text-gray-100">Option Routing</h4>
             {options.map(option => {
               const rule = rules.find(r => r.optionLabel === option && !r.isOtherOption);
               return (
-                <div key={option} className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
+                <div key={option} className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-700">{option}</p>
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{option}</p>
                   </div>
                   <select
                     value={rule?.targetSectionId || ''}
                     onChange={e => handleOptionChange(option, e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">No routing (Continue to next)</option>
                     {sections.map(section => (
@@ -130,28 +130,28 @@ export const SectionBranchingConfig: React.FC<SectionBranchingConfigProps> = ({
             })}
           </div>
 
-          <div className="border-t border-gray-200 pt-6">
+          <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
             <div className="flex items-center gap-4 mb-4">
               <input
                 type="checkbox"
                 id="otherOption"
                 checked={otherOptionEnabled}
                 onChange={e => setOtherOptionEnabled(e.target.checked)}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+                className="w-4 h-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500"
               />
-              <label htmlFor="otherOption" className="text-sm font-medium text-gray-700">
+              <label htmlFor="otherOption" className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Enable "Other" option with free text entry
               </label>
             </div>
             {otherOptionEnabled && (
-              <div className="ml-8 p-4 bg-gray-50 rounded-lg">
-                <label className="text-sm font-medium text-gray-700 block mb-2">
+              <div className="ml-8 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">
                   Route "Other" responses to:
                 </label>
                 <select
                   value={otherTargetSection}
                   onChange={e => handleOtherOptionChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">Select Section</option>
                   {sections.map(section => (
@@ -165,10 +165,10 @@ export const SectionBranchingConfig: React.FC<SectionBranchingConfigProps> = ({
           </div>
         </div>
 
-        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+        <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800"
           >
             Cancel
           </button>

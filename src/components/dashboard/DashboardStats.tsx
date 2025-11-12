@@ -62,14 +62,14 @@ export default function DashboardStats({
       {stats.map((stat) => (
         <div
           key={stat.name}
-          className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+          className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+              <p className="text-sm font-semibold text-gray-500 dark:text-gray-500 uppercase tracking-wide">
                 {stat.name}
               </p>
-              <p className="text-3xl font-bold text-gray-900 mt-1">
+              <p className="text-3xl font-bold text-gray-900 dark:text-gray-100 mt-1">
                 {stat.value}
               </p>
             </div>

@@ -169,13 +169,13 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2 flex items-center gap-2">
           <Link2 className="h-6 w-6 text-blue-600" />
           Section Linking Configuration
         </h2>
-        <p className="text-gray-600">
+        <p className="text-gray-600 dark:text-gray-400">
           Link sections together to create conditional form flows based on user responses.
         </p>
       </div>
@@ -207,21 +207,21 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
             }
             className="w-4 h-4 text-blue-600 rounded"
           />
-          <span className="font-semibold text-gray-900">
+          <span className="font-semibold text-gray-900 dark:text-gray-100">
             Linked Only Mode
           </span>
         </label>
-        <p className="text-sm text-gray-600 ml-7 mt-2">
+        <p className="text-sm text-gray-600 dark:text-gray-400 ml-7 mt-2">
           When enabled, only sections that are part of links will be shown to users. This is useful for creating branching paths where only relevant sections appear.
         </p>
       </div>
 
       <div className="mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Add New Link</h3>
-        <div className="bg-gray-50 p-4 rounded-lg space-y-4">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">Add New Link</h3>
+        <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Source Section
               </label>
               <select
@@ -231,7 +231,7 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
                   setNewLinkSourceQuestion("");
                   setNewLinkOption("");
                 }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select section...</option>
                 {sections.map((section) => (
@@ -243,13 +243,13 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Target Section
               </label>
               <select
                 value={newLinkTargetSection}
                 onChange={(e) => setNewLinkTargetSection(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select section...</option>
                 {sections
@@ -266,7 +266,7 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
           {newLinkSourceSection && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Trigger Question (Optional)
                 </label>
                 <select
@@ -275,7 +275,7 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
                     setNewLinkSourceQuestion(e.target.value);
                     setNewLinkOption("");
                   }}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Any question in section</option>
                   {getSourceSectionQuestions().map((question) => (
@@ -288,13 +288,13 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
 
               {newLinkSourceQuestion && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Trigger Option (Optional)
                   </label>
                   <select
                     value={newLinkOption}
                     onChange={(e) => setNewLinkOption(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Any answer</option>
                     {getQuestionOptions().map((option) => (
@@ -319,7 +319,7 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
       </div>
 
       <div className="mb-8">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
           🔗 Active Links ({config.sectionLinks?.length || 0})
         </h3>
         <div className="space-y-4">
@@ -374,25 +374,25 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
                   {expandedLinks.has(index) && (
                     <div className="px-4 py-4 bg-blue-50 border-t border-blue-200">
                       <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-                        <div className="bg-white p-3 rounded border border-blue-100">
+                        <div className="bg-white dark:bg-gray-900 p-3 rounded border border-blue-100">
                           <p className="text-xs font-semibold text-blue-600 mb-1">SOURCE</p>
-                          <p className="font-medium text-gray-900">{sourceSection?.title}</p>
-                          <p className="text-xs text-gray-600">ID: {link.sourceSectionId}</p>
+                          <p className="font-medium text-gray-900 dark:text-gray-100">{sourceSection?.title}</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400">ID: {link.sourceSectionId}</p>
                         </div>
-                        <div className="bg-white p-3 rounded border border-blue-100">
+                        <div className="bg-white dark:bg-gray-900 p-3 rounded border border-blue-100">
                           <p className="text-xs font-semibold text-blue-600 mb-1">TARGET</p>
-                          <p className="font-medium text-gray-900">{targetSection?.title}</p>
-                          <p className="text-xs text-gray-600">ID: {link.targetSectionId}</p>
+                          <p className="font-medium text-gray-900 dark:text-gray-100">{targetSection?.title}</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400">ID: {link.targetSectionId}</p>
                         </div>
                       </div>
                       
                       {link.sourceQuestionId && (
-                        <div className="bg-white p-3 rounded border border-blue-100 mb-3">
+                        <div className="bg-white dark:bg-gray-900 p-3 rounded border border-blue-100 mb-3">
                           <p className="text-xs font-semibold text-blue-600 mb-1">TRIGGER CONDITION</p>
-                          <p className="text-sm text-gray-900">
+                          <p className="text-sm text-gray-900 dark:text-gray-100">
                             Question: <span className="font-medium">{question?.text}</span>
                           </p>
-                          <p className="text-xs text-gray-600 mt-1">ID: {link.sourceQuestionId}</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">ID: {link.sourceQuestionId}</p>
                           {link.linkedByOptionId && (
                             <p className="text-sm text-blue-700 mt-2 font-medium">
                               ✓ Answer must equal: <span className="text-blue-900">"{link.linkedByOptionId}"</span>
@@ -414,7 +414,7 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
               );
             })
           ) : (
-            <p className="text-gray-600 text-center py-6">
+            <p className="text-gray-600 dark:text-gray-400 text-center py-6">
               No links created yet. Add links to create conditional section flows.
             </p>
           )}
@@ -434,7 +434,7 @@ export const SectionLinkManager: React.FC<SectionLinkManagerProps> = ({
         <button
           onClick={loadConfig}
           disabled={loading}
-          className="flex items-center justify-center gap-2 px-6 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 font-medium disabled:opacity-50"
+          className="flex items-center justify-center gap-2 px-6 py-2 bg-gray-300 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-400 font-medium disabled:opacity-50"
         >
           <RefreshCw className="h-4 w-4" />
           Refresh

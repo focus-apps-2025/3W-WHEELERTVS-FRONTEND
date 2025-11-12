@@ -9,9 +9,9 @@ interface StaffListProps {
 
 export default function StaffList({ staff, onDelete }: StaffListProps) {
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden border border-neutral-200">
+    <div className="bg-white dark:bg-gray-900 rounded-lg shadow overflow-hidden border border-neutral-200 dark:border-gray-700">
       <table className="min-w-full divide-y divide-neutral-200">
-        <thead className="bg-gray-50">
+        <thead className="bg-gray-50 dark:bg-gray-800">
           <tr>
             <th className="px-6 py-3 text-left text-xs font-medium text-primary-700 uppercase tracking-wider">
               Staff Member
@@ -30,9 +30,9 @@ export default function StaffList({ staff, onDelete }: StaffListProps) {
             </th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-neutral-200">
+        <tbody className="bg-white dark:bg-gray-900 divide-y divide-neutral-200">
           {staff.map((member) => (
-            <tr key={member.id} className="hover:bg-gray-50 transition-colors">
+            <tr key={member.id} className="hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-colors">
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="flex items-center">
                   {member.profilePic ? (

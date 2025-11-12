@@ -46,9 +46,9 @@ export default function TenantDetailsModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-gray-900 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-neutral-200 px-6 py-4 flex items-center justify-between">
+        <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-neutral-200 dark:border-gray-700 px-6 py-4 flex items-center justify-between">
           <div>
             <h2 className="text-xl font-semibold text-primary-900">
               {tenant.name}
@@ -206,13 +206,13 @@ export default function TenantDetailsModal({
               required.
             </p>
             <div className="space-y-2">
-              <div className="flex items-center justify-between bg-white px-3 py-2 rounded border border-primary-200">
+              <div className="flex items-center justify-between bg-white dark:bg-gray-900 px-3 py-2 rounded border border-primary-200">
                 <span className="text-sm text-primary-600">Email:</span>
                 <code className="text-sm font-medium text-primary-900">
                   {tenant.adminId.email}
                 </code>
               </div>
-              <div className="flex items-center justify-between bg-white px-3 py-2 rounded border border-primary-200">
+              <div className="flex items-center justify-between bg-white dark:bg-gray-900 px-3 py-2 rounded border border-primary-200">
                 <span className="text-sm text-primary-600">Tenant:</span>
                 <code className="text-sm font-medium text-primary-900">
                   {tenant.name} ({tenant.slug})
@@ -223,7 +223,7 @@ export default function TenantDetailsModal({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-neutral-200 px-6 py-4 flex justify-end">
+        <div className="border-t border-neutral-200 dark:border-gray-700 px-6 py-4 flex justify-end">
           <button onClick={onClose} className="btn-primary">
             Close
           </button>

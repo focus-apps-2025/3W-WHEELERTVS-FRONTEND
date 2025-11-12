@@ -121,29 +121,29 @@ export default function ChildFormsManager({
 
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow p-6">
         <div className="animate-pulse">
           <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
-          <div className="h-20 bg-gray-100 rounded"></div>
+          <div className="h-20 bg-gray-100 dark:bg-gray-700 rounded"></div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow">
+    <div className="bg-white dark:bg-gray-900 rounded-lg shadow">
       <div
-        className="p-6 border-b cursor-pointer hover:bg-gray-50 transition-colors"
+        className="p-6 border-b cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-colors"
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <Link className="w-5 h-5 text-blue-600" />
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Child Forms ({childForms.length})
               </h3>
-              <p className="text-sm text-gray-600 mt-1">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                 Forms that will be shown to customers after completing this form
               </p>
             </div>
@@ -159,9 +159,9 @@ export default function ChildFormsManager({
       {isExpanded && (
         <div className="p-6">
           {childForms.length === 0 ? (
-            <div className="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+            <div className="text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600">
               <Link className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600 mb-4">No child forms linked yet</p>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">No child forms linked yet</p>
               <button
                 onClick={() => setShowAddModal(true)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
@@ -176,7 +176,7 @@ export default function ChildFormsManager({
                 {childForms.map((form, index) => (
                   <div
                     key={form.id}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
+                    className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:border-gray-600 transition-colors"
                   >
                     <div className="flex items-center space-x-4 flex-1">
                       <div className="flex flex-col space-y-1">
@@ -186,7 +186,7 @@ export default function ChildFormsManager({
                           className="p-1 hover:bg-gray-200 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                           title="Move up"
                         >
-                          <ChevronUp className="w-4 h-4 text-gray-600" />
+                          <ChevronUp className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                         </button>
                         <button
                           onClick={() => handleReorder(index, "down")}
@@ -194,19 +194,19 @@ export default function ChildFormsManager({
                           className="p-1 hover:bg-gray-200 rounded disabled:opacity-30 disabled:cursor-not-allowed"
                           title="Move down"
                         >
-                          <ChevronDown className="w-4 h-4 text-gray-600" />
+                          <ChevronDown className="w-4 h-4 text-gray-600 dark:text-gray-400" />
                         </button>
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
-                          <span className="text-sm font-medium text-gray-500">
+                          <span className="text-sm font-medium text-gray-500 dark:text-gray-500">
                             #{index + 1}
                           </span>
-                          <h4 className="font-medium text-gray-900">
+                          <h4 className="font-medium text-gray-900 dark:text-gray-100">
                             {form.title}
                           </h4>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1">
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                           {form.description || "No description"}
                         </p>
                         <div className="flex items-center space-x-3 mt-2">
@@ -243,7 +243,7 @@ export default function ChildFormsManager({
               </div>
               <button
                 onClick={() => setShowAddModal(true)}
-                className="w-full px-4 py-2 border-2 border-dashed border-gray-300 text-gray-600 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors inline-flex items-center justify-center space-x-2"
+                className="w-full px-4 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 rounded-lg hover:border-blue-400 hover:text-blue-600 transition-colors inline-flex items-center justify-center space-x-2"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Another Child Form</span>
@@ -256,27 +256,27 @@ export default function ChildFormsManager({
       {/* Add Child Form Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-md w-full p-6">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                 Add Child Form
               </h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 dark:text-gray-400"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Select Form
               </label>
               <select
                 value={selectedFormId}
                 onChange={(e) => setSelectedFormId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">-- Select a form --</option>
                 {availableForms.map((form) => (
@@ -286,7 +286,7 @@ export default function ChildFormsManager({
                 ))}
               </select>
               {availableForms.length === 0 && (
-                <p className="text-sm text-gray-500 mt-2">
+                <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
                   No available forms to link. Create more forms first.
                 </p>
               )}
@@ -295,7 +295,7 @@ export default function ChildFormsManager({
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-colors"
               >
                 Cancel
               </button>

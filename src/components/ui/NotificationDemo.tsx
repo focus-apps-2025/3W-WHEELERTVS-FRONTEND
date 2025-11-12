@@ -22,10 +22,10 @@ export default function NotificationDemo() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-2">
           Notification System Demo
         </h1>
-        <p className="text-gray-600">
+        <p className="text-gray-600 dark:text-gray-400">
           Click the buttons below to see different types of notifications in
           action.
         </p>
@@ -33,12 +33,12 @@ export default function NotificationDemo() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Success Notification */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center mb-4">
             <CheckCircle className="w-6 h-6 text-green-500 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Success</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Success</h3>
           </div>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Use for successful operations like saving, creating, or updating
             data.
           </p>
@@ -53,18 +53,18 @@ export default function NotificationDemo() {
           >
             Show Success
           </button>
-          <div className="mt-3 p-3 bg-gray-50 rounded text-xs font-mono text-gray-700">
+          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs font-mono text-gray-700 dark:text-gray-300">
             showSuccess("Message", "Title")
           </div>
         </div>
 
         {/* Error Notification */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center mb-4">
             <XCircle className="w-6 h-6 text-red-500 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Error</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Error</h3>
           </div>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Use for errors, failures, or when something goes wrong.
           </p>
           <button
@@ -75,18 +75,18 @@ export default function NotificationDemo() {
           >
             Show Error
           </button>
-          <div className="mt-3 p-3 bg-gray-50 rounded text-xs font-mono text-gray-700">
+          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs font-mono text-gray-700 dark:text-gray-300">
             showError("Message", "Title")
           </div>
         </div>
 
         {/* Warning Notification */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center mb-4">
             <AlertTriangle className="w-6 h-6 text-yellow-500 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Warning</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Warning</h3>
           </div>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Use for warnings or important information that needs attention.
           </p>
           <button
@@ -97,18 +97,18 @@ export default function NotificationDemo() {
           >
             Show Warning
           </button>
-          <div className="mt-3 p-3 bg-gray-50 rounded text-xs font-mono text-gray-700">
+          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs font-mono text-gray-700 dark:text-gray-300">
             showWarning("Message", "Title")
           </div>
         </div>
 
         {/* Info Notification */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center mb-4">
             <Info className="w-6 h-6 text-blue-500 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">Info</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Info</h3>
           </div>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Use for informational messages or helpful tips.
           </p>
           <button
@@ -119,20 +119,20 @@ export default function NotificationDemo() {
           >
             Show Info
           </button>
-          <div className="mt-3 p-3 bg-gray-50 rounded text-xs font-mono text-gray-700">
+          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs font-mono text-gray-700 dark:text-gray-300">
             showInfo("Message", "Title")
           </div>
         </div>
 
         {/* Confirm Dialog */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 md:col-span-2">
+        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-6 md:col-span-2">
           <div className="flex items-center mb-4">
             <HelpCircle className="w-6 h-6 text-blue-500 mr-2" />
-            <h3 className="text-lg font-semibold text-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
               Confirmation
             </h3>
           </div>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             Use for actions that require user confirmation, like deleting data.
             Replaces window.confirm() with a beautiful modal.
           </p>
@@ -152,7 +152,7 @@ export default function NotificationDemo() {
           >
             Show Confirmation
           </button>
-          <div className="mt-3 p-3 bg-gray-50 rounded text-xs font-mono text-gray-700">
+          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded text-xs font-mono text-gray-700 dark:text-gray-300">
             showConfirm(message, onConfirm, title, confirmText, cancelText)
           </div>
         </div>
@@ -166,21 +166,21 @@ export default function NotificationDemo() {
         <div className="space-y-3 text-sm text-blue-800">
           <div>
             <p className="font-semibold mb-1">1. Import the hook:</p>
-            <code className="block bg-white p-2 rounded text-xs">
+            <code className="block bg-white dark:bg-gray-900 p-2 rounded text-xs">
               import {"{ useNotification }"} from
               "../context/NotificationContext";
             </code>
           </div>
           <div>
             <p className="font-semibold mb-1">2. Use in your component:</p>
-            <code className="block bg-white p-2 rounded text-xs">
+            <code className="block bg-white dark:bg-gray-900 p-2 rounded text-xs">
               const {"{ showSuccess, showError, showConfirm }"} =
               useNotification();
             </code>
           </div>
           <div>
             <p className="font-semibold mb-1">3. Call the methods:</p>
-            <code className="block bg-white p-2 rounded text-xs">
+            <code className="block bg-white dark:bg-gray-900 p-2 rounded text-xs">
               showSuccess("Operation completed!", "Success");
               <br />
               showError("Something went wrong", "Error");
