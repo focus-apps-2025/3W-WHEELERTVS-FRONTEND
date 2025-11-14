@@ -33,7 +33,7 @@ import { generateResponseExcelReport } from "../utils/responseExportUtils";
 import { generateAndDownloadPDF } from "../utils/pdfExportUtils";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
-import DashboardSummaryCard from "./DashboardSummaryCard";
+// import DashboardSummaryCard from "./DashboardSummaryCard";
 
 ChartJS.register(
   CategoryScale,
@@ -1468,13 +1468,13 @@ export default function AllResponses() {
 
                     {viewMode === "dashboard" && filteredSectionStats.length > 0 && (
                     <div className="space-y-6">
-                      <DashboardSummaryCard
+                      {/* <DashboardSummaryCard
                         sectionStats={filteredSectionStats}
                         formTitle={selectedForm?.title || "Response"}
                         submittedDate={formatTimestamp(selectedResponse?.createdAt || "")}
                         onDownloadPDF={handleDownloadPDF}
                         isGeneratingPDF={generatingPDF}
-                      />
+                      /> */}
                       <div className="w-full" style={{ height: sectionChartHeight }}>
                         <Bar
                           data={sectionChartData}

@@ -6,7 +6,8 @@ interface ApiResponse<T> {
   message?: string;
   data?: T;
   errors?: string[];
-}.0
+}
+0.0;
 
 class ApiError extends Error {
   constructor(public status: number, public response: any, message?: string) {
@@ -98,7 +99,11 @@ class ApiClient {
     if (!value) {
       return "";
     }
-    if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:")) {
+    if (
+      value.startsWith("http://") ||
+      value.startsWith("https://") ||
+      value.startsWith("data:")
+    ) {
       return value;
     }
     const normalized = value.startsWith("/") ? value : `/${value}`;
@@ -448,7 +453,11 @@ class ApiClient {
   }
 
   // Files
-  async uploadFile(file: File, category: string = "general", associatedId?: string) {
+  async uploadFile(
+    file: File,
+    category: string = "general",
+    associatedId?: string
+  ) {
     const formData = new FormData();
     formData.append("file", file);
 
@@ -476,11 +485,16 @@ class ApiClient {
       query.set("associatedId", associatedId);
     }
 
-    const response = await fetch(`${this.baseUrl}/files/upload${query.toString() ? `?${query.toString()}` : ""}`, {
-      method: "POST",
-      headers,
-      body: formData,
-    });
+    const response = await fetch(
+      `${this.baseUrl}/files/upload${
+        query.toString() ? `?${query.toString()}` : ""
+      }`,
+      {
+        method: "POST",
+        headers,
+        body: formData,
+      }
+    );
 
     const data: ApiResponse<any> = await response.json();
 
