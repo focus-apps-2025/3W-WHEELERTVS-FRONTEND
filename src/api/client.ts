@@ -6,7 +6,7 @@ interface ApiResponse<T> {
   message?: string;
   data?: T;
   errors?: string[];
-}
+}.0
 
 class ApiError extends Error {
   constructor(public status: number, public response: any, message?: string) {
@@ -91,6 +91,22 @@ class ApiClient {
         throw error;
       }
       throw new ApiError(500, null, "Network error or server unavailable");
+    }
+  }
+
+  private ensureAbsoluteFileUrl(value: string) {
+    if (!value) {
+      return "";
+    }
+    if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("data:")) {
+      return value;
+    }
+    const normalized = value.startsWith("/") ? value : `/${value}`;
+    try {
+      const url = new URL(this.baseUrl);
+      return `${url.origin}${normalized}`;
+    } catch {
+      return normalized;
     }
   }
 
@@ -254,6 +270,13 @@ class ApiClient {
     });
   }
 
+  async updateFormLocationEnabled(id: string, locationEnabled: boolean) {
+    return this.request(`/forms/${id}/location`, {
+      method: "PATCH",
+      body: JSON.stringify({ locationEnabled }),
+    });
+  }
+
   async updateFormActiveStatus(id: string, isActive: boolean) {
     return this.request(`/forms/${id}/active`, {
       method: "PATCH",
@@ -349,12 +372,16 @@ class ApiClient {
   }
 
   async exportFormResponses(formId: string, format: "excel" | "csv" = "excel") {
+    const headers: Record<string, string> = {};
+
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
     const response = await fetch(
       `${this.baseUrl}/responses/form/${formId}/export?format=${format}`,
       {
-        headers: {
-          Authorization: `Bearer ${this.token}`,
-        },
+        headers,
       }
     );
 
@@ -421,14 +448,37 @@ class ApiClient {
   }
 
   // Files
-  async uploadFile(file: File, category: string = "general") {
+  async uploadFile(file: File, category: string = "general", associatedId?: string) {
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("category", category);
-    formData.append("token", this.token);
 
-    const response = await fetch(`${this.baseUrl}/files/upload`, {
+    if (category) {
+      formData.append("associatedType", category);
+    }
+
+    if (associatedId) {
+      formData.append("associatedId", associatedId);
+    }
+
+    const headers: Record<string, string> = {};
+
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const query = new URLSearchParams();
+
+    if (category) {
+      query.set("associatedType", category);
+    }
+
+    if (associatedId) {
+      query.set("associatedId", associatedId);
+    }
+
+    const response = await fetch(`${this.baseUrl}/files/upload${query.toString() ? `?${query.toString()}` : ""}`, {
       method: "POST",
+      headers,
       body: formData,
     });
 
@@ -447,19 +497,19 @@ class ApiClient {
     }
 
     if (typeof uploadResult === "string") {
-      return uploadResult;
+      return this.ensureAbsoluteFileUrl(uploadResult);
     }
 
     if (uploadResult.url) {
-      return uploadResult.url;
+      return this.ensureAbsoluteFileUrl(uploadResult.url);
     }
 
     if (uploadResult.secureUrl) {
-      return uploadResult.secureUrl;
+      return this.ensureAbsoluteFileUrl(uploadResult.secureUrl);
     }
 
     if (uploadResult.location) {
-      return uploadResult.location;
+      return this.ensureAbsoluteFileUrl(uploadResult.location);
     }
 
     if (uploadResult.path) {
@@ -471,7 +521,7 @@ class ApiClient {
     }
 
     if (uploadResult.file?.url) {
-      return uploadResult.file.url;
+      return this.ensureAbsoluteFileUrl(uploadResult.file.url);
     }
 
     if (uploadResult.file?.filename) {
@@ -522,11 +572,15 @@ class ApiClient {
     const formData = new FormData();
     formData.append("avatar", file);
 
+    const headers: Record<string, string> = {};
+
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
     const response = await fetch(`${this.baseUrl}/profile/avatar`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-      },
+      headers,
       body: formData,
     });
 

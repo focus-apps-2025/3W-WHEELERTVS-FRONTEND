@@ -16,6 +16,8 @@ import {
   FileText,
   ChevronUp,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clipboard,
   Link as LinkIcon,
   MessageSquarePlus,
@@ -32,6 +34,7 @@ import PreviewForm from "./PreviewForm";
 
 const YES_NO_NA_OPTIONS = ["Yes", "No", "N/A"];
 const YES_NO_NA_CORRECT = "Yes";
+const MAX_VISIBLE_PAGE_BUTTONS = 3;
 
 interface FormSection {
   id: string;
@@ -52,6 +55,8 @@ interface Question {
   allowedFileTypes?: string[];
   description?: string;
   imageUrl?: string;
+  subParam1?: string;
+  subParam2?: string;
   followUpQuestions?: FollowUpQuestion[];
   showWhen?: ShowWhen;
   parentId?: string;
@@ -85,6 +90,8 @@ interface FollowUpQuestion {
   allowedFileTypes?: string[];
   description?: string;
   imageUrl?: string;
+  subParam1?: string;
+  subParam2?: string;
   showWhen?: ShowWhen;
   parentId: string;
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
@@ -103,6 +110,7 @@ export default function FormCreator() {
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(0); // For multi-page navigation
+  const [pageWindowStart, setPageWindowStart] = useState<number>(0);
   const [openOptionMenu, setOpenOptionMenu] = useState<string | null>(null); // Track which option's menu is open
   const [showSectionSelector, setShowSectionSelector] = useState(false); // Show modal for selecting a section
   const [pendingSectionLink, setPendingSectionLink] = useState<{
@@ -882,7 +890,6 @@ export default function FormCreator() {
 
     form.sections.forEach((section) => {
       if (!section.isSubsection) {
-        // This is a main section, start a new page
         const subsections = form.sections.filter(
           (s) => s.parentSectionId === section.id
         );
@@ -891,6 +898,79 @@ export default function FormCreator() {
     });
 
     return pages;
+  };
+
+  const pages = useMemo(() => getPagesFromSections(), [form.sections]);
+  const totalPages = pages.length;
+
+  useEffect(() => {
+    if (totalPages === 0) {
+      if (currentPage !== 0) {
+        setCurrentPage(0);
+      }
+      setPageWindowStart(0);
+      return;
+    }
+
+    if (currentPage > totalPages - 1) {
+      setCurrentPage(totalPages - 1);
+      return;
+    }
+
+    setPageWindowStart((prev) => {
+      const maxStart = Math.max(0, totalPages - MAX_VISIBLE_PAGE_BUTTONS);
+      let nextStart = prev;
+
+      if (currentPage < nextStart) {
+        nextStart = currentPage;
+      } else if (currentPage >= nextStart + MAX_VISIBLE_PAGE_BUTTONS) {
+        nextStart = currentPage - MAX_VISIBLE_PAGE_BUTTONS + 1;
+      }
+
+      if (nextStart > maxStart) {
+        nextStart = maxStart;
+      }
+
+      if (nextStart < 0) {
+        nextStart = 0;
+      }
+
+      return nextStart === prev ? prev : nextStart;
+    });
+  }, [currentPage, totalPages]);
+
+  const handlePageChange = (pageIndex: number, total: number = totalPages) => {
+    const nextTotal = Math.max(total, 0);
+
+    if (nextTotal === 0) {
+      setCurrentPage(0);
+      setPageWindowStart(0);
+      return;
+    }
+
+    const clampedPage = Math.max(0, Math.min(pageIndex, nextTotal - 1));
+    setCurrentPage(clampedPage);
+
+    setPageWindowStart((prev) => {
+      const maxStart = Math.max(0, nextTotal - MAX_VISIBLE_PAGE_BUTTONS);
+      let nextStart = prev;
+
+      if (clampedPage < nextStart) {
+        nextStart = clampedPage;
+      } else if (clampedPage >= nextStart + MAX_VISIBLE_PAGE_BUTTONS) {
+        nextStart = clampedPage - MAX_VISIBLE_PAGE_BUTTONS + 1;
+      }
+
+      if (nextStart > maxStart) {
+        nextStart = maxStart;
+      }
+
+      if (nextStart < 0) {
+        nextStart = 0;
+      }
+
+      return nextStart === prev ? prev : nextStart;
+    });
   };
 
   const updateSection = (sectionId: string, updates: Partial<FormSection>) => {
@@ -978,6 +1058,8 @@ export default function FormCreator() {
       required: false,
       description: "",
       imageUrl: "",
+      subParam1: "",
+      subParam2: "",
     };
 
     updateSection(sectionId, {
@@ -1000,6 +1082,8 @@ export default function FormCreator() {
       required: false,
       description: "",
       imageUrl: "",
+      subParam1: "",
+      subParam2: "",
     };
 
     const questions = [...section.questions];
@@ -1436,6 +1520,8 @@ export default function FormCreator() {
       required: false,
       description: "",
       imageUrl: "",
+      subParam1: "",
+      subParam2: "",
       parentId: parentQuestionId,
       showWhen: {
         questionId: parentQuestionId,
@@ -2564,8 +2650,15 @@ export default function FormCreator() {
 
             {/* Page Navigation */}
             {(() => {
-              const pages = getPagesFromSections();
-              if (pages.length > 1) {
+              if (totalPages > 1) {
+                const visiblePages = pages.slice(
+                  pageWindowStart,
+                  pageWindowStart + MAX_VISIBLE_PAGE_BUTTONS
+                );
+                const canScrollLeft = pageWindowStart > 0;
+                const canScrollRight =
+                  pageWindowStart + MAX_VISIBLE_PAGE_BUTTONS < totalPages;
+
                 return (
                   <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-blue-200 dark:border-blue-900/60 p-4 mb-6">
                     <div className="flex items-center justify-between">
@@ -2573,24 +2666,55 @@ export default function FormCreator() {
                         Form Pages:
                       </h4>
                       <div className="flex items-center gap-2">
-                        {pages.map((_, pageIndex) => (
-                          <button
-                            key={pageIndex}
-                            onClick={() => setCurrentPage(pageIndex)}
-                            className={`w-10 h-10 rounded-lg font-bold text-sm transition-all duration-200 ${
-                              currentPage === pageIndex
-                                ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg scale-110"
-                                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                            }`}
-                          >
-                            {pageIndex + 1}
-                          </button>
-                        ))}
+                        <button
+                          onClick={() =>
+                            setPageWindowStart((prev) => Math.max(0, prev - 1))
+                          }
+                          disabled={!canScrollLeft}
+                          className="w-10 h-10 rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-200"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                          {visiblePages.map((_, index) => {
+                            const pageIndex = pageWindowStart + index;
+                            const isActive = currentPage === pageIndex;
+
+                            return (
+                              <button
+                                key={pageIndex}
+                                onClick={() => handlePageChange(pageIndex)}
+                                className={`w-10 h-10 rounded-lg font-bold text-sm transition-all duration-200 ${
+                                  isActive
+                                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg scale-110"
+                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                }`}
+                              >
+                                {pageIndex + 1}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <button
+                          onClick={() =>
+                            setPageWindowStart((prev) => {
+                              const maxStart = Math.max(
+                                0,
+                                totalPages - MAX_VISIBLE_PAGE_BUTTONS
+                              );
+                              return Math.min(prev + 1, maxStart);
+                            })
+                          }
+                          disabled={!canScrollRight}
+                          className="w-10 h-10 rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all duration-200"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                      Viewing Page {currentPage + 1} of {pages.length} · Each
-                      main section is a separate page
+                      Viewing Page {currentPage + 1} of {totalPages} · Each main
+                      section is a separate page
                     </p>
                   </div>
                 );
@@ -3026,6 +3150,41 @@ export default function FormCreator() {
                                     Required question
                                   </span>
                                 </label>
+                              </div>
+
+                              <div className="mt-4 grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                    Sub Parameter 1
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={question.subParam1 || ""}
+                                    onChange={(e) =>
+                                      updateQuestion(section.id, question.id, {
+                                        subParam1: e.target.value,
+                                      })
+                                    }
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                                    placeholder="Keyword 1 (optional)"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                    Sub Parameter 2
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={question.subParam2 || ""}
+                                    onChange={(e) =>
+                                      updateQuestion(section.id, question.id, {
+                                        subParam2: e.target.value,
+                                      })
+                                    }
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                                    placeholder="Keyword 2 (optional)"
+                                  />
+                                </div>
                               </div>
 
                               {(question.type === "radio" ||
@@ -3607,9 +3766,7 @@ export default function FormCreator() {
               <button
                 onClick={() => {
                   addSection();
-                  // Switch to the new page
-                  const pages = getPagesFromSections();
-                  setCurrentPage(pages.length);
+                  handlePageChange(totalPages, totalPages + 1);
                 }}
                 className="w-full group relative overflow-hidden p-6 border-2 border-dashed border-blue-300 rounded-xl text-blue-700 hover:border-blue-500 hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-50 transition-all duration-200 shadow-sm hover:shadow-md"
               >
@@ -3702,7 +3859,7 @@ export default function FormCreator() {
                             <button
                               key={pageIndex}
                               type="button"
-                              onClick={() => setCurrentPage(pageIndex)}
+                              onClick={() => handlePageChange(pageIndex)}
                               className={`
                                 w-full p-3 rounded-lg text-left transition-all duration-200
                                 ${

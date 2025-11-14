@@ -8,7 +8,6 @@ import {
   CheckCircle,
   Clock,
   XCircle,
-  Mail,
   Download,
   Trash2,
   Edit2,
@@ -30,12 +29,11 @@ import type { ActiveElement } from "chart.js";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
-import {
-  generateResponseExcelReport,
-  sendResponseExcelViaEmail,
-} from "../utils/responseExportUtils";
+import { generateResponseExcelReport } from "../utils/responseExportUtils";
+import { generateAndDownloadPDF } from "../utils/pdfExportUtils";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
+import DashboardSummaryCard from "./DashboardSummaryCard";
 
 ChartJS.register(
   CategoryScale,
@@ -132,9 +130,7 @@ export default function AllResponses() {
   const [showStatusUpdate, setShowStatusUpdate] = useState(false);
   const [viewMode, setViewMode] = useState<"dashboard" | "responses">("dashboard");
   const [pendingSectionId, setPendingSectionId] = useState<string | null>(null);
-  const [showEmailDialog, setShowEmailDialog] = useState(false);
-  const [emailInput, setEmailInput] = useState("");
-  const [sendingEmail, setSendingEmail] = useState(false);
+
   const [exportingExcel, setExportingExcel] = useState(false);
   const [deletingResponseId, setDeletingResponseId] = useState<string | null>(null);
   const [editingResponse, setEditingResponse] = useState<
@@ -143,6 +139,7 @@ export default function AllResponses() {
   const [editingForm, setEditingForm] = useState<Form | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [editingFormLoading, setEditingFormLoading] = useState(false);
+  const [generatingPDF, setGeneratingPDF] = useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -311,10 +308,7 @@ export default function AllResponses() {
     }
   };
 
-  const handleSendToMail = () => {
-    setShowEmailDialog(true);
-    setEmailInput("");
-  };
+
 
   const handleExportExcel = () => {
     if (exportingExcel) {
@@ -342,52 +336,28 @@ export default function AllResponses() {
     }
   };
 
-  const handleSendEmailReport = async () => {
-    if (!emailInput.trim()) {
-      showError("Please enter an email address");
+
+
+  const handleDownloadPDF = async () => {
+    if (generatingPDF || !selectedResponse || !selectedForm) {
       return;
     }
 
-    if (!selectedResponse || !selectedForm || sectionSummaryRows.length === 0) {
-      showError("Missing required data for report generation");
-      return;
-    }
-
-    setSendingEmail(true);
+    setGeneratingPDF(true);
     try {
-      const result = await sendResponseExcelViaEmail(
-        selectedResponse,
-        selectedForm,
-        sectionSummaryRows,
-        emailInput.trim()
-      );
-
-      if (result.success) {
-        showSuccess("Report sent successfully to " + emailInput);
-        setShowEmailDialog(false);
-        setEmailInput("");
-      } else if (result.fallback) {
-        const url = URL.createObjectURL(result.blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${selectedForm.title}_Report.xlsx`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        const mailtoLink = `mailto:${emailInput}?subject=Response Report: ${selectedForm.title}&body=Please find the attached response report.`;
-        window.open(mailtoLink);
-
-        showSuccess("Report downloaded. Opening your mail client...");
-        setShowEmailDialog(false);
-        setEmailInput("");
-      }
-    } catch (err) {
-      console.error("Failed to send email:", err);
-      showError("Failed to send email. Please try again.");
+      await generateAndDownloadPDF({
+        filename: `${selectedForm.title}_Report.pdf`,
+        formTitle: selectedForm.title,
+        submittedDate: formatTimestamp(selectedResponse.createdAt),
+        sectionStats: filteredSectionStats,
+        sectionSummaryRows: sectionSummaryRows,
+      });
+      showSuccess("PDF downloaded successfully.");
+    } catch (error) {
+      console.error("Failed to generate PDF:", error);
+      showError("Failed to generate PDF. Please try again.");
     } finally {
-      setSendingEmail(false);
+      setGeneratingPDF(false);
     }
   };
 
@@ -497,7 +467,14 @@ export default function AllResponses() {
         legend: {
           position: "bottom",
           labels: {
-            color: "#0f172a",
+            color: "#374151",
+            generateLabels: (chart: any) => {
+              const labels = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
+              labels.forEach((label: any) => {
+                label.color = document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151';
+              });
+              return labels;
+            },
           },
         },
         tooltip: {
@@ -523,24 +500,30 @@ export default function AllResponses() {
           stacked: true,
           ticks: {
             callback: (value: any) => `${value}%`,
-            color: "#0f172a",
+            color: "#374151",
           },
           title: {
             display: true,
             text: "Percentage",
-            color: "#0f172a",
+            color: "#374151",
+          },
+          grid: {
+            color: "#e5e7eb",
           },
         },
         y: {
           stacked: true,
           ticks: {
             autoSkip: false,
-            color: "#0f172a",
+            color: "#374151",
           },
           title: {
             display: true,
             text: "Sections",
-            color: "#0f172a",
+            color: "#374151",
+          },
+          grid: {
+            color: "#e5e7eb",
           },
         },
       },
@@ -644,7 +627,14 @@ export default function AllResponses() {
         legend: {
           position: "bottom",
           labels: {
-            color: "#0f172a",
+            color: "#374151",
+            generateLabels: (chart: any) => {
+              const labels = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
+              labels.forEach((label: any) => {
+                label.color = document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151';
+              });
+              return labels;
+            },
           },
         },
         tooltip: {
@@ -661,23 +651,29 @@ export default function AllResponses() {
           beginAtZero: true,
           ticks: {
             callback: (value: any) => `${value}%`,
-            color: "#0f172a",
+            color: "#374151",
           },
           title: {
             display: true,
             text: "Weighted Percentage",
-            color: "#0f172a",
+            color: "#374151",
+          },
+          grid: {
+            color: "#e5e7eb",
           },
         },
         x: {
           ticks: {
             autoSkip: false,
-            color: "#0f172a",
+            color: "#374151",
           },
           title: {
             display: true,
             text: "Sections",
-            color: "#0f172a",
+            color: "#374151",
+          },
+          grid: {
+            color: "#e5e7eb",
           },
         },
       },
@@ -836,6 +832,43 @@ export default function AllResponses() {
   };
 
   const renderAnswerDisplay = (value: any, question?: any): React.ReactNode => {
+    const ensureAbsoluteFileSource = (input: string) => {
+      if (!input) {
+        return "";
+      }
+      if (input.startsWith("data:")) {
+        return input;
+      }
+      if (input.startsWith("http://") || input.startsWith("https://")) {
+        return input;
+      }
+      if (input.startsWith("//")) {
+        if (typeof window !== "undefined" && window.location) {
+          return `${window.location.protocol}${input}`;
+        }
+        return `https:${input}`;
+      }
+      const normalized = input.startsWith("/") ? input : `/${input}`;
+      if (typeof window !== "undefined" && window.location) {
+        return `${window.location.origin}${normalized}`;
+      }
+      return normalized;
+    };
+
+    const extractFileName = (input: string | undefined) => {
+      if (!input) {
+        return undefined;
+      }
+      try {
+        const sanitized = input.split("?")[0];
+        const parts = sanitized.split("/");
+        const name = parts[parts.length - 1] || undefined;
+        return name ? decodeURIComponent(name) : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+
     const resolveFileData = (input: any) => {
       if (!input) {
         return null;
@@ -843,21 +876,43 @@ export default function AllResponses() {
       const candidate = Array.isArray(input) && input.length === 1 ? input[0] : input;
       if (typeof candidate === "string") {
         if (candidate.startsWith("data:")) {
-          return { data: candidate, fileName: question?.fileName || question?.name }; 
+          return { data: candidate, fileName: question?.fileName || question?.name };
         }
-        if (candidate.startsWith("http")) {
-          return { url: candidate, fileName: question?.fileName || question?.name }; 
+        if (
+          candidate.startsWith("http") ||
+          candidate.startsWith("//") ||
+          candidate.startsWith("/") ||
+          candidate.startsWith("uploads/")
+        ) {
+          const absolute = ensureAbsoluteFileSource(candidate);
+          return {
+            url: absolute,
+            fileName:
+              question?.fileName || question?.name || extractFileName(candidate),
+          };
         }
         return null;
       }
       if (typeof candidate === "object") {
-        const dataValue = candidate.data || candidate.value || candidate.file || candidate.base64 || candidate.url;
-        const nameValue = candidate.fileName || candidate.filename || candidate.name;
+        const dataValue =
+          candidate.data ||
+          candidate.value ||
+          candidate.file ||
+          candidate.base64 ||
+          candidate.url ||
+          candidate.path;
+        const nameValue =
+          candidate.fileName || candidate.filename || candidate.name || question?.fileName || question?.name;
         if (typeof dataValue === "string" && dataValue.startsWith("data:")) {
           return { data: dataValue, fileName: nameValue };
         }
-        if (typeof dataValue === "string" && dataValue.startsWith("http")) {
-          return { url: dataValue, fileName: nameValue };
+        if (typeof dataValue === "string") {
+          const absolute = ensureAbsoluteFileSource(dataValue);
+          return { url: absolute, fileName: nameValue || extractFileName(dataValue) };
+        }
+        if (typeof candidate.url === "string") {
+          const absolute = ensureAbsoluteFileSource(candidate.url);
+          return { url: absolute, fileName: nameValue || extractFileName(candidate.url) };
         }
       }
       return null;
@@ -869,17 +924,7 @@ export default function AllResponses() {
         return <FilePreview data={fileData.data} fileName={fileData.fileName} />;
       }
       if (fileData?.url) {
-        const fileLabel = fileData.fileName || "Download uploaded file";
-        return (
-          <a
-            href={fileData.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800"
-          >
-            {fileLabel}
-          </a>
-        );
+        return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
       }
     }
 
@@ -891,10 +936,34 @@ export default function AllResponses() {
       if (value.startsWith("data:")) {
         return <FilePreview data={value} fileName={question?.fileName || question?.name} />;
       }
-      if (value.startsWith("http")) {
+      if (
+        question?.type === "file" ||
+        question?.type === "radio-image"
+      ) {
+        if (
+          value.startsWith("http") ||
+          value.startsWith("//") ||
+          value.startsWith("/") ||
+          value.startsWith("uploads/")
+        ) {
+          const absolute = ensureAbsoluteFileSource(value);
+          return (
+            <FilePreview
+              url={absolute}
+              fileName={question?.fileName || question?.name || extractFileName(value)}
+            />
+          );
+        }
+      }
+      if (value.startsWith("http://") || value.startsWith("https://")) {
         return (
-          <a href={value} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
-            {question?.fileName || "Download uploaded file"}
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800"
+          >
+            {value}
           </a>
         );
       }
@@ -905,6 +974,27 @@ export default function AllResponses() {
     if (Array.isArray(value)) {
       if (value.length === 0) {
         return <span className="text-primary-400">No response</span>;
+      }
+      if (question?.type === "file" || question?.type === "radio-image") {
+        const previews = value
+          .map((entry: any, index: number) => {
+            const fileData = resolveFileData(entry);
+            if (!fileData) {
+              return null;
+            }
+            return (
+              <FilePreview
+                key={`${question?.id ?? "file-array"}-${index}`}
+                data={fileData.data}
+                url={fileData.url}
+                fileName={fileData.fileName}
+              />
+            );
+          })
+          .filter(Boolean);
+        if (previews.length) {
+          return <div className="space-y-3">{previews}</div>;
+        }
       }
       const first = value[0];
       if (typeof first === "string" && first.startsWith("data:")) {
@@ -919,17 +1009,7 @@ export default function AllResponses() {
         return <FilePreview data={fileData.data} fileName={fileData.fileName} />;
       }
       if (fileData?.url) {
-        const fileLabel = fileData.fileName || "Download uploaded file";
-        return (
-          <a
-            href={fileData.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800"
-          >
-            {fileLabel}
-          </a>
-        );
+        return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
       }
       if (!Object.keys(value).length) {
         return <span className="text-primary-400">No response</span>;
@@ -1340,14 +1420,7 @@ export default function AllResponses() {
                   )}
                   Export Excel
                 </button>
-                <button
-                  onClick={handleSendToMail}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                  title="Send to Mail"
-                >
-                  <Mail className="w-4 h-4" />
-                  Send to Mail
-                </button>
+
                 <button
                   onClick={() => {
                     setSelectedResponse(null);
@@ -1395,6 +1468,13 @@ export default function AllResponses() {
 
                     {viewMode === "dashboard" && filteredSectionStats.length > 0 && (
                     <div className="space-y-6">
+                      <DashboardSummaryCard
+                        sectionStats={filteredSectionStats}
+                        formTitle={selectedForm?.title || "Response"}
+                        submittedDate={formatTimestamp(selectedResponse?.createdAt || "")}
+                        onDownloadPDF={handleDownloadPDF}
+                        isGeneratingPDF={generatingPDF}
+                      />
                       <div className="w-full" style={{ height: sectionChartHeight }}>
                         <Bar
                           data={sectionChartData}
@@ -1414,61 +1494,61 @@ export default function AllResponses() {
                           }}
                         />
                       </div>
-                      <div className="overflow-x-auto rounded-lg border border-primary-100">
-                        <table className="w-full divide-y divide-primary-100 text-sm table-fixed">
-                          <thead className="bg-primary-50 sticky top-0">
+                      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                        <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm table-fixed">
+                          <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
                             <tr>
-                              <th className="px-4 py-3 text-left font-medium text-primary-600 w-32">
+                              <th className="px-4 py-3 text-left font-medium text-gray-900 dark:text-gray-100 w-32">
                                 Section
                               </th>
-                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-20">
+                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-20">
                                 Yes %
                               </th>
-                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-20">
+                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-20">
                                 No %
                               </th>
-                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-20">
+                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-20">
                                 N/A %
                               </th>
-                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-24">
+                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-24">
                                 Weightage
                               </th>
-                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-28">
+                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-28">
                                 Yes % × Weightage
                               </th>
-                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-28">
+                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-28">
                                 No % × Weightage
                               </th>
-                              <th className="px-4 py-3 text-center font-medium text-primary-600 w-28">
+                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-28">
                                 N/A % × Weightage
                               </th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-primary-100 bg-white dark:bg-gray-900">
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
                             {sectionSummaryRows.map((row) => (
-                              <tr key={row.id} className="hover:bg-primary-50">
-                                <td className="px-4 py-3 font-medium text-primary-700 w-32">
+                              <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 w-32">
                                   {row.title}
                                 </td>
-                                <td className="px-4 py-3 text-center text-primary-600 w-20">
+                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-20">
                                   {formatPercentageValue(row.yesPercent)}
                                 </td>
-                                <td className="px-4 py-3 text-center text-primary-600 w-20">
+                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-20">
                                   {formatPercentageValue(row.noPercent)}
                                 </td>
-                                <td className="px-4 py-3 text-center text-primary-600 w-20">
+                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-20">
                                   {formatPercentageValue(row.naPercent)}
                                 </td>
-                                <td className="px-4 py-3 text-center text-primary-600 w-24">
+                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-24">
                                   {formatPercentageValue(row.weightage)}
                                 </td>
-                                <td className="px-4 py-3 text-center text-primary-600 w-28">
+                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-28">
                                   {formatPercentageValue(row.yesWeighted)}
                                 </td>
-                                <td className="px-4 py-3 text-center text-primary-600 w-28">
+                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-28">
                                   {formatPercentageValue(row.noWeighted)}
                                 </td>
-                                <td className="px-4 py-3 text-center text-primary-600 w-28">
+                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-28">
                                   {formatPercentageValue(row.naWeighted)}
                                 </td>
                               </tr>
@@ -1477,7 +1557,7 @@ export default function AllResponses() {
                         </table>
                       </div>
                       <div className="mt-8">
-                        <h3 className="text-lg font-semibold text-primary-700 mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
                           Section-wise Weighted Percentages
                         </h3>
                         <div className="w-full" style={{ height: weightedChartHeight }}>
@@ -1520,71 +1600,7 @@ export default function AllResponses() {
           />
         )}
 
-      {showEmailDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-sm w-full m-4">
-            <div className="px-6 py-4 border-b border-primary-200">
-              <h3 className="text-lg font-semibold text-primary-700">
-                Send Report via Email
-              </h3>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <p className="text-sm text-blue-700">
-                  <strong>From:</strong> priyaraj@focusengineering.in (System Email)
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-primary-700 mb-2">
-                  Recipient Email Address
-                </label>
-                <input
-                  type="email"
-                  value={emailInput}
-                  onChange={(e) => setEmailInput(e.target.value)}
-                  placeholder="Enter email address"
-                  className="w-full px-3 py-2 border border-primary-200 rounded-lg text-primary-700 placeholder-primary-400 focus:outline-none focus:border-primary-600"
-                  disabled={sendingEmail}
-                />
-              </div>
-              <div className="bg-primary-50 p-3 rounded-lg">
-                <p className="text-sm text-primary-600">
-                  An Excel file with dashboard data and response details will be sent.
-                </p>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-primary-200 flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setShowEmailDialog(false);
-                  setEmailInput("");
-                }}
-                disabled={sendingEmail}
-                className="px-4 py-2 text-sm font-medium text-primary-700 bg-primary-100 rounded-lg hover:bg-primary-200 disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSendEmailReport}
-                disabled={sendingEmail || !emailInput.trim()}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-2"
-              >
-                {sendingEmail ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Mail className="w-4 h-4" />
-                    Send Report
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }

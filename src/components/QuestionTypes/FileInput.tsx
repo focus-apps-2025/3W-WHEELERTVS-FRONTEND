@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useState } from "react";
-import { Upload, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { Upload, Loader2, AlertCircle, CheckCircle2, Eye, X } from "lucide-react";
 import type { FollowUpQuestion } from "../../types";
 import { apiClient } from "../../api/client";
 
@@ -44,6 +44,34 @@ const FILE_TYPE_LABELS: Record<string, string> = {
   excel: "Excel",
 };
 
+const resolveFileName = (fileUrl: string) => {
+  if (!fileUrl) {
+    return "";
+  }
+  if (fileUrl.startsWith("data:")) {
+    return "Embedded file";
+  }
+  try {
+    const url = new URL(fileUrl, "http://dummy.local");
+    const segments = url.pathname.split("/").filter(Boolean);
+    const fileName = segments[segments.length - 1] || "Uploaded file";
+    return decodeURIComponent(fileName);
+  } catch (error) {
+    const parts = fileUrl.split("/");
+    return decodeURIComponent(parts[parts.length - 1] || "Uploaded file");
+  }
+};
+
+const isImageUrl = (fileUrl: string) => {
+  if (!fileUrl) {
+    return false;
+  }
+  if (fileUrl.startsWith("data:")) {
+    return fileUrl.startsWith("data:image");
+  }
+  return /\.(png|jpg|jpeg|gif|bmp|webp|svg)$/i.test(fileUrl);
+};
+
 export default function FileInput({
   question,
   value,
@@ -52,6 +80,10 @@ export default function FileInput({
 }: FileInputProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const fileName = useMemo(() => resolveFileName(value), [value]);
+  const showImagePreview = useMemo(() => isImageUrl(value), [value]);
 
   const accept = useMemo(() => {
     if (!question.allowedFileTypes || question.allowedFileTypes.length === 0) {
@@ -83,6 +115,9 @@ export default function FileInput({
               .join(", ");
             window.alert(`Please upload a ${allowedLabels} file.`);
             e.target.value = "";
+            if (inputRef.current) {
+              inputRef.current.value = "";
+            }
             return;
           }
         }
@@ -90,13 +125,22 @@ export default function FileInput({
         try {
           setUploading(true);
           setError(null);
-          const result = await apiClient.uploadFile(file, "form");
-          onChange(result.url);
+          const result = await apiClient.uploadFile(file, "form", question.id);
+          const uploadedUrl = apiClient.resolveUploadedFileUrl(result);
+
+          if (!uploadedUrl) {
+            throw new Error("File upload did not return a valid URL");
+          }
+
+          onChange(uploadedUrl);
         } catch (err) {
           const errorMsg = err instanceof Error ? err.message : "Failed to upload file";
           setError(errorMsg);
           console.error("File upload error:", err);
           e.target.value = "";
+          if (inputRef.current) {
+            inputRef.current.value = "";
+          }
         } finally {
           setUploading(false);
         }
@@ -104,6 +148,16 @@ export default function FileInput({
     },
     [onChange, question.allowedFileTypes, readOnly]
   );
+
+  const handleRemoveFile = useCallback(() => {
+    if (readOnly) {
+      return;
+    }
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
+    onChange("");
+  }, [onChange, readOnly]);
 
   return (
     <div className="space-y-4">
@@ -132,6 +186,7 @@ export default function FileInput({
           </>
         )}
         <input
+          ref={inputRef}
           type="file"
           accept={accept}
           onChange={handleFileChange}
@@ -148,30 +203,47 @@ export default function FileInput({
         </div>
       )}
 
-      {value && !value.startsWith("/uploads") && value.startsWith("data:") ? (
-        <div className="mt-4">
-          <img
-            src={value}
-            alt="Uploaded file"
-            className="max-w-full h-auto rounded-lg"
-          />
-        </div>
-      ) : value && value.startsWith("/uploads") ? (
-        <div className="mt-4 flex items-center gap-2">
-          <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0" />
-          <div className="flex-1">
-            {value.includes("image") || value.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-              <img
-                src={value}
-                alt="Uploaded file"
-                className="max-w-full h-auto rounded-lg max-h-64"
-              />
-            ) : (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                File uploaded successfully
+      {value ? (
+        <div className="space-y-3">
+          <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                {fileName || "Uploaded file"}
               </p>
-            )}
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {showImagePreview ? "Image uploaded" : "File uploaded successfully"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href={value}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-900/40 dark:border-blue-700"
+              >
+                <Eye className="w-4 h-4" />
+                View
+              </a>
+              {!readOnly && (
+                <button
+                  type="button"
+                  onClick={handleRemoveFile}
+                  className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 dark:text-red-300 dark:bg-red-900/40 dark:border-red-700"
+                >
+                  <X className="w-4 h-4" />
+                  Remove
+                </button>
+              )}
+            </div>
           </div>
+          {showImagePreview ? (
+            <img
+              src={value}
+              alt={fileName || "Uploaded file"}
+              className="max-w-full h-auto rounded-lg max-h-64 border border-gray-200 dark:border-gray-700"
+            />
+          ) : null}
         </div>
       ) : null}
     </div>

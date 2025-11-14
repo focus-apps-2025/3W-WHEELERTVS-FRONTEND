@@ -68,6 +68,8 @@ function collectQuestions(section: Section) {
     rows.push({
       SectionId: section.id,
       QuestionId: question.id,
+      SubParam1: question.subParam1 || "",
+      SubParam2: question.subParam2 || "",
       QuestionText: question.text,
       QuestionType: question.type,
       Required: question.required,
@@ -188,6 +190,8 @@ export function exportFormStructureToExcel(form: Question) {
     header: [
       "SectionId",
       "QuestionId",
+      "SubParam1",
+      "SubParam2",
       "QuestionText",
       "QuestionType",
       "Required",

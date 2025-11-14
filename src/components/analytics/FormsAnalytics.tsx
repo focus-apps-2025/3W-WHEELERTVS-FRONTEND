@@ -20,6 +20,7 @@ import {
   Check,
   Upload,
   Download,
+  MapPin,
 } from "lucide-react";
 import { useForms, useResponses, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
@@ -33,6 +34,7 @@ interface FormItem {
   title: string;
   description?: string;
   isVisible?: boolean;
+  locationEnabled?: boolean;
   isActive?: boolean;
   sections?: any[];
   questions?: any[];
@@ -86,6 +88,24 @@ export default function FormsAnalytics() {
     {
       onSuccess: () => {
         refetchForms();
+      },
+    }
+  );
+
+  const locationMutation = useMutation(
+    ({
+      id,
+      locationEnabled,
+    }: {
+      id: string;
+      locationEnabled: boolean;
+    }) => apiClient.updateFormLocationEnabled(id, locationEnabled),
+    {
+      onSuccess: () => {
+        refetchForms();
+      },
+      onError: (error: any) => {
+        showError(error.message || "Failed to update location setting", "Error");
       },
     }
   );
@@ -255,6 +275,17 @@ export default function FormsAnalytics() {
     await visibilityMutation.mutate({
       id,
       isVisible: !currentVisibility,
+    });
+  };
+
+  const handleToggleLocation = async (
+    id: string,
+    currentLocationEnabled: boolean | undefined
+  ) => {
+    const isCurrentlyEnabled = currentLocationEnabled !== false;
+    await locationMutation.mutate({
+      id,
+      locationEnabled: !isCurrentlyEnabled,
     });
   };
 
@@ -538,6 +569,7 @@ export default function FormsAnalytics() {
 
             const formId = parent.id || parent._id;
             const responseCount = responseCounts[formId] || 0;
+            const isLocationEnabled = parent.locationEnabled !== false;
 
             return (
               <div
@@ -656,42 +688,82 @@ export default function FormsAnalytics() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between mb-4">
-                  <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      parent.isVisible
-                        ? "bg-green-100 text-green-800"
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
-                  >
-                    {parent.isVisible ? "Public" : "Private"}
-                  </span>
-                  <button
-                    onClick={() =>
-                      handleToggleVisibility(formId, parent.isVisible)
-                    }
-                    disabled={visibilityMutation.loading}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                      parent.isVisible
-                        ? "bg-green-500 focus:ring-green-500"
-                        : "bg-red-500 focus:ring-red-500"
-                    } ${
-                      visibilityMutation.loading
-                        ? "opacity-50 cursor-not-allowed"
-                        : "cursor-pointer"
-                    }`}
-                    title={
-                      parent.isVisible
-                        ? "Active - Click to deactivate"
-                        : "Inactive - Click to activate"
-                    }
-                  >
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        parent.isVisible ? "translate-x-6" : "translate-x-1"
+                      className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                        parent.isVisible
+                          ? "bg-green-100 text-green-800"
+                          : "bg-yellow-100 text-yellow-800"
                       }`}
-                    />
-                  </button>
+                    >
+                      {parent.isVisible ? "Public" : "Private"}
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                        isLocationEnabled
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-neutral-200 text-neutral-700"
+                      }`}
+                    >
+                      <MapPin className="w-3 h-3" />
+                      {isLocationEnabled ? "Location Enabled" : "Location Disabled"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        handleToggleVisibility(formId, parent.isVisible)
+                      }
+                      disabled={visibilityMutation.loading}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                        parent.isVisible
+                          ? "bg-green-500 focus:ring-green-500"
+                          : "bg-red-500 focus:ring-red-500"
+                      } ${
+                        visibilityMutation.loading
+                          ? "opacity-50 cursor-not-allowed"
+                          : "cursor-pointer"
+                      }`}
+                      title={
+                        parent.isVisible
+                          ? "Active - Click to deactivate"
+                          : "Inactive - Click to activate"
+                      }
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          parent.isVisible ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleToggleLocation(formId, parent.locationEnabled)
+                      }
+                      disabled={locationMutation.loading}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                        isLocationEnabled
+                          ? "bg-primary-600 focus:ring-primary-600"
+                          : "bg-neutral-400 focus:ring-neutral-400"
+                      } ${
+                        locationMutation.loading
+                          ? "opacity-50 cursor-not-allowed"
+                          : "cursor-pointer"
+                      }`}
+                      title={
+                        isLocationEnabled
+                          ? "Location enabled - Click to disable"
+                          : "Location disabled - Click to enable"
+                      }
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          isLocationEnabled ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between">
