@@ -124,14 +124,16 @@ export default function DashboardNew() {
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
             Loading Dashboard
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 text-sm">Fetching your latest data...</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm">
+            Fetching your latest data...
+          </p>
         </div>
       </div>
     );
   }
 
   const customerPortalUrl = tenant
-    ? `https://focusforms.focusengineeringapp.com/${tenant.slug}`
+    ? `https://forms.focusengineeringapp.com/${tenant.slug}`
     : null;
 
   // Debug logging
@@ -150,13 +152,17 @@ export default function DashboardNew() {
               </h3>
               <div className="flex items-center space-x-4 text-sm">
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Business Name:</span>{" "}
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Business Name:
+                  </span>{" "}
                   <span className="font-medium text-gray-900 dark:text-gray-100">
                     {tenant.businessName}
                   </span>
                 </div>
                 <div>
-                  <span className="text-gray-600 dark:text-gray-400">Tenant ID:</span>{" "}
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Tenant ID:
+                  </span>{" "}
                   <span className="font-medium text-gray-900 dark:text-gray-100">
                     {tenant.slug}
                   </span>
@@ -241,7 +247,9 @@ export default function DashboardNew() {
             {formsLoading ? (
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600 dark:text-gray-400 text-sm">Loading forms...</p>
+                <p className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
+                  Loading forms...
+                </p>
               </div>
             ) : recentForms.length === 0 ? (
               <div className="text-center py-8">

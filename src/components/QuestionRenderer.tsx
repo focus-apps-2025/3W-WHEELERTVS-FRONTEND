@@ -15,6 +15,7 @@ interface QuestionRendererProps {
   value: any;
   onChange?: (value: any) => void;
   readOnly?: boolean;
+  isFollowUp?: boolean;
 }
 
 export default function QuestionRenderer({
@@ -22,6 +23,7 @@ export default function QuestionRenderer({
   value,
   onChange,
   readOnly = false,
+  isFollowUp = false,
 }: QuestionRendererProps) {
   const renderInput = () => {
     switch (question.type) {
@@ -197,13 +199,13 @@ export default function QuestionRenderer({
         </div>
       ) : null}
       {showLabel ? (
-        <label className="block font-medium text-gray-700 dark:text-gray-300">
+        <label className={`block ${isFollowUp ? "text-sm font-medium text-blue-700 dark:text-blue-300" : "font-medium text-gray-700 dark:text-gray-300"}`}>
           {questionText}
           {question.required && <span className="text-red-500 ml-1">*</span>}
         </label>
       ) : null}
       {question.description ? (
-        <p className="text-sm text-gray-500 dark:text-gray-500 mb-2">{question.description}</p>
+        <p className={`mb-2 ${isFollowUp ? "text-xs text-blue-600 dark:text-blue-400" : "text-sm text-gray-500 dark:text-gray-500"}`}>{question.description}</p>
       ) : null}
       {renderInput()}
     </div>

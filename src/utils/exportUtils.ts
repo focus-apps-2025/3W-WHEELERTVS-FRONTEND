@@ -251,6 +251,152 @@ function getSectionForOption(
   return "";
 }
 
+export function createSampleFormData() {
+  const sampleData = [
+    {
+      "Form Title": "Customer Service Feedback Form",
+      "Form Description": "Comprehensive feedback form with sub-parameters for enhanced customization",
+      "Section Number": "1",
+      "Section Title": "Customer Information",
+      "Section Description": "Basic customer details and contact information",
+      "Section Weightage": "25",
+      Question: "What is your full name?",
+      "Question Description": "Please provide your complete legal name",
+      "Question Type": "shortText",
+      Required: "TRUE",
+      Options: "",
+      SubParam1: "Personal Info",
+      SubParam2: "Required Field",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
+    },
+    {
+      "Section Weightage": "25",
+      Question: "What type of service did you receive?",
+      "Question Description": "Select the primary service category",
+      "Question Type": "dropdown",
+      Required: "TRUE",
+      Options: "Technical Support,Product Consultation,Billing Inquiry,General Inquiry",
+      SubParam1: "Service Category",
+      SubParam2: "Dropdown Selection",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
+      "FU1: Option": "Technical Support",
+      "FU1: Question Type": "shortText",
+      "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Tech Support",
+      "FU1: SubParam2": "Follow-up Required",
+      "FU1: Question Text": "What was the technical issue you experienced?",
+      "FU1: Options": "",
+      "FU1: Correct Answer": "",
+      "FU2: Option": "Product Consultation",
+      "FU2: Question Type": "longText",
+      "FU2: Required": "FALSE",
+      "FU2: SubParam1": "Product Info",
+      "FU2: SubParam2": "Optional Details",
+      "FU2: Question Text": "Please describe the product information you were seeking:",
+      "FU2: Options": "",
+      "FU2: Correct Answer": "",
+    },
+    {
+      "Section Number": "2",
+      "Section Title": "Service Quality Assessment",
+      "Section Description": "Rate various aspects of the service experience",
+      "Section Weightage": "35",
+      Question: "How would you rate the overall service quality?",
+      "Question Description": "Rate on a scale of 1-5",
+      "Question Type": "multipleChoice",
+      Required: "TRUE",
+      Options: "1 - Poor,2 - Below Average,3 - Average,4 - Good,5 - Excellent",
+      SubParam1: "Quality Rating",
+      SubParam2: "Scale 1-5",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
+      "FU1: Option": "1 - Poor",
+      "FU1: Question Type": "longText",
+      "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Improvement Needed",
+      "FU1: SubParam2": "Critical Feedback",
+      "FU1: Question Text": "What specific improvements would you suggest to enhance our service?",
+      "FU1: Options": "",
+      "FU1: Correct Answer": "",
+      "FU2: Option": "5 - Excellent",
+      "FU2: Question Type": "shortText",
+      "FU2: Required": "FALSE",
+      "FU2: SubParam1": "Positive Feedback",
+      "FU2: SubParam2": "Optional Praise",
+      "FU2: Question Text": "What did we do particularly well?",
+      "FU2: Options": "",
+      "FU2: Correct Answer": "",
+    },
+    {
+      "Section Weightage": "35",
+      Question: "Would you recommend our service to others?",
+      "Question Description": "Net Promoter Score style question",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      SubParam1: "NPS Question",
+      SubParam2: "Recommendation",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "shortText",
+      "FU1: Required": "FALSE",
+      "FU1: SubParam1": "Referral Source",
+      "FU1: SubParam2": "Optional",
+      "FU1: Question Text": "How did you hear about our service?",
+      "FU1: Options": "",
+      "FU1: Correct Answer": "",
+    },
+    {
+      "Section Number": "3",
+      "Section Title": "Additional Documentation",
+      "Section Description": "Upload any relevant files or documents",
+      "Section Weightage": "40",
+      Question: "Please upload any supporting documents (optional)",
+      "Question Description": "Accepted formats: PDF, images up to 5MB",
+      "Question Type": "fileUpload",
+      Required: "FALSE",
+      Options: "",
+      SubParam1: "Document Upload",
+      SubParam2: "Max 5MB",
+      "Allowed File Types": "pdf,image",
+      "Correct Answer": "",
+      "Correct Answers": "",
+    },
+    {
+      "Section Weightage": "40",
+      Question: "Do you have any additional comments?",
+      "Question Description": "Any other feedback or suggestions",
+      "Question Type": "longText",
+      Required: "FALSE",
+      Options: "",
+      SubParam1: "Open Feedback",
+      SubParam2: "Free Text",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
+    },
+  ];
+
+  return sampleData;
+}
+
+export async function loadSampleFormData(): Promise<Partial<Question> & { sections: Section[] }> {
+  const sampleData = createSampleFormData();
+
+  // Convert sample data to the format expected by parseNewTemplateFormat
+  // Skip the first 3 rows (header, description, separator) and process the data rows
+  const dataRows = sampleData;
+
+  return parseNewTemplateFormat(dataRows);
+}
+
 export function downloadFormImportTemplate() {
   const mainHeaders = [
     "Form Title",
@@ -264,6 +410,9 @@ export function downloadFormImportTemplate() {
     "Question Type",
     "Required",
     "Options",
+    "SubParam1",
+    "SubParam2",
+    "Allowed File Types",
     "Correct Answer",
     "Correct Answers",
   ];
@@ -274,6 +423,8 @@ export function downloadFormImportTemplate() {
       `FU${i}: Option`,
       `FU${i}: Question Type`,
       `FU${i}: Required`,
+      `FU${i}: SubParam1`,
+      `FU${i}: SubParam2`,
       `FU${i}: Question Text`,
       `FU${i}: Options`,
       `FU${i}: Correct Answer`
@@ -291,9 +442,12 @@ export function downloadFormImportTemplate() {
     "Percentage weight (0-100, must total 100% if used)",
     "The question text to ask",
     "Additional details about the question",
-    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA",
+    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA, fileUpload",
     "TRUE/FALSE - is this question required?",
     "For multipleChoice/checkboxes/dropdown: option1,option2,option3 (comma-separated)",
+    "Additional parameter 1 for custom question configuration",
+    "Additional parameter 2 for custom question configuration",
+    "For fileUpload: allowed file types (image,pdf,excel) - comma-separated",
     "For quiz: correct answer value",
     "For quiz: multiple correct answers separated by |",
   ];
@@ -303,6 +457,8 @@ export function downloadFormImportTemplate() {
       `Follow-up #${i}: Which option triggers this follow-up (must match main options)`,
       `Follow-up #${i}: Question type`,
       `Follow-up #${i}: Required (TRUE/FALSE)`,
+      `Follow-up #${i}: SubParam1`,
+      `Follow-up #${i}: SubParam2`,
       `Follow-up #${i}: The follow-up question text`,
       `Follow-up #${i}: Options (comma-separated)`,
       `Follow-up #${i}: Correct answer (if quiz)`
@@ -347,6 +503,11 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      SubParam1: "Age Verification",
+      SubParam2: "Eligibility Check",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
     },
     {
       "Section Weightage": "30",
@@ -354,6 +515,11 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      SubParam1: "Document Verification",
+      SubParam2: "ID Requirements",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
     },
     {
       "Section Weightage": "30",
@@ -361,6 +527,11 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      SubParam1: "Service History",
+      SubParam2: "Previous Experience",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
     },
     {
       "Section Weightage": "30",
@@ -368,6 +539,11 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "FALSE",
       Options: "Yes,No,N/A",
+      SubParam1: "Availability",
+      SubParam2: "Scheduling",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
     },
     {
       "Section Number": "2",
@@ -379,6 +555,11 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      SubParam1: "Satisfaction Rating",
+      SubParam2: "Quality Assessment",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
     },
     {
       "Section Weightage": "40",
@@ -386,6 +567,11 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      SubParam1: "Goal Achievement",
+      SubParam2: "Success Metrics",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
     },
     {
       "Section Weightage": "40",
@@ -393,21 +579,32 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      SubParam1: "NPS Question",
+      SubParam2: "Referral Intent",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
       "FU1: Option": "Yes",
       "FU1: Question Type": "shortText",
       "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Positive Feedback",
+      "FU1: SubParam2": "Highlight Success",
       "FU1: Question Text": "Which aspect of our service would you highlight?",
       "FU1: Options": "",
       "FU1: Correct Answer": "",
       "FU2: Option": "No",
       "FU2: Question Type": "longText",
       "FU2: Required": "TRUE",
+      "FU2: SubParam1": "Improvement Areas",
+      "FU2: SubParam2": "Critical Feedback",
       "FU2: Question Text": "What specific improvements would you suggest?",
       "FU2: Options": "",
       "FU2: Correct Answer": "",
       "FU3: Option": "N/A",
       "FU3: Question Type": "longText",
       "FU3: Required": "FALSE",
+      "FU3: SubParam1": "Not Applicable",
+      "FU3: SubParam2": "Optional Explanation",
       "FU3: Question Text": "Why is this not applicable to your situation?",
       "FU3: Options": "",
       "FU3: Correct Answer": "",
@@ -418,15 +615,24 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      SubParam1: "Future Intent",
+      SubParam2: "Retention",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
       "FU1: Option": "Yes",
       "FU1: Question Type": "yesNoNA",
       "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Future Usage",
+      "FU1: SubParam2": "Timeline Question",
       "FU1: Question Text": "How soon do you plan to use our service again?",
       "FU1: Options": "Yes,No,N/A",
       "FU1: Correct Answer": "",
       "FU2: Option": "No",
       "FU2: Question Type": "dropdown",
       "FU2: Required": "TRUE",
+      "FU2: SubParam1": "Retention Factors",
+      "FU2: SubParam2": "Improvement Areas",
       "FU2: Question Text":
         "What would change your mind about using our service?",
       "FU2: Options":
@@ -435,6 +641,8 @@ export function downloadFormImportTemplate() {
       "FU3: Option": "N/A",
       "FU3: Question Type": "longText",
       "FU3: Required": "FALSE",
+      "FU3: SubParam1": "Not Applicable",
+      "FU3: SubParam2": "Optional Context",
       "FU3: Question Text": "Please explain why this is not applicable",
       "FU3: Options": "",
       "FU3: Correct Answer": "",
@@ -445,21 +653,32 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      SubParam1: "Resolution Status",
+      SubParam2: "Issue Closure",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
       "FU1: Option": "Yes",
       "FU1: Question Type": "yesNoNA",
       "FU1: Required": "FALSE",
+      "FU1: SubParam1": "Resolution Check",
+      "FU1: SubParam2": "Follow-up Concerns",
       "FU1: Question Text": "Are there any remaining concerns?",
       "FU1: Options": "Yes,No,N/A",
       "FU1: Correct Answer": "",
       "FU2: Option": "No",
       "FU2: Question Type": "longText",
       "FU2: Required": "TRUE",
+      "FU2: SubParam1": "Unresolved Issues",
+      "FU2: SubParam2": "Detailed Feedback",
       "FU2: Question Text": "What part of your issue remains unresolved?",
       "FU2: Options": "",
       "FU2: Correct Answer": "",
       "FU3: Option": "N/A",
       "FU3: Question Type": "shortText",
       "FU3: Required": "FALSE",
+      "FU3: SubParam1": "Not Applicable",
+      "FU3: SubParam2": "Optional Context",
       "FU3: Question Text": "Please elaborate on why this is N/A",
       "FU3: Options": "",
       "FU3: Correct Answer": "",
@@ -474,15 +693,24 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      SubParam1: "Support Needs",
+      SubParam2: "Resource Requirements",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
       "FU1: Option": "Yes",
       "FU1: Question Type": "dropdown",
       "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Support Types",
+      "FU1: SubParam2": "Additional Resources",
       "FU1: Question Text": "What type of support do you need?",
       "FU1: Options": "Technical,Training,Consulting,Other",
       "FU1: Correct Answer": "",
       "FU2: Option": "No",
       "FU2: Question Type": "shortText",
       "FU2: Required": "FALSE",
+      "FU2: SubParam1": "Satisfaction",
+      "FU2: SubParam2": "Positive Feedback",
       "FU2: Question Text": "What made you feel supported?",
       "FU2: Options": "",
       "FU2: Correct Answer": "",
@@ -493,9 +721,16 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "FALSE",
       Options: "Yes,No,N/A",
+      SubParam1: "Communication Consent",
+      SubParam2: "Update Preferences",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
       "FU1: Option": "Yes",
       "FU1: Question Type": "multipleChoice",
       "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Contact Preferences",
+      "FU1: SubParam2": "Communication Method",
       "FU1: Question Text": "Preferred contact method:",
       "FU1: Options": "Email,Phone,SMS,Postal Mail",
       "FU1: Correct Answer": "",
@@ -506,15 +741,24 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "FALSE",
       Options: "Yes,No,N/A",
+      SubParam1: "Feedback Consent",
+      SubParam2: "Review Participation",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
       "FU1: Option": "Yes",
       "FU1: Question Type": "longText",
       "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Detailed Feedback",
+      "FU1: SubParam2": "Comprehensive Review",
       "FU1: Question Text": "Please share your detailed feedback:",
       "FU1: Options": "",
       "FU1: Correct Answer": "",
       "FU2: Option": "No",
       "FU2: Question Type": "shortText",
       "FU2: Required": "FALSE",
+      "FU2: SubParam1": "Decline Reason",
+      "FU2: SubParam2": "Optional Context",
       "FU2: Question Text": "Would you share why?",
       "FU2: Options": "",
       "FU2: Correct Answer": "",
@@ -524,9 +768,16 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      SubParam1: "Data Privacy",
+      SubParam2: "Analytics Consent",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
       "FU1: Option": "Yes",
       "FU1: Question Type": "shortText",
       "FU1: Required": "FALSE",
+      "FU1: SubParam1": "Improvement Focus",
+      "FU1: SubParam2": "Specific Areas",
       "FU1: Question Text": "What specific area should we improve?",
       "FU1: Options": "",
       "FU1: Correct Answer": "",
@@ -536,12 +787,31 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "FALSE",
       Options: "Yes,No,N/A",
+      SubParam1: "Additional Input",
+      SubParam2: "Open Comments",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
       "FU1: Option": "Yes",
       "FU1: Question Type": "longText",
       "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Additional Comments",
+      "FU1: SubParam2": "Open Feedback",
       "FU1: Question Text": "Please provide additional comments:",
       "FU1: Options": "",
       "FU1: Correct Answer": "",
+    },
+    {
+      "Section Weightage": "30",
+      Question: "Please upload any supporting documents (optional)",
+      "Question Type": "fileUpload",
+      Required: "FALSE",
+      Options: "",
+      SubParam1: "Document Upload",
+      SubParam2: "Max 5MB",
+      "Allowed File Types": "pdf,image",
+      "Correct Answer": "",
+      "Correct Answers": "",
     },
   ];
 
@@ -557,6 +827,9 @@ export function downloadFormImportTemplate() {
       "Question Type": row["Question Type"] || "",
       Required: row.Required || "FALSE",
       Options: row.Options || "",
+      SubParam1: row.SubParam1 || "",
+      SubParam2: row.SubParam2 || "",
+      "Allowed File Types": row["Allowed File Types"] || "",
       "Correct Answer": row["Correct Answer"] || "",
       "Correct Answers": row["Correct Answers"] || "",
     };
@@ -565,6 +838,8 @@ export function downloadFormImportTemplate() {
       fullRow[`FU${i}: Option`] = row[`FU${i}: Option`] || "";
       fullRow[`FU${i}: Question Type`] = row[`FU${i}: Question Type`] || "";
       fullRow[`FU${i}: Required`] = row[`FU${i}: Required`] || "";
+      fullRow[`FU${i}: SubParam1`] = row[`FU${i}: SubParam1`] || "";
+      fullRow[`FU${i}: SubParam2`] = row[`FU${i}: SubParam2`] || "";
       fullRow[`FU${i}: Question Text`] = row[`FU${i}: Question Text`] || "";
       fullRow[`FU${i}: Options`] = row[`FU${i}: Options`] || "";
       fullRow[`FU${i}: Correct Answer`] = row[`FU${i}: Correct Answer`] || "";
@@ -695,6 +970,16 @@ function parseNewTemplateFormat(
       });
     }
 
+    const subParam1 = row["SubParam1"]?.toString().trim();
+    const subParam2 = row["SubParam2"]?.toString().trim();
+    const allowedFileTypesStr = row["Allowed File Types"]?.toString().trim();
+    const allowedFileTypes = allowedFileTypesStr
+      ? allowedFileTypesStr
+          .split(",")
+          .map((type) => type.trim())
+          .filter(Boolean)
+      : undefined;
+
     const questionId = generateId();
     const question: FollowUpQuestion = {
       id: questionId,
@@ -703,6 +988,9 @@ function parseNewTemplateFormat(
       required: required,
       options: options || undefined,
       description: questionDesc || undefined,
+      subParam1: subParam1 || undefined,
+      subParam2: subParam2 || undefined,
+      allowedFileTypes: allowedFileTypes,
       followUpQuestions: [],
       sectionId: section.id,
       correctAnswer: correctAnswer || undefined,
@@ -713,6 +1001,8 @@ function parseNewTemplateFormat(
       const fuOptionKey = `FU${fuIndex}: Option`;
       const fuTypeKey = `FU${fuIndex}: Question Type`;
       const fuRequiredKey = `FU${fuIndex}: Required`;
+      const fuSubParam1Key = `FU${fuIndex}: SubParam1`;
+      const fuSubParam2Key = `FU${fuIndex}: SubParam2`;
       const fuTextKey = `FU${fuIndex}: Question Text`;
       const fuOptionsKey = `FU${fuIndex}: Options`;
       const fuCorrectAnswerKey = `FU${fuIndex}: Correct Answer`;
@@ -725,6 +1015,8 @@ function parseNewTemplateFormat(
         const fuRequired =
           (row[fuRequiredKey]?.toString().trim() || "FALSE").toLowerCase() ===
           "true";
+        const fuSubParam1 = row[fuSubParam1Key]?.toString().trim();
+        const fuSubParam2 = row[fuSubParam2Key]?.toString().trim();
         const fuOptionsStr = row[fuOptionsKey]?.toString().trim() || "";
         const fuCorrectAnswer =
           row[fuCorrectAnswerKey]?.toString().trim() || "";
@@ -750,6 +1042,9 @@ function parseNewTemplateFormat(
             questionId: questionId,
             value: fuOption,
           },
+          subParam1: fuSubParam1 || undefined,
+          subParam2: fuSubParam2 || undefined,
+          allowedFileTypes: undefined,
         };
 
         question.followUpQuestions = question.followUpQuestions || [];

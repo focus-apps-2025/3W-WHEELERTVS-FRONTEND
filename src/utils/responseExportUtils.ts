@@ -20,6 +20,7 @@ interface FormSection {
     id: string;
     text: string;
     type: string;
+    parentId?: string;
     followUpQuestions?: any[];
   }>;
 }
@@ -69,14 +70,11 @@ type HyperlinkEntry = {
   display: string;
 };
 
-function resolveFileLink(value: any, question?: FormQuestion): { link: string; label: string } | null {
-  const labelCandidates = [
-    typeof question?.fileName === "string" ? question.fileName : undefined,
-    typeof question?.name === "string" ? question.name : undefined,
-    typeof question?.text === "string" ? question.text : undefined,
-    "View file",
-  ].filter((candidate): candidate is string => Boolean(candidate && candidate.trim().length));
-  const fallbackLabel = labelCandidates[0] || "View file";
+function resolveFileLink(
+  value: any,
+  question?: FormQuestion
+): { link: string; label: string } | null {
+  const fallbackLabel = "View file";
 
   const extract = (candidate: any): { link: string; label: string } | null => {
     if (!candidate) {
@@ -84,22 +82,33 @@ function resolveFileLink(value: any, question?: FormQuestion): { link: string; l
     }
     if (typeof candidate === "string") {
       if (candidate.startsWith("data:") || candidate.startsWith("http")) {
-        return { link: candidate, label: fallbackLabel };
+        const isImage =
+          candidate.startsWith("data:image/") ||
+          candidate.includes(".jpg") ||
+          candidate.includes(".png") ||
+          candidate.includes(".jpeg") ||
+          candidate.includes(".gif");
+        const label = isImage ? "Image uploaded" : "File uploaded";
+        return { link: candidate, label };
       }
       return null;
     }
     if (typeof candidate === "object") {
       const dataValue =
-        candidate.data ?? candidate.url ?? candidate.value ?? candidate.file ?? candidate.base64;
-      const nameValue =
-        candidate.fileName ?? candidate.filename ?? candidate.name ?? fallbackLabel;
+        candidate.data ??
+        candidate.url ??
+        candidate.value ??
+        candidate.file ??
+        candidate.base64;
       if (
         typeof dataValue === "string" &&
         (dataValue.startsWith("data:") || dataValue.startsWith("http"))
       ) {
-        const label = typeof nameValue === "string" && nameValue.trim().length
-          ? nameValue
-          : fallbackLabel;
+        const isImage =
+          dataValue.startsWith("data:image/") ||
+          dataValue.includes(".jpg") ||
+          dataValue.includes(".png");
+        const label = isImage ? "Image uploaded" : "File uploaded";
         return { link: dataValue, label };
       }
     }
@@ -119,14 +128,26 @@ function resolveFileLink(value: any, question?: FormQuestion): { link: string; l
   return extract(value);
 }
 
-function formatAnswerForExport(value: any, question?: FormQuestion): FormattedAnswer {
+function formatAnswerForExport(
+  value: any,
+  question?: FormQuestion
+): FormattedAnswer {
   if (value === null || value === undefined) {
     return { display: "No response" };
   }
 
   const fileLink = resolveFileLink(value, question);
   if (fileLink) {
-    return { display: fileLink.label, hyperlink: fileLink.link };
+    const isImage =
+      fileLink.link.startsWith("data:image/") ||
+      fileLink.link.includes(".jpg") ||
+      fileLink.link.includes(".png") ||
+      fileLink.link.includes(".jpeg") ||
+      fileLink.link.includes(".gif") ||
+      fileLink.link.includes(".webp");
+
+    const displayText = isImage ? "Image uploaded" : "File uploaded";
+    return { display: displayText, hyperlink: fileLink.link };
   }
 
   if (typeof value === "string") {
@@ -156,7 +177,11 @@ function formatAnswerForExport(value: any, question?: FormQuestion): FormattedAn
         if (typeof item === "object") {
           const nestedFile = resolveFileLink(item, question);
           if (nestedFile) {
-            return nestedFile.link;
+            const isImage =
+              nestedFile.link.startsWith("data:image/") ||
+              nestedFile.link.includes(".jpg") ||
+              nestedFile.link.includes(".png");
+            return isImage ? "Image uploaded" : "File uploaded";
           }
           return JSON.stringify(item);
         }
@@ -183,6 +208,34 @@ function formatAnswerForExport(value: any, question?: FormQuestion): FormattedAn
   return { display: String(value) };
 }
 
+// Build nested form structure (handle parentId relationships)
+function buildNestedForm(form: FormData): FormData {
+  const nestedSections = form.sections?.map((section) => {
+    const idToQuestion: Record<string, any> = {};
+
+    // Clone questions into a map
+    (section.questions || []).forEach((q) => {
+      idToQuestion[q.id] = { ...q, followUpQuestions: [] };
+    });
+
+    // Link child questions under their parent
+    (section.questions || []).forEach((q) => {
+      if (q.parentId && idToQuestion[q.parentId]) {
+        idToQuestion[q.parentId].followUpQuestions.push(idToQuestion[q.id]);
+      }
+    });
+
+    // Keep only top-level questions
+    const nestedQuestions = Object.values(idToQuestion).filter(
+      (q) => !q.parentId
+    );
+
+    return { ...section, questions: nestedQuestions };
+  });
+
+  return { ...form, sections: nestedSections };
+}
+
 function buildResponsesSheetContent(
   response: ResponseData,
   form: FormData
@@ -190,105 +243,98 @@ function buildResponsesSheetContent(
   const rows: any[][] = [];
   const links: HyperlinkEntry[] = [];
 
-  const pushRow = (
-    values: any[],
-    hyperlink?: { columnIndex: number; target: string; display: string }
-  ) => {
-    rows.push(values);
-    if (hyperlink) {
-      links.push({
-        rowIndex: rows.length - 1,
-        columnIndex: hyperlink.columnIndex,
-        target: hyperlink.target,
-        display: hyperlink.display,
-      });
-    }
+  const addLink = (r: number, c: number, target: string, display: string) => {
+    links.push({ rowIndex: r, columnIndex: c, target, display });
   };
 
-  pushRow(["Section", "Question", "Answer"]);
+  // Gather main question & all its follow-ups as pairs
+  const gatherPairs = (q: any, base: string) => {
+    const pairs: Array<{ label: string; ans: FormattedAnswer }> = [];
 
-  if (form.sections) {
-    form.sections.forEach((section) => {
-      const sectionTitle = section.title || "Untitled Section";
-      const sectionDesc = section.description || "";
+    // Main question
+    const mainLabel = `${base}. ${q?.text || "Untitled Question"}`;
+    const mainAns = formatAnswerForExport(response.answers?.[q.id], q);
+    pairs.push({ label: mainLabel, ans: mainAns });
 
-      pushRow([sectionTitle, "", ""]);
-
-      if (sectionDesc) {
-        pushRow([sectionDesc, "", ""]);
-      }
-
-      const questions = section.questions || [];
-      questions.forEach((question, qIndex) => {
-        const answer = response.answers[question.id];
-        const questionLevel = `Q${qIndex + 1}`;
-        const questionText = question.text || "Untitled Question";
-        const formatted = formatAnswerForExport(answer, question);
-
-        pushRow(
-          [
-            "",
-            `${questionLevel}. ${questionText}`,
-            formatted.display,
-          ],
-          formatted.hyperlink
-            ? {
-                columnIndex: 2,
-                target: formatted.hyperlink,
-                display: formatted.display,
-              }
-            : undefined
-        );
-
-        if (question.followUpQuestions && question.followUpQuestions.length > 0) {
-          question.followUpQuestions.forEach((followUp: any, fIndex: number) => {
-            const followAnswer = response.answers[followUp.id];
-            const followUpText = followUp.text || "Untitled Follow-up";
-            const formattedFollow = formatAnswerForExport(followAnswer, followUp);
-
-            pushRow(
-              [
-                "",
-                `  └─ Q${qIndex + 1}.${fIndex + 1}. ${followUpText}`,
-                formattedFollow.display,
-              ],
-              formattedFollow.hyperlink
-                ? {
-                    columnIndex: 2,
-                    target: formattedFollow.hyperlink,
-                    display: formattedFollow.display,
-                  }
-                : undefined
-            );
-          });
+    // Recursively walk through follow-ups
+    const walk = (nodes?: any[], path: number[] = []) => {
+      (nodes || []).forEach((fu, idx) => {
+        const lbl = `${base}.${[...path, idx + 1].join(".")}. ${
+          fu?.text || "Follow-up"
+        }`;
+        const ans = formatAnswerForExport(response.answers?.[fu.id], fu);
+        pairs.push({ label: lbl, ans });
+        if (fu?.followUpQuestions?.length) {
+          walk(fu.followUpQuestions, [...path, idx + 1]);
         }
       });
-    });
-  }
+    };
+    walk(q?.followUpQuestions);
+    return pairs;
+  };
+
+  // Prepare all sections with their question pairs
+  type PreparedRow = { pairs: Array<{ label: string; ans: FormattedAnswer }> };
+  type PreparedSection = { title: string; rows: PreparedRow[] };
+  const preparedSections: PreparedSection[] = [];
+
+  (form.sections || []).forEach((section: any, si: number) => {
+    const title = `Section ${si + 1}: ${section?.title || "Untitled Section"}`;
+    const rowsForSection = (section?.questions || []).map(
+      (q: any, qi: number) => ({
+        pairs: gatherPairs(q, `Q${qi + 1}`),
+      })
+    );
+    preparedSections.push({ title, rows: rowsForSection });
+  });
 
   if (form.followUpQuestions?.length) {
-    pushRow(["Form Follow-up Questions", "", ""]);
-    form.followUpQuestions.forEach((followUp: any, index: number) => {
-      const answer = response.answers[followUp.id];
-      const followUpText = followUp.text || "Untitled Follow-up";
-      const formatted = formatAnswerForExport(answer, followUp);
-
-      pushRow(
-        [
-          "",
-          `FQ${index + 1}. ${followUpText}`,
-          formatted.display,
-        ],
-        formatted.hyperlink
-          ? {
-              columnIndex: 2,
-              target: formatted.hyperlink,
-              display: formatted.display,
-            }
-          : undefined
-      );
-    });
+    const fqTitle = "Form Follow-up Questions";
+    const rowsForFQ = (form.followUpQuestions || []).map(
+      (fq: any, i: number) => ({
+        pairs: gatherPairs(fq, `FQ${i + 1}`),
+      })
+    );
+    preparedSections.push({ title: fqTitle, rows: rowsForFQ });
   }
+
+  // Calculate max number of Q&A pairs needed
+  const maxPairs = preparedSections.reduce(
+    (m, s) => Math.max(m, ...s.rows.map((r) => r.pairs.length)),
+    0
+  );
+
+  // Build header row
+  const headerRow: any[] = ["Section"];
+  for (let i = 0; i < maxPairs; i++) {
+    headerRow.push(i === 0 ? "Main Question" : "Follow-Up Question");
+    headerRow.push("Answer");
+  }
+  rows.push(headerRow);
+
+  // Build data rows
+  preparedSections.forEach((section) => {
+    let firstRowIn = true;
+    section.rows.forEach((r) => {
+      const row: any[] = new Array(1 + maxPairs * 2).fill("");
+      row[0] = firstRowIn ? section.title : "";
+      firstRowIn = false;
+
+      let col = 1;
+      r.pairs.forEach((p) => {
+        row[col] = p.label;
+        row[col + 1] = p.ans.display;
+
+        const rIdx = rows.length;
+        if (p.ans.hyperlink) {
+          addLink(rIdx, col + 1, p.ans.hyperlink, p.ans.display);
+        }
+        col += 2;
+      });
+
+      rows.push(row);
+    });
+  });
 
   return { data: rows, links };
 }
@@ -312,11 +358,15 @@ export function generateResponseExcelReport(
 ): void {
   const workbook = utils.book_new();
 
+  // Dashboard Sheet
   const dashboardData: any[] = [];
   dashboardData.push(["Dashboard Report"]);
   dashboardData.push([]);
   dashboardData.push(["Form", response.formTitle]);
-  dashboardData.push(["Submitted", new Date(response.createdAt).toLocaleString()]);
+  dashboardData.push([
+    "Submitted",
+    new Date(response.createdAt).toLocaleString(),
+  ]);
   if (response.yesNoScore) {
     dashboardData.push([
       "Overall Score",
@@ -362,20 +412,20 @@ export function generateResponseExcelReport(
 
   utils.book_append_sheet(workbook, dashboardSheet, "Dashboard");
 
-  const { data: responsesData, links: responsesLinks } = buildResponsesSheetContent(
-    response,
-    form
-  );
+  // Responses Sheet - with nested structure
+  const nestedForm = buildNestedForm(form);
+  const { data: responsesData, links: responsesLinks } =
+    buildResponsesSheetContent(response, nestedForm);
 
   const responsesSheet = utils.aoa_to_sheet(responsesData);
-  responsesSheet["!cols"] = [{ wch: 25 }, { wch: 45 }, { wch: 40 }];
+  responsesSheet["!cols"] = Array(50).fill({ wch: 25 }); // More columns for horizontal layout
   applyHyperlinks(responsesSheet, responsesLinks);
 
   utils.book_append_sheet(workbook, responsesSheet, "Responses");
 
-  const fileName = `${response.formTitle.replace(/\s+/g, "_")}_${new Date()
-    .toISOString()
-    .split("T")[0]}.xlsx`;
+  const fileName = `${response.formTitle.replace(/\s+/g, "_")}_${
+    new Date().toISOString().split("T")[0]
+  }.xlsx`;
   writeFile(workbook, fileName);
 }
 
@@ -390,7 +440,10 @@ function createExcelWorkbook(
   dashboardData.push(["Dashboard Report"]);
   dashboardData.push([]);
   dashboardData.push(["Form", response.formTitle]);
-  dashboardData.push(["Submitted", new Date(response.createdAt).toLocaleString()]);
+  dashboardData.push([
+    "Submitted",
+    new Date(response.createdAt).toLocaleString(),
+  ]);
   if (response.yesNoScore) {
     dashboardData.push([
       "Overall Score",
@@ -436,13 +489,12 @@ function createExcelWorkbook(
 
   XLSX.utils.book_append_sheet(workbook, dashboardSheet, "Dashboard");
 
-  const { data: responsesData, links: responsesLinks } = buildResponsesSheetContent(
-    response,
-    form
-  );
+  const nestedForm = buildNestedForm(form);
+  const { data: responsesData, links: responsesLinks } =
+    buildResponsesSheetContent(response, nestedForm);
 
   const responsesSheet = XLSX.utils.aoa_to_sheet(responsesData);
-  responsesSheet["!cols"] = [{ wch: 25 }, { wch: 45 }, { wch: 40 }];
+  responsesSheet["!cols"] = Array(50).fill({ wch: 25 });
   applyHyperlinks(responsesSheet, responsesLinks);
 
   XLSX.utils.book_append_sheet(workbook, responsesSheet, "Responses");
@@ -473,20 +525,27 @@ export async function sendResponseExcelViaEmail(
 
     console.log("📨 Sending email report to:", recipientEmail);
     console.log("📄 File size:", blob.size, "bytes");
-    
+
     const API_BASE_URL = "http://localhost:5000/api";
-    const response_obj = await fetch(`${API_BASE_URL}/mail/send-response-report`, {
-      method: "POST",
-      body: formData,
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const response_obj = await fetch(
+      `${API_BASE_URL}/mail/send-response-report`,
+      {
+        method: "POST",
+        body: formData,
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }
+    );
 
     console.log("📤 Response status:", response_obj.status);
 
     if (!response_obj.ok) {
       const errorData = await response_obj.json().catch(() => ({}));
       console.error("❌ Server error response:", errorData);
-      throw new Error(`Server error: ${response_obj.status} - ${errorData.message || 'Unknown error'}`);
+      throw new Error(
+        `Server error: ${response_obj.status} - ${
+          errorData.message || "Unknown error"
+        }`
+      );
     }
 
     const result = await response_obj.json();

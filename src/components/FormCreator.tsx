@@ -297,24 +297,59 @@ export default function FormCreator() {
       setMode("create");
     } else {
       // Check if we should start in create mode from navigation state
-      const state = location.state as { mode?: string };
+      const state = location.state as { mode?: string; formData?: any };
       if (state?.mode === "create") {
         setMode("create");
-        setForm({
-          title: "",
-          description: "",
-          isVisible: true,
-          locationEnabled: true,
-          sections: [
-            {
-              id: crypto.randomUUID(),
-              title: "Section 1",
-              description: "",
-              weightage: 0,
-              questions: [],
-            },
-          ] as FormSection[],
-        });
+        if (state.formData) {
+          // Load pre-populated form data
+          setForm({
+            title: state.formData.title || "",
+            description: state.formData.description || "",
+            isVisible: state.formData.isVisible !== false,
+            locationEnabled: state.formData.locationEnabled !== false,
+            sections: (state.formData.sections || []).map((section: any) => ({
+              id: section.id || crypto.randomUUID(),
+              title: section.title || "",
+              description: section.description || "",
+              weightage: section.weightage || 0,
+              questions: (section.questions || []).map((question: any) => ({
+                id: question.id || crypto.randomUUID(),
+                text: question.text || "",
+                type: question.type || "text",
+                required: question.required || false,
+                options: question.options || undefined,
+                allowedFileTypes: question.allowedFileTypes || undefined,
+                description: question.description || undefined,
+                imageUrl: question.imageUrl || undefined,
+                subParam1: question.subParam1 || undefined,
+                subParam2: question.subParam2 || undefined,
+                followUpQuestions: question.followUpQuestions || [],
+                showWhen: question.showWhen || undefined,
+                parentId: question.parentId || undefined,
+                correctAnswer: question.correctAnswer || undefined,
+                followUpConfig: question.followUpConfig || undefined,
+                branchingRules: question.branchingRules || undefined,
+              })),
+            })),
+          });
+        } else {
+          // Start with empty form
+          setForm({
+            title: "",
+            description: "",
+            isVisible: true,
+            locationEnabled: true,
+            sections: [
+              {
+                id: crypto.randomUUID(),
+                title: "Section 1",
+                description: "",
+                weightage: 0,
+                questions: [],
+              },
+            ] as FormSection[],
+          });
+        }
       } else {
         setMode("list");
       }
@@ -3399,7 +3434,8 @@ export default function FormCreator() {
                               {/* Section Branching Configuration */}
                               {(question.type === "radio" ||
                                 question.type === "checkbox" ||
-                                question.type === "select") &&
+                                question.type === "select" ||
+                                question.type === "yesNoNA") &&
                                 question.options &&
                                 question.options.length > 0 && (
                                   <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
@@ -3457,7 +3493,8 @@ export default function FormCreator() {
                               {/* Form Routing Configuration */}
                               {(question.type === "radio" ||
                                 question.type === "checkbox" ||
-                                question.type === "select") &&
+                                question.type === "select" ||
+                                question.type === "yesNoNA") &&
                                 question.options &&
                                 question.options.length > 0 && (
                                   <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
@@ -3563,7 +3600,8 @@ export default function FormCreator() {
                               {/* Correct Answer Section */}
                               {(question.type === "radio" ||
                                 question.type === "checkbox" ||
-                                question.type === "select") &&
+                                question.type === "select" ||
+                                question.type === "yesNoNA") &&
                                 question.options &&
                                 question.options.length > 0 && (
                                   <div className="mt-3">

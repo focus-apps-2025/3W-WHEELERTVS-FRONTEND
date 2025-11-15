@@ -43,7 +43,7 @@ export default function SectionContent({
             key={q.id}
             className={`${
               q.showWhen
-                ? "ml-8 pl-6 border-l-3 border-blue-500 bg-blue-50 rounded-r py-4"
+                ? "mt-3 ml-4 p-3 border-l-4 border-l-blue-400 bg-blue-100 dark:bg-blue-900/30 rounded-r"
                 : ""
             }`}
           >
@@ -52,6 +52,7 @@ export default function SectionContent({
               value={answers[q.id]}
               onChange={(value) => onAnswerChange(q.id, value)}
               readOnly={readOnly}
+              isFollowUp={!!q.showWhen}
             />
           </div>
         ))}

@@ -21,6 +21,7 @@ import {
   Check,
   Upload,
   Download,
+  Database,
 } from "lucide-react";
 import { useForms, useMutation } from "../hooks/useApi";
 import { apiClient } from "../api/client";
@@ -30,6 +31,7 @@ import {
   exportFormStructureToExcel,
   downloadFormImportTemplate,
   parseFormWorkbook,
+  loadSampleFormData,
 } from "../utils/exportUtils";
 import type {
   Question as FormSchema,
@@ -444,6 +446,35 @@ export default function FormsManagementNew() {
     downloadFormImportTemplate();
   };
 
+  const handleLoadSampleData = async () => {
+    try {
+      setIsImporting(true);
+      const sampleFormData = await loadSampleFormData();
+
+      // Navigate to form creation with sample data pre-loaded
+      navigate("/forms/create", {
+        state: {
+          mode: "create",
+          formData: {
+            title:
+              sampleFormData.title || "Sample Customer Service Feedback Form",
+            description:
+              sampleFormData.description || "Demo form with sub-parameters",
+            sections: sampleFormData.sections,
+            followUpQuestions: sampleFormData.followUpQuestions || [],
+            isVisible: true,
+            locationEnabled: true,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error loading sample data:", error);
+      showError("Failed to load sample data", "Error");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleExportForm = (form: Form) => {
     const normalized: FormSchema = {
       id: form.id || form._id,
@@ -552,7 +583,7 @@ export default function FormsManagementNew() {
     // For production, use your actual customer frontend URL
     const baseUrl = window.location.origin.includes("localhost")
       ? "http://localhost:5174"
-      : "https://focusforms.focusengineeringapp.com";
+      : "https://forms.focusengineeringapp.com";
     // : "https://formsuser.focusengineeringapp.com";
     return `${baseUrl}/${tenantSlug}/forms/${formId}`;
   };
@@ -695,6 +726,14 @@ export default function FormsManagementNew() {
               >
                 <Download className="w-4 h-4 mr-2" />
                 Download Import Template
+              </button>
+              <button
+                onClick={handleLoadSampleData}
+                className="btn-secondary flex items-center justify-center"
+                disabled={isImporting}
+              >
+                <Database className="w-4 h-4 mr-2" />
+                {isImporting ? "Loading..." : "Load Sample Data"}
               </button>
               <button
                 onClick={handleImportClick}

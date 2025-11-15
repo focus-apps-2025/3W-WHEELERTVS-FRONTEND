@@ -11,6 +11,16 @@ import {
   Download,
   Trash2,
   Edit2,
+  TrendingUp,
+  BarChart3,
+  PieChart,
+  Activity,
+  Zap,
+  Target,
+  Award,
+  Users,
+  FileCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { Bar, Line } from "react-chartjs-2";
 import {
@@ -29,11 +39,12 @@ import type { ActiveElement } from "chart.js";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
+import { useLogo } from "../context/LogoContext";
 import { generateResponseExcelReport } from "../utils/responseExportUtils";
 import { generateAndDownloadPDF } from "../utils/pdfExportUtils";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
-// import DashboardSummaryCard from "./DashboardSummaryCard";
+import DashboardSummaryCard from "./DashboardSummaryCard";
 
 ChartJS.register(
   CategoryScale,
@@ -116,6 +127,7 @@ type SectionStat = {
 
 export default function AllResponses() {
   const { showSuccess, showError, showConfirm } = useNotification();
+  const { logo } = useLogo();
   const [responses, setResponses] = useState<
     (Response & { formTitle: string })[]
   >([]);
@@ -351,6 +363,8 @@ export default function AllResponses() {
         submittedDate: formatTimestamp(selectedResponse.createdAt),
         sectionStats: filteredSectionStats,
         sectionSummaryRows: sectionSummaryRows,
+        form: selectedForm,
+        response: selectedResponse,
       });
       showSuccess("PDF downloaded successfully.");
     } catch (error) {
@@ -1083,29 +1097,45 @@ export default function AllResponses() {
               const answer = selectedResponse.answers[question.id];
 
               return (
-                <div key={question.id} className="p-4">
-                  <div className="font-medium text-primary-700">
+                <div key={question.id} className="p-6 bg-white dark:bg-gray-800 rounded-xl border-2 border-slate-200 dark:border-slate-600 shadow-lg">
+                  <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center text-lg">
+                    <span className="w-3 h-3 bg-slate-600 rounded-full mr-4 flex-shrink-0"></span>
                     {question.text || question.id}
                   </div>
-                  <div className="mt-1 text-primary-600">
+                  <div className="mt-3 text-slate-700 dark:text-slate-300 ml-7 text-base">
                     {renderAnswerDisplay(answer, question)}
                   </div>
                   {question.followUpQuestions?.map((followUp: any) => {
                     const followAnswer = selectedResponse.answers[followUp.id];
-                    if (!hasAnswerValue(followAnswer)) {
-                      return null;
+                    const hasAnswer = hasAnswerValue(followAnswer);
+                    if (hasAnswer) {
+                      answeredKeys.add(followUp.id);
                     }
-                    answeredKeys.add(followUp.id);
                     return (
                       <div
                         key={followUp.id}
-                        className="mt-3 pl-4 border-l border-primary-100"
+                        className={`mt-4 ml-12 p-4 border-l-4 rounded-r-xl shadow-sm ${
+                          hasAnswer
+                            ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500"
+                            : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500"
+                        }`}
                       >
-                        <div className="text-sm font-medium text-primary-600">
+                        <div className={`font-medium ${
+                          hasAnswer
+                            ? "text-blue-800 dark:text-blue-200"
+                            : "text-gray-700 dark:text-gray-300"
+                        } flex items-center`}>
+                          <span className={`mr-3 text-lg ${
+                            hasAnswer ? "text-blue-600" : "text-gray-500"
+                          }`}>↳</span>
                           {followUp.text || followUp.id}
                         </div>
-                        <div className="mt-1 text-sm text-primary-600">
-                          {renderAnswerDisplay(followAnswer, followUp)}
+                        <div className={`mt-2 ml-6 ${
+                          hasAnswer
+                            ? "text-blue-700 dark:text-blue-300"
+                            : "text-gray-600 dark:text-gray-400"
+                        }`}>
+                          {hasAnswer ? renderAnswerDisplay(followAnswer, followUp) : <span className="italic font-light">Not answered</span>}
                         </div>
                       </div>
                     );
@@ -1122,25 +1152,44 @@ export default function AllResponses() {
       content.push(
         <div
           key="form-follow-ups"
-          className="border border-primary-100 rounded-lg overflow-hidden"
+          className="border-2 border-blue-200 dark:border-blue-700 rounded-xl overflow-hidden shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20"
         >
-          <div className="px-4 py-3 bg-primary-50">
-            <div className="text-base font-semibold text-primary-700">
+          <div className="px-6 py-4 bg-gradient-to-r from-blue-500 to-indigo-600">
+            <div className="text-lg font-bold text-white flex items-center">
+              <div className="w-3 h-3 bg-white rounded-full mr-3 animate-pulse"></div>
               Form Follow-up Questions
             </div>
           </div>
-          <div className="divide-y divide-primary-100">
+          <div className="divide-y divide-blue-200 dark:divide-blue-700">
             {selectedForm.followUpQuestions.map((followUp: any) => {
-              answeredKeys.add(followUp.id);
               const answer = selectedResponse.answers[followUp.id];
+              const hasAnswer = hasAnswerValue(answer);
+              if (hasAnswer) {
+                answeredKeys.add(followUp.id);
+              }
 
               return (
-                <div key={followUp.id} className="p-4">
-                  <div className="font-medium text-primary-700">
+                <div key={followUp.id} className={`p-6 ml-12 border-l-4 rounded-r-xl shadow-sm hover:transition-colors duration-200 ${
+                  hasAnswer
+                    ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                    : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900/40"
+                }`}>
+                  <div className={`font-medium flex items-center text-lg ${
+                    hasAnswer
+                      ? "text-blue-800 dark:text-blue-200"
+                      : "text-gray-700 dark:text-gray-300"
+                  }`}>
+                    <span className={`mr-4 text-xl ${
+                      hasAnswer ? "text-blue-600" : "text-gray-500"
+                    }`}>↳</span>
                     {followUp.text || followUp.id}
                   </div>
-                  <div className="mt-1 text-primary-600">
-                    {renderAnswerDisplay(answer, followUp)}
+                  <div className={`mt-3 ml-8 ${
+                    hasAnswer
+                      ? "text-blue-700 dark:text-blue-300"
+                      : "text-gray-600 dark:text-gray-400"
+                  } text-base`}>
+                    {hasAnswer ? renderAnswerDisplay(answer, followUp) : <span className="italic font-light">Not answered</span>}
                   </div>
                 </div>
               );
@@ -1314,65 +1363,83 @@ export default function AllResponses() {
 
               {/* Responses List */}
               <div className="space-y-3">
-                {groupedResponses[date].map((response) => (
-                  <div
-                    key={response._id}
-                    className="flex items-center justify-between p-4 bg-primary-50 dark:bg-gray-800 rounded-lg border border-primary-100 dark:border-gray-700 hover:bg-primary-100 dark:hover:bg-gray-700 transition-colors"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="p-2 bg-white dark:bg-gray-900 rounded-lg">
-                        <FileText className="w-5 h-5 text-primary-600" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium text-primary-700">
-                            {response.formTitle}
-                          </h4>
-                          {response.yesNoScore && response.yesNoScore.total > 0 && (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800">
-                              {response.yesNoScore.yes}/{response.yesNoScore.total}
-                            </span>
+                {groupedResponses[date].map((response) => {
+                  const isFollowUp = !!response.parentResponseId;
+                  return (
+                    <div
+                      key={response._id}
+                      className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${
+                        isFollowUp
+                          ? "ml-8 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                          : "bg-primary-50 dark:bg-gray-800 border-primary-100 dark:border-gray-700 hover:bg-primary-100 dark:hover:bg-gray-700"
+                      }`}
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className={`p-2 rounded-lg ${isFollowUp ? "bg-blue-100 dark:bg-blue-900/40" : "bg-white dark:bg-gray-900"}`}>
+                          {isFollowUp ? (
+                            <div className="w-5 h-5 flex items-center justify-center">
+                              <span className="text-blue-600 dark:text-blue-300 text-xs font-bold">↳</span>
+                            </div>
+                          ) : (
+                            <FileText className="w-5 h-5 text-primary-600" />
                           )}
                         </div>
-                        <div className="flex items-center text-sm text-primary-500 mt-1">
-                          <User className="w-4 h-4 mr-1" />
-                          <span>
-                            Submitted {formatTimestamp(response.createdAt)}
-                          </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className={`font-medium ${isFollowUp ? "text-blue-700 dark:text-blue-300" : "text-primary-700"}`}>
+                              {response.formTitle}
+                              {isFollowUp && (
+                                <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-blue-700 bg-blue-100 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/40 dark:border-blue-700">
+                                  Follow-up
+                                </span>
+                              )}
+                            </h4>
+                            {response.yesNoScore && response.yesNoScore.total > 0 && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800">
+                                {response.yesNoScore.yes}/{response.yesNoScore.total}
+                              </span>
+                            )}
+                          </div>
+                          <div className={`flex items-center text-sm mt-1 ${isFollowUp ? "text-blue-600 dark:text-blue-400" : "text-primary-500"}`}>
+                            <User className="w-4 h-4 mr-1" />
+                            <span>
+                              Submitted {formatTimestamp(response.createdAt)}
+                            </span>
+                          </div>
                         </div>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleViewDetails(response)}
+                          className={`btn-secondary flex items-center ${isFollowUp ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}`}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Details
+                        </button>
+                        <button
+                          onClick={() => handleEditResponse(response)}
+                          disabled={
+                            !!editingResponse &&
+                            editingResponse.id === response.id &&
+                            (editingFormLoading || savingEdit)
+                          }
+                          className="flex items-center px-3 py-2 text-sm text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-60 dark:text-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60"
+                        >
+                          <Edit2 className="w-4 h-4 mr-2" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteResponse(response)}
+                          disabled={deletingResponseId === response.id}
+                          className="flex items-center px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-60 dark:text-red-300 dark:bg-red-900/40 dark:hover:bg-red-900/60"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          {deletingResponseId === response.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleViewDetails(response)}
-                        className="btn-secondary flex items-center"
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View Details
-                      </button>
-                      <button
-                        onClick={() => handleEditResponse(response)}
-                        disabled={
-                          !!editingResponse &&
-                          editingResponse.id === response.id &&
-                          (editingFormLoading || savingEdit)
-                        }
-                        className="flex items-center px-3 py-2 text-sm text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-60 dark:text-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60"
-                      >
-                        <Edit2 className="w-4 h-4 mr-2" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteResponse(response)}
-                        disabled={deletingResponseId === response.id}
-                        className="flex items-center px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-60 dark:text-red-300 dark:bg-red-900/40 dark:hover:bg-red-900/60"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        {deletingResponseId === response.id ? "Deleting..." : "Delete"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -1396,7 +1463,7 @@ export default function AllResponses() {
       {/* Response Preview Modal */}
       {selectedResponse && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[80vh] flex flex-col">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-6xl w-full m-4 max-h-[90vh] flex flex-col">
             <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 px-6 py-4 border-b border-primary-200 flex justify-between items-center">
               <div>
                 <h3 className="text-xl font-semibold text-primary-700">
@@ -1443,128 +1510,379 @@ export default function AllResponses() {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 flex items-center gap-2 bg-primary-50 rounded-lg p-2 mb-4">
+                    <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 flex items-center gap-1 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 rounded-xl p-1 mb-6 shadow-lg border border-slate-200 dark:border-slate-700">
                       <button
                         onClick={() => setViewMode("dashboard")}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${
                           viewMode === "dashboard"
-                            ? "bg-primary-600 text-white"
-                            : "text-primary-600 hover:bg-primary-100"
+                            ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md transform scale-105"
+                            : "text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white"
                         }`}
                       >
+                        <BarChart3 className="w-4 h-4" />
                         Dashboard
                       </button>
                       <button
                         onClick={() => setViewMode("responses")}
-                        className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                        className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${
                           viewMode === "responses"
-                            ? "bg-primary-600 text-white"
-                            : "text-primary-600 hover:bg-primary-100"
+                            ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md transform scale-105"
+                            : "text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white"
                         }`}
                       >
+                        <FileText className="w-4 h-4" />
                         Responses
                       </button>
                     </div>
 
                     {viewMode === "dashboard" && filteredSectionStats.length > 0 && (
-                    <div className="space-y-6">
-                      {/* <DashboardSummaryCard
-                        sectionStats={filteredSectionStats}
-                        formTitle={selectedForm?.title || "Response"}
-                        submittedDate={formatTimestamp(selectedResponse?.createdAt || "")}
-                        onDownloadPDF={handleDownloadPDF}
-                        isGeneratingPDF={generatingPDF}
-                      /> */}
-                      <div className="w-full" style={{ height: sectionChartHeight }}>
-                        <Bar
-                          data={sectionChartData}
-                          options={{
-                            ...sectionChartOptions,
-                            onClick: (_event, elements) => {
-                              const firstElement = elements[0] as ActiveElement | undefined;
-                              if (!firstElement) {
-                                return;
-                              }
-                              const sectionId = filteredSectionStats[firstElement.index]?.id;
-                              if (sectionId) {
-                                setPendingSectionId(sectionId);
-                                setViewMode("responses");
-                              }
-                            },
-                          }}
-                        />
+                    <div className="space-y-8">
+                      {/* Dashboard Header with Logo */}
+                      <div className="bg-gradient-to-br from-white via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20 p-8 rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center space-x-4">
+                            {logo && (
+                              <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-white dark:border-gray-700">
+                                <img
+                                  src={logo}
+                                  alt="Company Logo"
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            )}
+                            <div>
+                              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                                {selectedForm?.title || "Response Dashboard"}
+                              </h1>
+                              <p className="text-gray-600 dark:text-gray-300 mt-1">
+                                Comprehensive analysis and insights
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-3">
+                            <div className="text-right">
+                              <p className="text-sm text-gray-500 dark:text-gray-400">Submitted</p>
+                              <p className="font-semibold text-gray-900 dark:text-white">
+                                {formatTimestamp(selectedResponse?.createdAt || "")}
+                              </p>
+                            </div>
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                              <FileCheck className="w-6 h-6 text-white" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Quick Stats Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 backdrop-blur-sm p-6 rounded-2xl border border-yellow-200/50 dark:border-yellow-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-300 mb-1">Overall Score</p>
+                                <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">
+                                  {(() => {
+                                    const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
+                                    const totalYes = filteredSectionStats.reduce((sum, stat) => sum + stat.yes, 0);
+                                    return totalQuestions > 0 ? ((totalYes / totalQuestions) * 100).toFixed(1) : "0.0";
+                                  })()}%
+                                </p>
+                              </div>
+                              <div className="p-3 bg-yellow-500/20 rounded-full">
+                                <Award className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 backdrop-blur-sm p-6 rounded-2xl border border-blue-200/50 dark:border-blue-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">Total Sections</p>
+                                <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
+                                  {filteredSectionStats.length}
+                                </p>
+                              </div>
+                              <div className="p-3 bg-blue-500/20 rounded-full">
+                                <Target className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 backdrop-blur-sm p-6 rounded-2xl border border-green-200/50 dark:border-green-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-sm font-semibold text-green-700 dark:text-green-300 mb-1">Response Rate</p>
+                                <p className="text-3xl font-bold text-green-900 dark:text-green-100">
+                                  {(() => {
+                                    const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
+                                    const totalAnswered = filteredSectionStats.reduce((sum, stat) => sum + stat.yes + stat.no + stat.na, 0);
+                                    return totalQuestions > 0 ? ((totalAnswered / totalQuestions) * 100).toFixed(1) : "0.0";
+                                  })()}%
+                                </p>
+                              </div>
+                              <div className="p-3 bg-green-500/20 rounded-full">
+                                <Activity className="w-8 h-8 text-green-600 dark:text-green-400" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                        <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm table-fixed">
-                          <thead className="bg-gray-50 dark:bg-gray-800 sticky top-0">
-                            <tr>
-                              <th className="px-4 py-3 text-left font-medium text-gray-900 dark:text-gray-100 w-32">
-                                Section
-                              </th>
-                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-20">
-                                Yes %
-                              </th>
-                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-20">
-                                No %
-                              </th>
-                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-20">
-                                N/A %
-                              </th>
-                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-24">
-                                Weightage
-                              </th>
-                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-28">
-                                Yes % × Weightage
-                              </th>
-                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-28">
-                                No % × Weightage
-                              </th>
-                              <th className="px-4 py-3 text-center font-medium text-gray-900 dark:text-gray-100 w-28">
-                                N/A % × Weightage
-                              </th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
-                            {sectionSummaryRows.map((row) => (
-                              <tr key={row.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 w-32">
-                                  {row.title}
-                                </td>
-                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-20">
-                                  {formatPercentageValue(row.yesPercent)}
-                                </td>
-                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-20">
-                                  {formatPercentageValue(row.noPercent)}
-                                </td>
-                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-20">
-                                  {formatPercentageValue(row.naPercent)}
-                                </td>
-                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-24">
-                                  {formatPercentageValue(row.weightage)}
-                                </td>
-                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-28">
-                                  {formatPercentageValue(row.yesWeighted)}
-                                </td>
-                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-28">
-                                  {formatPercentageValue(row.noWeighted)}
-                                </td>
-                                <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 w-28">
-                                  {formatPercentageValue(row.naWeighted)}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+
+                      {/* Charts Section */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div className="bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 dark:from-gray-800 dark:via-blue-900/10 dark:to-indigo-900/10 p-8 rounded-3xl shadow-2xl border border-blue-200/50 dark:border-blue-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm">
+                          <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                              <div className="p-2 bg-blue-500/20 rounded-lg mr-4">
+                                <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                              </div>
+                              Section Performance
+                            </h3>
+                            <div className="flex items-center space-x-3 bg-white/50 dark:bg-gray-700/50 rounded-full px-4 py-2">
+                              <div className="flex items-center space-x-1">
+                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Yes</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">No</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <div className="w-3 h-3 bg-blue-300 rounded-full"></div>
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">N/A</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="w-full" style={{ height: sectionChartHeight }}>
+                            <Bar
+                              data={sectionChartData}
+                              options={{
+                                ...sectionChartOptions,
+                                plugins: {
+                                  ...sectionChartOptions.plugins,
+                                  legend: {
+                                    ...sectionChartOptions.plugins.legend,
+                                    labels: {
+                                      ...sectionChartOptions.plugins.legend.labels,
+                                      font: {
+                                        size: 12,
+                                        weight: 'bold'
+                                      }
+                                    }
+                                  }
+                                },
+                                onClick: (_event, elements) => {
+                                  const firstElement = elements[0] as ActiveElement | undefined;
+                                  if (!firstElement) {
+                                    return;
+                                  }
+                                  const sectionId = filteredSectionStats[firstElement.index]?.id;
+                                  if (sectionId) {
+                                    setPendingSectionId(sectionId);
+                                    setViewMode("responses");
+                                  }
+                                },
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="bg-gradient-to-br from-white via-green-50/30 to-emerald-50/30 dark:from-gray-800 dark:via-green-900/10 dark:to-emerald-900/10 p-8 rounded-3xl shadow-2xl border border-green-200/50 dark:border-green-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm">
+                          <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                              <div className="p-2 bg-green-500/20 rounded-lg mr-4">
+                                <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
+                              </div>
+                              Weighted Trends
+                            </h3>
+                            <div className="flex items-center space-x-3 bg-white/50 dark:bg-gray-700/50 rounded-full px-4 py-2">
+                              <div className="flex items-center space-x-1">
+                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Yes × Weight</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">No × Weight</span>
+                              </div>
+                              <div className="flex items-center space-x-1">
+                                <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">N/A × Weight</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="w-full" style={{ height: weightedChartHeight }}>
+                            <Line
+                              data={weightedPercentageChartData}
+                              options={{
+                                ...weightedPercentageChartOptions,
+                                plugins: {
+                                  ...weightedPercentageChartOptions.plugins,
+                                  legend: {
+                                    ...weightedPercentageChartOptions.plugins.legend,
+                                    labels: {
+                                      ...weightedPercentageChartOptions.plugins.legend,
+                                      font: {
+                                        size: 12,
+                                        weight: 'bold'
+                                      }
+                                    }
+                                  }
+                                }
+                              }}
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <div className="mt-8">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-                          Section-wise Weighted Percentages
+
+                      {/* Follow-up Questions Table */}
+                      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transform hover:scale-[1.01] transition-all duration-500 hover:shadow-3xl">
+                        <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6">
+                          <h3 className="text-2xl font-bold text-white flex items-center">
+                            <PieChart className="w-7 h-7 mr-3" />
+                            Follow-up Questions Details
+                          </h3>
+                          <p className="text-indigo-100 mt-1">Answers to all follow-up questions and sub-parameters</p>
+                        </div>
+                        <div className="overflow-x-auto">
+                          {(() => {
+                            // Collect all follow-up questions from form
+                            const allFollowUpQuestions: any[] = [];
+
+                            // Add form-level follow-up questions
+                            if (selectedForm?.followUpQuestions) {
+                              selectedForm.followUpQuestions.forEach((followUp, index) => {
+                                allFollowUpQuestions.push({
+                                  ...followUp,
+                                  displayIndex: index + 1,
+                                  source: 'form'
+                                });
+                              });
+                            }
+
+                            // Add follow-up questions from sections
+                            selectedForm?.sections?.forEach((section: any) => {
+                              section.questions?.forEach((question: any) => {
+                                question.followUpQuestions?.forEach((followUp: any, index: number) => {
+                                  allFollowUpQuestions.push({
+                                    ...followUp,
+                                    displayIndex: allFollowUpQuestions.length + 1,
+                                    source: 'section',
+                                    parentQuestion: question.text || question.id
+                                  });
+                                });
+                              });
+                            });
+
+                            if (allFollowUpQuestions.length === 0) {
+                              return (
+                                <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                  No follow-up questions found in this form.
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 sticky top-0">
+                                  <tr>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
+                                      S.No
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-48">
+                                      Question
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-32">
+                                      Sub Parameter 1
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-32">
+                                      Sub Parameter 2
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-48">
+                                      Answer
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                                  {allFollowUpQuestions.map((followUp, index) => {
+                                    const answer = selectedResponse?.answers?.[followUp.id];
+                                    return (
+                                      <tr key={followUp.id} className={`hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all duration-300 ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800'}`}>
+                                        <td className="px-6 py-5 font-bold text-gray-900 dark:text-gray-100 flex items-center">
+                                          <div className="w-3 h-3 bg-indigo-500 rounded-full mr-3"></div>
+                                          {followUp.displayIndex}
+                                        </td>
+                                        <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                          <div className="flex flex-col">
+                                            <span>{followUp.text || followUp.id}</span>
+                                            {followUp.parentQuestion && (
+                                              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                                (From: {followUp.parentQuestion})
+                                              </span>
+                                            )}
+                                          </div>
+                                        </td>
+                                        <td className="px-6 py-5 text-gray-700 dark:text-gray-300">
+                                          {followUp.subParam1 || '-'}
+                                        </td>
+                                        <td className="px-6 py-5 text-gray-700 dark:text-gray-300">
+                                          {followUp.subParam2 || '-'}
+                                        </td>
+                                        <td className="px-6 py-5 text-gray-700 dark:text-gray-300">
+                                          {renderAnswerDisplay(answer, followUp)}
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Quick Actions */}
+                      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
+                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
+                          <Zap className="w-6 h-6 mr-3 text-yellow-500" />
+                          Quick Actions
                         </h3>
-                        <div className="w-full" style={{ height: weightedChartHeight }}>
-                          <Line
-                            data={weightedPercentageChartData}
-                            options={weightedPercentageChartOptions}
-                          />
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <button
+                            onClick={handleExportExcel}
+                            disabled={exportingExcel}
+                            className="flex items-center justify-center p-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-50"
+                          >
+                            {exportingExcel ? (
+                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" />
+                            ) : (
+                              <Download className="w-5 h-5 mr-3" />
+                            )}
+                            {exportingExcel ? 'Exporting...' : 'Export Excel'}
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setViewMode("responses");
+                            }}
+                            className="flex items-center justify-center p-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                          >
+                            <Eye className="w-5 h-5 mr-3" />
+                            View Details
+                          </button>
+
+                          <button
+                            onClick={handleDownloadPDF}
+                            disabled={generatingPDF}
+                            className="flex items-center justify-center p-4 bg-gradient-to-r from-cyan-500 to-teal-600 text-white rounded-xl hover:from-cyan-600 hover:to-teal-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group"
+                          >
+                            {generatingPDF ? (
+                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" />
+                            ) : (
+                              <FileText className="w-5 h-5 mr-3 group-hover:animate-pulse" />
+                            )}
+                            {generatingPDF ? 'Generating PDF...' : 'Download PDF'}
+                          </button>
                         </div>
                       </div>
                     </div>
