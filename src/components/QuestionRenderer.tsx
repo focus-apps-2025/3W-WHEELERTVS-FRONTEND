@@ -186,6 +186,18 @@ export default function QuestionRenderer({
 
   return (
     <div className="space-y-3">
+      {/* Parameter Display */}
+      {question.subParam1 && (
+        <div className="mb-2">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30 border border-purple-300 dark:border-purple-600 rounded-lg">
+            <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+            <span className="text-sm font-semibold text-purple-800 dark:text-purple-200">
+              {question.subParam1}
+            </span>
+          </div>
+        </div>
+      )}
+
       {question.imageUrl ? (
         <div className="relative inline-flex">
           <img

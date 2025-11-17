@@ -643,6 +643,60 @@ class ApiClient {
       method: "PATCH",
     });
   }
+
+  // Parameters
+  async getParameters(params?: {
+    type?: "main" | "followup";
+    search?: string;
+    formId?: string;
+  }) {
+    const query = new URLSearchParams();
+
+    if (params?.type) {
+      query.set("type", params.type);
+    }
+
+    if (params?.search) {
+      query.set("search", params.search);
+    }
+
+    if (params?.formId) {
+      query.set("formId", params.formId);
+    }
+
+    const endpoint = `/parameters${query.toString() ? `?${query.toString()}` : ""}`;
+
+    return this.request<{ parameters: any[] }>(endpoint);
+  }
+
+  async createParameter(parameterData: {
+    name: string;
+    type: "main" | "followup";
+    formId: string;
+    tenantId?: string;
+  }) {
+    return this.request<{ parameter: any }>("/parameters", {
+      method: "POST",
+      body: JSON.stringify(parameterData),
+    });
+  }
+
+  async updateParameter(id: string, parameterData: {
+    name: string;
+    type: "main" | "followup";
+    formId: string;
+  }) {
+    return this.request<{ parameter: any }>(`/parameters/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(parameterData),
+    });
+  }
+
+  async deleteParameter(id: string) {
+    return this.request(`/parameters/${id}`, {
+      method: "DELETE",
+    });
+  }
 }
 
 // Create and export a singleton instance

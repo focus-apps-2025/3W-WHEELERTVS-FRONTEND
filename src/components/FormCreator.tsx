@@ -31,6 +31,7 @@ import ChildFormsManager from "./forms/ChildFormsManager";
 import { SectionBranchingConfig } from "./forms/SectionBranchingConfig";
 import { FormRoutingConfig } from "./forms/FormRoutingConfig";
 import PreviewForm from "./PreviewForm";
+import ParameterModal from "./ParameterModal";
 
 const YES_NO_NA_OPTIONS = ["Yes", "No", "N/A"];
 const YES_NO_NA_CORRECT = "Yes";
@@ -155,6 +156,8 @@ export default function FormCreator() {
     sectionId: string;
     options: string[];
   } | null>(null);
+  const [showParameterModal, setShowParameterModal] = useState(false);
+  const [parameters, setParameters] = useState<any[]>([]);
   const { showSuccess, showError, showConfirm } = useNotification();
 
   // Fetch tenants for superadmin
@@ -383,6 +386,247 @@ export default function FormCreator() {
       return changed ? next : prev;
     });
   }, [form.sections]);
+
+  // Fetch parameters
+  useEffect(() => {
+    const fetchParameters = async () => {
+      try {
+        const response = await apiClient.getParameters(id ? { formId: id } : undefined);
+        setParameters(response.parameters || []);
+      } catch (error) {
+        console.error("Failed to fetch parameters:", error);
+      }
+    };
+    fetchParameters();
+  }, [id]);
+
+  // Helper function to determine if a question is a followup question
+  const isFollowupQuestion = (question: Question, section: FormSection) => {
+    // Check if question has parentId (for nested followups)
+    if (question.parentId) return true;
+
+    // Check if question is in followUpQuestions of another question
+    const isInFollowUps = section.questions.some(q =>
+      q.followUpQuestions?.some(fq => fq.id === question.id)
+    );
+
+    return isInFollowUps;
+  };
+
+  // Function to load sample data for testing
+  const loadSampleData = async () => {
+    try {
+      showConfirm(
+        "This will replace your current form with sample data. Continue?",
+        "Load Sample Data",
+        async () => {
+          // Create sample parameters first
+          const tenantId = user?.role === "superadmin" ? selectedTenantId : user?.tenantId;
+
+          const sampleParameters = [
+            // Main parameters
+            { name: "Safety Score", type: "main" as const },
+            { name: "Quality Rating", type: "main" as const },
+            { name: "Efficiency Index", type: "main" as const },
+            { name: "Compliance Level", type: "main" as const },
+            // Followup parameters
+            { name: "Root Cause", type: "followup" as const },
+            { name: "Action Required", type: "followup" as const },
+            { name: "Timeline", type: "followup" as const },
+            { name: "Responsible Party", type: "followup" as const },
+          ];
+
+          // Create parameters in batch
+          const createdParameters = [];
+          for (const param of sampleParameters) {
+            try {
+              const response = await apiClient.createParameter({
+                ...param,
+                tenantId,
+              });
+              createdParameters.push(response.parameter);
+            } catch (error) {
+              console.warn(`Failed to create parameter ${param.name}:`, error);
+            }
+          }
+
+          // Update parameters state
+          setParameters(prev => [...prev, ...createdParameters]);
+
+          // Create sample form data
+          const sampleForm = {
+            title: "Manufacturing Quality Inspection Form",
+            description: "Comprehensive quality inspection form with follow-up questions for manufacturing processes",
+            isVisible: true,
+            locationEnabled: true,
+            sections: [
+              {
+                id: crypto.randomUUID(),
+                title: "Process Overview",
+                description: "Initial assessment of the manufacturing process",
+                weightage: 25,
+                questions: [
+                  {
+                    id: crypto.randomUUID(),
+                    text: "What is the current production line status?",
+                    type: "radio",
+                    required: true,
+                    options: ["Running Normally", "Minor Issues", "Major Issues", "Stopped"],
+                    subParam1: "Efficiency Index",
+                    subParam2: "Safety Score",
+                    followUpConfig: {
+                      "Minor Issues": { hasFollowUp: true, required: true },
+                      "Major Issues": { hasFollowUp: true, required: true },
+                      "Stopped": { hasFollowUp: true, required: true },
+                    },
+                    followUpQuestions: [
+                      {
+                        id: crypto.randomUUID(),
+                        text: "Please describe the issue in detail",
+                        type: "textarea",
+                        required: true,
+                        subParam1: "Root Cause",
+                        subParam2: "Action Required",
+                        showWhen: { questionId: "", value: "Minor Issues" },
+                        followUpQuestions: [
+                          {
+                            id: crypto.randomUUID(),
+                            text: "Who is responsible for resolving this issue?",
+                            type: "text",
+                            required: true,
+                            subParam1: "Responsible Party",
+                            showWhen: { questionId: "", value: "" },
+                          }
+                        ]
+                      },
+                      {
+                        id: crypto.randomUUID(),
+                        text: "What is the estimated downtime?",
+                        type: "select",
+                        required: true,
+                        options: ["< 1 hour", "1-4 hours", "4-8 hours", "> 8 hours"],
+                        subParam1: "Timeline",
+                        showWhen: { questionId: "", value: "Major Issues" },
+                      }
+                    ]
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    text: "Rate the overall quality of recent production",
+                    type: "radio",
+                    required: true,
+                    options: ["Excellent", "Good", "Average", "Poor", "Critical"],
+                    subParam1: "Quality Rating",
+                    followUpConfig: {
+                      "Poor": { hasFollowUp: true, required: true },
+                      "Critical": { hasFollowUp: true, required: true },
+                    },
+                    followUpQuestions: [
+                      {
+                        id: crypto.randomUUID(),
+                        text: "What quality issues were identified?",
+                        type: "textarea",
+                        required: true,
+                        subParam1: "Root Cause",
+                        showWhen: { questionId: "", value: "Poor" },
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                id: crypto.randomUUID(),
+                title: "Compliance Check",
+                description: "Verification of regulatory and safety compliance",
+                weightage: 35,
+                questions: [
+                  {
+                    id: crypto.randomUUID(),
+                    text: "Are all safety protocols being followed?",
+                    type: "radio",
+                    required: true,
+                    options: ["Yes", "No", "Partially"],
+                    subParam1: "Safety Score",
+                    subParam2: "Compliance Level",
+                    followUpConfig: {
+                      "No": { hasFollowUp: true, required: true },
+                      "Partially": { hasFollowUp: true, required: true },
+                    },
+                    followUpQuestions: [
+                      {
+                        id: crypto.randomUUID(),
+                        text: "Which protocols are not being followed?",
+                        type: "textarea",
+                        required: true,
+                        subParam1: "Root Cause",
+                        showWhen: { questionId: "", value: "No" },
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                id: crypto.randomUUID(),
+                title: "Final Assessment",
+                description: "Overall evaluation and recommendations",
+                weightage: 40,
+                questions: [
+                  {
+                    id: crypto.randomUUID(),
+                    text: "Overall process efficiency rating",
+                    type: "radio",
+                    required: true,
+                    options: ["Highly Efficient", "Efficient", "Needs Improvement", "Inefficient"],
+                    subParam1: "Efficiency Index",
+                    followUpConfig: {
+                      "Needs Improvement": { hasFollowUp: true, required: false },
+                      "Inefficient": { hasFollowUp: true, required: true },
+                    },
+                    followUpQuestions: [
+                      {
+                        id: crypto.randomUUID(),
+                        text: "What improvements are recommended?",
+                        type: "textarea",
+                        required: true,
+                        subParam1: "Action Required",
+                        showWhen: { questionId: "", value: "Needs Improvement" },
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          };
+
+          // Fix followUp questionId references
+          sampleForm.sections.forEach(section => {
+            section.questions.forEach(question => {
+              if (question.followUpQuestions) {
+                question.followUpQuestions.forEach(followUp => {
+                  if (followUp.showWhen) {
+                    followUp.showWhen.questionId = question.id;
+                  }
+                  if (followUp.followUpQuestions) {
+                    followUp.followUpQuestions.forEach(nestedFollowUp => {
+                      if (nestedFollowUp.showWhen) {
+                        nestedFollowUp.showWhen.questionId = followUp.id;
+                      }
+                    });
+                  }
+                });
+              }
+            });
+          });
+
+          setForm(sampleForm);
+          showSuccess("Sample data loaded successfully!", "Sample Data");
+        }
+      );
+    } catch (error) {
+      console.error("Failed to load sample data:", error);
+      showError("Failed to load sample data", "Error");
+    }
+  };
 
   const handleSave = async () => {
     if (!form.title.trim()) {
@@ -2536,6 +2780,20 @@ export default function FormCreator() {
                 Cancel
               </button>
               <button
+                onClick={loadSampleData}
+                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+              >
+                <FileText className="w-5 h-5" />
+                Load Sample Data
+              </button>
+              <button
+                onClick={() => setShowParameterModal(true)}
+                className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Create Parameters
+              </button>
+              <button
                 onClick={handleSave}
                 className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
               >
@@ -3047,6 +3305,18 @@ export default function FormCreator() {
 
                             {/* Question Body */}
                             <div className="p-5">
+                              {/* Parameter Display */}
+                              {question.subParam1 && (
+                                <div className="mb-4">
+                                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30 border border-purple-300 dark:border-purple-600 rounded-lg">
+                                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                    <span className="text-sm font-semibold text-purple-800 dark:text-purple-200">
+                                      {question.subParam1}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                   <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
@@ -3192,33 +3462,53 @@ export default function FormCreator() {
                                   <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                                     Sub Parameter 1
                                   </label>
-                                  <input
-                                    type="text"
+                                  <select
                                     value={question.subParam1 || ""}
                                     onChange={(e) =>
                                       updateQuestion(section.id, question.id, {
                                         subParam1: e.target.value,
                                       })
                                     }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
-                                    placeholder="Keyword 1 (optional)"
-                                  />
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm dark:bg-gray-800 dark:text-gray-100"
+                                  >
+                                    <option value="">-- Select Parameter --</option>
+                                    {parameters
+                                      .filter(param => {
+                                        const isFollowup = isFollowupQuestion(question, section);
+                                        return isFollowup ? param.type === 'followup' : param.type === 'main';
+                                      })
+                                      .map((param) => (
+                                        <option key={param.id} value={param.name}>
+                                          {param.name} ({param.type})
+                                        </option>
+                                      ))}
+                                  </select>
                                 </div>
                                 <div>
                                   <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                                     Sub Parameter 2
                                   </label>
-                                  <input
-                                    type="text"
+                                  <select
                                     value={question.subParam2 || ""}
                                     onChange={(e) =>
                                       updateQuestion(section.id, question.id, {
                                         subParam2: e.target.value,
                                       })
                                     }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
-                                    placeholder="Keyword 2 (optional)"
-                                  />
+                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm dark:bg-gray-800 dark:text-gray-100"
+                                  >
+                                    <option value="">-- Select Parameter --</option>
+                                    {parameters
+                                      .filter(param => {
+                                        const isFollowup = isFollowupQuestion(question, section);
+                                        return isFollowup ? param.type === 'followup' : param.type === 'main';
+                                      })
+                                      .map((param) => (
+                                        <option key={param.id} value={param.name}>
+                                          {param.name} ({param.type})
+                                        </option>
+                                      ))}
+                                  </select>
                                 </div>
                               </div>
 
@@ -3649,6 +3939,7 @@ export default function FormCreator() {
                                         options: question.options,
                                       }}
                                       path={[question.id]}
+                                      parameters={parameters}
                                       onUpdate={(
                                         nestedSectionId,
                                         followUpQuestionId,
@@ -4011,6 +4302,22 @@ export default function FormCreator() {
           </div>
         </div>
       </div>
+
+      {/* Parameter Modal */}
+      <ParameterModal
+        isOpen={showParameterModal}
+        onClose={() => setShowParameterModal(false)}
+        formId={id}
+        onParameterCreated={async () => {
+          // Refresh parameters list
+          try {
+            const response = await apiClient.getParameters({ formId: id });
+            setParameters(response.parameters || []);
+          } catch (error) {
+            console.error("Failed to refresh parameters:", error);
+          }
+        }}
+      />
     </div>
   );
 }

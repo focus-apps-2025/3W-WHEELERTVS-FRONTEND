@@ -15,11 +15,19 @@ interface FollowUpQuestion {
   allowedFileTypes?: string[];
   description?: string;
   imageUrl?: string;
+  subParam1?: string;
+  subParam2?: string;
   showWhen?: ShowWhen;
   parentId: string;
   followUpQuestions?: FollowUpQuestion[];
   requireFollowUp?: boolean;
   correctAnswer?: string;
+}
+
+interface Parameter {
+  id: string;
+  name: string;
+  type: "main" | "followup";
 }
 
 interface NestedFollowUpRendererProps {
@@ -30,6 +38,7 @@ interface NestedFollowUpRendererProps {
     options?: string[];
   };
   path: string[]; // Path to current level in the nested structure
+  parameters?: Parameter[];
   onUpdate: (
     sectionId: string,
     followUpQuestionId: string,
@@ -101,6 +110,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
   sectionId,
   parentQuestion,
   path,
+  parameters = [],
   onUpdate,
   onImageUpload,
   onImageRemove,
@@ -219,6 +229,18 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Parameter Display */}
+            {followUpQ.subParam1 && (
+              <div className="mb-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30 border border-purple-300 dark:border-purple-600 rounded-lg">
+                  <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                  <span className="text-sm font-semibold text-purple-800 dark:text-purple-200">
+                    {followUpQ.subParam1}
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {/* Show When - Full Width */}
@@ -456,6 +478,68 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
               />
             </div>
 
+            {/* Sub Parameters - Full Width */}
+            <div className="lg:col-span-2">
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                    Sub Parameter 1
+                  </label>
+                  <select
+                    value={followUpQ.subParam1 || ""}
+                    onChange={(e) =>
+                      onUpdate(
+                        sectionId,
+                        followUpQ.id,
+                        {
+                          subParam1: e.target.value,
+                        },
+                        path
+                      )
+                    }
+                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm dark:bg-gray-800 dark:text-gray-100"
+                  >
+                    <option value="">-- Select Parameter --</option>
+                    {parameters
+                      .filter(param => param.type === 'followup')
+                      .map((param) => (
+                        <option key={param.id} value={param.name}>
+                          {param.name} (followup)
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                    Sub Parameter 2
+                  </label>
+                  <select
+                    value={followUpQ.subParam2 || ""}
+                    onChange={(e) =>
+                      onUpdate(
+                        sectionId,
+                        followUpQ.id,
+                        {
+                          subParam2: e.target.value,
+                        },
+                        path
+                      )
+                    }
+                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm dark:bg-gray-800 dark:text-gray-100"
+                  >
+                    <option value="">-- Select Parameter --</option>
+                    {parameters
+                      .filter(param => param.type === 'followup')
+                      .map((param) => (
+                        <option key={param.id} value={param.name}>
+                          {param.name} (followup)
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
             {/* Options for radio, checkbox, select, search-select - Full Width */}
             {requiresFollowUp(followUpQ.type) && (
               <div className="lg:col-span-2">
@@ -644,6 +728,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                         options: followUpQ.options,
                       }}
                       path={[...path, followUpQ.id]}
+                      parameters={parameters}
                       onUpdate={onUpdate}
                       onImageUpload={onImageUpload}
                       onImageRemove={onImageRemove}

@@ -540,6 +540,19 @@ export default function FormsManagementNew() {
         sectionBranching: sectionBranching,
       } as any;
       const created = await apiClient.createForm(formPayload);
+
+      // Create parameters if any are specified in the Excel, using the newly created form ID
+      if (parsed.parametersToCreate && parsed.parametersToCreate.length > 0 && created?.form?._id) {
+        const parameterPromises = parsed.parametersToCreate.map(param =>
+          apiClient.createParameter({
+            ...param,
+            formId: created.form._id
+          })
+        );
+        await Promise.all(parameterPromises);
+        showSuccess(`${parsed.parametersToCreate.length} parameter(s) created from Excel`, "Parameters Created");
+      }
+
       showSuccess("Form imported successfully", "Import Complete");
       if (created?.form?._id) {
         navigate(`/forms/${created.form._id}/edit`);

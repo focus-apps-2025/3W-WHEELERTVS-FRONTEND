@@ -787,16 +787,16 @@ export function downloadFormImportTemplate() {
       "Question Type": "yesNoNA",
       Required: "FALSE",
       Options: "Yes,No,N/A",
-      SubParam1: "Additional Input",
-      SubParam2: "Open Comments",
+      SubParam1: "Eligibility",
+      SubParam2: "Document Verification",
       "Allowed File Types": "",
       "Correct Answer": "",
       "Correct Answers": "",
       "FU1: Option": "Yes",
       "FU1: Question Type": "longText",
       "FU1: Required": "TRUE",
-      "FU1: SubParam1": "Additional Comments",
-      "FU1: SubParam2": "Open Feedback",
+      "FU1: SubParam1": "Quality Assessment",
+      "FU1: SubParam2": "Feedback Collection",
       "FU1: Question Text": "Please provide additional comments:",
       "FU1: Options": "",
       "FU1: Correct Answer": "",
@@ -807,8 +807,8 @@ export function downloadFormImportTemplate() {
       "Question Type": "fileUpload",
       Required: "FALSE",
       Options: "",
-      SubParam1: "Document Upload",
-      SubParam2: "Max 5MB",
+      SubParam1: "Service History",
+      SubParam2: "Document Verification",
       "Allowed File Types": "pdf,image",
       "Correct Answer": "",
       "Correct Answers": "",
@@ -854,7 +854,92 @@ export function downloadFormImportTemplate() {
 
   worksheet["!cols"] = headers.map(() => ({ wch: 25 }));
 
+  // Add data validation for SubParam1 and SubParam2 columns
+  worksheet['!datavalidation'] = [
+    {
+      sqref: 'L5:L1000', // SubParam1 column L (11), from row 5 onwards
+      type: 'list',
+      formula1: '=Parameters!$A$4:$A$1000'
+    },
+    {
+      sqref: 'M5:M1000', // SubParam2 column M (12)
+      type: 'list',
+      formula1: '=Parameters!$A$4:$A$1000'
+    },
+    {
+      sqref: 'S5:S1000', // FU1:SubParam1 column S (19)
+      type: 'list',
+      formula1: '=Parameters!$A$4:$A$1000'
+    },
+    {
+      sqref: 'T5:T1000', // FU1:SubParam2 column T (20)
+      type: 'list',
+      formula1: '=Parameters!$A$4:$A$1000'
+    },
+    {
+      sqref: 'AB5:AB1000', // FU2:SubParam1 column AB (27)
+      type: 'list',
+      formula1: '=Parameters!$A$4:$A$1000'
+    },
+    {
+      sqref: 'AC5:AC1000', // FU2:SubParam2 column AC (28)
+      type: 'list',
+      formula1: '=Parameters!$A$4:$A$1000'
+    },
+    {
+      sqref: 'AJ5:AJ1000', // FU3:SubParam1 column AJ (35)
+      type: 'list',
+      formula1: '=Parameters!$A$4:$A$1000'
+    },
+    {
+      sqref: 'AK5:AK1000', // FU3:SubParam2 column AK (36)
+      type: 'list',
+      formula1: '=Parameters!$A$4:$A$1000'
+    }
+  ];
+
+  // Create Parameters sheet
+  const parametersHeaders = ["Parameter Name", "Type"];
+  const parametersDescriptions = ["Name of the parameter", "Type: Main or Followup"];
+
+  const parametersHeaderRow = {
+    "Parameter Name": "Parameter Name",
+    "Type": "Type"
+  };
+
+  const parametersDescriptionRow = {
+    "Parameter Name": parametersDescriptions[0],
+    "Type": parametersDescriptions[1]
+  };
+
+  const parametersSeparatorRow = {
+    "Parameter Name": "",
+    "Type": ""
+  };
+
+  const parametersSampleData = [
+    { "Parameter Name": "Eligibility", "Type": "Main" },
+    { "Parameter Name": "Document Verification", "Type": "Main" },
+    { "Parameter Name": "Service History", "Type": "Main" },
+    { "Parameter Name": "Quality Assessment", "Type": "Followup" },
+    { "Parameter Name": "Feedback Collection", "Type": "Followup" },
+  ];
+
+  const parametersData = [
+    parametersHeaderRow,
+    parametersDescriptionRow,
+    parametersSeparatorRow,
+    ...parametersSampleData
+  ];
+
+  const parametersWorksheet = utils.json_to_sheet(parametersData, {
+    header: parametersHeaders,
+  });
+
+  parametersWorksheet["!cols"] = parametersHeaders.map(() => ({ wch: 25 }));
+
   const workbook = utils.book_new();
+  utils.book_append_sheet(workbook, parametersWorksheet, "Parameters");
   utils.book_append_sheet(workbook, worksheet, "Form Template");
   writeFile(workbook, "form-import-template-nested-followups.xlsx");
 }
@@ -864,33 +949,66 @@ export async function parseFormWorkbook(file: File) {
   const workbook = read(buffer, { type: "array" });
 
   const sheetNames = workbook.SheetNames;
-  const firstSheet = workbook.Sheets[sheetNames[0]];
 
-  if (!firstSheet) {
-    throw new Error("Workbook must have at least one sheet");
+  // Find Parameters sheet
+  const parametersSheetIndex = sheetNames.findIndex(name => name.toLowerCase().includes('parameter'));
+  const parametersSheet = parametersSheetIndex >= 0 ? workbook.Sheets[sheetNames[parametersSheetIndex]] : null;
+
+  // Find Form Template sheet
+  const formSheetIndex = sheetNames.findIndex(name => name.toLowerCase().includes('form') || name.toLowerCase().includes('template'));
+  const formSheet = formSheetIndex >= 0 ? workbook.Sheets[sheetNames[formSheetIndex]] : workbook.Sheets[sheetNames[0]];
+
+  if (!formSheet) {
+    throw new Error("Workbook must have a Form Template sheet");
   }
 
-  const rawData = utils.sheet_to_json<Record<string, any>>(firstSheet, {
+  // Parse parameters from Parameters sheet
+  let parametersToCreate: Array<{ name: string; type: "main" | "followup" }> = [];
+  if (parametersSheet) {
+    const parametersRawData = utils.sheet_to_json<Record<string, any>>(parametersSheet, {
+      defval: "",
+    });
+
+    if (parametersRawData.length > 3) { // Skip header, description, and separator rows
+      const parametersDataRows = parametersRawData.slice(3);
+      parametersToCreate = parametersDataRows
+        .filter(row => row["Parameter Name"]?.toString().trim())
+        .map(row => ({
+          name: row["Parameter Name"].toString().trim(),
+          type: (row["Type"]?.toString().trim().toLowerCase() === "followup" ? "followup" : "main") as "main" | "followup"
+        }));
+    }
+  }
+
+  // Parse form data from Form Template sheet
+  const rawData = utils.sheet_to_json<Record<string, any>>(formSheet, {
     defval: "",
   });
 
   if (rawData.length === 0) {
-    throw new Error("Sheet is empty");
+    throw new Error("Form Template sheet is empty");
   }
 
   const dataRows = rawData.slice(3);
 
   if (dataRows.length === 0) {
     throw new Error(
-      "No data rows found. Please add content starting from row 4 (after the example header and descriptions)."
+      "No data rows found in Form Template. Please add content starting from row 4 (after the example header and descriptions)."
     );
   }
 
-  return parseNewTemplateFormat(dataRows);
+  const formData = parseNewTemplateFormat(dataRows, parametersToCreate);
+
+  // Return combined data
+  return {
+    ...formData,
+    parametersToCreate
+  };
 }
 
 function parseNewTemplateFormat(
-  rows: Record<string, any>[]
+  rows: Record<string, any>[],
+  parametersToCreate: Array<{ name: string; type: "main" | "followup" }>
 ): Partial<Question> & { sections: Section[] } {
   const sectionsMap = new Map<string, Section>();
   const formTitle = rows[0]["Form Title"]?.toString().trim() || "Imported Form";
@@ -972,6 +1090,26 @@ function parseNewTemplateFormat(
 
     const subParam1 = row["SubParam1"]?.toString().trim();
     const subParam2 = row["SubParam2"]?.toString().trim();
+
+    // Validate SubParam1 and SubParam2 against parameters from the Parameters sheet
+    if (subParam1) {
+      const isSubParam1Valid = parametersToCreate.some(p =>
+        p.name.toLowerCase() === subParam1.toLowerCase()
+      );
+      if (!isSubParam1Valid) {
+        throw new Error(`SubParam1 "${subParam1}" is not a valid parameter. Valid parameters: ${parametersToCreate.map(p => p.name).join(', ')}`);
+      }
+    }
+
+    if (subParam2) {
+      const isSubParam2Valid = parametersToCreate.some(p =>
+        p.name.toLowerCase() === subParam2.toLowerCase()
+      );
+      if (!isSubParam2Valid) {
+        throw new Error(`SubParam2 "${subParam2}" is not a valid parameter. Valid parameters: ${parametersToCreate.map(p => p.name).join(', ')}`);
+      }
+    }
+
     const allowedFileTypesStr = row["Allowed File Types"]?.toString().trim();
     const allowedFileTypes = allowedFileTypesStr
       ? allowedFileTypesStr
@@ -1017,6 +1155,26 @@ function parseNewTemplateFormat(
           "true";
         const fuSubParam1 = row[fuSubParam1Key]?.toString().trim();
         const fuSubParam2 = row[fuSubParam2Key]?.toString().trim();
+
+        // Validate followup SubParam1 and SubParam2 against parameters from the Parameters sheet
+        if (fuSubParam1) {
+          const isFuSubParam1Valid = parametersToCreate.some(p =>
+            p.name.toLowerCase() === fuSubParam1.toLowerCase()
+          );
+          if (!isFuSubParam1Valid) {
+            throw new Error(`FU${fuIndex}: SubParam1 "${fuSubParam1}" is not a valid parameter. Valid parameters: ${parametersToCreate.map(p => p.name).join(', ')}`);
+          }
+        }
+
+        if (fuSubParam2) {
+          const isFuSubParam2Valid = parametersToCreate.some(p =>
+            p.name.toLowerCase() === fuSubParam2.toLowerCase()
+          );
+          if (!isFuSubParam2Valid) {
+            throw new Error(`FU${fuIndex}: SubParam2 "${fuSubParam2}" is not a valid parameter. Valid parameters: ${parametersToCreate.map(p => p.name).join(', ')}`);
+          }
+        }
+
         const fuOptionsStr = row[fuOptionsKey]?.toString().trim() || "";
         const fuCorrectAnswer =
           row[fuCorrectAnswerKey]?.toString().trim() || "";
