@@ -1951,49 +1951,99 @@ export default function AllResponses() {
                         </div>
                       </div>
 
-                      {/* Follow-up Questions Table */}
+                      {/* Main Parameters and Subparameters Table */}
                       <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transform hover:scale-[1.01] transition-all duration-500 hover:shadow-3xl">
-                        <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 p-6">
+                        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 p-6">
                           <h3 className="text-2xl font-bold text-white flex items-center">
-                            <PieChart className="w-7 h-7 mr-3" />
-                            Follow-up Questions Details
+                            <BarChart3 className="w-7 h-7 mr-3" />
+                            Main Parameters & Subparameters
                           </h3>
-                          <p className="text-indigo-100 mt-1">Answers to all follow-up questions and sub-parameters</p>
+                          <p className="text-emerald-100 mt-1">Main questions with their follow-up answers organized by subparameters</p>
                         </div>
                         <div className="overflow-x-auto">
                           {(() => {
-                            // Collect all follow-up questions from form
-                            const allFollowUpQuestions: any[] = [];
+                            // Debug: Log form structure
+                            console.log('Selected Form:', selectedForm);
+                            console.log('Form sections:', selectedForm?.sections);
+                            console.log('Form followUpQuestions:', selectedForm?.followUpQuestions);
 
-                            // Add form-level follow-up questions
-                            if (selectedForm?.followUpQuestions) {
-                              selectedForm.followUpQuestions.forEach((followUp, index) => {
-                                allFollowUpQuestions.push({
-                                  ...followUp,
-                                  displayIndex: index + 1,
-                                  source: 'form'
+                            // Collect main questions that have follow-up questions
+                            const mainQuestionsWithFollowUps: any[] = [];
+
+                            // Process sections to group main questions with their follow-ups
+                            selectedForm?.sections?.forEach((section: any) => {
+                              console.log('Processing section:', section.title, section.questions, section.followUpQuestions);
+                              const questions = section.questions || [];
+                              let i = 0;
+                              while (i < questions.length) {
+                                const question = questions[i];
+                                console.log('Processing question:', question.text, question.followUpQuestions);
+                                console.log('Full question object:', JSON.stringify(question, null, 2));
+                                if (question.type !== 'text') {
+                                  // This is a main question (non-text type)
+                                  const mainQuestion = {
+                                    ...question,
+                                    sectionTitle: section.title,
+                                    followUpQuestions: []
+                                  };
+                                  i++;
+                                  // Collect follow-ups (text type) until next main
+                                  while (i < questions.length && questions[i].type === 'text') {
+                                    mainQuestion.followUpQuestions.push(questions[i]);
+                                    i++;
+                                  }
+                                  if (mainQuestion.followUpQuestions.length > 0) {
+                                    mainQuestionsWithFollowUps.push(mainQuestion);
+                                  }
+                                } else {
+                                  // Skip orphaned follow-up
+                                  i++;
+                                }
+                              }
+                              // Check if section has followUpQuestions (legacy support)
+                              if (section.followUpQuestions && section.followUpQuestions.length > 0) {
+                                console.log('Found section-level followUpQuestions:', section.followUpQuestions);
+                                mainQuestionsWithFollowUps.push({
+                                  id: `section-${section.id}-followups`,
+                                  text: `${section.title} Follow-up Questions`,
+                                  followUpQuestions: section.followUpQuestions,
+                                  sectionTitle: section.title
                                 });
+                              }
+                            });
+
+                            console.log('Main questions with follow-ups:', mainQuestionsWithFollowUps);
+                            console.log('Selected Response answers:', selectedResponse?.answers);
+
+                            // For imported forms, treat form-level followUpQuestions as main questions (legacy support)
+                            if (mainQuestionsWithFollowUps.length === 0 && selectedForm?.followUpQuestions?.length > 0) {
+                              console.log('Using form-level follow-up questions');
+                              // Create a synthetic main question for form-level follow-ups
+                              mainQuestionsWithFollowUps.push({
+                                id: 'form-followups',
+                                text: 'Form Follow-up Questions',
+                                followUpQuestions: selectedForm.followUpQuestions,
+                                sectionTitle: 'Form Level'
                               });
                             }
 
-                            // Add follow-up questions from sections
-                            selectedForm?.sections?.forEach((section: any) => {
-                              section.questions?.forEach((question: any) => {
-                                question.followUpQuestions?.forEach((followUp: any, index: number) => {
-                                  allFollowUpQuestions.push({
-                                    ...followUp,
-                                    displayIndex: allFollowUpQuestions.length + 1,
-                                    source: 'section',
-                                    parentQuestion: question.text || question.id
-                                  });
-                                });
+                            // Collect all unique follow-up questions as columns
+                            const allFollowUpColumns: any[] = [];
+                            const followUpMap = new Map();
+
+                            mainQuestionsWithFollowUps.forEach((mainQuestion) => {
+                              mainQuestion.followUpQuestions?.forEach((followUp: any) => {
+                                if (!followUpMap.has(followUp.id)) {
+                                  followUpMap.set(followUp.id, followUp);
+                                  allFollowUpColumns.push(followUp);
+                                }
                               });
                             });
 
-                            if (allFollowUpQuestions.length === 0) {
+                            if (mainQuestionsWithFollowUps.length === 0) {
                               return (
                                 <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                                  No follow-up questions found in this form.
+                                  No main questions with follow-up questions found in this form.
                                 </div>
                               );
                             }
@@ -2002,54 +2052,39 @@ export default function AllResponses() {
                               <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
                                 <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 sticky top-0">
                                   <tr>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                                      S.No
-                                    </th>
                                     <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-48">
-                                      Question
+                                      Main Parameter
                                     </th>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-32">
-                                      Sub Parameter 1
-                                    </th>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-32">
-                                      Sub Parameter 2
-                                    </th>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-48">
-                                      Answer
-                                    </th>
+                                    {allFollowUpColumns.map((followUp) => (
+                                      <th key={followUp.id} className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-32">
+                                        {followUp.subParam1 || followUp.subParam2 || followUp.text || followUp.id}
+                                      </th>
+                                    ))}
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
-                                  {allFollowUpQuestions.map((followUp, index) => {
-                                    const answer = selectedResponse?.answers?.[followUp.id];
-                                    return (
-                                      <tr key={followUp.id} className={`hover:bg-gradient-to-r hover:from-indigo-50 hover:to-purple-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all duration-300 ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800'}`}>
-                                        <td className="px-6 py-5 font-bold text-gray-900 dark:text-gray-100 flex items-center">
-                                          <div className="w-3 h-3 bg-indigo-500 rounded-full mr-3"></div>
-                                          {followUp.displayIndex}
-                                        </td>
-                                        <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                          <div className="flex flex-col">
-                                            <span>{followUp.text || followUp.id}</span>
-                                            {followUp.parentQuestion && (
-                                              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                                (From: {followUp.parentQuestion})
-                                              </span>
-                                            )}
-                                          </div>
-                                        </td>
-                                        <td className="px-6 py-5 text-gray-700 dark:text-gray-300">
-                                          {followUp.subParam1 || '-'}
-                                        </td>
-                                        <td className="px-6 py-5 text-gray-700 dark:text-gray-300">
-                                          {followUp.subParam2 || '-'}
-                                        </td>
-                                        <td className="px-6 py-5 text-gray-700 dark:text-gray-300">
-                                          {renderAnswerDisplay(answer, followUp)}
-                                        </td>
-                                      </tr>
-                                    );
-                                  })}
+                                  {mainQuestionsWithFollowUps.map((mainQuestion, index) => (
+                                    <tr key={mainQuestion.id} className={`hover:bg-gradient-to-r hover:from-emerald-50 hover:to-teal-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all duration-300 ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800'}`}>
+                                      <td className="px-6 py-5 font-bold text-gray-900 dark:text-gray-100 flex items-center">
+                                        <div className="w-3 h-3 bg-emerald-500 rounded-full mr-3"></div>
+                                        <div className="flex flex-col">
+                                          <span>{mainQuestion.subParam1 || mainQuestion.subParam2 || mainQuestion.text || mainQuestion.id}</span>
+                                          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            ({mainQuestion.sectionTitle})
+                                          </span>
+                                        </div>
+                                      </td>
+                                      {allFollowUpColumns.map((followUp) => {
+                                        const isFollowUpOfMain = mainQuestion.followUpQuestions?.some((fu: any) => fu.id === followUp.id);
+                                        const answer = isFollowUpOfMain ? selectedResponse?.answers?.[followUp.id] : null;
+                                        return (
+                                          <td key={followUp.id} className="px-6 py-5 text-gray-700 dark:text-gray-300">
+                                            {isFollowUpOfMain ? renderAnswerDisplay(answer, followUp) : '-'}
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  ))}
                                 </tbody>
                               </table>
                             );
