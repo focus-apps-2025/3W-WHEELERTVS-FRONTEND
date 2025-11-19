@@ -969,15 +969,19 @@ export async function parseFormWorkbook(file: File) {
       defval: "",
     });
 
-    if (parametersRawData.length > 3) { // Skip header, description, and separator rows
-      const parametersDataRows = parametersRawData.slice(3);
-      parametersToCreate = parametersDataRows
-        .filter(row => row["Parameter Name"]?.toString().trim())
-        .map(row => ({
-          name: row["Parameter Name"].toString().trim(),
-          type: (row["Type"]?.toString().trim().toLowerCase() === "followup" ? "followup" : "main") as "main" | "followup"
-        }));
-    }
+    // Extract parameters, skipping first row if it contains headers/descriptions
+    // Look for rows with "Parameter Name" column that have actual names
+    parametersToCreate = parametersRawData
+      .filter(row => {
+        const paramName = row["Parameter Name"]?.toString().trim();
+        // Skip if it's a header or empty
+        return paramName && paramName.toLowerCase() !== "parameter name" && paramName !== "";
+      })
+      .map(row => ({
+        name: row["Parameter Name"].toString().trim(),
+        type: (row["Type"]?.toString().trim().toLowerCase() === "followup" ? "followup" : "main") as "main" | "followup"
+      }))
+      .slice(0); // Remove any undefined entries
   }
 
   // Parse form data from Form Template sheet

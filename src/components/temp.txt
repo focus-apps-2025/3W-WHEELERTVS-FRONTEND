@@ -838,45 +838,24 @@ export default function AllResponses() {
     const mainQuestionsWithFollowUps: any[] = [];
     const questionIds = collectYesNoQuestionIds({ ...selectedForm, sections: [section] });
 
-    const mainQuestions: any[] = [];
-    const followUpMap = new Map<string, any[]>();
-
     section.questions?.forEach((question: any) => {
-      if (question.showWhen && question.showWhen.questionId) {
-        const parentId = question.showWhen.questionId;
-        if (!followUpMap.has(parentId)) {
-          followUpMap.set(parentId, []);
-        }
-        followUpMap.get(parentId)!.push(question);
-      } else {
-        mainQuestions.push(question);
-      }
-    });
-
-    mainQuestions.forEach((question: any) => {
       if (questionIds.includes(question.id)) {
         const answers = selectedResponse.answers?.[question.id];
         const yesNoValues = extractYesNoValues(answers);
 
-        const followUpQuestionsForThis = [
-          ...(selectedForm.followUpQuestions?.filter(
-            (fq: any) => fq.parentId === question.id
-          ) || []),
-          ...(question.followUpQuestions || []),
-          ...(followUpMap.get(question.id) || [])
-        ];
+        if (yesNoValues.length > 0) {
+          const followUpQuestionsForThis = selectedForm.followUpQuestions?.filter(
+            (fq: any) => fq.parentQuestionId === question.id
+          ) || [];
 
-        if (yesNoValues.length > 0 || followUpQuestionsForThis.length > 0) {
           const mainQuestion = {
             id: question.id,
             title: question.title || question.label,
-            subParam1: question.subParam1,
             yesNoValues,
             followUpQuestions: followUpQuestionsForThis.map((fq: any) => ({
-              id: fq.id || fq._id,
-              title: fq.title || fq.label || fq.text,
-              subParam1: fq.subParam1,
-              answer: selectedResponse.answers?.[fq.id || fq._id],
+              id: fq.id,
+              title: fq.title || fq.label,
+              answer: selectedResponse.answers?.[fq.id],
             })),
           };
 
@@ -1283,13 +1262,6 @@ export default function AllResponses() {
             return null;
           }
 
-          const allFollowUpIds = new Set<string>();
-          sectionQuestions.forEach((q: any) => {
-            q.followUpQuestions.forEach((fq: any) => {
-              allFollowUpIds.add(fq.id);
-            });
-          });
-
           return (
             <div
               key={section.id}
@@ -1300,40 +1272,24 @@ export default function AllResponses() {
                   <div className="w-1 h-8 bg-emerald-600 rounded-full"></div>
                   {section.name || section.label || `Section`}
                 </h3>
-                {/* <p className="text-emerald-700 dark:text-emerald-300 mt-2">
+                <p className="text-emerald-700 dark:text-emerald-300 mt-2">
                   Main questions with their follow-up answers organized by subparameters
-                </p> */}
-                {/* {allFollowUpIds.size > 0 && (
-                  <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 rounded text-sm text-blue-800 dark:text-blue-200">
-                    <strong>Found {allFollowUpIds.size} follow-up question(s)</strong> • {Array.from(allFollowUpIds).join(', ')}
-                  </div>
-                )} */}
-                {allFollowUpIds.size === 0 && sectionQuestions.length > 0 && (
-                  <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 rounded text-sm text-yellow-800 dark:text-yellow-200">
-                    <strong>⚠️ No follow-up questions found</strong> for {sectionQuestions.length} main question(s)
-                  </div>
-                )}
+                </p>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full">
                   <thead>
                     <tr className="bg-emerald-200 dark:bg-emerald-800/50">
-                      <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-64">
+                      <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold">
                         Main Parameters
                       </th>
-                      {Array.from(allFollowUpIds).map((followUpId) => {
-                        const followUpObj = sectionQuestions
-                          .flatMap((q: any) => q.followUpQuestions)
-                          .find((fq: any) => fq.id === followUpId);
-                        return (
-                          <th key={followUpId} className="px-4 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-48 bg-emerald-50 dark:bg-emerald-900/30">
-                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                              {followUpObj?.subParam1 || followUpId}
-                            </span>
-                          </th>
-                        );
-                      })}
+                      <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold">
+                        Response
+                      </th>
+                      <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold">
+                        Subparameters
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1346,24 +1302,50 @@ export default function AllResponses() {
                             : "bg-emerald-100/30 dark:bg-emerald-900/10"
                         }`}
                       >
-                        <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-emerald-200 dark:border-emerald-800">
-                          <div className="font-bold text-base">{mainQuestion.subParam1 || "No parameter set"}</div>
-                          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{mainQuestion.title}</div>
+                        <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200">
+                          {mainQuestion.title}
                         </td>
-                        {Array.from(allFollowUpIds).map((followUpId) => {
-                          const followUp = mainQuestion.followUpQuestions.find((fq: any) => fq.id === followUpId);
-                          return (
-                            <td key={followUpId} className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20">
-                              {followUp ? (
-                                <p className="font-medium">
-                                  {followUp.answer || <span className="text-gray-400 italic">No answer</span>}
-                                </p>
-                              ) : (
-                                <span className="text-gray-400 italic">N/A</span>
-                              )}
-                            </td>
-                          );
-                        })}
+                        <td className="px-6 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            {mainQuestion.yesNoValues.map((value: string, idx: number) => (
+                              <span
+                                key={idx}
+                                className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                                  value.toLowerCase() === "yes"
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200"
+                                    : value.toLowerCase() === "no"
+                                    ? "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200"
+                                    : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200"
+                                }`}
+                              >
+                                {value}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          {mainQuestion.followUpQuestions.length > 0 ? (
+                            <div className="space-y-2">
+                              {mainQuestion.followUpQuestions.map((followUp: any) => (
+                                <div
+                                  key={followUp.id}
+                                  className="bg-emerald-100/50 dark:bg-emerald-900/30 p-3 rounded-lg border-l-4 border-emerald-500"
+                                >
+                                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                    {followUp.title}
+                                  </p>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                    {followUp.answer || "No answer"}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-gray-500 dark:text-gray-400 text-sm italic">
+                              No subparameters
+                            </p>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -2194,6 +2176,129 @@ export default function AllResponses() {
                       {/* Main Parameters and Subparameters - Section Wise */}
                       <div className="space-y-0">
                         {renderSectionWiseMainParameters()}
+                      </div>
+                            const mainQuestionsWithFollowUps: any[] = [];
+
+                            // Process sections to group main questions with their follow-ups
+                            selectedForm?.sections?.forEach((section: any) => {
+                              console.log('Processing section:', section.title, section.questions, section.followUpQuestions);
+                              const questions = section.questions || [];
+                              let i = 0;
+                              while (i < questions.length) {
+                                const question = questions[i];
+                                console.log('Processing question:', question.text, question.followUpQuestions);
+                                console.log('Full question object:', JSON.stringify(question, null, 2));
+                                if (question.type !== 'text') {
+                                  // This is a main question (non-text type)
+                                  const mainQuestion = {
+                                    ...question,
+                                    sectionTitle: section.title,
+                                    followUpQuestions: []
+                                  };
+                                  i++;
+                                  // Collect follow-ups (text type) until next main
+                                  while (i < questions.length && questions[i].type === 'text') {
+                                    mainQuestion.followUpQuestions.push(questions[i]);
+                                    i++;
+                                  }
+                                  if (mainQuestion.followUpQuestions.length > 0) {
+                                    mainQuestionsWithFollowUps.push(mainQuestion);
+                                  }
+                                } else {
+                                  // Skip orphaned follow-up
+                                  i++;
+                                }
+                              }
+                              // Check if section has followUpQuestions (legacy support)
+                              if (section.followUpQuestions && section.followUpQuestions.length > 0) {
+                                console.log('Found section-level followUpQuestions:', section.followUpQuestions);
+                                mainQuestionsWithFollowUps.push({
+                                  id: `section-${section.id}-followups`,
+                                  text: `${section.title} Follow-up Questions`,
+                                  followUpQuestions: section.followUpQuestions,
+                                  sectionTitle: section.title
+                                });
+                              }
+                            });
+
+                            console.log('Main questions with follow-ups:', mainQuestionsWithFollowUps);
+                            console.log('Selected Response answers:', selectedResponse?.answers);
+
+                            // For imported forms, treat form-level followUpQuestions as main questions (legacy support)
+                            if (mainQuestionsWithFollowUps.length === 0 && selectedForm?.followUpQuestions?.length > 0) {
+                              console.log('Using form-level follow-up questions');
+                              // Create a synthetic main question for form-level follow-ups
+                              mainQuestionsWithFollowUps.push({
+                                id: 'form-followups',
+                                text: 'Form Follow-up Questions',
+                                followUpQuestions: selectedForm.followUpQuestions,
+                                sectionTitle: 'Form Level'
+                              });
+                            }
+
+                            // Collect all unique follow-up questions as columns
+                            const allFollowUpColumns: any[] = [];
+                            const followUpMap = new Map();
+
+                            mainQuestionsWithFollowUps.forEach((mainQuestion) => {
+                              mainQuestion.followUpQuestions?.forEach((followUp: any) => {
+                                if (!followUpMap.has(followUp.id)) {
+                                  followUpMap.set(followUp.id, followUp);
+                                  allFollowUpColumns.push(followUp);
+                                }
+                              });
+                            });
+
+                            if (mainQuestionsWithFollowUps.length === 0) {
+                              return (
+                                <div className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                  No main questions with follow-up questions found in this form.
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 sticky top-0">
+                                  <tr>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-48">
+                                      Main Parameter
+                                    </th>
+                                    {allFollowUpColumns.map((followUp) => (
+                                      <th key={followUp.id} className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-32">
+                                        {followUp.subParam1 || followUp.subParam2 || followUp.text || followUp.id}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                                  {mainQuestionsWithFollowUps.map((mainQuestion, index) => (
+                                    <tr key={mainQuestion.id} className={`hover:bg-gradient-to-r hover:from-emerald-50 hover:to-teal-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all duration-300 ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800'}`}>
+                                      <td className="px-6 py-5 font-bold text-gray-900 dark:text-gray-100 flex items-center">
+                                        <div className="w-3 h-3 bg-emerald-500 rounded-full mr-3"></div>
+                                        <div className="flex flex-col">
+                                          <span>{mainQuestion.subParam1 || mainQuestion.subParam2 || mainQuestion.text || mainQuestion.id}</span>
+                                          <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                            ({mainQuestion.sectionTitle})
+                                          </span>
+                                        </div>
+                                      </td>
+                                      {allFollowUpColumns.map((followUp) => {
+                                        const isFollowUpOfMain = mainQuestion.followUpQuestions?.some((fu: any) => fu.id === followUp.id);
+                                        const answer = isFollowUpOfMain ? selectedResponse?.answers?.[followUp.id] : null;
+                                        return (
+                                          <td key={followUp.id} className="px-6 py-5 text-gray-700 dark:text-gray-300">
+                                            {isFollowUpOfMain ? renderAnswerDisplay(answer, followUp) : '-'}
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            );
+                          })()}
+                        </div>
                       </div>
 
                       {/* Quick Actions */}

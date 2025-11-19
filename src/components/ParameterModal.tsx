@@ -55,7 +55,7 @@ export default function ParameterModal({
 
   const fetchParameters = async () => {
     try {
-      const response = await apiClient.getParameters();
+      const response = await apiClient.getParameters({ formId });
       setExistingParameters(response.parameters || []);
     } catch (error) {
       console.error("Failed to fetch parameters:", error);

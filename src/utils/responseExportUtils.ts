@@ -304,10 +304,29 @@ function buildResponsesSheetContent(
     0
   );
 
+  // Extract header labels from the first row that has pairs
+  const headerLabels: string[] = [];
+  for (let i = 0; i < maxPairs; i++) {
+    headerLabels.push("");
+  }
+  
+  for (const section of preparedSections) {
+    for (const r of section.rows) {
+      r.pairs.forEach((p, idx) => {
+        if (idx < maxPairs && !headerLabels[idx]) {
+          const match = p.label.match(/^(.+?)\.\s/);
+          headerLabels[idx] = match ? match[1] : p.label;
+        }
+      });
+      if (headerLabels.every(l => l)) break;
+    }
+    if (headerLabels.every(l => l)) break;
+  }
+
   // Build header row
   const headerRow: any[] = ["Section"];
   for (let i = 0; i < maxPairs; i++) {
-    headerRow.push(i === 0 ? "Main Question" : "Follow-Up Question");
+    headerRow.push(headerLabels[i] || (i === 0 ? "Main Question" : "Follow-Up Question"));
     headerRow.push("Answer");
   }
   rows.push(headerRow);
