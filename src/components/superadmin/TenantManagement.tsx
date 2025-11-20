@@ -57,6 +57,7 @@ export default function TenantManagement() {
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [uploadingTenantId, setUploadingTenantId] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: { percentage: number; timeRemaining?: number } }>({});
   const { showSuccess, showError } = useNotification();
 
   useEffect(() => {
@@ -107,16 +108,25 @@ export default function TenantManagement() {
       return;
     }
 
-    if (file.size > 1024 * 1024) {
-      showError("Logo file size should be less than 1MB", "File Too Large");
-      input.value = "";
-      return;
-    }
-
+    // File size validation is now handled in the uploadFile method (10MB limit)
     setUploadingTenantId(tenantId);
+    setUploadProgress({});
 
     try {
-      const uploadResult = await apiClient.uploadFile(file, "tenant_logo");
+      const uploadResult = await apiClient.uploadFile(
+        file,
+        "tenant_logo",
+        undefined,
+        (progress) => {
+          setUploadProgress((prev) => ({
+            ...prev,
+            [tenantId]: {
+              percentage: progress.percentage,
+              timeRemaining: progress.timeRemaining
+            }
+          }));
+        }
+      );
       const logoUrl = apiClient.resolveUploadedFileUrl(uploadResult) + '?t=' + Date.now();
       const target = tenants.find((item) => item._id === tenantId);
       const settings = { ...(target?.settings || {}), logo: logoUrl };
@@ -132,6 +142,11 @@ export default function TenantManagement() {
       showError(message, "Upload Failed");
     } finally {
       setUploadingTenantId(null);
+      setUploadProgress((prev) => {
+        const updated = { ...prev };
+        delete updated[tenantId];
+        return updated;
+      });
       input.value = "";
     }
   };
@@ -334,36 +349,59 @@ export default function TenantManagement() {
                     <div className="flex-1 min-w-[200px]">
                       <p className="text-sm font-medium text-primary-900">Tenant Logo</p>
                       <p className="text-xs text-primary-600 mt-1">
-                        Upload a custom logo to brand this tenant's workspace. PNG, JPG, or GIF up to 1MB.
+                        Upload a custom logo to brand this tenant's workspace. PNG, JPG, or GIF up to 10MB.
                       </p>
                       <div className="mt-3 flex flex-wrap items-center gap-3">
-                        <label
-                          className={`inline-flex items-center gap-2 rounded-lg border border-primary-200 px-4 py-2 text-xs font-semibold text-primary-700 cursor-pointer hover:bg-primary-50 transition ${
-                            uploadingTenantId === tenant._id ? "opacity-60 cursor-not-allowed" : ""
-                          }`}
-                        >
-                          <Upload className="w-4 h-4" />
-                          <span>
-                            {uploadingTenantId === tenant._id ? "Saving..." : "Upload Logo"}
-                          </span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={(event) => handleTenantLogoChange(tenant._id, event)}
-                            disabled={uploadingTenantId === tenant._id}
-                          />
-                        </label>
-                        {tenantLogo && (
-                          <button
-                            type="button"
-                            onClick={() => handleTenantLogoRemove(tenant._id)}
-                            disabled={uploadingTenantId === tenant._id}
-                            className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Remove
-                          </button>
+                        {uploadingTenantId === tenant._id && uploadProgress[tenant._id] ? (
+                          <div className="w-full space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Upload className="w-4 h-4 text-primary-600 animate-pulse" />
+                              <span className="text-xs font-semibold text-primary-700">
+                                Uploading... {uploadProgress[tenant._id].percentage}%
+                              </span>
+                            </div>
+                            <div className="w-full bg-neutral-200 rounded-full h-1.5">
+                              <div
+                                className="bg-primary-600 h-1.5 rounded-full transition-all duration-300"
+                                style={{ width: `${uploadProgress[tenant._id].percentage}%` }}
+                              ></div>
+                            </div>
+                            {uploadProgress[tenant._id].timeRemaining && (
+                              <p className="text-xs text-neutral-500">
+                                {Math.floor(uploadProgress[tenant._id].timeRemaining / 60)}:
+                                {(uploadProgress[tenant._id].timeRemaining % 60).toString().padStart(2, '0')} remaining
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            <label
+                              className={`inline-flex items-center gap-2 rounded-lg border border-primary-200 px-4 py-2 text-xs font-semibold text-primary-700 cursor-pointer hover:bg-primary-50 transition ${
+                                uploadingTenantId === tenant._id ? "opacity-60 cursor-not-allowed" : ""
+                              }`}
+                            >
+                              <Upload className="w-4 h-4" />
+                              <span>Upload Logo</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                onChange={(event) => handleTenantLogoChange(tenant._id, event)}
+                                disabled={uploadingTenantId === tenant._id}
+                              />
+                            </label>
+                            {tenantLogo && (
+                              <button
+                                type="button"
+                                onClick={() => handleTenantLogoRemove(tenant._id)}
+                                disabled={uploadingTenantId === tenant._id}
+                                className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                                Remove
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>

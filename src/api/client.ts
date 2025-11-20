@@ -1,5 +1,5 @@
-// const API_BASE_URL = "http://localhost:5000/api";
-const API_BASE_URL = "https://formsapi.focusengineeringapp.com/api";
+const API_BASE_URL = "http://localhost:5000/api";
+// const API_BASE_URL = "https://formsapi.focusengineeringapp.com/api";
 // https://forms-backend-96nd.onrender.com
 interface ApiResponse<T> {
   success: boolean;
@@ -468,23 +468,11 @@ class ApiClient {
     return new Promise((resolve, reject) => {
       const formData = new FormData();
       formData.append("file", file);
-
-      if (category) {
-        formData.append("associatedType", category);
-      }
-
+      formData.append("upload_preset", "focus_forms_unsigned");
+      formData.append("folder", `focus_forms/${category}`);
+      
       if (associatedId) {
-        formData.append("associatedId", associatedId);
-      }
-
-      const query = new URLSearchParams();
-
-      if (category) {
-        query.set("associatedType", category);
-      }
-
-      if (associatedId) {
-        query.set("associatedId", associatedId);
+        formData.append("tags", `associatedId_${associatedId}`);
       }
 
       const xhr = new XMLHttpRequest();
@@ -510,12 +498,20 @@ class ApiClient {
 
       xhr.addEventListener('load', () => {
         try {
-          const data: ApiResponse<any> = JSON.parse(xhr.responseText);
+          const data = JSON.parse(xhr.responseText);
 
-          if (xhr.status >= 200 && xhr.status < 300 && data.success) {
-            resolve(data.data);
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve({
+              url: data.secure_url,
+              file: {
+                url: data.secure_url,
+                filename: data.public_id,
+                originalName: file.name,
+                size: file.size
+              }
+            });
           } else {
-            reject(new ApiError(xhr.status, data, data.message || 'Upload failed'));
+            reject(new ApiError(xhr.status, data, data.error?.message || 'Upload failed'));
           }
         } catch (error) {
           reject(new ApiError(xhr.status, null, 'Invalid response from server'));
@@ -530,14 +526,7 @@ class ApiClient {
         reject(new ApiError(0, null, 'Upload was cancelled'));
       });
 
-      const url = `${this.baseUrl}/files/upload${query.toString() ? `?${query.toString()}` : ""}`;
-
-      xhr.open('POST', url);
-
-      if (this.token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
-      }
-
+      xhr.open('POST', 'https://api.cloudinary.com/v1_1/dsfi2hwoq/image/upload');
       xhr.send(formData);
     });
   }
