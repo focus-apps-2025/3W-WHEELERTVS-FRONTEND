@@ -49,7 +49,7 @@ const createInitialFormState = (): CreateFormState => ({
 });
 
 export default function AdminManagement() {
-  const { user, tenant, updateTenant } = useAuth();
+  const { user, tenant, updateTenant, loading: authLoading } = useAuth();
   const { logo, updateLogo } = useLogo();
   const { showSuccess, showError } = useNotification();
   const [admins, setAdmins] = useState<SubAdmin[]>([]);
@@ -58,6 +58,13 @@ export default function AdminManagement() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [brandingSaving, setBrandingSaving] = useState(false);
+  const [brandingProgress, setBrandingProgress] = useState<{
+    percentage: number;
+    loaded: number;
+    total: number;
+    timeRemaining?: number;
+    speed?: number;
+  } | null>(null);
   const [form, setForm] = useState<CreateFormState>(() => createInitialFormState());
 
   const isAdmin = user?.role === "admin";
@@ -90,28 +97,35 @@ export default function AdminManagement() {
     event: ChangeEvent<HTMLInputElement>
   ) => {
     if (!tenant?._id) {
+      setError("Tenant information not available. Please refresh the page.");
       return;
     }
 
     const input = event.target;
     const file = input.files?.[0];
+
     if (!file) {
       return;
     }
 
-    if (file.size > 1024 * 1024) {
-      showError("File size should be less than 1MB", "File Too Large");
-      input.value = "";
-      return;
-    }
-
+    // File size validation is now handled in the uploadFile method
     setBrandingSaving(true);
     setError(null);
+    setBrandingProgress(null);
 
     try {
-      const uploadResult = await apiClient.uploadFile(file, "tenant_logo");
+      const uploadResult = await apiClient.uploadFile(
+        file,
+        "tenant_logo",
+        undefined, // No associatedId for tenant logo
+        (progress) => {
+          setBrandingProgress(progress);
+        }
+      );
+
       const logoUrl = apiClient.resolveUploadedFileUrl(uploadResult) + '?t=' + Date.now();
       const settings = { ...(tenant.settings || {}), logo: logoUrl };
+
       await apiClient.updateTenant(tenant._id, { settings });
       updateTenant({ ...tenant, settings });
       updateLogo(logoUrl);
@@ -123,6 +137,7 @@ export default function AdminManagement() {
       showError(message, "Error");
     } finally {
       setBrandingSaving(false);
+      setBrandingProgress(null);
       input.value = "";
     }
   };
@@ -274,7 +289,15 @@ export default function AdminManagement() {
         </div>
       </div>
 
-      {tenant && (
+      {authLoading ? (
+        <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
+          <div className="text-center py-8">
+            <Loader2 className="w-12 h-12 text-neutral-400 dark:text-neutral-500 mx-auto mb-4 animate-spin" />
+            <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">Loading...</h3>
+            <p className="text-neutral-600 dark:text-neutral-300">Loading tenant information...</p>
+          </div>
+        </div>
+      ) : tenant ? (
         <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
@@ -291,17 +314,46 @@ export default function AdminManagement() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <label className={`inline-flex items-center gap-2 rounded-lg border border-primary-200 dark:border-primary-500 px-4 py-2 text-sm font-medium text-primary-700 dark:text-primary-200 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/40 dark:bg-primary-900/20 transition ${brandingSaving ? "opacity-60 cursor-not-allowed" : ""}`}>
-                <Upload className="w-4 h-4" />
-                <span>{brandingSaving ? "Uploading..." : "Upload Logo"}</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleBrandingFileChange}
-                  disabled={brandingSaving}
-                />
-              </label>
+              {brandingSaving ? (
+                <div className="flex flex-col gap-2 min-w-[200px]">
+                  <div className="flex items-center gap-2 text-sm text-primary-700 dark:text-primary-200">
+                    <Upload className="w-4 h-4 animate-pulse" />
+                    <span>
+                      {brandingProgress
+                        ? `Uploading... ${brandingProgress.percentage}%`
+                        : "Uploading..."
+                      }
+                    </span>
+                  </div>
+                  {brandingProgress && (
+                    <>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div
+                          className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${brandingProgress.percentage}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                        {brandingProgress.timeRemaining
+                          ? `${Math.floor(brandingProgress.timeRemaining / 60)}:${(brandingProgress.timeRemaining % 60).toString().padStart(2, '0')} remaining`
+                          : 'Calculating...'
+                        }
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <label className={`inline-flex items-center gap-2 rounded-lg border border-primary-200 dark:border-primary-500 px-4 py-2 text-sm font-medium text-primary-700 dark:text-primary-200 cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-900/40 dark:bg-primary-900/20 transition`}>
+                  <Upload className="w-4 h-4" />
+                  <span>Upload Logo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleBrandingFileChange}
+                  />
+                </label>
+              )}
               {logo && (
                 <button
                   type="button"
@@ -314,6 +366,19 @@ export default function AdminManagement() {
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
+          <div className="text-center py-8">
+            <ImageIcon className="w-12 h-12 text-neutral-400 dark:text-neutral-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">Tenant Branding</h3>
+            <p className="text-neutral-600 dark:text-neutral-300">
+              {isAdmin
+                ? "Tenant information not available. Please contact support."
+                : "Tenant branding is only available for administrators."
+              }
+            </p>
           </div>
         </div>
       )}

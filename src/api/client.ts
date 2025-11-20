@@ -456,53 +456,90 @@ class ApiClient {
   async uploadFile(
     file: File,
     category: string = "general",
-    associatedId?: string
+    associatedId?: string,
+    onProgress?: (progress: { percentage: number; loaded: number; total: number; timeRemaining?: number; speed?: number }) => void
   ) {
-    const formData = new FormData();
-    formData.append("file", file);
-
-    if (category) {
-      formData.append("associatedType", category);
+    // Validate file size (10MB limit)
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    if (file.size > maxSize) {
+      throw new ApiError(400, null, `File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum limit of 10MB`);
     }
 
-    if (associatedId) {
-      formData.append("associatedId", associatedId);
-    }
+    return new Promise((resolve, reject) => {
+      const formData = new FormData();
+      formData.append("file", file);
 
-    const headers: Record<string, string> = {};
-
-    if (this.token) {
-      headers.Authorization = `Bearer ${this.token}`;
-    }
-
-    const query = new URLSearchParams();
-
-    if (category) {
-      query.set("associatedType", category);
-    }
-
-    if (associatedId) {
-      query.set("associatedId", associatedId);
-    }
-
-    const response = await fetch(
-      `${this.baseUrl}/files/upload${
-        query.toString() ? `?${query.toString()}` : ""
-      }`,
-      {
-        method: "POST",
-        headers,
-        body: formData,
+      if (category) {
+        formData.append("associatedType", category);
       }
-    );
 
-    const data: ApiResponse<any> = await response.json();
+      if (associatedId) {
+        formData.append("associatedId", associatedId);
+      }
 
-    if (!response.ok || !data.success) {
-      throw new ApiError(response.status, data, data.message);
-    }
+      const query = new URLSearchParams();
 
-    return data.data;
+      if (category) {
+        query.set("associatedType", category);
+      }
+
+      if (associatedId) {
+        query.set("associatedId", associatedId);
+      }
+
+      const xhr = new XMLHttpRequest();
+      const startTime = Date.now();
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const percentage = Math.round((event.loaded / event.total) * 100);
+          const elapsed = Date.now() - startTime;
+          const speed = event.loaded / (elapsed / 1000); // bytes per second
+          const remaining = (event.total - event.loaded) / speed;
+          const timeRemaining = isFinite(remaining) ? Math.round(remaining) : undefined;
+
+          onProgress({
+            percentage,
+            loaded: event.loaded,
+            total: event.total,
+            timeRemaining,
+            speed
+          });
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        try {
+          const data: ApiResponse<any> = JSON.parse(xhr.responseText);
+
+          if (xhr.status >= 200 && xhr.status < 300 && data.success) {
+            resolve(data.data);
+          } else {
+            reject(new ApiError(xhr.status, data, data.message || 'Upload failed'));
+          }
+        } catch (error) {
+          reject(new ApiError(xhr.status, null, 'Invalid response from server'));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new ApiError(0, null, 'Network error during upload'));
+      });
+
+      xhr.addEventListener('abort', () => {
+        reject(new ApiError(0, null, 'Upload was cancelled'));
+      });
+
+      const url = `${this.baseUrl}/files/upload${query.toString() ? `?${query.toString()}` : ""}`;
+
+      xhr.open('POST', url);
+
+      if (this.token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
+      }
+
+      xhr.send(formData);
+    });
   }
 
   resolveUploadedFileUrl(uploadResult: any) {

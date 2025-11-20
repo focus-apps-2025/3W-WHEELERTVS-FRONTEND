@@ -1284,11 +1284,18 @@ export default function AllResponses() {
           }
 
           const allFollowUpIds = new Set<string>();
+          const followUpIdAnswerStatus = new Map<string, boolean>();
+          
           sectionQuestions.forEach((q: any) => {
             q.followUpQuestions.forEach((fq: any) => {
               allFollowUpIds.add(fq.id);
+              if (fq.answer && fq.answer !== "N/A" && fq.answer !== "n/a") {
+                followUpIdAnswerStatus.set(fq.id, true);
+              }
             });
           });
+
+          const followUpIdsWithAnswers = Array.from(allFollowUpIds).filter(id => followUpIdAnswerStatus.get(id) === true);
 
           return (
             <div
@@ -1322,7 +1329,7 @@ export default function AllResponses() {
                       <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-64">
                         Main Parameters
                       </th>
-                      {Array.from(allFollowUpIds).map((followUpId) => {
+                      {followUpIdsWithAnswers.map((followUpId) => {
                         const followUpObj = sectionQuestions
                           .flatMap((q: any) => q.followUpQuestions)
                           .find((fq: any) => fq.id === followUpId);
@@ -1350,7 +1357,7 @@ export default function AllResponses() {
                           <div className="font-bold text-base">{mainQuestion.subParam1 || "No parameter set"}</div>
                           <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{mainQuestion.title}</div>
                         </td>
-                        {Array.from(allFollowUpIds).map((followUpId) => {
+                        {followUpIdsWithAnswers.map((followUpId) => {
                           const followUp = mainQuestion.followUpQuestions.find((fq: any) => fq.id === followUpId);
                           return (
                             <td key={followUpId} className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20">

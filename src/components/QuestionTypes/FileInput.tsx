@@ -80,6 +80,13 @@ export default function FileInput({
 }: FileInputProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{
+    percentage: number;
+    loaded: number;
+    total: number;
+    timeRemaining?: number;
+    speed?: number;
+  } | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const fileName = useMemo(() => resolveFileName(value), [value]);
@@ -103,6 +110,18 @@ export default function FileInput({
       if (readOnly) return;
       const file = e.target.files?.[0];
       if (file) {
+        // Check file size before upload
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+          const errorMsg = `File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum limit of 10MB`;
+          setError(errorMsg);
+          e.target.value = "";
+          if (inputRef.current) {
+            inputRef.current.value = "";
+          }
+          return;
+        }
+
         const allowed = question.allowedFileTypes;
         if (allowed && allowed.length > 0) {
           const isValid = allowed.some((type) => {
@@ -125,7 +144,17 @@ export default function FileInput({
         try {
           setUploading(true);
           setError(null);
-          const result = await apiClient.uploadFile(file, "form", question.id);
+          setUploadProgress(null);
+
+          const result = await apiClient.uploadFile(
+            file,
+            "form",
+            question.id,
+            (progress) => {
+              setUploadProgress(progress);
+            }
+          );
+
           const uploadedUrl = apiClient.resolveUploadedFileUrl(result);
 
           if (!uploadedUrl) {
@@ -143,6 +172,7 @@ export default function FileInput({
           }
         } finally {
           setUploading(false);
+          setUploadProgress(null);
         }
       }
     },
@@ -171,9 +201,35 @@ export default function FileInput({
         {uploading ? (
           <>
             <Loader2 className="w-8 h-8 text-blue-400 mb-2 animate-spin" />
-            <span className="text-sm text-blue-600 dark:text-blue-400">
-              Uploading file...
-            </span>
+            <div className="text-center space-y-2">
+              <span className="text-sm text-blue-600 dark:text-blue-400">
+                Uploading file...
+              </span>
+              {uploadProgress && (
+                <div className="space-y-2">
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress.percentage}%` }}
+                    ></div>
+                  </div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                    <div className="flex justify-between">
+                      <span>{uploadProgress.percentage}%</span>
+                      <span>
+                        {uploadProgress.timeRemaining
+                          ? `${Math.floor(uploadProgress.timeRemaining / 60)}:${(uploadProgress.timeRemaining % 60).toString().padStart(2, '0')} remaining`
+                          : 'Calculating...'
+                        }
+                      </span>
+                    </div>
+                    <div className="text-center">
+                      {(uploadProgress.loaded / 1024 / 1024).toFixed(1)}MB / {(uploadProgress.total / 1024 / 1024).toFixed(1)}MB
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         ) : (
           <>

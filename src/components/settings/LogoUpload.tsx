@@ -16,9 +16,9 @@ export default function LogoUpload({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 1024 * 1024) {
-        // 1MB limit
-        showError("File size should be less than 1MB", "File Too Large");
+      const maxSize = 10 * 1024 * 1024; // 10MB limit
+      if (file.size > maxSize) {
+        showError(`File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum limit of 10MB`, "File Too Large");
         return;
       }
 
@@ -64,7 +64,7 @@ export default function LogoUpload({
               onChange={handleFileChange}
             />
             <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              PNG, JPG or GIF (Max. 1MB)
+              PNG, JPG or GIF (Max. 10MB)
             </p>
           </label>
         </div>
