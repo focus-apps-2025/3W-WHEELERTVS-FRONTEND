@@ -23,7 +23,7 @@ import {
   AlertTriangle,
   Save,
 } from "lucide-react";
-import { Bar, Line } from "react-chartjs-2";
+import { Bar, Line, Pie } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -35,6 +35,7 @@ import {
   Tooltip,
   Legend,
   Filler,
+  ArcElement,
 } from "chart.js";
 import type { ActiveElement } from "chart.js";
 import { apiClient } from "../api/client";
@@ -56,7 +57,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  ArcElement
 );
 
 function formatSectionLabel(label: string, maxLength = 20): string {
@@ -1265,6 +1267,201 @@ export default function AllResponses() {
     );
   };
 
+  const getSectionYesNoQuestionStats = (sectionId: string) => {
+    if (!selectedForm || !selectedResponse) return [];
+
+    const section = selectedForm.sections?.find((s: any) => s.id === sectionId);
+    if (!section) return [];
+
+    const questionStats: Array<{
+      id: string;
+      title: string;
+      subParam1?: string;
+      yes: number;
+      no: number;
+      na: number;
+      total: number;
+    }> = [];
+
+    const processQuestion = (question: any) => {
+      if (!question) return;
+
+      if (question.type === "yesNoNA" && question.id) {
+        const normalizedValues = extractYesNoValues(selectedResponse.answers?.[question.id]);
+        const counts = { yes: 0, no: 0, na: 0, total: 0 };
+
+        if (normalizedValues.length > 0) {
+          counts.total = 1; // Each question counts as 1 response
+          if (normalizedValues.includes("yes")) counts.yes = 1;
+          if (normalizedValues.includes("no")) counts.no = 1;
+          if (normalizedValues.includes("n/a") || normalizedValues.includes("na") || normalizedValues.includes("not applicable")) counts.na = 1;
+        }
+
+        questionStats.push({
+          id: question.id,
+          title: question.title || question.label || question.text || `Question ${question.id}`,
+          subParam1: question.subParam1,
+          ...counts
+        });
+      }
+
+      // Process follow-up questions if they are yesNoNA type
+      question.followUpQuestions?.forEach(processQuestion);
+    };
+
+    section.questions?.forEach(processQuestion);
+
+    return questionStats;
+  };
+
+  const renderSectionYesNoTable = (sectionId: string): React.ReactNode => {
+    const questionStats = getSectionYesNoQuestionStats(sectionId);
+    const section = selectedForm?.sections?.find((s: any) => s.id === sectionId);
+
+    if (questionStats.length === 0) {
+      return null;
+    }
+
+    // Calculate totals for the section
+    const sectionTotals = questionStats.reduce(
+      (totals, stat) => ({
+        yes: totals.yes + stat.yes,
+        no: totals.no + stat.no,
+        na: totals.na + stat.na,
+        total: totals.total + stat.total
+      }),
+      { yes: 0, no: 0, na: 0, total: 0 }
+    );
+
+    // Chart data for the section
+    const chartData = {
+      labels: ['Yes', 'No', 'N/A'],
+      datasets: [{
+        data: [sectionTotals.yes, sectionTotals.no, sectionTotals.na],
+        backgroundColor: ['#1d4ed8', '#3b82f6', '#93c5fd'],
+        borderColor: ['#1e40af', '#2563eb', '#60a5fa'],
+        borderWidth: 2,
+      }],
+    };
+
+    const chartOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom' as const,
+          labels: {
+            color: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151',
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: (context: any) => `${context.label}: ${context.parsed}%`
+          }
+        }
+      },
+    };
+
+    return (
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-8 rounded-3xl shadow-xl border border-blue-200 dark:border-blue-800 mt-8">
+        <div className="mb-6">
+          <h3 className="text-2xl font-bold text-blue-900 dark:text-blue-100 flex items-center gap-3">
+            <div className="w-1 h-8 bg-blue-600 rounded-full"></div>
+            {section?.name || section?.label || `Section`} - Yes/No/N/A Analysis
+          </h3>
+          <p className="text-blue-700 dark:text-blue-300 mt-2">
+            Question-wise breakdown of yes/no/n/a responses with overall section summary
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Chart */}
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700">
+            <h4 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-4 flex items-center">
+              <PieChart className="w-5 h-5 mr-2" />
+              Response Distribution
+            </h4>
+            <div className="w-full h-64">
+              <Pie data={chartData} options={chartOptions} />
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700 overflow-hidden">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4">
+              <h4 className="text-lg font-bold text-white flex items-center">
+                <BarChart3 className="w-5 h-5 mr-2" />
+                Question Breakdown
+              </h4>
+            </div>
+            <div className="overflow-x-auto max-h-64">
+              <table className="w-full divide-y divide-blue-200 dark:divide-blue-700 text-sm">
+                <thead className="bg-blue-50 dark:bg-blue-900/50 sticky top-0">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-48">
+                      Question
+                    </th>
+                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
+                      Yes
+                    </th>
+                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
+                      No
+                    </th>
+                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
+                      N/A
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-blue-200 dark:divide-blue-700 bg-white dark:bg-gray-900">
+                  {questionStats.map((stat, index) => (
+                    <tr key={stat.id} className={`group hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-blue-25 dark:bg-blue-900/5'}`}>
+                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                        <div className="font-semibold">{stat.subParam1 || "No parameter"}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate max-w-48" title={stat.title}>
+                          {stat.title}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
+                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${stat.yes > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500'}`}>
+                          {stat.yes}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
+                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${stat.no > 0 ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500'}`}>
+                          {stat.no}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
+                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${stat.na > 0 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500'}`}>
+                          {stat.na}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  {/* Section Totals Row */}
+                  <tr className="bg-blue-100 dark:bg-blue-900/50 border-t-2 border-blue-300 dark:border-blue-600">
+                    <td className="px-4 py-3 font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">
+                      Section Total
+                    </td>
+                    <td className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100">
+                      {sectionTotals.yes}
+                    </td>
+                    <td className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100">
+                      {sectionTotals.no}
+                    </td>
+                    <td className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100">
+                      {sectionTotals.na}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderSectionWiseMainParameters = (): React.ReactNode => {
     if (!selectedForm || !selectedResponse || !availableSections.length) {
       return (
@@ -1285,7 +1482,7 @@ export default function AllResponses() {
 
           const allFollowUpIds = new Set<string>();
           const followUpIdAnswerStatus = new Map<string, boolean>();
-          
+
           sectionQuestions.forEach((q: any) => {
             q.followUpQuestions.forEach((fq: any) => {
               allFollowUpIds.add(fq.id);
@@ -1298,83 +1495,88 @@ export default function AllResponses() {
           const followUpIdsWithAnswers = Array.from(allFollowUpIds).filter(id => followUpIdAnswerStatus.get(id) === true);
 
           return (
-            <div
-              key={section.id}
-              className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-8 rounded-3xl shadow-xl border border-emerald-200 dark:border-emerald-800"
-            >
-              <div className="mb-6">
-                <h3 className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
-                  <div className="w-1 h-8 bg-emerald-600 rounded-full"></div>
-                  {section.name || section.label || `Section`}
-                </h3>
-                {/* <p className="text-emerald-700 dark:text-emerald-300 mt-2">
-                  Main questions with their follow-up answers organized by subparameters
-                </p> */}
-                {/* {allFollowUpIds.size > 0 && (
-                  <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 rounded text-sm text-blue-800 dark:text-blue-200">
-                    <strong>Found {allFollowUpIds.size} follow-up question(s)</strong> • {Array.from(allFollowUpIds).join(', ')}
-                  </div>
-                )} */}
-                {allFollowUpIds.size === 0 && sectionQuestions.length > 0 && (
-                  <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 rounded text-sm text-yellow-800 dark:text-yellow-200">
-                    <strong>⚠️ No follow-up questions found</strong> for {sectionQuestions.length} main question(s)
-                  </div>
-                )}
-              </div>
+            <div key={section.id}>
+              {/* Yes/No/N/A Table and Chart */}
+              {renderSectionYesNoTable(section.id)}
 
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-emerald-200 dark:bg-emerald-800/50">
-                      <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-64">
-                        Main Parameters
-                      </th>
-                      {followUpIdsWithAnswers.map((followUpId) => {
-                        const followUpObj = sectionQuestions
-                          .flatMap((q: any) => q.followUpQuestions)
-                          .find((fq: any) => fq.id === followUpId);
-                        return (
-                          <th key={followUpId} className="px-4 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-48 bg-emerald-50 dark:bg-emerald-900/30">
-                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                              {followUpObj?.subParam1 || followUpId}
-                            </span>
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sectionQuestions.map((mainQuestion, index) => (
-                      <tr
-                        key={mainQuestion.id}
-                        className={`border-b border-emerald-200 dark:border-emerald-800 ${
-                          index % 2 === 0
-                            ? "bg-white dark:bg-gray-800/50"
-                            : "bg-emerald-100/30 dark:bg-emerald-900/10"
-                        }`}
-                      >
-                        <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-emerald-200 dark:border-emerald-800">
-                          <div className="font-bold text-base">{mainQuestion.subParam1 || "No parameter set"}</div>
-                          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{mainQuestion.title}</div>
-                        </td>
+              {/* Main Parameters Table */}
+              <div
+                className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-8 rounded-3xl shadow-xl border border-emerald-200 dark:border-emerald-800"
+              >
+                <div className="mb-6">
+                  <h3 className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
+                    <div className="w-1 h-8 bg-emerald-600 rounded-full"></div>
+                    {section.name || section.label || `Section`} - Main Parameters
+                  </h3>
+                  {/* <p className="text-emerald-700 dark:text-emerald-300 mt-2">
+                    Main questions with their follow-up answers organized by subparameters
+                  </p> */}
+                  {/* {allFollowUpIds.size > 0 && (
+                    <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 rounded text-sm text-blue-800 dark:text-blue-200">
+                      <strong>Found {allFollowUpIds.size} follow-up question(s)</strong> • {Array.from(allFollowUpIds).join(', ')}
+                    </div>
+                  )} */}
+                  {allFollowUpIds.size === 0 && sectionQuestions.length > 0 && (
+                    <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 rounded text-sm text-yellow-800 dark:text-yellow-200">
+                      <strong>⚠️ No follow-up questions found</strong> for {sectionQuestions.length} main question(s)
+                    </div>
+                  )}
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-emerald-200 dark:bg-emerald-800/50">
+                        <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-64">
+                          Main Parameters
+                        </th>
                         {followUpIdsWithAnswers.map((followUpId) => {
-                          const followUp = mainQuestion.followUpQuestions.find((fq: any) => fq.id === followUpId);
+                          const followUpObj = sectionQuestions
+                            .flatMap((q: any) => q.followUpQuestions)
+                            .find((fq: any) => fq.id === followUpId);
                           return (
-                            <td key={followUpId} className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20">
-                              {followUp ? (
-                                <p className="font-medium">
-                                  {followUp.answer || <span className="text-gray-400 italic">No answer</span>}
-                                </p>
-                              ) : (
-                                <span className="text-gray-400 italic">N/A</span>
-                              )}
-                            </td>
+                            <th key={followUpId} className="px-4 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-48 bg-emerald-50 dark:bg-emerald-900/30">
+                              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                                {followUpObj?.subParam1 || followUpId}
+                              </span>
+                            </th>
                           );
                         })}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {sectionQuestions.map((mainQuestion, index) => (
+                        <tr
+                          key={mainQuestion.id}
+                          className={`border-b border-emerald-200 dark:border-emerald-800 ${
+                            index % 2 === 0
+                              ? "bg-white dark:bg-gray-800/50"
+                              : "bg-emerald-100/30 dark:bg-emerald-900/10"
+                          }`}
+                        >
+                          <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-emerald-200 dark:border-emerald-800">
+                            <div className="font-bold text-base">{mainQuestion.subParam1 || "No parameter set"}</div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{mainQuestion.title}</div>
+                          </td>
+                          {followUpIdsWithAnswers.map((followUpId) => {
+                            const followUp = mainQuestion.followUpQuestions.find((fq: any) => fq.id === followUpId);
+                            return (
+                              <td key={followUpId} className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20">
+                                {followUp ? (
+                                  <p className="font-medium">
+                                    {followUp.answer || <span className="text-gray-400 italic">No answer</span>}
+                                  </p>
+                                ) : (
+                                  <span className="text-gray-400 italic">N/A</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           );

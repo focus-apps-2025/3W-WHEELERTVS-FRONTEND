@@ -1,6 +1,15 @@
-// const API_BASE_URL = "http://localhost:5000/api";
-const API_BASE_URL = "https://formsapi.focusengineeringapp.com/api";
-// https://forms-backend-96nd.onrender.com
+// Automatically detect environment and set API base URL
+const API_BASE_URL = (() => {
+  const hostname = window.location.hostname;
+  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
+
+  const baseUrl = isLocal
+    ? "http://localhost:5000/api"
+    : "https://formsapi.focusengineeringapp.com/api";
+
+  console.log(`🔗 API Base URL: ${baseUrl} (Environment: ${isLocal ? 'Local' : 'Production'})`);
+  return baseUrl;
+})();
 interface ApiResponse<T> {
   success: boolean;
   message?: string;
@@ -638,6 +647,10 @@ class ApiClient {
     return this.request<{ tenants: any[]; total: number }>(
       `/tenants?search=${search}&status=${status}`
     );
+  }
+
+  async getTenant(tenantId: string) {
+    return this.request<{ tenant: any }>(`/tenants/${tenantId}`);
   }
 
   async createTenant(tenantData: any) {

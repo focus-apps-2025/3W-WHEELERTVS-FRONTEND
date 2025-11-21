@@ -67,7 +67,23 @@ export default function AdminManagement() {
   } | null>(null);
   const [form, setForm] = useState<CreateFormState>(() => createInitialFormState());
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+
+  // Fetch tenant information if missing (only for superadmin)
+  useEffect(() => {
+    const fetchTenantIfNeeded = async () => {
+      if (user?.tenantId && !tenant && !authLoading && user.role === "superadmin") {
+        try {
+          const tenantResponse = await apiClient.getTenant(user.tenantId);
+          updateTenant(tenantResponse.tenant);
+        } catch (err) {
+          console.warn("Failed to fetch tenant information:", err);
+        }
+      }
+    };
+
+    fetchTenantIfNeeded();
+  }, [user?.tenantId, user?.role, tenant, authLoading, updateTenant]);
 
   const loadSubAdmins = useCallback(async () => {
     if (!isAdmin) {
@@ -96,7 +112,8 @@ export default function AdminManagement() {
   const handleBrandingFileChange = async (
     event: ChangeEvent<HTMLInputElement>
   ) => {
-    if (!tenant?._id) {
+    const tenantId = user?.tenantId || tenant?._id;
+    if (!tenantId) {
       setError("Tenant information not available. Please refresh the page.");
       return;
     }
@@ -124,10 +141,12 @@ export default function AdminManagement() {
       );
 
       const logoUrl = apiClient.resolveUploadedFileUrl(uploadResult) + '?t=' + Date.now();
-      const settings = { ...(tenant.settings || {}), logo: logoUrl };
+      const settings = { ...(tenant?.settings || {}), logo: logoUrl };
 
-      await apiClient.updateTenant(tenant._id, { settings });
-      updateTenant({ ...tenant, settings });
+      await apiClient.updateTenant(tenantId, { settings });
+      if (tenant) {
+        updateTenant({ ...tenant, settings });
+      }
       updateLogo(logoUrl);
       showSuccess("Tenant logo updated successfully", "Logo Updated");
     } catch (err) {
@@ -143,7 +162,8 @@ export default function AdminManagement() {
   };
 
   const handleBrandingRemove = async () => {
-    if (!tenant?._id || brandingSaving) {
+    const tenantId = user?.tenantId || tenant?._id;
+    if (!tenantId || brandingSaving) {
       return;
     }
 
@@ -151,9 +171,11 @@ export default function AdminManagement() {
     setError(null);
 
     try {
-      const settings = { ...(tenant.settings || {}), logo: "" };
-      await apiClient.updateTenant(tenant._id, { settings });
-      updateTenant({ ...tenant, settings });
+      const settings = { ...(tenant?.settings || {}), logo: "" };
+      await apiClient.updateTenant(tenantId, { settings });
+      if (tenant) {
+        updateTenant({ ...tenant, settings });
+      }
       updateLogo("");
       showSuccess("Tenant logo removed", "Logo Removed");
     } catch (err) {
@@ -297,7 +319,7 @@ export default function AdminManagement() {
             <p className="text-neutral-600 dark:text-neutral-300">Loading tenant information...</p>
           </div>
         </div>
-      ) : tenant ? (
+      ) : tenant && user?.role === "superadmin" ? (
         <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
@@ -374,9 +396,9 @@ export default function AdminManagement() {
             <ImageIcon className="w-12 h-12 text-neutral-400 dark:text-neutral-500 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-neutral-900 dark:text-neutral-100 mb-2">Tenant Branding</h3>
             <p className="text-neutral-600 dark:text-neutral-300">
-              {isAdmin
+              {user?.role === "superadmin"
                 ? "Tenant information not available. Please contact support."
-                : "Tenant branding is only available for administrators."
+                : "Tenant branding is only available for super administrators."
               }
             </p>
           </div>

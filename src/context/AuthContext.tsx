@@ -98,7 +98,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           // Restore tenant info if available
           if (storedTenant) {
-            setTenant(JSON.parse(storedTenant));
+            const parsedTenant = JSON.parse(storedTenant);
+            setTenant(parsedTenant);
+
+            // If tenant exists but doesn't have _id, try to fetch it (only for superadmin)
+            if (parsedTenant && !parsedTenant._id && response.user.tenantId && response.user.role === "superadmin") {
+              try {
+                const tenantResponse = await apiClient.getTenant(response.user.tenantId);
+                updateTenantState(tenantResponse.tenant);
+              } catch (tenantErr) {
+                console.warn("Failed to fetch tenant information:", tenantErr);
+                // Keep the stored tenant if fetch fails
+              }
+            }
+          } else if (response.user.tenantId && response.user.role === "superadmin") {
+            // No stored tenant but user has tenantId, try to fetch it (only for superadmin)
+            try {
+              const tenantResponse = await apiClient.getTenant(response.user.tenantId);
+              updateTenantState(tenantResponse.tenant);
+            } catch (tenantErr) {
+              console.warn("Failed to fetch tenant information:", tenantErr);
+            }
           }
         } catch (err) {
           apiClient.clearToken();
