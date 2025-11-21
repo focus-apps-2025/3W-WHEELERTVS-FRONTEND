@@ -1311,7 +1311,30 @@ export default function AllResponses() {
 
     section.questions?.forEach(processQuestion);
 
-    return questionStats;
+    const groupedStats: Map<string, {
+      id: string;
+      title: string;
+      subParam1?: string;
+      yes: number;
+      no: number;
+      na: number;
+      total: number;
+    }> = new Map();
+
+    questionStats.forEach(stat => {
+      const key = stat.subParam1 || "No parameter";
+      if (groupedStats.has(key)) {
+        const existing = groupedStats.get(key)!;
+        existing.yes += stat.yes;
+        existing.no += stat.no;
+        existing.na += stat.na;
+        existing.total += stat.total;
+      } else {
+        groupedStats.set(key, { ...stat });
+      }
+    });
+
+    return Array.from(groupedStats.values());
   };
 
   const renderSectionYesNoTable = (sectionId: string): React.ReactNode => {
@@ -1417,9 +1440,6 @@ export default function AllResponses() {
                     <tr key={stat.id} className={`group hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-blue-25 dark:bg-blue-900/5'}`}>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
                         <div className="font-semibold">{stat.subParam1 || "No parameter"}</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate max-w-48" title={stat.title}>
-                          {stat.title}
-                        </div>
                       </td>
                       <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
                         <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${stat.yes > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500'}`}>
@@ -1494,6 +1514,27 @@ export default function AllResponses() {
 
           const followUpIdsWithAnswers = Array.from(allFollowUpIds).filter(id => followUpIdAnswerStatus.get(id) === true);
 
+          // Group follow-ups by their subParam1 values to avoid duplicate headers
+          const followUpsBySubParam: Map<string, Array<{id: string, subParam1?: string, answer?: any}>> = new Map();
+
+          followUpIdsWithAnswers.forEach((followUpId) => {
+            const followUpObj = sectionQuestions
+              .flatMap((q: any) => q.followUpQuestions)
+              .find((fq: any) => fq.id === followUpId);
+
+            const subParamKey = followUpObj?.subParam1 || followUpId;
+            if (!followUpsBySubParam.has(subParamKey)) {
+              followUpsBySubParam.set(subParamKey, []);
+            }
+            followUpsBySubParam.get(subParamKey)!.push({
+              id: followUpId,
+              subParam1: followUpObj?.subParam1,
+              answer: followUpObj?.answer
+            });
+          });
+
+          const uniqueSubParams = Array.from(followUpsBySubParam.keys());
+
           return (
             <div key={section.id}>
               {/* Yes/No/N/A Table and Chart */}
@@ -1530,18 +1571,13 @@ export default function AllResponses() {
                         <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-64">
                           Main Parameters
                         </th>
-                        {followUpIdsWithAnswers.map((followUpId) => {
-                          const followUpObj = sectionQuestions
-                            .flatMap((q: any) => q.followUpQuestions)
-                            .find((fq: any) => fq.id === followUpId);
-                          return (
-                            <th key={followUpId} className="px-4 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-48 bg-emerald-50 dark:bg-emerald-900/30">
-                              <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                                {followUpObj?.subParam1 || followUpId}
-                              </span>
-                            </th>
-                          );
-                        })}
+                        {uniqueSubParams.map((subParam) => (
+                          <th key={subParam} className="px-4 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-48 bg-emerald-50 dark:bg-emerald-900/30">
+                            <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                              {subParam}
+                            </span>
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
@@ -1558,14 +1594,25 @@ export default function AllResponses() {
                             <div className="font-bold text-base">{mainQuestion.subParam1 || "No parameter set"}</div>
                             <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{mainQuestion.title}</div>
                           </td>
-                          {followUpIdsWithAnswers.map((followUpId) => {
-                            const followUp = mainQuestion.followUpQuestions.find((fq: any) => fq.id === followUpId);
+                          {uniqueSubParams.map((subParam) => {
+                            const followUpsForParam = followUpsBySubParam.get(subParam) || [];
+                            const answersForParam = followUpsForParam
+                              .map(followUp => {
+                                const followUpFromMain = mainQuestion.followUpQuestions.find((fq: any) => fq.id === followUp.id);
+                                return followUpFromMain?.answer;
+                              })
+                              .filter(answer => answer !== undefined && answer !== null && answer !== "");
+
                             return (
-                              <td key={followUpId} className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20">
-                                {followUp ? (
-                                  <p className="font-medium">
-                                    {followUp.answer || <span className="text-gray-400 italic">No answer</span>}
-                                  </p>
+                              <td key={subParam} className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20">
+                                {answersForParam.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {answersForParam.map((answer, idx) => (
+                                      <p key={idx} className="font-medium">
+                                        {answer}
+                                      </p>
+                                    ))}
+                                  </div>
                                 ) : (
                                   <span className="text-gray-400 italic">N/A</span>
                                 )}
