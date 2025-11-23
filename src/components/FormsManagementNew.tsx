@@ -33,6 +33,7 @@ import {
   parseFormWorkbook,
   loadSampleFormData,
 } from "../utils/exportUtils";
+import ImportPreviewModal from "./ImportPreviewModal";
 import type {
   Question as FormSchema,
   Section as FormSection,
@@ -69,11 +70,16 @@ export default function FormsManagementNew() {
   );
   const dropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const importFileRef = useRef<File | null>(null);
   const { data: formsData, loading, error, execute: refetchForms } = useForms();
   const { showSuccess, showError, showConfirm } = useNotification();
   const { user } = useAuth();
   const [isImporting, setIsImporting] = useState(false);
   const [exportingFormId, setExportingFormId] = useState<string | null>(null);
+  const [showImportPreview, setShowImportPreview] = useState(false);
+  const [importPreviewData, setImportPreviewData] = useState<any>(null);
+  const [importParameters, setImportParameters] = useState<any[]>([]);
+  const [isConfirmingImport, setIsConfirmingImport] = useState(false);
 
   const deleteMutation = useMutation((id: string) => apiClient.deleteForm(id), {
     onSuccess: () => {
@@ -515,6 +521,54 @@ export default function FormsManagementNew() {
     try {
       const parsed = await parseFormWorkbook(file);
 
+      // Save file for later use in confirmation
+      importFileRef.current = file;
+
+      // Prepare preview data
+      const previewSections = (parsed.sections || []).map((section: any) => ({
+        title: section.title,
+        description: section.description,
+        weightage: section.weightage,
+        questions: section.questions.map((q: any) => ({
+          text: q.text,
+          type: q.type,
+          required: q.required,
+          subParam1: q.subParam1,
+          subParam2: q.subParam2,
+          options: q.options,
+          hasFollowUps: q.followUpQuestions && q.followUpQuestions.length > 0,
+        })),
+      }));
+
+      setImportPreviewData({
+        title: parsed.title,
+        description: parsed.description,
+        sections: previewSections,
+      });
+      
+      setImportParameters(parsed.parametersToCreate || []);
+      setShowImportPreview(true);
+    } catch (error: any) {
+      showError(error?.message || "Failed to parse form", "Parse Failed");
+      // Clear file input on error
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!importPreviewData || !importFileRef.current) return;
+
+    setIsConfirmingImport(true);
+
+    try {
+      // Parse the file again to get the full data
+      const file = importFileRef.current;
+      const parsed = await parseFormWorkbook(file);
+
       const sectionBranching: any[] = [];
       parsed.sections?.forEach((section: any) => {
         section.questions?.forEach((question: any) => {
@@ -539,32 +593,43 @@ export default function FormsManagementNew() {
         followUpQuestions: parsed.followUpQuestions || [],
         sectionBranching: sectionBranching,
       } as any;
+
       const created = await apiClient.createForm(formPayload);
 
-      // Create parameters if any are specified in the Excel, using the newly created form ID
-      if (parsed.parametersToCreate && parsed.parametersToCreate.length > 0 && created?.form?._id) {
-        const parameterPromises = parsed.parametersToCreate.map(param =>
+      // Create parameters if any are specified in the Excel
+      if (
+        parsed.parametersToCreate &&
+        parsed.parametersToCreate.length > 0 &&
+        created?.form?._id
+      ) {
+        const parameterPromises = parsed.parametersToCreate.map((param) =>
           apiClient.createParameter({
             ...param,
-            formId: created.form._id
+            formId: created.form._id,
           })
         );
         await Promise.all(parameterPromises);
-        showSuccess(`${parsed.parametersToCreate.length} parameter(s) created from Excel`, "Parameters Created");
+        showSuccess(
+          `Form imported with ${parsed.parametersToCreate.length} parameter(s)`,
+          "Import Complete"
+        );
+      } else {
+        showSuccess("Form imported successfully", "Import Complete");
       }
 
-      showSuccess("Form imported successfully", "Import Complete");
       if (created?.form?._id) {
         navigate(`/forms/${created.form._id}/edit`);
       }
       refetchForms();
-    } catch (error: any) {
-      showError(error?.message || "Failed to import form", "Import Failed");
-    } finally {
-      setIsImporting(false);
+      setShowImportPreview(false);
+      importFileRef.current = null;
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
+    } catch (error: any) {
+      showError(error?.message || "Failed to import form", "Import Failed");
+    } finally {
+      setIsConfirmingImport(false);
     }
   };
 
@@ -957,6 +1022,26 @@ export default function FormsManagementNew() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Import Preview Modal */}
+        {showImportPreview && importPreviewData && (
+          <ImportPreviewModal
+            isOpen={showImportPreview}
+            onClose={() => {
+              setShowImportPreview(false);
+              setImportPreviewData(null);
+              setImportParameters([]);
+              importFileRef.current = null;
+              if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+              }
+            }}
+            onConfirm={handleConfirmImport}
+            formData={importPreviewData}
+            parameters={importParameters}
+            isLoading={isConfirmingImport}
+          />
         )}
       </div>
     </>

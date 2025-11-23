@@ -191,7 +191,28 @@ export default function AllResponses() {
         throw new Error("Missing form identifier for response");
       }
       const formData = await apiClient.getForm(formIdentifier);
-      setSelectedForm(formData.form);
+      const form = formData.form;
+
+      // Ensure nested followUpQuestions are properly populated
+      if (form?.sections) {
+        form.sections.forEach((section: any) => {
+          if (section.questions) {
+            section.questions.forEach((question: any) => {
+              // Ensure followUpQuestions is an array
+              if (!Array.isArray(question.followUpQuestions)) {
+                question.followUpQuestions = [];
+              }
+            });
+          }
+        });
+      }
+
+      // Ensure followUpQuestions array exists at form level
+      if (!Array.isArray(form.followUpQuestions)) {
+        form.followUpQuestions = [];
+      }
+
+      setSelectedForm(form);
     } catch (err) {
       console.error("Failed to load form details:", err);
       setSelectedForm(null);
@@ -260,7 +281,28 @@ export default function AllResponses() {
         throw new Error("Missing form identifier for response");
       }
       const formData = await apiClient.getForm(formIdentifier);
-      setEditingForm(formData.form);
+      const form = formData.form;
+
+      // Ensure nested followUpQuestions are properly populated
+      if (form?.sections) {
+        form.sections.forEach((section: any) => {
+          if (section.questions) {
+            section.questions.forEach((question: any) => {
+              // Ensure followUpQuestions is an array
+              if (!Array.isArray(question.followUpQuestions)) {
+                question.followUpQuestions = [];
+              }
+            });
+          }
+        });
+      }
+
+      // Ensure followUpQuestions array exists at form level
+      if (!Array.isArray(form.followUpQuestions)) {
+        form.followUpQuestions = [];
+      }
+
+      setEditingForm(form);
     } catch (err) {
       console.error("Failed to load form for editing:", err);
       showError("Failed to load form for editing. Please try again.");
@@ -373,7 +415,7 @@ export default function AllResponses() {
         sectionSummaryRows: sectionSummaryRows,
         form: selectedForm,
         response: selectedResponse,
-      });
+      } as any);
       showSuccess("PDF downloaded successfully.");
     } catch (error) {
       console.error("Failed to generate PDF:", error);
@@ -1696,6 +1738,11 @@ export default function AllResponses() {
                     <span className="w-3 h-3 bg-slate-600 rounded-full mr-4 flex-shrink-0"></span>
                     {question.text || question.id}
                   </div>
+                  {question.subParam1 && (
+                    <div className="mt-2 ml-7 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-700 font-medium">
+                      <span className="font-semibold">Main Parameter:</span> {question.subParam1}
+                    </div>
+                  )}
                   <div className="mt-3 text-slate-700 dark:text-slate-300 ml-7 text-base">
                     {renderAnswerDisplay(answer, question)}
                   </div>
@@ -1724,6 +1771,11 @@ export default function AllResponses() {
                           }`}>↳</span>
                           {followUp.text || followUp.id}
                         </div>
+                        {followUp.subParam1 && (
+                          <div className="mt-2 ml-6 text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-700 font-medium w-fit">
+                            <span className="font-semibold">Follow-up Parameter:</span> {followUp.subParam1}
+                          </div>
+                        )}
                         <div className={`mt-2 ml-6 ${
                           hasAnswer
                             ? "text-blue-700 dark:text-blue-300"
@@ -1778,6 +1830,11 @@ export default function AllResponses() {
                     }`}>↳</span>
                     {followUp.text || followUp.id}
                   </div>
+                  {followUp.subParam1 && (
+                    <div className="mt-2 ml-8 text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-700 font-medium w-fit">
+                      <span className="font-semibold">Follow-up Parameter:</span> {followUp.subParam1}
+                    </div>
+                  )}
                   <div className={`mt-3 ml-8 ${
                     hasAnswer
                       ? "text-blue-700 dark:text-blue-300"

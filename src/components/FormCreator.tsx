@@ -158,6 +158,7 @@ export default function FormCreator() {
   } | null>(null);
   const [showParameterModal, setShowParameterModal] = useState(false);
   const [parameters, setParameters] = useState<any[]>([]);
+  const [tempParameters, setTempParameters] = useState<any[]>([]);
   const { showSuccess, showError, showConfirm } = useNotification();
 
   // Fetch tenants for superadmin
@@ -390,15 +391,21 @@ export default function FormCreator() {
   // Fetch parameters
   useEffect(() => {
     const fetchParameters = async () => {
-      try {
-        const response = await apiClient.getParameters(id ? { formId: id } : undefined);
-        setParameters(response.parameters || []);
-      } catch (error) {
-        console.error("Failed to fetch parameters:", error);
+      if (id) {
+        // For existing forms, fetch from API
+        try {
+          const response = await apiClient.getParameters({ formId: id });
+          setParameters(response.parameters || []);
+        } catch (error) {
+          console.error("Failed to fetch parameters:", error);
+        }
+      } else {
+        // For new forms, use temporary parameters
+        setParameters(tempParameters);
       }
     };
     fetchParameters();
-  }, [id]);
+  }, [id, tempParameters]);
 
   // Helper function to determine if a question is a followup question
   const isFollowupQuestion = (question: Question, section: FormSection) => {
@@ -850,6 +857,27 @@ export default function FormCreator() {
             body: JSON.stringify({ rules: formSectionBranching }),
           });
           console.log("Branching rules saved successfully");
+        }
+
+        // Create temporary parameters if any exist
+        if (tempParameters.length > 0) {
+          console.log("Creating parameters for new form:", tempParameters);
+          try {
+            const createPromises = tempParameters.map(param =>
+              apiClient.createParameter({
+                name: param.name,
+                type: param.type,
+                formId: newFormId,
+              })
+            );
+            await Promise.all(createPromises);
+            console.log("Parameters created successfully");
+            // Clear temporary parameters
+            setTempParameters([]);
+          } catch (error) {
+            console.error("Failed to create parameters for new form:", error);
+            showError("Form created but failed to create parameters", "Warning");
+          }
         }
 
         showSuccess("Form created successfully", "Success");
@@ -2788,6 +2816,7 @@ export default function FormCreator() {
               </button>
               <button
                 onClick={() => setShowParameterModal(true)}
+                title="Create parameters for this form"
                 className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
@@ -3473,10 +3502,7 @@ export default function FormCreator() {
                                   >
                                     <option value="">-- Select Parameter --</option>
                                     {parameters
-                                      .filter(param => {
-                                        const isFollowup = isFollowupQuestion(question, section);
-                                        return isFollowup ? param.type === 'followup' : param.type === 'main';
-                                      })
+                                      .filter(param => param.type === 'main')
                                       .map((param) => (
                                         <option key={param.id} value={param.name}>
                                           {param.name} ({param.type})
@@ -3499,10 +3525,7 @@ export default function FormCreator() {
                                   >
                                     <option value="">-- Select Parameter --</option>
                                     {parameters
-                                      .filter(param => {
-                                        const isFollowup = isFollowupQuestion(question, section);
-                                        return isFollowup ? param.type === 'followup' : param.type === 'main';
-                                      })
+                                      .filter(param => param.type === 'followup')
                                       .map((param) => (
                                         <option key={param.id} value={param.name}>
                                           {param.name} ({param.type})
@@ -4308,13 +4331,19 @@ export default function FormCreator() {
         isOpen={showParameterModal}
         onClose={() => setShowParameterModal(false)}
         formId={id}
-        onParameterCreated={async () => {
-          // Refresh parameters list
-          try {
-            const response = await apiClient.getParameters({ formId: id });
-            setParameters(response.parameters || []);
-          } catch (error) {
-            console.error("Failed to refresh parameters:", error);
+        existingParameters={id ? undefined : tempParameters}
+        onParameterCreated={async (createdParams) => {
+          if (id) {
+            // For existing forms, refresh from API
+            try {
+              const response = await apiClient.getParameters({ formId: id });
+              setParameters(response.parameters || []);
+            } catch (error) {
+              console.error("Failed to refresh parameters:", error);
+            }
+          } else {
+            // For new forms, store temporarily
+            setTempParameters(createdParams || []);
           }
         }}
       />
