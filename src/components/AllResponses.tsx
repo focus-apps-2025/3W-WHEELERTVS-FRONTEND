@@ -1421,7 +1421,11 @@ export default function AllResponses() {
         },
         tooltip: {
           callbacks: {
-            label: (context: any) => `${context.label}: ${context.parsed}%`
+            label: (context: any) => {
+              const total = sectionTotals.yes + sectionTotals.no + sectionTotals.na;
+              const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+              return `${context.label}: ${context.parsed} (${percentage}%)`;
+            }
           }
         }
       },
@@ -1475,10 +1479,18 @@ export default function AllResponses() {
                     <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
                       N/A
                     </th>
+                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
+                      Total
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-blue-200 dark:divide-blue-700 bg-white dark:bg-gray-900">
-                  {questionStats.map((stat, index) => (
+                  {questionStats.map((stat, index) => {
+                    const total = stat.yes + stat.no + stat.na;
+                    const yesPercent = total > 0 ? ((stat.yes / total) * 100).toFixed(1) : 0;
+                    const noPercent = total > 0 ? ((stat.no / total) * 100).toFixed(1) : 0;
+                    const naPercent = total > 0 ? ((stat.na / total) * 100).toFixed(1) : 0;
+                    return (
                     <tr key={stat.id} className={`group hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-blue-25 dark:bg-blue-900/5'}`}>
                       <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
                         <div className="font-semibold">{stat.subParam1 || "No parameter"}</div>
@@ -1498,21 +1510,32 @@ export default function AllResponses() {
                           {stat.na}
                         </span>
                       </td>
+                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-bold">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                          {total}
+                        </span>
+                      </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                   {/* Section Totals Row */}
                   <tr className="bg-blue-100 dark:bg-blue-900/50 border-t-2 border-blue-300 dark:border-blue-600">
                     <td className="px-4 py-3 font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">
                       Section Total
                     </td>
-                    <td className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100">
-                      {sectionTotals.yes}
+                    <td className="px-4 py-3 text-center font-bold text-green-800 dark:text-green-300 text-sm">
+                      {sectionTotals.total > 0 ? ((sectionTotals.yes / sectionTotals.total) * 100).toFixed(1) : 0}%
+                    </td>
+                    <td className="px-4 py-3 text-center font-bold text-red-800 dark:text-red-300 text-sm">
+                      {sectionTotals.total > 0 ? ((sectionTotals.no / sectionTotals.total) * 100).toFixed(1) : 0}%
+                    </td>
+                    <td className="px-4 py-3 text-center font-bold text-yellow-800 dark:text-yellow-300 text-sm">
+                      {sectionTotals.total > 0 ? ((sectionTotals.na / sectionTotals.total) * 100).toFixed(1) : 0}%
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100">
-                      {sectionTotals.no}
-                    </td>
-                    <td className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100">
-                      {sectionTotals.na}
+                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-200 text-blue-900 dark:bg-blue-800 dark:text-blue-100">
+                        {sectionTotals.total}
+                      </span>
                     </td>
                   </tr>
                 </tbody>
@@ -2125,19 +2148,35 @@ export default function AllResponses() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={handleExportExcel}
-                  disabled={exportingExcel}
-                  className="flex items-center gap-2 px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-60"
-                  title="Export Excel"
-                >
-                  {exportingExcel ? (
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-green-400 border-t-transparent" />
-                  ) : (
-                    <Download className="w-4 h-4" />
-                  )}
-                  Export Excel
-                </button>
+                {viewMode === "dashboard" ? (
+                  <button
+                    onClick={handleDownloadPDF}
+                    disabled={generatingPDF}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-cyan-700 bg-cyan-50 rounded-lg hover:bg-cyan-100 transition-colors disabled:opacity-60"
+                    title="Download PDF"
+                  >
+                    {generatingPDF ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+                    ) : (
+                      <FileText className="w-4 h-4" />
+                    )}
+                    Download PDF
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleExportExcel}
+                    disabled={exportingExcel}
+                    className="flex items-center gap-2 px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-60"
+                    title="Export Excel"
+                  >
+                    {exportingExcel ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-green-400 border-t-transparent" />
+                    ) : (
+                      <Download className="w-4 h-4" />
+                    )}
+                    Export Excel
+                  </button>
+                )}
 
                 <button
                   onClick={() => {
