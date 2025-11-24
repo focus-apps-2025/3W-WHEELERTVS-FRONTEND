@@ -1,5 +1,153 @@
 import html2pdf from "html2pdf.js";
 
+function generateSectionTables(
+  availableSections: any[],
+  sectionQuestionStats: Record<string, any[]>,
+  sectionMainParameters: Record<string, any[]>
+): string {
+  return availableSections
+    .map((section: any) => {
+      const questionStats = sectionQuestionStats[section.id] || [];
+      const mainParams = sectionMainParameters[section.id] || [];
+
+      if (questionStats.length === 0 && mainParams.length === 0) return "";
+
+      const sectionTotals = questionStats.reduce(
+        (totals: any, stat: any) => ({
+          yes: totals.yes + stat.yes,
+          no: totals.no + stat.no,
+          na: totals.na + stat.na,
+          total: totals.total + stat.total,
+        }),
+        { yes: 0, no: 0, na: 0, total: 0 }
+      );
+
+      let html = "";
+
+      if (questionStats.length > 0) {
+        const yesPercent =
+          sectionTotals.total > 0
+            ? ((sectionTotals.yes / sectionTotals.total) * 100).toFixed(1)
+            : 0;
+        const noPercent =
+          sectionTotals.total > 0
+            ? ((sectionTotals.no / sectionTotals.total) * 100).toFixed(1)
+            : 0;
+        const naPercent =
+          sectionTotals.total > 0
+            ? ((sectionTotals.na / sectionTotals.total) * 100).toFixed(1)
+            : 0;
+
+        html += `<div style="page-break-inside: avoid; margin-top: 40px;">
+          <div style="font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 16px;">Section - Yes/No/N/A Analysis</div>
+          <p style="font-size: 12px; color: #6b7280; margin-bottom: 16px;">Question-wise breakdown of yes/no/n/a responses with overall section summary</p>
+          
+          <div style="font-size: 16px; font-weight: 600; color: #111827; margin-top: 20px; margin-bottom: 12px;">Question Breakdown - ${
+          section.name || section.label || "Section"
+        }</div>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+            <thead>
+              <tr style="background-color: #f3f4f6;">
+                <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Question</th>
+                <th style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Yes</th>
+                <th style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">No</th>
+                <th style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">N/A</th>
+                <th style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${questionStats
+                .map(
+                  (stat: any) =>
+                    `<tr style="border-bottom: 1px solid #e5e7eb;">
+                      <td style="padding: 12px; font-size: 12px; color: #374151;">${
+                      stat.subParam1 || "No parameter"
+                    }</td>
+                      <td style="padding: 12px; text-align: center; font-size: 12px; color: #374151;">${
+                      stat.yes
+                    }</td>
+                      <td style="padding: 12px; text-align: center; font-size: 12px; color: #374151;">${
+                      stat.no
+                    }</td>
+                      <td style="padding: 12px; text-align: center; font-size: 12px; color: #374151;">${
+                      stat.na
+                    }</td>
+                      <td style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #374151;">${
+                      stat.total
+                    }</td>
+                    </tr>`
+                )
+                .join("")}
+              <tr style="background-color: #dbeafe; font-weight: 600;">
+                <td style="padding: 12px; font-size: 12px; color: #1e40af;">Section Total</td>
+                <td style="padding: 12px; text-align: center; font-size: 12px; color: #059669; font-weight: 600;">${yesPercent}%</td>
+                <td style="padding: 12px; text-align: center; font-size: 12px; color: #dc2626; font-weight: 600;">${noPercent}%</td>
+                <td style="padding: 12px; text-align: center; font-size: 12px; color: #9ca3af; font-weight: 600;">${naPercent}%</td>
+                <td style="padding: 12px; text-align: center; font-size: 12px; color: #1e40af; font-weight: 600; background-color: #e0e7ff;">${
+          sectionTotals.total
+        }</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>`;
+      }
+
+      if (mainParams.length > 0) {
+        html += `<div style="page-break-inside: avoid; margin-top: 40px;">
+          <div style="font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 16px;">Section - Main Parameters</div>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px;">
+            <thead>
+              <tr style="background-color: #f3f4f6;">
+                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Main Parameters</th>
+                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Remarks</th>
+                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Action Initiated</th>
+                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Reason for Not OK</th>
+                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Responsible Person</th>
+                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Review</th>
+                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Photograph</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${mainParams
+                .map(
+                  (param: any) =>
+                    `<tr style="border-bottom: 1px solid #e5e7eb;">
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
+                      param.subParam1 || ""
+                    }</td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
+                      param.remarks || ""
+                    }</td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
+                      param.actionInitiated || ""
+                    }</td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
+                      param.reasonForNotOK || ""
+                    }</td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
+                      param.responsiblePerson || ""
+                    }</td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
+                      param.review || ""
+                    }</td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
+                      param.files && param.files.length > 0
+                        ? "Sample file uploaded"
+                        : ""
+                    }</td>
+                    </tr>`
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>`;
+      }
+
+      return html;
+    })
+    .join("");
+}
+
 interface PDFOptions {
   filename: string;
   formTitle: string;
@@ -24,10 +172,26 @@ interface PDFOptions {
     naPercent: number;
     naWeighted: number;
   }>;
+  sectionQuestionStats?: Record<string, Array<any>>;
+  sectionMainParameters?: Record<string, Array<any>>;
+  availableSections?: Array<any>;
+  form?: any;
+  response?: any;
 }
 
 export async function generateAndDownloadPDF(options: PDFOptions): Promise<void> {
-  const { filename, formTitle, submittedDate, sectionStats, sectionSummaryRows } = options;
+  const { 
+    filename, 
+    formTitle, 
+    submittedDate, 
+    sectionStats, 
+    sectionSummaryRows,
+    sectionQuestionStats = {},
+    sectionMainParameters = {},
+    availableSections = [],
+    form,
+    response
+  } = options;
 
   const totalYes = sectionStats.reduce((sum, stat) => sum + stat.yes, 0);
   const totalNo = sectionStats.reduce((sum, stat) => sum + stat.no, 0);
@@ -419,6 +583,8 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
           </table>
         </div>
         ` : ''}
+        
+        ${generateSectionTables(availableSections, sectionQuestionStats, sectionMainParameters)}
         
         <div class="footer">
           <p>Generated on ${new Date().toLocaleString()}</p>

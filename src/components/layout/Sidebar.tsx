@@ -68,12 +68,12 @@ export default function Sidebar() {
       path: "/superadmin/tenants",
       description: "Manage all tenants and branches",
     },
-    {
-      title: "System Settings",
-      icon: Settings,
-      path: "/system/management",
-      description: "Configure system-wide settings",
-    },
+    // {
+    //   title: "System Settings",
+    //   icon: Settings,
+    //   path: "/system/management",
+    //   description: "Configure system-wide settings",
+    // },
   ];
 
   const tenantMenuItems: MenuItem[] = [

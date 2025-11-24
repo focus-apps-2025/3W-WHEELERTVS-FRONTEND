@@ -1,13 +1,22 @@
 // Automatically detect environment and set API base URL
 const API_BASE_URL = (() => {
   const hostname = window.location.hostname;
-  const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.');
+  const isLocal =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.startsWith("192.168.") ||
+    hostname.startsWith("10.") ||
+    hostname.startsWith("172.");
 
   const baseUrl = isLocal
     ? "http://localhost:5000/api"
     : "https://formsapi.focusengineeringapp.com/api";
 
-  console.log(`🔗 API Base URL: ${baseUrl} (Environment: ${isLocal ? 'Local' : 'Production'})`);
+  console.log(
+    `🔗 API Base URL: ${baseUrl} (Environment: ${
+      isLocal ? "Local" : "Production"
+    })`
+  );
   return baseUrl;
 })();
 interface ApiResponse<T> {
@@ -466,12 +475,24 @@ class ApiClient {
     file: File,
     category: string = "general",
     associatedId?: string,
-    onProgress?: (progress: { percentage: number; loaded: number; total: number; timeRemaining?: number; speed?: number }) => void
+    onProgress?: (progress: {
+      percentage: number;
+      loaded: number;
+      total: number;
+      timeRemaining?: number;
+      speed?: number;
+    }) => void
   ) {
     // Validate file size (10MB limit)
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
-      throw new ApiError(400, null, `File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum limit of 10MB`);
+      throw new ApiError(
+        400,
+        null,
+        `File size (${(file.size / 1024 / 1024).toFixed(
+          2
+        )}MB) exceeds maximum limit of 10MB`
+      );
     }
 
     return new Promise((resolve, reject) => {
@@ -479,7 +500,7 @@ class ApiClient {
       formData.append("file", file);
       formData.append("upload_preset", "focus_forms_unsigned");
       formData.append("folder", `focus_forms/${category}`);
-      
+
       if (associatedId) {
         formData.append("tags", `associatedId_${associatedId}`);
       }
@@ -487,25 +508,27 @@ class ApiClient {
       const xhr = new XMLHttpRequest();
       const startTime = Date.now();
 
-      xhr.upload.addEventListener('progress', (event) => {
+      xhr.upload.addEventListener("progress", (event) => {
         if (event.lengthComputable && onProgress) {
           const percentage = Math.round((event.loaded / event.total) * 100);
           const elapsed = Date.now() - startTime;
           const speed = event.loaded / (elapsed / 1000); // bytes per second
           const remaining = (event.total - event.loaded) / speed;
-          const timeRemaining = isFinite(remaining) ? Math.round(remaining) : undefined;
+          const timeRemaining = isFinite(remaining)
+            ? Math.round(remaining)
+            : undefined;
 
           onProgress({
             percentage,
             loaded: event.loaded,
             total: event.total,
             timeRemaining,
-            speed
+            speed,
           });
         }
       });
 
-      xhr.addEventListener('load', () => {
+      xhr.addEventListener("load", () => {
         try {
           const data = JSON.parse(xhr.responseText);
 
@@ -516,26 +539,37 @@ class ApiClient {
                 url: data.secure_url,
                 filename: data.public_id,
                 originalName: file.name,
-                size: file.size
-              }
+                size: file.size,
+              },
             });
           } else {
-            reject(new ApiError(xhr.status, data, data.error?.message || 'Upload failed'));
+            reject(
+              new ApiError(
+                xhr.status,
+                data,
+                data.error?.message || "Upload failed"
+              )
+            );
           }
         } catch (error) {
-          reject(new ApiError(xhr.status, null, 'Invalid response from server'));
+          reject(
+            new ApiError(xhr.status, null, "Invalid response from server")
+          );
         }
       });
 
-      xhr.addEventListener('error', () => {
-        reject(new ApiError(0, null, 'Network error during upload'));
+      xhr.addEventListener("error", () => {
+        reject(new ApiError(0, null, "Network error during upload"));
       });
 
-      xhr.addEventListener('abort', () => {
-        reject(new ApiError(0, null, 'Upload was cancelled'));
+      xhr.addEventListener("abort", () => {
+        reject(new ApiError(0, null, "Upload was cancelled"));
       });
 
-      xhr.open('POST', 'https://api.cloudinary.com/v1_1/dsfi2hwoq/image/upload');
+      xhr.open(
+        "POST",
+        "https://api.cloudinary.com/v1_1/dsfi2hwoq/image/upload"
+      );
       xhr.send(formData);
     });
   }
@@ -683,6 +717,36 @@ class ApiClient {
     });
   }
 
+  async addAdminToTenant(
+    tenantId: string,
+    adminData: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      password: string;
+    }
+  ) {
+    return this.request<{
+      admin: {
+        _id: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        role: string;
+        isActive: boolean;
+      };
+    }>(`/tenants/${tenantId}/add-admin`, {
+      method: "POST",
+      body: JSON.stringify(adminData),
+    });
+  }
+
+  async removeAdminFromTenant(tenantId: string, adminId: string) {
+    return this.request(`/tenants/${tenantId}/remove-admin/${adminId}`, {
+      method: "DELETE",
+    });
+  }
+
   // Parameters
   async getParameters(params?: {
     type?: "main" | "followup";
@@ -703,7 +767,9 @@ class ApiClient {
       query.set("formId", params.formId);
     }
 
-    const endpoint = `/parameters${query.toString() ? `?${query.toString()}` : ""}`;
+    const endpoint = `/parameters${
+      query.toString() ? `?${query.toString()}` : ""
+    }`;
 
     return this.request<{ parameters: any[] }>(endpoint);
   }
@@ -720,11 +786,14 @@ class ApiClient {
     });
   }
 
-  async updateParameter(id: string, parameterData: {
-    name: string;
-    type: "main" | "followup";
-    formId: string;
-  }) {
+  async updateParameter(
+    id: string,
+    parameterData: {
+      name: string;
+      type: "main" | "followup";
+      formId: string;
+    }
+  ) {
     return this.request<{ parameter: any }>(`/parameters/${id}`, {
       method: "PUT",
       body: JSON.stringify(parameterData),

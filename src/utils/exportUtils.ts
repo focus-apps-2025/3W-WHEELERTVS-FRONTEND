@@ -969,19 +969,25 @@ export async function parseFormWorkbook(file: File) {
       defval: "",
     });
 
-    // Extract parameters, skipping first row if it contains headers/descriptions
-    // Look for rows with "Parameter Name" column that have actual names
+    // Extract parameters - find the parameter name column (case-insensitive)
     parametersToCreate = parametersRawData
-      .filter(row => {
-        const paramName = row["Parameter Name"]?.toString().trim();
-        // Skip if it's a header or empty
-        return paramName && paramName.toLowerCase() !== "parameter name" && paramName !== "";
+      .filter((row) => {
+        // Find the first non-empty value that isn't a header
+        const firstValue = Object.values(row)[0]?.toString().trim() || "";
+        return firstValue && firstValue.toLowerCase() !== "parameter name" && firstValue !== "";
       })
-      .map(row => ({
-        name: row["Parameter Name"].toString().trim(),
-        type: (row["Type"]?.toString().trim().toLowerCase() === "followup" ? "followup" : "main") as "main" | "followup"
-      }))
-      .slice(0); // Remove any undefined entries
+      .map((row) => {
+        // Get the first non-empty value as parameter name
+        const paramName = Object.values(row)[0]?.toString().trim() || "";
+        // Get the second value as type, default to 'main'
+        const typeValue = Object.values(row)[1]?.toString().trim().toLowerCase() || "main";
+        
+        return {
+          name: paramName,
+          type: (typeValue === "followup" ? "followup" : "main") as "main" | "followup"
+        };
+      })
+      .filter(p => p.name && p.name.toLowerCase() !== "parameter name"); // Final validation
   }
 
   // Parse form data from Form Template sheet
@@ -1095,22 +1101,23 @@ function parseNewTemplateFormat(
     const subParam1 = row["SubParam1"]?.toString().trim();
     const subParam2 = row["SubParam2"]?.toString().trim();
 
-    // Validate SubParam1 and SubParam2 against parameters from the Parameters sheet
-    if (subParam1) {
+    // Validate SubParam1 and SubParam2 against parameters from the Parameters sheet (if parameters exist)
+    // Allow SubParam values even if no parameters are defined - they will be auto-created if needed
+    if (subParam1 && parametersToCreate.length > 0) {
       const isSubParam1Valid = parametersToCreate.some(p =>
         p.name.toLowerCase() === subParam1.toLowerCase()
       );
       if (!isSubParam1Valid) {
-        throw new Error(`SubParam1 "${subParam1}" is not a valid parameter. Valid parameters: ${parametersToCreate.map(p => p.name).join(', ')}`);
+        console.warn(`SubParam1 "${subParam1}" not found in parameters. Will be treated as custom value.`);
       }
     }
 
-    if (subParam2) {
+    if (subParam2 && parametersToCreate.length > 0) {
       const isSubParam2Valid = parametersToCreate.some(p =>
         p.name.toLowerCase() === subParam2.toLowerCase()
       );
       if (!isSubParam2Valid) {
-        throw new Error(`SubParam2 "${subParam2}" is not a valid parameter. Valid parameters: ${parametersToCreate.map(p => p.name).join(', ')}`);
+        console.warn(`SubParam2 "${subParam2}" not found in parameters. Will be treated as custom value.`);
       }
     }
 
@@ -1160,22 +1167,22 @@ function parseNewTemplateFormat(
         const fuSubParam1 = row[fuSubParam1Key]?.toString().trim();
         const fuSubParam2 = row[fuSubParam2Key]?.toString().trim();
 
-        // Validate followup SubParam1 and SubParam2 against parameters from the Parameters sheet
-        if (fuSubParam1) {
+        // Validate followup SubParam1 and SubParam2 against parameters from the Parameters sheet (if parameters exist)
+        if (fuSubParam1 && parametersToCreate.length > 0) {
           const isFuSubParam1Valid = parametersToCreate.some(p =>
             p.name.toLowerCase() === fuSubParam1.toLowerCase()
           );
           if (!isFuSubParam1Valid) {
-            throw new Error(`FU${fuIndex}: SubParam1 "${fuSubParam1}" is not a valid parameter. Valid parameters: ${parametersToCreate.map(p => p.name).join(', ')}`);
+            console.warn(`FU${fuIndex}: SubParam1 "${fuSubParam1}" not found in parameters. Will be treated as custom value.`);
           }
         }
 
-        if (fuSubParam2) {
+        if (fuSubParam2 && parametersToCreate.length > 0) {
           const isFuSubParam2Valid = parametersToCreate.some(p =>
             p.name.toLowerCase() === fuSubParam2.toLowerCase()
           );
           if (!isFuSubParam2Valid) {
-            throw new Error(`FU${fuIndex}: SubParam2 "${fuSubParam2}" is not a valid parameter. Valid parameters: ${parametersToCreate.map(p => p.name).join(', ')}`);
+            console.warn(`FU${fuIndex}: SubParam2 "${fuSubParam2}" not found in parameters. Will be treated as custom value.`);
           }
         }
 

@@ -160,6 +160,7 @@ export default function AllResponses() {
   const [savingWeightage, setSavingWeightage] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
   const [sectionResponsesMap, setSectionResponsesMap] = useState<Record<string, (Response & { formTitle: string })[]>>({});
+  const [sectionChartTypes, setSectionChartTypes] = useState<Record<string, "pie" | "bar">>({});
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -407,6 +408,38 @@ export default function AllResponses() {
 
     setGeneratingPDF(true);
     try {
+      const sectionQuestionStats: Record<string, any[]> = {};
+      const sectionMainParameters: Record<string, any[]> = {};
+      
+      if (selectedForm.sections) {
+        selectedForm.sections.forEach((section: any) => {
+          sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(section.id);
+          
+          const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
+          const mainParamsData: any[] = [];
+          
+          sectionQuestions.forEach((q: any) => {
+            q.followUpQuestions?.forEach((fq: any) => {
+              const answer = fq.answer;
+              if (answer && (typeof answer === 'object' || typeof answer === 'string')) {
+                const answerObj = typeof answer === 'string' ? { text: answer } : answer;
+                mainParamsData.push({
+                  subParam1: q.subParam1 || fq.subParam1 || 'N/A',
+                  remarks: answerObj.remarks || 'Sample Remarks',
+                  actionInitiated: answerObj.actionInitiated || 'Sample Action Initiated',
+                  reasonForNotOK: answerObj.reasonForNotOK || 'Sample Reason fo Not OK',
+                  responsiblePerson: answerObj.responsiblePerson || 'Sample Responsible person',
+                  review: answerObj.review || 'Sample Review',
+                  files: answerObj.files || []
+                });
+              }
+            });
+          });
+          
+          sectionMainParameters[section.id] = mainParamsData;
+        });
+      }
+      
       await generateAndDownloadPDF({
         filename: `${selectedForm.title}_Report.pdf`,
         formTitle: selectedForm.title,
@@ -415,6 +448,9 @@ export default function AllResponses() {
         sectionSummaryRows: sectionSummaryRows,
         form: selectedForm,
         response: selectedResponse,
+        sectionQuestionStats: sectionQuestionStats,
+        sectionMainParameters: sectionMainParameters,
+        availableSections: availableSections,
       } as any);
       showSuccess("PDF downloaded successfully.");
     } catch (error) {
@@ -1446,12 +1482,94 @@ export default function AllResponses() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Chart */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700">
-            <h4 className="text-lg font-semibold text-blue-900 dark:text-blue-100 mb-4 flex items-center">
-              <PieChart className="w-5 h-5 mr-2" />
-              Response Distribution
-            </h4>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-lg font-semibold text-blue-900 dark:text-blue-100 flex items-center">
+                <PieChart className="w-5 h-5 mr-2" />
+                Response Distribution
+              </h4>
+              <select
+                value={sectionChartTypes[section.id] || 'pie'}
+                onChange={(e) => setSectionChartTypes((prev) => ({ ...prev, [section.id]: e.target.value as 'pie' | 'bar' }))}
+                className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-gray-700 border border-blue-200 dark:border-blue-600 rounded-lg text-blue-900 dark:text-blue-100 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="pie">Pie Chart</option>
+                <option value="bar">Bar Chart</option>
+              </select>
+            </div>
             <div className="w-full h-64">
-              <Pie data={chartData} options={chartOptions} />
+              {sectionChartTypes[section.id] === 'bar' ? (
+                <Bar 
+                  data={{
+                    labels: questionStats.map((stat) => stat.subParam1 || "No parameter"),
+                    datasets: [
+                      {
+                        label: 'Yes',
+                        data: questionStats.map((stat) => stat.yes),
+                        backgroundColor: '#10b981',
+                        borderColor: '#059669',
+                        borderWidth: 1,
+                      },
+                      {
+                        label: 'No',
+                        data: questionStats.map((stat) => stat.no),
+                        backgroundColor: '#ef4444',
+                        borderColor: '#dc2626',
+                        borderWidth: 1,
+                      },
+                      {
+                        label: 'N/A',
+                        data: questionStats.map((stat) => stat.na),
+                        backgroundColor: '#f59e0b',
+                        borderColor: '#d97706',
+                        borderWidth: 1,
+                      }
+                    ],
+                  }}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                      legend: {
+                        position: 'top' as const,
+                        labels: {
+                          color: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151',
+                        },
+                      },
+                      tooltip: {
+                        callbacks: {
+                          label: (context: any) => {
+                            return `${context.dataset.label}: ${context.parsed.y}`;
+                          }
+                        }
+                      }
+                    },
+                    scales: {
+                      x: {
+                        stacked: false,
+                        ticks: {
+                          color: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151',
+                          font: { size: 12 }
+                        },
+                        grid: {
+                          color: document.documentElement.classList.contains('dark') ? '#374151' : '#e5e7eb',
+                        }
+                      },
+                      y: {
+                        stacked: false,
+                        ticks: {
+                          color: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151',
+                          beginAtZero: true,
+                        },
+                        grid: {
+                          color: document.documentElement.classList.contains('dark') ? '#374151' : '#e5e7eb',
+                        }
+                      }
+                    }
+                  }}
+                />
+              ) : (
+                <Pie data={chartData} options={chartOptions} />
+              )}
             </div>
           </div>
 

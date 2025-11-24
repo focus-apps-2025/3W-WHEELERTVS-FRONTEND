@@ -1,56 +1,47 @@
-import React, { useState } from 'react';
-import { Plus, X } from 'lucide-react';
-import type { Role, FormPermission } from '../../../types/staff';
-import type { Question } from '../../../types/forms';
-import FormPermissionsList from './permissions/FormPermissionsList';
-import { questionsApi } from '../../../api/storage';
-import { permissionCategories } from '../../../utils/roleUtils';
-import PermissionCategory from './permissions/PermissionCategory';
+import React, { useState } from "react";
+import { Plus } from "lucide-react";
+import type { Role } from "../../../../types";
+import PermissionSelector from "./PermissionSelector";
+import FormPermissionsSelector from "./FormPermissionsSelector";
+import { permissionCategories } from "../../../../utils/roleUtils";
 
 interface RoleFormProps {
-  initialData?: Role | null;
-  onSubmit: (role: Omit<Role, 'id'> | Role) => void;
-  onCancel?: () => void;
+  onSubmit: (role: Omit<Role, "id">) => void;
+  initialData?: Role;
 }
 
-export default function RoleForm({ initialData, onSubmit, onCancel }: RoleFormProps) {
+export default function RoleForm({ onSubmit, initialData }: RoleFormProps) {
   const [formData, setFormData] = useState({
-    id: initialData?.id || '',
-    name: initialData?.name || '',
-    description: initialData?.description || '',
+    name: initialData?.name || "",
+    description: initialData?.description || "",
     permissions: new Set(initialData?.permissions || []),
     formPermissions: initialData?.formPermissions || [],
+    canCreateForms: initialData?.canCreateForms || false,
   });
-
-  const [forms] = React.useState<Question[]>(() => questionsApi.getAll());
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.name && formData.description) {
-      const roleData = {
-        ...formData,
-        permissions: Array.from(formData.permissions),
-      };
-      onSubmit(roleData);
-      
-      if (!initialData) {
-        setFormData({
-          id: '',
-          name: '',
-          description: '',
-          permissions: new Set(),
-          formPermissions: [],
-        });
-      }
+    onSubmit({
+      name: formData.name,
+      description: formData.description,
+      permissions: Array.from(formData.permissions),
+      formPermissions: formData.formPermissions,
+      canCreateForms: formData.canCreateForms,
+    });
+
+    if (!initialData) {
+      setFormData({
+        name: "",
+        description: "",
+        permissions: new Set(),
+        formPermissions: [],
+        canCreateForms: false,
+      });
     }
   };
 
-  const handleUpdateFormPermissions = (formPermissions: FormPermission[]) => {
-    setFormData(prev => ({ ...prev, formPermissions }));
-  };
-
-  const handleTogglePermission = (permissionId: string) => {
-    setFormData(prev => {
+  const handlePermissionChange = (categoryId: string, permissionId: string) => {
+    setFormData((prev) => {
       const newPermissions = new Set(prev.permissions);
       if (newPermissions.has(permissionId)) {
         newPermissions.delete(permissionId);
@@ -62,100 +53,89 @@ export default function RoleForm({ initialData, onSubmit, onCancel }: RoleFormPr
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-      <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <h4 className="text-lg font-medium text-gray-900 dark:text-white">
-          {initialData ? 'Edit Role' : 'Create New Role'}
-        </h4>
-        {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        )}
-      </div>
-      
-      <div className="p-6 space-y-6">
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Role Name
-            </label>
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white rounded-lg p-6 shadow-sm dark:bg-gray-800 dark:border dark:border-gray-700"
+    >
+      <h4 className="text-lg font-medium text-primary-600 mb-6 dark:text-primary-300">
+        {initialData ? "Edit Role" : "Create New Role"}
+      </h4>
+
+      <div className="space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-primary-600 mb-1 dark:text-primary-200">
+            Role Name
+          </label>
+          <input
+            type="text"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            className="input-field"
+            placeholder="Enter role name"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-primary-600 mb-1 dark:text-primary-200">
+            Description
+          </label>
+          <textarea
+            value={formData.description}
+            onChange={(e) =>
+              setFormData({ ...formData, description: e.target.value })
+            }
+            className="input-field"
+            placeholder="Enter role description"
+            rows={3}
+          />
+        </div>
+
+        <div>
+          <label className="flex items-center space-x-2 text-sm font-medium text-primary-600 dark:text-primary-200">
             <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              placeholder="Enter role name"
-              required
+              type="checkbox"
+              checked={formData.canCreateForms}
+              onChange={(e) =>
+                setFormData({ ...formData, canCreateForms: e.target.checked })
+              }
+              className="rounded text-primary-600 focus:ring-primary-500 dark:bg-gray-900 dark:border-gray-700"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Description
-            </label>
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              placeholder="Enter role description"
-              rows={3}
-              required
-            />
-          </div>
+            <span>Can Create New Forms</span>
+          </label>
         </div>
 
-        <div className="space-y-6">
-          <div>
-            <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
-              System Permissions
-            </h5>
-            <div className="space-y-6">
-              {permissionCategories.map((category) => (
-                <PermissionCategory
-                  key={category.id}
-                  category={category}
-                  selectedPermissions={formData.permissions}
-                  onTogglePermission={handleTogglePermission}
-                />
-              ))}
-            </div>
-          </div>
+        <div>
+          <h1 className="text-xl font-semibold text-primary-700 mb-4 dark:text-primary-200 ">
+            System Permissions
+          </h1>
 
-          <div className="overflow-x-auto">
-            <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">
-              Form-Specific Permissions
-            </h5>
-            <div className="min-w-max">
-              <FormPermissionsList
-                forms={forms}
-                formPermissions={formData.formPermissions}
-                onUpdateFormPermissions={handleUpdateFormPermissions}
+          <div className="space-y-6">
+            {permissionCategories.map((category) => (
+              <PermissionSelector
+                key={category.id}
+                category={category}
+                selectedPermissions={formData.permissions}
+                onTogglePermission={(permissionId) =>
+                  handlePermissionChange(category.id, permissionId)
+                }
               />
-            </div>
+            ))}
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-end gap-3">
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="w-full sm:w-auto px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600"
-            >
-              Cancel
-            </button>
-          )}
-          <button
-            type="submit"
-            className="w-full sm:w-auto flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
+        <div>
+          <FormPermissionsSelector
+            formPermissions={formData.formPermissions}
+            onChange={(formPermissions) =>
+              setFormData({ ...formData, formPermissions })
+            }
+          />
+        </div>
+
+        <div className="flex justify-end">
+          <button type="submit" className="btn-primary flex items-center">
             <Plus className="w-4 h-4 mr-2" />
-            {initialData ? 'Update Role' : 'Create Role'}
+            {initialData ? "Update Role" : "Create Role"}
           </button>
         </div>
       </div>
