@@ -39,53 +39,99 @@ function generateSectionTables(
             : 0;
 
         html += `<div style="page-break-inside: avoid; margin-top: 40px;">
-          <div style="font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 16px;">Section - Yes/No/N/A Analysis</div>
-          <p style="font-size: 12px; color: #6b7280; margin-bottom: 16px;">Question-wise breakdown of yes/no/n/a responses with overall section summary</p>
+          <div style="font-size: 18px; font-weight: 700; color: #1e3a8a; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 2px solid #1e3a8a;">
+            ${section.name || section.label || "Section"} - Response Analysis
+          </div>
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 20px;">
+            Detailed breakdown of responses with performance metrics
+          </p>
           
-          <div style="font-size: 16px; font-weight: 600; color: #111827; margin-top: 20px; margin-bottom: 12px;">Question Breakdown - ${
-          section.name || section.label || "Section"
-        }</div>
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; border: 1px solid #e2e8f0;">
             <thead>
-              <tr style="background-color: #f3f4f6;">
-                <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Question</th>
-                <th style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Yes</th>
-                <th style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">No</th>
-                <th style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">N/A</th>
-                <th style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Total</th>
+              <tr style="background: #1e3a8a;">
+                <th style="padding: 14px; text-align: left; font-size: 12px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  Question Parameter
+                </th>
+                <th style="padding: 14px; text-align: center; font-size: 12px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  Yes
+                </th>
+                <th style="padding: 14px; text-align: center; font-size: 12px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  No
+                </th>
+                <th style="padding: 14px; text-align: center; font-size: 12px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  N/A
+                </th>
+                <th style="padding: 14px; text-align: center; font-size: 12px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  Total
+                </th>
               </tr>
             </thead>
             <tbody>
               ${questionStats
-                .map(
-                  (stat: any) =>
-                    `<tr style="border-bottom: 1px solid #e5e7eb;">
-                      <td style="padding: 12px; font-size: 12px; color: #374151;">${
-                      stat.subParam1 || "No parameter"
-                    }</td>
-                      <td style="padding: 12px; text-align: center; font-size: 12px; color: #374151;">${
-                      stat.yes
-                    }</td>
-                      <td style="padding: 12px; text-align: center; font-size: 12px; color: #374151;">${
-                      stat.no
-                    }</td>
-                      <td style="padding: 12px; text-align: center; font-size: 12px; color: #374151;">${
-                      stat.na
-                    }</td>
-                      <td style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #374151;">${
-                      stat.total
-                    }</td>
-                    </tr>`
-                )
+                .map((stat: any, index: number) => {
+                  const isMainQuestion =
+                    !stat.subParam1?.toLowerCase().includes("follow-up") &&
+                    !stat.subParam1?.toLowerCase().includes("followup") &&
+                    !stat.subParam1?.toLowerCase().includes("additional") &&
+                    !stat.subParam1?.toLowerCase().includes("sub-parameter");
+
+                  const rowBgColor = isMainQuestion
+                    ? index % 2 === 0
+                      ? "#ffffff"
+                      : "#f8fafc"
+                    : index % 2 === 0
+                    ? "#f0f9ff"
+                    : "#e0f2fe";
+
+                  const questionColor = isMainQuestion ? "#1e293b" : "#0369a1";
+                  const fontWeight = isMainQuestion ? "600" : "500";
+                  const indent = isMainQuestion ? "0px" : "16px";
+                  const borderLeft = isMainQuestion
+                    ? "none"
+                    : "3px solid #0ea5e9";
+
+                  return `<tr style="background-color: ${rowBgColor}; border-bottom: 1px solid #e2e8f0;">
+                      <td style="padding: 12px; font-size: 12px; color: ${questionColor}; font-weight: ${fontWeight}; border-left: ${borderLeft}; padding-left: ${indent};">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                          <span>${stat.subParam1 || "No parameter"}</span>
+                          ${
+                            !isMainQuestion
+                              ? '<span style="font-size: 10px; color: #0ea5e9; background: #f0f9ff; padding: 2px 6px; border-radius: 4px; border: 1px solid #bae6fd; font-weight: 500;">Follow-up</span>'
+                              : ""
+                          }
+                        </div>
+                      </td>
+                      <td style="padding: 12px; text-align: center; font-size: 12px; color: #059669; font-weight: 600;">
+                        ${stat.yes}
+                      </td>
+                      <td style="padding: 12px; text-align: center; font-size: 12px; color: #dc2626; font-weight: 600;">
+                        ${stat.no}
+                      </td>
+                      <td style="padding: 12px; text-align: center; font-size: 12px; color: #6b7280; font-weight: 600;">
+                        ${stat.na}
+                      </td>
+                      <td style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600; color: #1e40af; border-left: 1px solid #e2e8f0;">
+                        ${stat.total}
+                      </td>
+                    </tr>`;
+                })
                 .join("")}
-              <tr style="background-color: #dbeafe; font-weight: 600;">
-                <td style="padding: 12px; font-size: 12px; color: #1e40af;">Section Total</td>
-                <td style="padding: 12px; text-align: center; font-size: 12px; color: #059669; font-weight: 600;">${yesPercent}%</td>
-                <td style="padding: 12px; text-align: center; font-size: 12px; color: #dc2626; font-weight: 600;">${noPercent}%</td>
-                <td style="padding: 12px; text-align: center; font-size: 12px; color: #9ca3af; font-weight: 600;">${naPercent}%</td>
-                <td style="padding: 12px; text-align: center; font-size: 12px; color: #1e40af; font-weight: 600; background-color: #e0e7ff;">${
-          sectionTotals.total
-        }</td>
+              <tr style="background: #1e3a8a; font-weight: 600;">
+                <td style="padding: 14px; font-size: 12px; color: white; font-weight: 600;">
+                  Section Summary
+                </td>
+                <td style="padding: 14px; text-align: center; font-size: 12px; color: #10b981; font-weight: 600; background: rgba(255, 255, 255, 0.1);">
+                  ${yesPercent}%
+                </td>
+                <td style="padding: 14px; text-align: center; font-size: 12px; color: #ef4444; font-weight: 600; background: rgba(255, 255, 255, 0.1);">
+                  ${noPercent}%
+                </td>
+                <td style="padding: 14px; text-align: center; font-size: 12px; color: #d1d5db; font-weight: 600; background: rgba(255, 255, 255, 0.1);">
+                  ${naPercent}%
+                </td>
+                <td style="padding: 14px; text-align: center; font-size: 12px; color: white; font-weight: 600; background: rgba(255, 255, 255, 0.2); border-left: 1px solid rgba(255,255,255,0.3);">
+                  ${sectionTotals.total}
+                </td>
               </tr>
             </tbody>
           </table>
@@ -94,49 +140,109 @@ function generateSectionTables(
 
       if (mainParams.length > 0) {
         html += `<div style="page-break-inside: avoid; margin-top: 40px;">
-          <div style="font-size: 18px; font-weight: 600; color: #111827; margin-bottom: 16px;">Section - Main Parameters</div>
-          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px;">
+          <div style="font-size: 18px; font-weight: 700; color: #1e3a8a; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 2px solid #1e3a8a;">
+            ${section.name || section.label || "Section"} - Parameters & Actions
+          </div>
+          <p style="font-size: 12px; color: #64748b; margin-bottom: 20px;">
+            Comprehensive analysis of parameters with corresponding actions and responsibilities
+          </p>
+          
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; border: 1px solid #e2e8f0;">
             <thead>
-              <tr style="background-color: #f3f4f6;">
-                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Main Parameters</th>
-                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Remarks</th>
-                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Action Initiated</th>
-                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Reason for Not OK</th>
-                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Responsible Person</th>
-                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Review</th>
-                <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: #374151; border-bottom: 2px solid #e5e7eb;">Photograph</th>
+              <tr style="background: #1e3a8a;">
+                <th style="padding: 12px; text-align: left; font-size: 11px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  Main Parameters
+                </th>
+                <th style="padding: 12px; text-align: left; font-size: 11px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  Remarks
+                </th>
+                <th style="padding: 12px; text-align: left; font-size: 11px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  Action Initiated
+                </th>
+                <th style="padding: 12px; text-align: left; font-size: 11px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  Reason for Not OK
+                </th>
+                <th style="padding: 12px; text-align: left; font-size: 11px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  Responsible Person
+                </th>
+                <th style="padding: 12px; text-align: left; font-size: 11px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  Review
+                </th>
+                <th style="padding: 12px; text-align: left; font-size: 11px; font-weight: 600; color: white; border: none; letter-spacing: 0.5px;">
+                  Evidence
+                </th>
               </tr>
             </thead>
             <tbody>
               ${mainParams
-                .map(
-                  (param: any) =>
-                    `<tr style="border-bottom: 1px solid #e5e7eb;">
-                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
-                      param.subParam1 || ""
-                    }</td>
-                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
-                      param.remarks || ""
-                    }</td>
-                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
-                      param.actionInitiated || ""
-                    }</td>
-                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
-                      param.reasonForNotOK || ""
-                    }</td>
-                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
-                      param.responsiblePerson || ""
-                    }</td>
-                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
-                      param.review || ""
-                    }</td>
-                      <td style="padding: 10px; font-size: 11px; color: #374151;">${
-                      param.files && param.files.length > 0
-                        ? "Sample file uploaded"
-                        : ""
-                    }</td>
-                    </tr>`
-                )
+                .map((param: any, index: number) => {
+                  const isMainParam =
+                    !param.subParam1?.toLowerCase().includes("follow-up") &&
+                    !param.subParam1?.toLowerCase().includes("followup") &&
+                    !param.subParam1?.toLowerCase().includes("sub-parameter");
+
+                  const rowBgColor = isMainParam
+                    ? index % 2 === 0
+                      ? "#ffffff"
+                      : "#f8fafc"
+                    : index % 2 === 0
+                    ? "#f0f9ff"
+                    : "#e0f2fe";
+
+                  const paramColor = isMainParam ? "#1e293b" : "#0369a1";
+                  const fontWeight = isMainParam ? "600" : "500";
+                  const borderLeft = isMainParam ? "none" : "3px solid #0ea5e9";
+
+                  return `<tr style="background-color: ${rowBgColor}; border-bottom: 1px solid #e2e8f0;">
+                      <td style="padding: 10px; font-size: 11px; color: ${paramColor}; font-weight: ${fontWeight}; border-left: ${borderLeft};">
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                          <span>${param.subParam1 || "No parameter"}</span>
+                          ${
+                            !isMainParam
+                              ? '<span style="font-size: 9px; color: #0ea5e9; background: #f0f9ff; padding: 1px 4px; border-radius: 3px; border: 1px solid #bae6fd; font-weight: 500;">Follow-up</span>'
+                              : ""
+                          }
+                        </div>
+                      </td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">
+                        ${
+                          param.remarks ||
+                          '<span style="color: #9ca3af; font-style: italic;">Not provided</span>'
+                        }
+                      </td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">
+                        ${
+                          param.actionInitiated ||
+                          '<span style="color: #9ca3af; font-style: italic;">Not provided</span>'
+                        }
+                      </td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">
+                        ${
+                          param.reasonForNotOK ||
+                          '<span style="color: #9ca3af; font-style: italic;">Not applicable</span>'
+                        }
+                      </td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">
+                        ${
+                          param.responsiblePerson ||
+                          '<span style="color: #9ca3af; font-style: italic;">Not assigned</span>'
+                        }
+                      </td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151;">
+                        ${
+                          param.review ||
+                          '<span style="color: #9ca3af; font-style: italic;">Pending</span>'
+                        }
+                      </td>
+                      <td style="padding: 10px; font-size: 11px; color: #374151; text-align: center;">
+                        ${
+                          param.files && param.files.length > 0
+                            ? '<span style="color: #059669; font-weight: 600;">Attached</span>'
+                            : '<span style="color: #6b7280; font-style: italic;">No files</span>'
+                        }
+                      </td>
+                    </tr>`;
+                })
                 .join("")}
             </tbody>
           </table>
@@ -179,24 +285,29 @@ interface PDFOptions {
   response?: any;
 }
 
-export async function generateAndDownloadPDF(options: PDFOptions): Promise<void> {
-  const { 
-    filename, 
-    formTitle, 
-    submittedDate, 
-    sectionStats, 
+export async function generateAndDownloadPDF(
+  options: PDFOptions
+): Promise<void> {
+  const {
+    filename,
+    formTitle,
+    submittedDate,
+    sectionStats,
     sectionSummaryRows,
     sectionQuestionStats = {},
     sectionMainParameters = {},
     availableSections = [],
     form,
-    response
+    response,
   } = options;
 
   const totalYes = sectionStats.reduce((sum, stat) => sum + stat.yes, 0);
   const totalNo = sectionStats.reduce((sum, stat) => sum + stat.no, 0);
   const totalNA = sectionStats.reduce((sum, stat) => sum + stat.na, 0);
-  const totalQuestions = sectionStats.reduce((sum, stat) => sum + stat.total, 0);
+  const totalQuestions = sectionStats.reduce(
+    (sum, stat) => sum + stat.total,
+    0
+  );
 
   const yesPercentage =
     totalQuestions > 0 ? ((totalYes / totalQuestions) * 100).toFixed(1) : "0.0";
@@ -208,10 +319,10 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
   const overallScore = parseFloat(yesPercentage);
 
   const getScoreBgColor = (score: number) => {
-    if (score >= 90) return "#16a34a"; // green-600
-    if (score >= 75) return "#2563eb"; // blue-600
-    if (score >= 60) return "#ca8a04"; // yellow-600
-    return "#dc2626"; // red-600
+    if (score >= 90) return "#16a34a";
+    if (score >= 75) return "#2563eb";
+    if (score >= 60) return "#ca8a04";
+    return "#dc2626";
   };
 
   // Create HTML for PDF
@@ -230,38 +341,40 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
         
         body {
           font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          background: white;
-          padding: 40px;
+          background: #ffffff;
+          padding: 30px;
           color: #1f2937;
+          line-height: 1.5;
         }
         
         .container {
           max-width: 900px;
           margin: 0 auto;
+          background: white;
         }
         
         .header {
-          margin-bottom: 40px;
-          border-bottom: 2px solid #e5e7eb;
+          border-bottom: 2px solid #1e3a8a;
           padding-bottom: 20px;
+          margin-bottom: 30px;
         }
         
         .header h1 {
-          font-size: 32px;
-          font-weight: bold;
-          color: #111827;
+          font-size: 28px;
+          font-weight: 700;
+          color: #1e3a8a;
           margin-bottom: 8px;
         }
         
         .header p {
           font-size: 14px;
-          color: #6b7280;
+          color: #64748b;
         }
         
         .summary-section {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 40px;
+          gap: 30px;
           margin-bottom: 40px;
           page-break-inside: avoid;
         }
@@ -271,24 +384,25 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
           flex-direction: column;
           align-items: center;
           justify-content: center;
+          text-align: center;
         }
         
         .score-circle {
-          width: 160px;
-          height: 160px;
+          width: 140px;
+          height: 140px;
           border-radius: 50%;
-          background-color: ${getScoreBgColor(overallScore)};
+          background: ${getScoreBgColor(overallScore)};
           display: flex;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          margin-bottom: 20px;
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          margin-bottom: 16px;
+          border: 4px solid #f8fafc;
         }
         
         .score-text {
-          font-size: 48px;
-          font-weight: bold;
+          font-size: 32px;
+          font-weight: 700;
           color: white;
           line-height: 1;
         }
@@ -301,15 +415,15 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
         }
         
         .yes-count {
-          font-size: 36px;
-          font-weight: bold;
+          font-size: 24px;
+          font-weight: 700;
           color: ${getScoreBgColor(overallScore)};
           margin-bottom: 4px;
         }
         
         .yes-label {
           font-size: 14px;
-          color: #6b7280;
+          color: #64748b;
           font-weight: 600;
         }
         
@@ -320,19 +434,23 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
         }
         
         .form-info {
-          margin-bottom: 30px;
+          margin-bottom: 24px;
+          padding: 16px;
+          background: #f8fafc;
+          border-radius: 6px;
+          border-left: 4px solid #1e3a8a;
         }
         
         .form-info h3 {
-          font-size: 18px;
-          font-weight: 600;
-          color: #111827;
+          font-size: 16px;
+          font-weight: 700;
+          color: #1e293b;
           margin-bottom: 4px;
         }
         
         .form-info p {
           font-size: 13px;
-          color: #6b7280;
+          color: #64748b;
         }
         
         .percentage-item {
@@ -354,7 +472,7 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
         
         .percentage-value {
           font-size: 13px;
-          font-weight: bold;
+          font-weight: 700;
         }
         
         .percentage-bar-bg {
@@ -369,16 +487,15 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
         .percentage-bar-fill {
           height: 100%;
           border-radius: 6px;
-          transition: width 0.3s ease;
         }
         
-        .yes-bar { background: linear-gradient(to right, #10b981, #059669); }
-        .no-bar { background: linear-gradient(to right, #ef4444, #dc2626); }
-        .na-bar { background: linear-gradient(to right, #9ca3af, #6b7280); }
+        .yes-bar { background: #10b981; }
+        .no-bar { background: #ef4444; }
+        .na-bar { background: #9ca3af; }
         
         .percentage-info {
           font-size: 11px;
-          color: #9ca3af;
+          color: #6b7280;
         }
         
         .yes-value { color: #059669; }
@@ -392,25 +509,28 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
         
         .table-title {
           font-size: 18px;
-          font-weight: 600;
-          color: #111827;
+          font-weight: 700;
+          color: #1e3a8a;
           margin-bottom: 16px;
+          padding-bottom: 8px;
+          border-bottom: 2px solid #e5e7eb;
         }
         
         table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 20px;
+          margin-bottom: 30px;
+          border: 1px solid #e5e7eb;
         }
         
         th {
-          background-color: #f3f4f6;
-          padding: 12px;
+          background: #1e3a8a;
+          padding: 14px;
           text-align: left;
           font-size: 12px;
           font-weight: 600;
-          color: #374151;
-          border-bottom: 2px solid #e5e7eb;
+          color: white;
+          border: none;
         }
         
         td {
@@ -421,14 +541,14 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
         }
         
         tr:nth-child(even) {
-          background-color: #f9fafb;
+          background-color: #f8fafc;
         }
         
         .footer {
           margin-top: 40px;
           padding-top: 20px;
           border-top: 1px solid #e5e7eb;
-          font-size: 12px;
+          font-size: 11px;
           color: #6b7280;
           text-align: center;
         }
@@ -450,7 +570,7 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
       <div class="container">
         <div class="header">
           <h1>${formTitle}</h1>
-          <p>Submitted on ${submittedDate}</p>
+          <p>Assessment Report • Submitted on ${submittedDate}</p>
         </div>
         
         <div class="summary-section">
@@ -460,18 +580,18 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
               <div class="score-label">Overall Score</div>
             </div>
             <div class="yes-count">${totalYes}</div>
-            <div class="yes-label">Yes Responses</div>
+            <div class="yes-label">Positive Responses</div>
           </div>
           
           <div class="breakdown-container">
             <div class="form-info">
-              <h3>${formTitle}</h3>
-              <p>Submitted on ${submittedDate}</p>
+              <h3>Performance Summary</h3>
+              <p>Comprehensive analysis across all assessment sections</p>
             </div>
             
             <div class="percentage-item">
               <div class="percentage-header">
-                <span class="percentage-label">Yes</span>
+                <span class="percentage-label">Positive Responses</span>
                 <span class="percentage-value yes-value">${yesPercentage}%</span>
               </div>
               <div class="percentage-bar-bg">
@@ -482,30 +602,30 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
             
             <div class="percentage-item">
               <div class="percentage-header">
-                <span class="percentage-label">No</span>
+                <span class="percentage-label">Issues Identified</span>
                 <span class="percentage-value no-value">${noPercentage}%</span>
               </div>
               <div class="percentage-bar-bg">
                 <div class="percentage-bar-fill no-bar" style="width: ${noPercentage}%"></div>
               </div>
-              <div class="percentage-info">${totalNo} out of ${totalQuestions} questions</div>
+              <div class="percentage-info">${totalNo} items requiring attention</div>
             </div>
             
             <div class="percentage-item">
               <div class="percentage-header">
-                <span class="percentage-label">N/A</span>
+                <span class="percentage-label">Not Applicable</span>
                 <span class="percentage-value na-value">${naPercentage}%</span>
               </div>
               <div class="percentage-bar-bg">
                 <div class="percentage-bar-fill na-bar" style="width: ${naPercentage}%"></div>
               </div>
-              <div class="percentage-info">${totalNA} out of ${totalQuestions} questions</div>
+              <div class="percentage-info">${totalNA} non-applicable items</div>
             </div>
           </div>
         </div>
         
         <div class="table-section">
-          <div class="table-title">Section-wise Breakdown</div>
+          <div class="table-title">Section Performance Analysis</div>
           <table>
             <thead>
               <tr>
@@ -531,23 +651,45 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
                     weightage = weightage * 100;
                   }
 
-                  const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
-                  const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
-                  const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
+                  const yesPercent = stat.total
+                    ? (stat.yes / stat.total) * 100
+                    : 0;
+                  const noPercent = stat.total
+                    ? (stat.no / stat.total) * 100
+                    : 0;
+                  const naPercent = stat.total
+                    ? (stat.na / stat.total) * 100
+                    : 0;
                   const yesWeighted = (yesPercent * weightage) / 100;
                   const noWeighted = (noPercent * weightage) / 100;
                   const naWeighted = (naPercent * weightage) / 100;
 
                   return `
                     <tr>
-                      <td>${stat.title}</td>
-                      <td>${yesPercent.toFixed(1)}%</td>
-                      <td>${noPercent.toFixed(1)}%</td>
-                      <td>${naPercent.toFixed(1)}%</td>
-                      <td>${weightage.toFixed(1)}%</td>
-                      <td>${yesWeighted.toFixed(1)}%</td>
-                      <td>${noWeighted.toFixed(1)}%</td>
-                      <td>${naWeighted.toFixed(1)}%</td>
+                      <td style="font-weight: 600; color: #1e293b;">${
+                        stat.title
+                      }</td>
+                      <td style="color: #059669; font-weight: 600;">${yesPercent.toFixed(
+                        1
+                      )}%</td>
+                      <td style="color: #dc2626; font-weight: 600;">${noPercent.toFixed(
+                        1
+                      )}%</td>
+                      <td style="color: #6b7280; font-weight: 600;">${naPercent.toFixed(
+                        1
+                      )}%</td>
+                      <td style="color: #1e40af; font-weight: 600;">${weightage.toFixed(
+                        1
+                      )}%</td>
+                      <td style="color: #059669; font-weight: 600;">${yesWeighted.toFixed(
+                        1
+                      )}%</td>
+                      <td style="color: #dc2626; font-weight: 600;">${noWeighted.toFixed(
+                        1
+                      )}%</td>
+                      <td style="color: #6b7280; font-weight: 600;">${naWeighted.toFixed(
+                        1
+                      )}%</td>
                     </tr>
                   `;
                 })
@@ -556,9 +698,11 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
           </table>
         </div>
 
-        ${sectionSummaryRows && sectionSummaryRows.length > 0 ? `
+        ${
+          sectionSummaryRows && sectionSummaryRows.length > 0
+            ? `
         <div class="table-section">
-          <div class="table-title">Section-wise Weighted Percentages (Chart Data)</div>
+          <div class="table-title">Weighted Performance Metrics</div>
           <table>
             <thead>
               <tr>
@@ -570,24 +714,41 @@ export async function generateAndDownloadPDF(options: PDFOptions): Promise<void>
             </thead>
             <tbody>
               ${sectionSummaryRows
-                .map((row) => `
+                .map(
+                  (row) => `
                   <tr>
-                    <td>${row.title}</td>
-                    <td>${row.yesWeighted.toFixed(1)}%</td>
-                    <td>${row.noWeighted.toFixed(1)}%</td>
-                    <td>${row.naWeighted.toFixed(1)}%</td>
+                    <td style="font-weight: 600; color: #1e293b;">${
+                      row.title
+                    }</td>
+                    <td style="color: #059669; font-weight: 600;">${row.yesWeighted.toFixed(
+                      1
+                    )}%</td>
+                    <td style="color: #dc2626; font-weight: 600;">${row.noWeighted.toFixed(
+                      1
+                    )}%</td>
+                    <td style="color: #6b7280; font-weight: 600;">${row.naWeighted.toFixed(
+                      1
+                    )}%</td>
                   </tr>
-                `)
+                `
+                )
                 .join("")}
             </tbody>
           </table>
         </div>
-        ` : ''}
+        `
+            : ""
+        }
         
-        ${generateSectionTables(availableSections, sectionQuestionStats, sectionMainParameters)}
+        ${generateSectionTables(
+          availableSections,
+          sectionQuestionStats,
+          sectionMainParameters
+        )}
         
         <div class="footer">
           <p>Generated on ${new Date().toLocaleString()}</p>
+          
         </div>
       </div>
     </body>
