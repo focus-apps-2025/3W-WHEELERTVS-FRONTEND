@@ -1,16 +1,4 @@
-import * as XLSX from "xlsx";
-
-interface SectionSummaryRow {
-  id: string;
-  title: string;
-  weightage: number;
-  yesPercent: number;
-  yesWeighted: number;
-  noPercent: number;
-  noWeighted: number;
-  naPercent: number;
-  naWeighted: number;
-}
+import * as XLSX from "xlsx-js-style";
 
 interface FormSection {
   id: string;
@@ -22,6 +10,10 @@ interface FormSection {
     type: string;
     parentId?: string;
     followUpQuestions?: any[];
+    showWhen?: {
+      questionId: string;
+      value: any;
+    };
   }>;
 }
 
@@ -44,10 +36,6 @@ interface ResponseData {
 }
 
 const { utils, writeFile } = XLSX;
-
-function formatPercentageValue(value: number): string {
-  return `${Number.isFinite(value) ? value.toFixed(1) : "0.0"}%`;
-}
 
 type FormQuestion = {
   id?: string;
@@ -208,68 +196,150 @@ function formatAnswerForExport(
   return { display: String(value) };
 }
 
-// Build nested form structure (handle parentId relationships)
+// FIXED buildNestedForm function for FLAT structure
 function buildNestedForm(form: FormData): FormData {
-  const nestedSections = form.sections?.map((section) => {
-    const idToQuestion: Record<string, any> = {};
+  //console.log("🔄 Building nested form structure from FLAT data...");
 
-    // Clone questions into a map
-    (section.questions || []).forEach((q) => {
-      idToQuestion[q.id] = { ...q, followUpQuestions: [] };
+  const nestedSections = form.sections?.map((section) => {
+    if (!section.questions || !Array.isArray(section.questions)) {
+      return section;
+    }
+
+    //console.log(`📋 Processing section: "${section.title}"`);
+    //console.log(`   - Original questions: ${section.questions.length}`);
+
+    // Create a map of all questions by ID with proper typing
+    const questionMap = new Map<string, any>();
+    section.questions.forEach((q: any) => {
+      questionMap.set(q.id, { ...q, followUpQuestions: [] });
     });
 
-    // Link child questions under their parent
-    (section.questions || []).forEach((q) => {
-      if (q.parentId && idToQuestion[q.parentId]) {
-        idToQuestion[q.parentId].followUpQuestions.push(idToQuestion[q.id]);
+    // Properly type the arrays
+    const mainQuestions: any[] = [];
+    const followUpQuestions: any[] = [];
+
+    section.questions.forEach((q: any) => {
+      // Use type assertion to access showWhen
+      const questionWithShowWhen = q as any;
+      if (
+        q.parentId ||
+        (questionWithShowWhen.showWhen &&
+          questionWithShowWhen.showWhen.questionId)
+      ) {
+        followUpQuestions.push(q);
+      } else {
+        mainQuestions.push(q);
       }
     });
 
-    // Keep only top-level questions
-    const nestedQuestions = Object.values(idToQuestion).filter(
-      (q) => !q.parentId
-    );
+    //console.log(`   - Main questions: ${mainQuestions.length}`);
+    //console.log(`   - Follow-up questions: ${followUpQuestions.length}`);
 
-    return { ...section, questions: nestedQuestions };
+    // Attach follow-ups to their parent questions
+    followUpQuestions.forEach((followUp: any) => {
+      const followUpWithShowWhen = followUp as any;
+      const parentId =
+        followUp.parentId || followUpWithShowWhen.showWhen?.questionId;
+
+      if (parentId && questionMap.has(parentId)) {
+        const parentQuestion = questionMap.get(parentId);
+        parentQuestion.followUpQuestions.push({
+          ...followUp,
+          parentId: parentId, // Ensure parentId is set
+        });
+        //console.log(`   ✅ Attached follow-up: "${followUp.text}" → parent: "${parentQuestion.text}"`);
+      } else {
+        //console.log(`   ❌ Could not find parent for follow-up: "${followUp.text}" (parentId: ${parentId})`);
+        // Keep as main question if parent not found
+        mainQuestions.push(followUp);
+      }
+    });
+
+    // Update section with nested structure
+    const updatedSection = {
+      ...section,
+      questions: mainQuestions.map((q: any) => questionMap.get(q.id)),
+    };
+
+    console.log(
+      `   - Final nested questions: ${updatedSection.questions.length}`
+    );
+    updatedSection.questions.forEach((q: any, index: number) => {
+      console.log(
+        `   - Q${index + 1}: "${q.text}" (${
+          q.followUpQuestions.length
+        } follow-ups)`
+      );
+      q.followUpQuestions.forEach((fu: any, fuIndex: number) => {
+        console.log(`     ↳ FU${fuIndex + 1}: "${fu.text}"`);
+      });
+    });
+
+    return updatedSection;
   });
 
-  return { ...form, sections: nestedSections };
+  const result = { ...form, sections: nestedSections };
+  console.log("✅ Nested form structure completed");
+  return result;
 }
 
 function buildResponsesSheetContent(
   response: ResponseData,
   form: FormData
-): { data: any[][]; links: HyperlinkEntry[] } {
+): {
+  data: any[][];
+  links: HyperlinkEntry[];
+  headerStyle: Record<string, any>;
+  cellStyles: Record<string, any>;
+} {
+  console.log("🔄 Building responses sheet content...");
+  console.log("📦 Response answers in DB:", Object.keys(response.answers));
+
   const rows: any[][] = [];
   const links: HyperlinkEntry[] = [];
+  const headerStyle: Record<string, any> = {};
+  const cellStyles: Record<string, any> = {};
 
   const addLink = (r: number, c: number, target: string, display: string) => {
     links.push({ rowIndex: r, columnIndex: c, target, display });
   };
 
-  // Gather main question & all its follow-ups as pairs
+  // Gather main & follow‑ups horizontally
   const gatherPairs = (q: any, base: string) => {
     const pairs: Array<{ label: string; ans: FormattedAnswer }> = [];
 
-    // Main question
     const mainLabel = `${base}. ${q?.text || "Untitled Question"}`;
     const mainAns = formatAnswerForExport(response.answers?.[q.id], q);
+
+    console.log(`❓ Main Question: ${mainLabel}`);
+    console.log(`   - Question ID: ${q.id}`);
+    console.log(`   - Answer in DB:`, response.answers?.[q.id]);
+    console.log(`   - Formatted as: ${mainAns.display}`);
+
     pairs.push({ label: mainLabel, ans: mainAns });
 
-    // Recursively walk through follow-ups
     const walk = (nodes?: any[], path: number[] = []) => {
       (nodes || []).forEach((fu, idx) => {
         const lbl = `${base}.${[...path, idx + 1].join(".")}. ${
           fu?.text || "Follow-up"
         }`;
         const ans = formatAnswerForExport(response.answers?.[fu.id], fu);
+
+        console.log(`   ↳ Follow-up: ${lbl}`);
+        console.log(`     - Question ID: ${fu.id}`);
+        console.log(`     - Answer in DB:`, response.answers?.[fu.id]);
+        console.log(`     - Formatted as: ${ans.display}`);
+
         pairs.push({ label: lbl, ans });
         if (fu?.followUpQuestions?.length) {
           walk(fu.followUpQuestions, [...path, idx + 1]);
         }
       });
     };
+
     walk(q?.followUpQuestions);
+
+    console.log(`   📊 Total pairs for this question: ${pairs.length}`);
     return pairs;
   };
 
@@ -278,17 +348,25 @@ function buildResponsesSheetContent(
   type PreparedSection = { title: string; rows: PreparedRow[] };
   const preparedSections: PreparedSection[] = [];
 
+  console.log("📋 Processing form sections...");
   (form.sections || []).forEach((section: any, si: number) => {
     const title = `Section ${si + 1}: ${section?.title || "Untitled Section"}`;
+    console.log(`\n📁 ${title}`);
+
     const rowsForSection = (section?.questions || []).map(
       (q: any, qi: number) => ({
-        pairs: gatherPairs(q, `Q${qi + 1}`),
+        pairs: gatherPairs(q, `Q${qi + 1}`), // Back to original
       })
     );
+
     preparedSections.push({ title, rows: rowsForSection });
+    console.log(`   - Questions in section: ${rowsForSection.length}`);
   });
 
   if (form.followUpQuestions?.length) {
+    console.log(
+      `\n📋 Processing form-level follow-up questions: ${form.followUpQuestions.length}`
+    );
     const fqTitle = "Form Follow-up Questions";
     const rowsForFQ = (form.followUpQuestions || []).map(
       (fq: any, i: number) => ({
@@ -298,226 +376,352 @@ function buildResponsesSheetContent(
     preparedSections.push({ title: fqTitle, rows: rowsForFQ });
   }
 
-  // Calculate max number of Q&A pairs needed
   const maxPairs = preparedSections.reduce(
     (m, s) => Math.max(m, ...s.rows.map((r) => r.pairs.length)),
     0
   );
 
-  // Extract header labels from the first row that has pairs
-  const headerLabels: string[] = [];
-  for (let i = 0; i < maxPairs; i++) {
-    headerLabels.push("");
-  }
-  
-  for (const section of preparedSections) {
-    for (const r of section.rows) {
-      r.pairs.forEach((p, idx) => {
-        if (idx < maxPairs && !headerLabels[idx]) {
-          const match = p.label.match(/^(.+?)\.\s/);
-          headerLabels[idx] = match ? match[1] : p.label;
-        }
-      });
-      if (headerLabels.every(l => l)) break;
-    }
-    if (headerLabels.every(l => l)) break;
-  }
+  console.log(`\n📊 Layout Summary:`);
+  console.log(`   - Total sections: ${preparedSections.length}`);
+  console.log(`   - Maximum question pairs per row: ${maxPairs}`);
+  console.log(`   - Total columns needed: ${1 + maxPairs * 2}`);
 
-  // Build header row
+  // ---------- HEADER ----------------
   const headerRow: any[] = ["Section"];
   for (let i = 0; i < maxPairs; i++) {
-    headerRow.push(headerLabels[i] || (i === 0 ? "Main Question" : "Follow-Up Question"));
+    headerRow.push(i === 0 ? "Main Question" : "Follow‑Up Question");
     headerRow.push("Answer");
   }
   rows.push(headerRow);
 
-  // Build data rows
-  preparedSections.forEach((section) => {
+  console.log(`\n📋 Header row structure:`, headerRow);
+
+  // Apply header styles with blue background and bold text
+  headerRow.forEach((_, c) => {
+    const addr = XLSX.utils.encode_cell({ r: 0, c });
+    headerStyle[addr] = {
+      font: {
+        bold: true,
+        color: { rgb: "FFFFFF" },
+        sz: 12,
+      },
+      fill: {
+        fgColor: { rgb: "1D4ED8" }, // blue background
+      },
+      alignment: {
+        horizontal: "center",
+        vertical: "center",
+        wrapText: true,
+      },
+      border: {
+        top: { style: "thin", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "thin", color: { rgb: "000000" } },
+        right: { style: "thin", color: { rgb: "000000" } },
+      },
+    };
+  });
+
+  // ---------- BODY -------------------
+  console.log(`\n📋 Building data rows...`);
+  let totalRows = 0;
+
+  preparedSections.forEach((section, sectionIndex) => {
+    console.log(`\n📁 Processing section: ${section.title}`);
     let firstRowIn = true;
-    section.rows.forEach((r) => {
+    let sectionRowCount = 0;
+
+    section.rows.forEach((r, rowIndex) => {
       const row: any[] = new Array(1 + maxPairs * 2).fill("");
       row[0] = firstRowIn ? section.title : "";
       firstRowIn = false;
 
+      console.log(
+        `   📝 Row ${totalRows + 1}: ${r.pairs.length} question-answer pairs`
+      );
+
       let col = 1;
-      r.pairs.forEach((p) => {
+      r.pairs.forEach((p, idx) => {
         row[col] = p.label;
         row[col + 1] = p.ans.display;
 
         const rIdx = rows.length;
+        const qAddr = XLSX.utils.encode_cell({ r: rIdx, c: col });
+        const aAddr = XLSX.utils.encode_cell({ r: rIdx, c: col + 1 });
+
+        // Apply comprehensive styling (your existing styling code)
+        if (idx === 0) {
+          // Main Question - Bold with light blue background
+          cellStyles[qAddr] = {
+            font: {
+              bold: true,
+              color: { rgb: "0F172A" },
+              sz: 11,
+            },
+            fill: {
+              fgColor: { rgb: "E0F2FE" }, // Light blue background
+            },
+            alignment: {
+              horizontal: "left",
+              vertical: "center",
+              wrapText: true,
+            },
+            border: {
+              top: { style: "thin", color: { rgb: "CBD5E1" } },
+              left: { style: "thin", color: { rgb: "CBD5E1" } },
+              bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+              right: { style: "thin", color: { rgb: "CBD5E1" } },
+            },
+          };
+
+          // Main Answer - Italic with gray background
+          cellStyles[aAddr] = {
+            font: {
+              italic: true,
+              color: { rgb: "475569" },
+              sz: 10,
+            },
+            fill: {
+              fgColor: { rgb: "F8FAFC" }, // Very light gray background
+            },
+            alignment: {
+              horizontal: "left",
+              vertical: "center",
+              wrapText: true,
+            },
+            border: {
+              top: { style: "thin", color: { rgb: "CBD5E1" } },
+              left: { style: "thin", color: { rgb: "CBD5E1" } },
+              bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+              right: { style: "thin", color: { rgb: "CBD5E1" } },
+            },
+          };
+        } else {
+          // Follow‑Up Questions - Normal text with white background
+          cellStyles[qAddr] = {
+            font: {
+              bold: false,
+              italic: false,
+              color: { rgb: "334155" },
+              sz: 10,
+            },
+            fill: {
+              fgColor: { rgb: "FFFFFF" }, // White background
+            },
+            alignment: {
+              horizontal: "left",
+              vertical: "center",
+              wrapText: true,
+            },
+            border: {
+              top: { style: "thin", color: { rgb: "E2E8F0" } },
+              left: { style: "thin", color: { rgb: "E2E8F0" } },
+              bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+              right: { style: "thin", color: { rgb: "E2E8F0" } },
+            },
+          };
+
+          // Follow‑Up Answers - Normal text with white background
+          cellStyles[aAddr] = {
+            font: {
+              italic: false,
+              color: { rgb: "64748B" },
+              sz: 10,
+            },
+            fill: {
+              fgColor: { rgb: "FFFFFF" }, // White background
+            },
+            alignment: {
+              horizontal: "left",
+              vertical: "center",
+              wrapText: true,
+            },
+            border: {
+              top: { style: "thin", color: { rgb: "E2E8F0" } },
+              left: { style: "thin", color: { rgb: "E2E8F0" } },
+              bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+              right: { style: "thin", color: { rgb: "E2E8F0" } },
+            },
+          };
+        }
+
         if (p.ans.hyperlink) {
           addLink(rIdx, col + 1, p.ans.hyperlink, p.ans.display);
+          console.log(
+            `     🔗 Hyperlink at row ${rIdx}, col ${col + 1}: ${p.ans.display}`
+          );
         }
         col += 2;
       });
 
+      // Style the section title cell in the first column
+      if (row[0]) {
+        const sectionAddr = XLSX.utils.encode_cell({ r: rows.length, c: 0 });
+        cellStyles[sectionAddr] = {
+          font: {
+            bold: true,
+            color: { rgb: "1E40AF" },
+            sz: 12,
+          },
+          fill: {
+            fgColor: { rgb: "DBEAFE" }, // Light blue background
+          },
+          alignment: {
+            horizontal: "left",
+            vertical: "center",
+            wrapText: true,
+          },
+          border: {
+            top: { style: "thin", color: { rgb: "93C5FD" } },
+            left: { style: "thin", color: { rgb: "93C5FD" } },
+            bottom: { style: "thin", color: { rgb: "93C5FD" } },
+            right: { style: "thin", color: { rgb: "93C5FD" } },
+          },
+        };
+      }
+
       rows.push(row);
+      totalRows++;
+      sectionRowCount++;
     });
+
+    console.log(
+      `   ✅ Section "${section.title}" completed: ${sectionRowCount} rows`
+    );
   });
 
-  return { data: rows, links };
+  console.log(`\n🎯 FINAL SUMMARY:`);
+  console.log(`   - Total data rows: ${totalRows}`);
+  console.log(`   - Total hyperlinks: ${links.length}`);
+  console.log(`   - Header styles: ${Object.keys(headerStyle).length} cells`);
+  console.log(`   - Cell styles: ${Object.keys(cellStyles).length} cells`);
+  console.log(
+    `   - Data structure: ${rows.length} rows x ${rows[0]?.length || 0} columns`
+  );
+
+  return { data: rows, links, headerStyle, cellStyles };
 }
 
 function applyHyperlinks(sheet: XLSX.WorkSheet, links: HyperlinkEntry[]): void {
   links.forEach(({ rowIndex, columnIndex, target, display }) => {
-    const cellAddress = utils.encode_cell({ r: rowIndex, c: columnIndex });
+    const cellAddress = XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
     const existingCell = sheet[cellAddress] as XLSX.CellObject | undefined;
     const cellObject: XLSX.CellObject = existingCell ?? { t: "s", v: display };
     cellObject.v = display;
     cellObject.t = "s";
     cellObject.l = { Target: target, Tooltip: display };
+
+    // Preserve existing styles when adding hyperlinks
+    if (existingCell && existingCell.s) {
+      cellObject.s = existingCell.s;
+    }
+
     sheet[cellAddress] = cellObject;
   });
 }
 
+// ▼▼▼ MAIN EXPORT FUNCTION - RESPONSES ONLY ▼▼▼
 export function generateResponseExcelReport(
   response: ResponseData,
-  form: FormData,
-  sectionSummaryRows: SectionSummaryRow[]
+  form: FormData
 ): void {
   const workbook = utils.book_new();
 
-  // Dashboard Sheet
-  const dashboardData: any[] = [];
-  dashboardData.push(["Dashboard Report"]);
-  dashboardData.push([]);
-  dashboardData.push(["Form", response.formTitle]);
-  dashboardData.push([
-    "Submitted",
-    new Date(response.createdAt).toLocaleString(),
-  ]);
-  if (response.yesNoScore) {
-    dashboardData.push([
-      "Overall Score",
-      `${response.yesNoScore.yes}/${response.yesNoScore.total}`,
-    ]);
-  }
-  dashboardData.push([]);
-  dashboardData.push([
-    "Section",
-    "Yes %",
-    "No %",
-    "N/A %",
-    "Weightage",
-    "Yes % × Weightage",
-    "No % × Weightage",
-    "N/A % × Weightage",
-  ]);
+  // Build nested form structure and create responses sheet
+  const nestedForm = buildNestedForm(form);
+  const {
+    data: responsesData,
+    links: responsesLinks,
+    headerStyle,
+    cellStyles,
+  } = buildResponsesSheetContent(response, nestedForm);
 
-  sectionSummaryRows.forEach((row) => {
-    dashboardData.push([
-      row.title,
-      formatPercentageValue(row.yesPercent),
-      formatPercentageValue(row.noPercent),
-      formatPercentageValue(row.naPercent),
-      formatPercentageValue(row.weightage),
-      formatPercentageValue(row.yesWeighted),
-      formatPercentageValue(row.noWeighted),
-      formatPercentageValue(row.naWeighted),
-    ]);
+  const responsesSheet = XLSX.utils.aoa_to_sheet(responsesData);
+
+  // Apply styles
+  Object.keys(headerStyle).forEach((address) => {
+    if (!responsesSheet[address]) responsesSheet[address] = { t: "s", v: "" };
+    responsesSheet[address].s = headerStyle[address];
   });
 
-  const dashboardSheet = utils.aoa_to_sheet(dashboardData);
-  dashboardSheet["!cols"] = [
-    { wch: 20 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
-  ];
+  Object.keys(cellStyles).forEach((address) => {
+    if (!responsesSheet[address]) {
+      const coord = XLSX.utils.decode_cell(address);
+      if (
+        coord.r < responsesData.length &&
+        coord.c < responsesData[coord.r].length
+      ) {
+        responsesSheet[address] = {
+          t: "s",
+          v: responsesData[coord.r][coord.c] || "",
+        };
+      } else {
+        responsesSheet[address] = { t: "s", v: "" };
+      }
+    }
+    responsesSheet[address].s = cellStyles[address];
+  });
 
-  utils.book_append_sheet(workbook, dashboardSheet, "Dashboard");
-
-  // Responses Sheet - with nested structure
-  const nestedForm = buildNestedForm(form);
-  const { data: responsesData, links: responsesLinks } =
-    buildResponsesSheetContent(response, nestedForm);
-
-  const responsesSheet = utils.aoa_to_sheet(responsesData);
-  responsesSheet["!cols"] = Array(50).fill({ wch: 25 }); // More columns for horizontal layout
+  responsesSheet["!cols"] = Array(20).fill({ wch: 25 });
   applyHyperlinks(responsesSheet, responsesLinks);
-
   utils.book_append_sheet(workbook, responsesSheet, "Responses");
 
+  // Save file
   const fileName = `${response.formTitle.replace(/\s+/g, "_")}_${
     new Date().toISOString().split("T")[0]
   }.xlsx`;
+
   writeFile(workbook, fileName);
+
+  console.log("✅ Excel file generated with styled responses");
 }
 
-function createExcelWorkbook(
+// ▼▼▼ EMAIL VERSION (returns Blob) ▼▼▼
+export function createExcelWorkbook(
   response: ResponseData,
-  form: FormData,
-  sectionSummaryRows: SectionSummaryRow[]
+  form: FormData
 ): Blob {
-  const workbook = XLSX.utils.book_new();
+  const workbook = utils.book_new();
 
-  const dashboardData: any[] = [];
-  dashboardData.push(["Dashboard Report"]);
-  dashboardData.push([]);
-  dashboardData.push(["Form", response.formTitle]);
-  dashboardData.push([
-    "Submitted",
-    new Date(response.createdAt).toLocaleString(),
-  ]);
-  if (response.yesNoScore) {
-    dashboardData.push([
-      "Overall Score",
-      `${response.yesNoScore.yes}/${response.yesNoScore.total}`,
-    ]);
-  }
-  dashboardData.push([]);
-  dashboardData.push([
-    "Section",
-    "Yes %",
-    "No %",
-    "N/A %",
-    "Weightage",
-    "Yes % × Weightage",
-    "No % × Weightage",
-    "N/A % × Weightage",
-  ]);
-
-  sectionSummaryRows.forEach((row) => {
-    dashboardData.push([
-      row.title,
-      formatPercentageValue(row.yesPercent),
-      formatPercentageValue(row.noPercent),
-      formatPercentageValue(row.naPercent),
-      formatPercentageValue(row.weightage),
-      formatPercentageValue(row.yesWeighted),
-      formatPercentageValue(row.noWeighted),
-      formatPercentageValue(row.naWeighted),
-    ]);
-  });
-
-  const dashboardSheet = XLSX.utils.aoa_to_sheet(dashboardData);
-  dashboardSheet["!cols"] = [
-    { wch: 20 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 12 },
-    { wch: 15 },
-    { wch: 15 },
-    { wch: 15 },
-  ];
-
-  XLSX.utils.book_append_sheet(workbook, dashboardSheet, "Dashboard");
-
+  // Build nested form structure and create responses sheet
   const nestedForm = buildNestedForm(form);
-  const { data: responsesData, links: responsesLinks } =
-    buildResponsesSheetContent(response, nestedForm);
+  const {
+    data: responsesData,
+    links: responsesLinks,
+    headerStyle,
+    cellStyles,
+  } = buildResponsesSheetContent(response, nestedForm);
 
   const responsesSheet = XLSX.utils.aoa_to_sheet(responsesData);
-  responsesSheet["!cols"] = Array(50).fill({ wch: 25 });
-  applyHyperlinks(responsesSheet, responsesLinks);
 
+  Object.keys(headerStyle).forEach((address) => {
+    if (!responsesSheet[address]) responsesSheet[address] = { t: "s", v: "" };
+    responsesSheet[address].s = headerStyle[address];
+  });
+
+  Object.keys(cellStyles).forEach((address) => {
+    if (!responsesSheet[address]) {
+      const coord = XLSX.utils.decode_cell(address);
+      if (
+        coord.r < responsesData.length &&
+        coord.c < responsesData[coord.r].length
+      ) {
+        responsesSheet[address] = {
+          t: "s",
+          v: responsesData[coord.r][coord.c] || "",
+        };
+      } else {
+        responsesSheet[address] = { t: "s", v: "" };
+      }
+    }
+    responsesSheet[address].s = cellStyles[address];
+  });
+
+  responsesSheet["!cols"] = Array(20).fill({ wch: 25 });
+  applyHyperlinks(responsesSheet, responsesLinks);
   XLSX.utils.book_append_sheet(workbook, responsesSheet, "Responses");
 
+  // Export to Blob
   const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
   return new Blob([excelBuffer], {
     type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -527,11 +731,10 @@ function createExcelWorkbook(
 export async function sendResponseExcelViaEmail(
   response: ResponseData,
   form: FormData,
-  sectionSummaryRows: SectionSummaryRow[],
   recipientEmail: string
 ): Promise<{ success: boolean; blob: Blob; fallback?: boolean }> {
   try {
-    const blob = createExcelWorkbook(response, form, sectionSummaryRows);
+    const blob = createExcelWorkbook(response, form);
     const fileName = `${response.formTitle.replace(/\s+/g, "_")}_Report.xlsx`;
 
     const formData = new FormData();
@@ -543,7 +746,6 @@ export async function sendResponseExcelViaEmail(
     const token = localStorage.getItem("auth_token");
 
     console.log("📨 Sending email report to:", recipientEmail);
-    console.log("📄 File size:", blob.size, "bytes");
 
     const API_BASE_URL = "http://localhost:5000/api";
     const response_obj = await fetch(
@@ -555,11 +757,8 @@ export async function sendResponseExcelViaEmail(
       }
     );
 
-    console.log("📤 Response status:", response_obj.status);
-
     if (!response_obj.ok) {
       const errorData = await response_obj.json().catch(() => ({}));
-      console.error("❌ Server error response:", errorData);
       throw new Error(
         `Server error: ${response_obj.status} - ${
           errorData.message || "Unknown error"

@@ -172,9 +172,9 @@ export default function ResponseQuestion({
         legend: {
           position: "bottom" as const,
           labels: {
-            padding: 20,
+            padding: 15,
             font: {
-              size: 12,
+              size: 11,
             },
             color: "rgb(107, 114, 128)",
           },
@@ -211,7 +211,7 @@ export default function ResponseQuestion({
                   return `${percentage}% (${value})`;
                 },
                 color: "white",
-                font: { size: 12 },
+                font: { size: 10 },
               },
             },
           }
@@ -235,12 +235,12 @@ export default function ResponseQuestion({
                   return `${percentage}% (${value})`;
                 },
                 color: "white",
-                font: { size: 12 },
+                font: { size: 10 },
               },
             },
             layout: {
               padding: {
-                right: 60,
+                right: 40,
               },
             },
             scales: {
@@ -251,6 +251,9 @@ export default function ResponseQuestion({
                 },
                 ticks: {
                   color: "rgb(107, 114, 128)",
+                  font: {
+                    size: 10,
+                  },
                 },
               },
               y: {
@@ -259,13 +262,16 @@ export default function ResponseQuestion({
                 },
                 ticks: {
                   color: "rgb(107, 114, 128)",
+                  font: {
+                    size: 10,
+                  },
                 },
               },
             },
           };
 
     return (
-      <div className="h-[350px]">
+      <div className="h-[200px]">
         {chartType === "pie" ? (
           <Pie data={data} options={options} />
         ) : (
@@ -280,6 +286,19 @@ export default function ResponseQuestion({
       ...prev,
       [questionId]: type,
     }));
+  };
+
+  const renderTextQuestionSummary = (q: Question["followUpQuestions"][0]) => {
+    const responses = getQuestionResponses(q.id);
+    const responseCount = responses.length;
+
+    return (
+      <div className="mt-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+        <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
+          Total Responses: {responseCount}
+        </span>
+      </div>
+    );
   };
 
   // Calculate overall statistics
@@ -518,7 +537,7 @@ export default function ResponseQuestion({
 
       <div className="space-y-8">
         {allQuestions.map((q) => {
-          if (!q.options) return null;
+          const isTextQuestion = q.type === "text" || q.type === "paragraph";
           const responses = getQuestionResponses(q.id);
           const responseCount = responses.length;
           const stats = getCorrectWrongStats(q);
@@ -607,13 +626,20 @@ export default function ResponseQuestion({
                   <span className="text-sm text-gray-500 dark:text-gray-400">
                     {responseCount} responses
                   </span>
-                  <ChartTypeSelector
-                    value={chartPreferences[q.id] || "bar"}
-                    onChange={(type) => handleChartTypeChange(q.id, type)}
-                  />
+                  {!isTextQuestion && q.options && (
+                    <ChartTypeSelector
+                      value={chartPreferences[q.id] || "bar"}
+                      onChange={(type) => handleChartTypeChange(q.id, type)}
+                    />
+                  )}
                 </div>
               </div>
-              {renderQuestionChart(q)}
+
+              {isTextQuestion ? (
+                renderTextQuestionSummary(q)
+              ) : (
+                renderQuestionChart(q)
+              )}
             </div>
           );
         })}

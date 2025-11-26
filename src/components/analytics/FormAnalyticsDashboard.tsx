@@ -12,9 +12,13 @@ import {
   TrendingUp,
   PieChart,
 } from "lucide-react";
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from "chart.js";
+import { Line } from "react-chartjs-2";
 import { apiClient } from "../../api/client";
 import ResponseQuestion from "./ResponseQuestion";
 import LocationHeatmap from "./LocationHeatmap";
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 interface Response {
   id: string;
@@ -150,6 +154,9 @@ export default function FormAnalyticsDashboard() {
       return date.toISOString().split("T")[0];
     }).reverse();
 
+    const maxCount = Math.max(...last7Days.map((date) => responseTrend[date] || 0), 1);
+    const percentageData = last7Days.map((date) => Math.round(((responseTrend[date] || 0) / maxCount) * 100));
+
     return {
       total,
       pending,
@@ -158,6 +165,7 @@ export default function FormAnalyticsDashboard() {
       recentResponses,
       responseTrend,
       last7Days,
+      percentageData,
     };
   }, [responses]);
 
@@ -212,7 +220,7 @@ export default function FormAnalyticsDashboard() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="card p-6">
           <div className="flex items-center">
             <div className="p-3 bg-blue-50 rounded-lg mr-4">
@@ -222,101 +230,153 @@ export default function FormAnalyticsDashboard() {
               <div className="text-2xl font-bold text-primary-600">
                 {analytics.total}
               </div>
-              <div className="text-sm text-primary-500">Total Responses</div>
+              <div className="text-xs text-primary-500">Total Responses</div>
             </div>
           </div>
         </div>
 
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-yellow-50 rounded-lg mr-4">
-              <Clock className="w-6 h-6 text-yellow-600" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-primary-600">
-                {analytics.pending}
-              </div>
-              <div className="text-sm text-primary-500">Pending</div>
-            </div>
+        <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg card">
+          <div className="text-xs text-blue-600 dark:text-blue-400 font-semibold">Highest</div>
+          <div className="text-xl font-bold text-blue-900 dark:text-blue-200 mt-2">
+            {Math.max(...Object.values(analytics.responseTrend), 0)}
           </div>
         </div>
 
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-green-50 rounded-lg mr-4">
-              <CheckCircle className="w-6 h-6 text-green-600" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-primary-600">
-                {analytics.verified}
-              </div>
-              <div className="text-sm text-primary-500">Completed</div>
-            </div>
+        <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg card">
+          <div className="text-xs text-green-600 dark:text-green-400 font-semibold">Average</div>
+          <div className="text-xl font-bold text-green-900 dark:text-green-200 mt-2">
+            {Math.round(
+              Object.values(analytics.responseTrend).reduce((a, b) => a + b, 0) /
+                analytics.last7Days.length
+            )}
           </div>
         </div>
 
-        <div className="card p-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-red-50 rounded-lg mr-4">
-              <XCircle className="w-6 h-6 text-red-600" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-primary-600">
-                {analytics.rejected}
-              </div>
-              <div className="text-sm text-primary-500">Closed</div>
-            </div>
+        <div className="text-center p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg card">
+          <div className="text-xs text-purple-600 dark:text-purple-400 font-semibold">Days Active</div>
+          <div className="text-xl font-bold text-purple-900 dark:text-purple-200 mt-2">
+            {Object.values(analytics.responseTrend).filter((v) => v > 0).length}
+          </div>
+        </div>
+
+        <div className="text-center p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg card">
+          <div className="text-xs text-orange-600 dark:text-orange-400 font-semibold">Trend</div>
+          <div className="text-xl font-bold text-orange-900 dark:text-orange-200 mt-2">
+            <TrendingUp className="w-6 h-6 inline" />
           </div>
         </div>
       </div>
 
       {/* Response Trend Chart */}
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold text-primary-800 mb-4 flex items-center">
-          <BarChart3 className="w-5 h-5 mr-2" />
-          Response Trend (Last 7 Days)
-        </h3>
-        {Object.keys(analytics.responseTrend).length === 0 ? (
-          <div className="text-center py-8 text-primary-500">
-            No responses in the last 7 days
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <div className="flex items-end space-x-2 h-48 min-w-full p-4" style={{ minWidth: "600px" }}>
-              {analytics.last7Days.map((date) => {
-                const count = analytics.responseTrend[date] || 0;
-                const maxCount = Math.max(
-                  ...(Object.values(analytics.responseTrend).length > 0
-                    ? Object.values(analytics.responseTrend)
-                    : [1])
-                );
-                const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
-
-                return (
-                  <div key={date} className="flex-1 flex flex-col items-center min-w-16">
-                    <div className="flex flex-col items-center flex-1 w-full">
-                      <span className="text-xs font-medium text-primary-700 mb-2">
-                        {count}
-                      </span>
-                      <div
-                        className="w-8 bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all duration-300 hover:from-blue-600 hover:to-blue-500 hover:shadow-lg"
-                        style={{ height: `${Math.max(height, 5)}%`, minHeight: "20px" }}
-                        title={`${count} responses on ${new Date(
-                          date
-                        ).toLocaleDateString()}`}
-                      ></div>
-                    </div>
-                    <span className="text-xs text-primary-600 mt-3 font-medium">
-                      {new Date(date).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </span>
-                  </div>
-                );
-              })}
+      <div className="card p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center">
+            <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg mr-3">
+              <BarChart3 className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-primary-900 dark:text-white">Response Trend</h3>
+              <p className="text-xs text-primary-500 dark:text-primary-400">Last 7 days activity</p>
             </div>
           </div>
+          <div className="text-right">
+            <div className="text-2xl font-bold text-primary-800 dark:text-white">
+              {Object.values(analytics.responseTrend).reduce((a, b) => a + b, 0)}
+            </div>
+            <p className="text-xs text-primary-500 dark:text-primary-400">Total responses</p>
+          </div>
+        </div>
+
+        {Object.keys(analytics.responseTrend).length === 0 ? (
+          <div className="text-center py-12">
+            <div className="mb-3">
+              <BarChart3 className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto" />
+            </div>
+            <p className="text-primary-500 dark:text-primary-400 font-medium">No responses yet</p>
+            <p className="text-xs text-primary-400 dark:text-primary-500 mt-1">Responses will appear here</p>
+          </div>
+        ) : (
+          <>
+            <div className="mb-6">
+              <Line
+                data={{
+                  labels: analytics.last7Days.map((date) =>
+                    new Date(date).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })
+                  ),
+                  datasets: [
+                    {
+                      label: "Responses %",
+                      data: analytics.percentageData,
+                      borderColor: "rgb(59, 130, 246)",
+                      backgroundColor: "rgba(59, 130, 246, 0.1)",
+                      fill: true,
+                      tension: 0.4,
+                      pointRadius: 5,
+                      pointHoverRadius: 7,
+                      pointBackgroundColor: "rgb(59, 130, 246)",
+                      pointBorderColor: "#fff",
+                      pointBorderWidth: 2,
+                      borderWidth: 2,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: true,
+                  plugins: {
+                    legend: {
+                      display: false,
+                    },
+                    tooltip: {
+                      backgroundColor: "rgba(0, 0, 0, 0.8)",
+                      titleColor: "#fff",
+                      bodyColor: "#fff",
+                      cornerRadius: 8,
+                      padding: 12,
+                      titleFont: { size: 12, weight: "bold" },
+                      bodyFont: { size: 12 },
+                      callbacks: {
+                        label: function (context) {
+                          return `${context.parsed.y}%`;
+                        },
+                      },
+                    },
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      max: 100,
+                      grid: {
+                        color: "rgba(0, 0, 0, 0.05)",
+                        drawBorder: false,
+                      },
+                      ticks: {
+                        color: "rgb(107, 114, 128)",
+                        font: { size: 11 },
+                        callback: function (value) {
+                          return value + "%";
+                        },
+                      },
+                    },
+                    x: {
+                      grid: {
+                        display: false,
+                        drawBorder: false,
+                      },
+                      ticks: {
+                        color: "rgb(107, 114, 128)",
+                        font: { size: 11 },
+                      },
+                    },
+                  },
+                }}
+                height={60}
+              />
+            </div>
+          </>
         )}
       </div>
 
