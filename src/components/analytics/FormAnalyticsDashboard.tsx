@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { apiClient } from "../../api/client";
 import ResponseQuestion from "./ResponseQuestion";
+import LocationHeatmap from "./LocationHeatmap";
 
 interface Response {
   id: string;
@@ -269,129 +270,58 @@ export default function FormAnalyticsDashboard() {
         </div>
       </div>
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Status Distribution Pie Chart */}
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-primary-800 mb-4 flex items-center">
-            <PieChart className="w-5 h-5 mr-2" />
-            Response Status Distribution
-          </h3>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-yellow-500 rounded mr-3"></div>
-                <span className="text-sm text-primary-600">Pending</span>
-              </div>
-              <span className="font-medium">{analytics.pending}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-green-500 rounded mr-3"></div>
-                <span className="text-sm text-primary-600">Completed</span>
-              </div>
-              <span className="font-medium">{analytics.verified}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-red-500 rounded mr-3"></div>
-                <span className="text-sm text-primary-600">Closed</span>
-              </div>
-              <span className="font-medium">{analytics.rejected}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-primary-800 mb-4 flex items-center">
-            <TrendingUp className="w-5 h-5 mr-2" />
-            Recent Activity
-          </h3>
-          <div className="space-y-3">
-            {analytics.recentResponses.length === 0 ? (
-              <p className="text-primary-500 text-sm">No responses yet</p>
-            ) : (
-              analytics.recentResponses.map((response) => (
-                <div
-                  key={response.id}
-                  className="flex items-center justify-between py-2 border-b border-neutral-100 last:border-b-0"
-                >
-                  <div className="flex items-center">
-                    <div
-                      className={`w-2 h-2 rounded-full mr-3 ${
-                        response.status === "verified"
-                          ? "bg-green-500"
-                          : response.status === "rejected"
-                          ? "bg-red-500"
-                          : "bg-yellow-500"
-                      }`}
-                    ></div>
-                    <div>
-                      <p className="text-sm font-medium text-primary-800">
-                        Response #{response.id.slice(-6)}
-                      </p>
-                      <p className="text-xs text-primary-500">
-                        {getResponseTimestamp(response)
-                          ? new Date(
-                              getResponseTimestamp(response)!
-                            ).toLocaleString()
-                          : "No date"}
-                      </p>
-                    </div>
-                  </div>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      response.status === "verified"
-                        ? "bg-green-100 text-green-800"
-                        : response.status === "rejected"
-                        ? "bg-red-100 text-red-800"
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
-                  >
-                    {response.status || "pending"}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Response Trend Chart */}
       <div className="card p-6">
         <h3 className="text-lg font-semibold text-primary-800 mb-4 flex items-center">
           <BarChart3 className="w-5 h-5 mr-2" />
           Response Trend (Last 7 Days)
         </h3>
-        <div className="flex items-end space-x-2 h-32">
-          {analytics.last7Days.map((date) => {
-            const count = analytics.responseTrend[date] || 0;
-            const maxCount = Math.max(
-              ...Object.values(analytics.responseTrend)
-            );
-            const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
+        {Object.keys(analytics.responseTrend).length === 0 ? (
+          <div className="text-center py-8 text-primary-500">
+            No responses in the last 7 days
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <div className="flex items-end space-x-2 h-48 min-w-full p-4" style={{ minWidth: "600px" }}>
+              {analytics.last7Days.map((date) => {
+                const count = analytics.responseTrend[date] || 0;
+                const maxCount = Math.max(
+                  ...(Object.values(analytics.responseTrend).length > 0
+                    ? Object.values(analytics.responseTrend)
+                    : [1])
+                );
+                const height = maxCount > 0 ? (count / maxCount) * 100 : 0;
 
-            return (
-              <div key={date} className="flex-1 flex flex-col items-center">
-                <div
-                  className="w-full bg-primary-500 rounded-t transition-all duration-300 hover:bg-primary-600"
-                  style={{ height: `${Math.max(height, 5)}%` }}
-                  title={`${count} responses on ${new Date(
-                    date
-                  ).toLocaleDateString()}`}
-                ></div>
-                <span className="text-xs text-primary-500 mt-2 transform -rotate-45 origin-top">
-                  {new Date(date).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                return (
+                  <div key={date} className="flex-1 flex flex-col items-center min-w-16">
+                    <div className="flex flex-col items-center flex-1 w-full">
+                      <span className="text-xs font-medium text-primary-700 mb-2">
+                        {count}
+                      </span>
+                      <div
+                        className="w-8 bg-gradient-to-t from-blue-500 to-blue-400 rounded-t transition-all duration-300 hover:from-blue-600 hover:to-blue-500 hover:shadow-lg"
+                        style={{ height: `${Math.max(height, 5)}%`, minHeight: "20px" }}
+                        title={`${count} responses on ${new Date(
+                          date
+                        ).toLocaleDateString()}`}
+                      ></div>
+                    </div>
+                    <span className="text-xs text-primary-600 mt-3 font-medium">
+                      {new Date(date).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Location Heatmap */}
+      <LocationHeatmap responses={responses} title="Response Locations Heatmap" />
 
       {/* Question-wise Analytics */}
       {form && (

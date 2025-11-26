@@ -22,6 +22,8 @@ import {
   FileCheck,
   AlertTriangle,
   Save,
+  ChevronDown,
+  MapPin,
 } from "lucide-react";
 import { Bar, Line, Pie } from "react-chartjs-2";
 import {
@@ -47,6 +49,7 @@ import { generateAndDownloadPDF } from "../utils/pdfExportUtils";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
 import DashboardSummaryCard from "./DashboardSummaryCard";
+import LocationHeatmap from "./analytics/LocationHeatmap";
 
 ChartJS.register(
   CategoryScale,
@@ -97,6 +100,27 @@ interface Form {
   followUpQuestions?: any[];
 }
 
+interface LocationData {
+  country?: string;
+  countryCode?: string;
+  region?: string;
+  city?: string;
+  latitude?: number;
+  longitude?: number;
+  timezone?: string;
+  isp?: string;
+}
+
+interface SubmissionMetadata {
+  ipAddress?: string;
+  userAgent?: string;
+  browser?: string;
+  device?: string;
+  os?: string;
+  location?: LocationData;
+  submittedAt?: string;
+}
+
 interface Response {
   _id: string;
   id: string;
@@ -112,6 +136,7 @@ interface Response {
     yes: number;
     total: number;
   };
+  submissionMetadata?: SubmissionMetadata;
 }
 
 interface GroupedResponses {
@@ -143,11 +168,15 @@ export default function AllResponses() {
   const [formLoading, setFormLoading] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [showStatusUpdate, setShowStatusUpdate] = useState(false);
-  const [viewMode, setViewMode] = useState<"dashboard" | "responses">("dashboard");
+  const [viewMode, setViewMode] = useState<"dashboard" | "responses">(
+    "dashboard"
+  );
   const [pendingSectionId, setPendingSectionId] = useState<string | null>(null);
 
   const [exportingExcel, setExportingExcel] = useState(false);
-  const [deletingResponseId, setDeletingResponseId] = useState<string | null>(null);
+  const [deletingResponseId, setDeletingResponseId] = useState<string | null>(
+    null
+  );
   const [editingResponse, setEditingResponse] = useState<
     (Response & { formTitle: string }) | null
   >(null);
@@ -158,9 +187,17 @@ export default function AllResponses() {
   const [editingWeightage, setEditingWeightage] = useState<string | null>(null);
   const [weightageValue, setWeightageValue] = useState<string>("");
   const [savingWeightage, setSavingWeightage] = useState(false);
-  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
-  const [sectionResponsesMap, setSectionResponsesMap] = useState<Record<string, (Response & { formTitle: string })[]>>({});
-  const [sectionChartTypes, setSectionChartTypes] = useState<Record<string, "pie" | "bar">>({});
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(
+    null
+  );
+  const [sectionResponsesMap, setSectionResponsesMap] = useState<
+    Record<string, (Response & { formTitle: string })[]>
+  >({});
+  const [sectionChartTypes, setSectionChartTypes] = useState<
+    Record<string, "pie" | "bar">
+  >({});
+  const [expandResponseRateBreakdown, setExpandResponseRateBreakdown] =
+    useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -335,7 +372,11 @@ export default function AllResponses() {
       ? computeYesNoScore(updated.answers, editingForm)
       : undefined;
     try {
-      await apiClient.updateResponse(responseId, { answers: updated.answers, status: updated.status, notes: updated.notes });
+      await apiClient.updateResponse(responseId, {
+        answers: updated.answers,
+        status: updated.status,
+        notes: updated.notes,
+      });
       setResponses((prev) =>
         prev.map((r) =>
           r.id === responseId
@@ -371,8 +412,6 @@ export default function AllResponses() {
     }
   };
 
-
-
   const handleExportExcel = () => {
     if (exportingExcel) {
       return;
@@ -399,8 +438,6 @@ export default function AllResponses() {
     }
   };
 
-
-
   const handleDownloadPDF = async () => {
     if (generatingPDF || !selectedResponse || !selectedForm) {
       return;
@@ -410,36 +447,51 @@ export default function AllResponses() {
     try {
       const sectionQuestionStats: Record<string, any[]> = {};
       const sectionMainParameters: Record<string, any[]> = {};
-      
+
       if (selectedForm.sections) {
         selectedForm.sections.forEach((section: any) => {
-          sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(section.id);
-          
+          sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(
+            section.id
+          );
+
           const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
           const mainParamsData: any[] = [];
-          
+
           sectionQuestions.forEach((q: any) => {
             q.followUpQuestions?.forEach((fq: any) => {
               const answer = fq.answer;
-              if (answer && (typeof answer === 'object' || typeof answer === 'string')) {
-                const answerObj = typeof answer === 'string' ? { text: answer } : answer;
+              if (
+                answer &&
+                (typeof answer === "object" || typeof answer === "string")
+              ) {
+                const answerObj =
+                  typeof answer === "string" ? { text: answer } : answer;
                 mainParamsData.push({
-                  subParam1: q.subParam1 || fq.subParam1 || 'N/A',
-                  remarks: answerObj.remarks || 'Sample Remarks',
-                  actionInitiated: answerObj.actionInitiated || 'Sample Action Initiated',
-                  reasonForNotOK: answerObj.reasonForNotOK || 'Sample Reason fo Not OK',
-                  responsiblePerson: answerObj.responsiblePerson || 'Sample Responsible person',
-                  review: answerObj.review || 'Sample Review',
-                  files: answerObj.files || []
+                  subParam1: q.subParam1 || fq.subParam1 || "N/A",
+                  remarks: answerObj.remarks || "Sample Remarks",
+                  actionInitiated:
+                    answerObj.actionInitiated || "Sample Action Initiated",
+                  reasonForNotOK:
+                    answerObj.reasonForNotOK || "Sample Reason fo Not OK",
+                  responsiblePerson:
+                    answerObj.responsiblePerson || "Sample Responsible person",
+                  review: answerObj.review || "Sample Review",
+                  files: answerObj.files || [],
                 });
               }
             });
           });
-          
+
           sectionMainParameters[section.id] = mainParamsData;
         });
       }
-      
+
+      // Add chart element IDs for capturing
+      const chartElementIds = [
+        "section-performance-chart",
+        ...availableSections.map((section) => `section-chart-${section.id}`),
+      ];
+
       await generateAndDownloadPDF({
         filename: `${selectedForm.title}_Report.pdf`,
         formTitle: selectedForm.title,
@@ -451,6 +503,7 @@ export default function AllResponses() {
         sectionQuestionStats: sectionQuestionStats,
         sectionMainParameters: sectionMainParameters,
         availableSections: availableSections,
+        chartElementIds: chartElementIds,
       } as any);
       showSuccess("PDF downloaded successfully.");
     } catch (error) {
@@ -458,100 +511,6 @@ export default function AllResponses() {
       showError("Failed to generate PDF. Please try again.");
     } finally {
       setGeneratingPDF(false);
-    }
-  };
-
-  const handleEditWeightage = (sectionId: string, currentWeightage: number) => {
-    setEditingWeightage(sectionId);
-    setWeightageValue(currentWeightage.toString());
-  };
-
-  const handleCancelWeightageEdit = () => {
-    setEditingWeightage(null);
-    setWeightageValue("");
-  };
-
-  const handleSaveWeightage = async (sectionId: string) => {
-    if (!selectedForm) return;
-
-    const newWeightage = parseFloat(weightageValue);
-    if (isNaN(newWeightage) || newWeightage < 0 || newWeightage > 100) {
-      showError("Weightage must be a number between 0 and 100");
-      return;
-    }
-
-    setSavingWeightage(true);
-    try {
-      // Find the current section being edited
-      const currentSection = selectedForm.sections?.find((section: any) => section.id === sectionId);
-      if (!currentSection) {
-        showError("Section not found");
-        return;
-      }
-
-      const currentWeightage = currentSection.weightage || 0;
-      const weightageDifference = newWeightage - currentWeightage;
-
-      // If there's no change, just exit
-      if (Math.abs(weightageDifference) < 0.01) {
-        setEditingWeightage(null);
-        setWeightageValue("");
-        return;
-      }
-
-      // Redistribute the weightage difference among other sections
-      const otherSections = selectedForm.sections?.filter((section: any) => section.id !== sectionId) || [];
-      const totalOtherWeightage = otherSections.reduce((sum, section) => sum + (section.weightage || 0), 0);
-
-      let updatedSections;
-      if (totalOtherWeightage > 0) {
-        // Distribute the difference proportionally among other sections
-        const adjustmentFactor = (totalOtherWeightage - weightageDifference) / totalOtherWeightage;
-
-        updatedSections = selectedForm.sections?.map((section: any) => {
-          if (section.id === sectionId) {
-            return { ...section, weightage: newWeightage };
-          } else {
-            const adjustedWeightage = (section.weightage || 0) * adjustmentFactor;
-            return { ...section, weightage: Math.max(0, Math.round(adjustedWeightage * 10) / 10) }; // Round to 1 decimal place
-          }
-        });
-      } else {
-        // If no other sections have weightage, just set this section and leave others as is
-        updatedSections = selectedForm.sections?.map((section: any) =>
-          section.id === sectionId ? { ...section, weightage: newWeightage } : section
-        );
-      }
-
-      // Ensure total adds up to 100% by adjusting the last section if needed
-      const totalWeightage = updatedSections?.reduce((sum, section) => sum + (section.weightage || 0), 0) || 0;
-      if (Math.abs(totalWeightage - 100) > 0.1) {
-        const adjustment = 100 - totalWeightage;
-        if (updatedSections && updatedSections.length > 0) {
-          const lastSection = updatedSections[updatedSections.length - 1];
-          lastSection.weightage = Math.max(0, (lastSection.weightage || 0) + adjustment);
-        }
-      }
-
-      // Update the form via API
-      await apiClient.updateForm(selectedForm._id || selectedForm.id, {
-        sections: updatedSections
-      });
-
-      // Update local state
-      setSelectedForm({
-        ...selectedForm,
-        sections: updatedSections
-      });
-
-      setEditingWeightage(null);
-      setWeightageValue("");
-      showSuccess("Weightage updated successfully");
-    } catch (error) {
-      console.error("Failed to update weightage:", error);
-      showError("Failed to update weightage. Please try again.");
-    } finally {
-      setSavingWeightage(false);
     }
   };
 
@@ -610,7 +569,7 @@ export default function AllResponses() {
 
   const groupResponsesBySection = useMemo(() => {
     if (!selectedForm?.sections) return {};
-    
+
     const map: Record<string, (Response & { formTitle: string })[]> = {};
     selectedForm.sections.forEach((section: any) => {
       map[section.id] = [];
@@ -619,10 +578,14 @@ export default function AllResponses() {
     responses.forEach((response) => {
       const answerKeys = Object.keys(response.answers || {});
       answerKeys.forEach((key) => {
-        const question = selectedForm?.sections?.flatMap((s: any) => s.questions || []).find((q: any) => q.id === key);
+        const question = selectedForm?.sections
+          ?.flatMap((s: any) => s.questions || [])
+          .find((q: any) => q.id === key);
         if (question) {
-          const sectionId = selectedForm.sections?.find((s: any) => s.questions?.some((q: any) => q.id === key))?.id;
-          if (sectionId && !map[sectionId].find(r => r.id === response.id)) {
+          const sectionId = selectedForm.sections?.find((s: any) =>
+            s.questions?.some((q: any) => q.id === key)
+          )?.id;
+          if (sectionId && !map[sectionId].find((r) => r.id === response.id)) {
             map[sectionId].push(response);
           }
         }
@@ -633,7 +596,7 @@ export default function AllResponses() {
   }, [responses, selectedForm]);
 
   const availableSections = selectedForm?.sections || [];
-  
+
   useEffect(() => {
     if (availableSections.length > 0 && !selectedSectionId) {
       setSelectedSectionId(availableSections[0].id);
@@ -648,7 +611,11 @@ export default function AllResponses() {
   }, [selectedForm, selectedResponse]);
 
   const filteredSectionStats = useMemo(
-    () => sectionStats.filter((stat) => stat.yes > 0 || stat.no > 0 || stat.na > 0 || stat.weightage > 0),
+    () =>
+      sectionStats.filter(
+        (stat) =>
+          stat.yes > 0 || stat.no > 0 || stat.na > 0 || stat.weightage > 0
+      ),
     [sectionStats]
   );
 
@@ -657,23 +624,31 @@ export default function AllResponses() {
       total ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
 
     return {
-      labels: filteredSectionStats.map((stat) => formatSectionLabel(stat.title)),
+      labels: filteredSectionStats.map((stat) =>
+        formatSectionLabel(stat.title)
+      ),
       datasets: [
         {
           label: "Yes",
-          data: filteredSectionStats.map((stat) => calculatePercentage(stat.yes, stat.total)),
+          data: filteredSectionStats.map((stat) =>
+            calculatePercentage(stat.yes, stat.total)
+          ),
           backgroundColor: "#1d4ed8",
           borderRadius: 4,
         },
         {
           label: "No",
-          data: filteredSectionStats.map((stat) => calculatePercentage(stat.no, stat.total)),
+          data: filteredSectionStats.map((stat) =>
+            calculatePercentage(stat.no, stat.total)
+          ),
           backgroundColor: "#3b82f6",
           borderRadius: 4,
         },
         {
           label: "N/A",
-          data: filteredSectionStats.map((stat) => calculatePercentage(stat.na, stat.total)),
+          data: filteredSectionStats.map((stat) =>
+            calculatePercentage(stat.na, stat.total)
+          ),
           backgroundColor: "#93c5fd",
           borderRadius: 4,
         },
@@ -695,9 +670,14 @@ export default function AllResponses() {
           labels: {
             color: "#374151",
             generateLabels: (chart: any) => {
-              const labels = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
+              const labels =
+                ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
               labels.forEach((label: any) => {
-                label.color = document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151';
+                label.color = document.documentElement.classList.contains(
+                  "dark"
+                )
+                  ? "#d1d5db"
+                  : "#374151";
               });
               return labels;
             },
@@ -775,7 +755,7 @@ export default function AllResponses() {
         } else if (weightage > 0) {
           weightage = weightage * 100;
         }
-        
+
         const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
         const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
         const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
@@ -804,7 +784,9 @@ export default function AllResponses() {
       datasets: [
         {
           label: "Yes % × Weightage",
-          data: sectionSummaryRows.map((row) => parseFloat(row.yesWeighted.toFixed(1))),
+          data: sectionSummaryRows.map((row) =>
+            parseFloat(row.yesWeighted.toFixed(1))
+          ),
           borderColor: "#1d4ed8",
           backgroundColor: "rgba(29, 78, 216, 0.1)",
           borderWidth: 2,
@@ -816,7 +798,9 @@ export default function AllResponses() {
         },
         {
           label: "No % × Weightage",
-          data: sectionSummaryRows.map((row) => parseFloat(row.noWeighted.toFixed(1))),
+          data: sectionSummaryRows.map((row) =>
+            parseFloat(row.noWeighted.toFixed(1))
+          ),
           borderColor: "#3b82f6",
           backgroundColor: "rgba(59, 130, 246, 0.1)",
           borderWidth: 2,
@@ -828,7 +812,9 @@ export default function AllResponses() {
         },
         {
           label: "N/A % × Weightage",
-          data: sectionSummaryRows.map((row) => parseFloat(row.naWeighted.toFixed(1))),
+          data: sectionSummaryRows.map((row) =>
+            parseFloat(row.naWeighted.toFixed(1))
+          ),
           borderColor: "#93c5fd",
           backgroundColor: "rgba(147, 197, 253, 0.1)",
           borderWidth: 2,
@@ -855,9 +841,14 @@ export default function AllResponses() {
           labels: {
             color: "#374151",
             generateLabels: (chart: any) => {
-              const labels = ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
+              const labels =
+                ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
               labels.forEach((label: any) => {
-                label.color = document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151';
+                label.color = document.documentElement.classList.contains(
+                  "dark"
+                )
+                  ? "#d1d5db"
+                  : "#374151";
               });
               return labels;
             },
@@ -916,7 +907,10 @@ export default function AllResponses() {
     if (!section) return [];
 
     const mainQuestionsWithFollowUps: any[] = [];
-    const questionIds = collectYesNoQuestionIds({ ...selectedForm, sections: [section] });
+    const questionIds = collectYesNoQuestionIds({
+      ...selectedForm,
+      sections: [section],
+    });
 
     const mainQuestions: any[] = [];
     const followUpMap = new Map<string, any[]>();
@@ -943,7 +937,7 @@ export default function AllResponses() {
             (fq: any) => fq.parentId === question.id
           ) || []),
           ...(question.followUpQuestions || []),
-          ...(followUpMap.get(question.id) || [])
+          ...(followUpMap.get(question.id) || []),
         ];
 
         if (yesNoValues.length > 0 || followUpQuestionsForThis.length > 0) {
@@ -1042,7 +1036,9 @@ export default function AllResponses() {
       form.sections?.map((section: any) => {
         const counts = { yes: 0, no: 0, na: 0, total: 0 };
         const weightageNumber = Number(section.weightage);
-        const weightage = Number.isFinite(weightageNumber) ? weightageNumber : 0;
+        const weightage = Number.isFinite(weightageNumber)
+          ? weightageNumber
+          : 0;
 
         const processQuestion = (question: any) => {
           if (!question) {
@@ -1158,10 +1154,14 @@ export default function AllResponses() {
       if (!input) {
         return null;
       }
-      const candidate = Array.isArray(input) && input.length === 1 ? input[0] : input;
+      const candidate =
+        Array.isArray(input) && input.length === 1 ? input[0] : input;
       if (typeof candidate === "string") {
         if (candidate.startsWith("data:")) {
-          return { data: candidate, fileName: question?.fileName || question?.name };
+          return {
+            data: candidate,
+            fileName: question?.fileName || question?.name,
+          };
         }
         if (
           candidate.startsWith("http") ||
@@ -1173,7 +1173,9 @@ export default function AllResponses() {
           return {
             url: absolute,
             fileName:
-              question?.fileName || question?.name || extractFileName(candidate),
+              question?.fileName ||
+              question?.name ||
+              extractFileName(candidate),
           };
         }
         return null;
@@ -1187,17 +1189,27 @@ export default function AllResponses() {
           candidate.url ||
           candidate.path;
         const nameValue =
-          candidate.fileName || candidate.filename || candidate.name || question?.fileName || question?.name;
+          candidate.fileName ||
+          candidate.filename ||
+          candidate.name ||
+          question?.fileName ||
+          question?.name;
         if (typeof dataValue === "string" && dataValue.startsWith("data:")) {
           return { data: dataValue, fileName: nameValue };
         }
         if (typeof dataValue === "string") {
           const absolute = ensureAbsoluteFileSource(dataValue);
-          return { url: absolute, fileName: nameValue || extractFileName(dataValue) };
+          return {
+            url: absolute,
+            fileName: nameValue || extractFileName(dataValue),
+          };
         }
         if (typeof candidate.url === "string") {
           const absolute = ensureAbsoluteFileSource(candidate.url);
-          return { url: absolute, fileName: nameValue || extractFileName(candidate.url) };
+          return {
+            url: absolute,
+            fileName: nameValue || extractFileName(candidate.url),
+          };
         }
       }
       return null;
@@ -1206,7 +1218,9 @@ export default function AllResponses() {
     if (question?.type === "file" || question?.type === "radio-image") {
       const fileData = resolveFileData(value);
       if (fileData?.data) {
-        return <FilePreview data={fileData.data} fileName={fileData.fileName} />;
+        return (
+          <FilePreview data={fileData.data} fileName={fileData.fileName} />
+        );
       }
       if (fileData?.url) {
         return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
@@ -1219,12 +1233,14 @@ export default function AllResponses() {
 
     if (typeof value === "string") {
       if (value.startsWith("data:")) {
-        return <FilePreview data={value} fileName={question?.fileName || question?.name} />;
+        return (
+          <FilePreview
+            data={value}
+            fileName={question?.fileName || question?.name}
+          />
+        );
       }
-      if (
-        question?.type === "file" ||
-        question?.type === "radio-image"
-      ) {
+      if (question?.type === "file" || question?.type === "radio-image") {
         if (
           value.startsWith("http") ||
           value.startsWith("//") ||
@@ -1235,7 +1251,9 @@ export default function AllResponses() {
           return (
             <FilePreview
               url={absolute}
-              fileName={question?.fileName || question?.name || extractFileName(value)}
+              fileName={
+                question?.fileName || question?.name || extractFileName(value)
+              }
             />
           );
         }
@@ -1253,7 +1271,11 @@ export default function AllResponses() {
         );
       }
       const trimmed = value.trim();
-      return trimmed ? trimmed : <span className="text-primary-400">No response</span>;
+      return trimmed ? (
+        trimmed
+      ) : (
+        <span className="text-primary-400">No response</span>
+      );
     }
 
     if (Array.isArray(value)) {
@@ -1283,7 +1305,12 @@ export default function AllResponses() {
       }
       const first = value[0];
       if (typeof first === "string" && first.startsWith("data:")) {
-        return <FilePreview data={first} fileName={question?.fileName || question?.name} />;
+        return (
+          <FilePreview
+            data={first}
+            fileName={question?.fileName || question?.name}
+          />
+        );
       }
       return value.join(", ");
     }
@@ -1291,7 +1318,9 @@ export default function AllResponses() {
     if (typeof value === "object") {
       const fileData = resolveFileData(value);
       if (fileData?.data) {
-        return <FilePreview data={fileData.data} fileName={fileData.fileName} />;
+        return (
+          <FilePreview data={fileData.data} fileName={fileData.fileName} />
+        );
       }
       if (fileData?.url) {
         return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
@@ -1316,9 +1345,10 @@ export default function AllResponses() {
       <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-primary-200 shadow-sm mb-6">
         <div className="flex items-center gap-2 overflow-x-auto p-4">
           {availableSections.map((section: any) => {
-            const sectionResponseCount = groupResponsesBySection[section.id]?.length || 0;
+            const sectionResponseCount =
+              groupResponsesBySection[section.id]?.length || 0;
             const isSelected = selectedSectionId === section.id;
-            
+
             return (
               <button
                 key={section.id}
@@ -1329,12 +1359,18 @@ export default function AllResponses() {
                     : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                 }`}
               >
-                <span className="truncate">{formatSectionLabel(section.name || section.label || `Section ${section.id}`)}</span>
-                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                  isSelected 
-                    ? "bg-blue-600 text-white" 
-                    : "bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200"
-                }`}>
+                <span className="truncate">
+                  {formatSectionLabel(
+                    section.name || section.label || `Section ${section.id}`
+                  )}
+                </span>
+                <span
+                  className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                    isSelected
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200"
+                  }`}
+                >
                   {sectionResponseCount}
                 </span>
               </button>
@@ -1365,21 +1401,32 @@ export default function AllResponses() {
       if (!question) return;
 
       if (question.type === "yesNoNA" && question.id) {
-        const normalizedValues = extractYesNoValues(selectedResponse.answers?.[question.id]);
+        const normalizedValues = extractYesNoValues(
+          selectedResponse.answers?.[question.id]
+        );
         const counts = { yes: 0, no: 0, na: 0, total: 0 };
 
         if (normalizedValues.length > 0) {
           counts.total = 1; // Each question counts as 1 response
           if (normalizedValues.includes("yes")) counts.yes = 1;
           if (normalizedValues.includes("no")) counts.no = 1;
-          if (normalizedValues.includes("n/a") || normalizedValues.includes("na") || normalizedValues.includes("not applicable")) counts.na = 1;
+          if (
+            normalizedValues.includes("n/a") ||
+            normalizedValues.includes("na") ||
+            normalizedValues.includes("not applicable")
+          )
+            counts.na = 1;
         }
 
         questionStats.push({
           id: question.id,
-          title: question.title || question.label || question.text || `Question ${question.id}`,
+          title:
+            question.title ||
+            question.label ||
+            question.text ||
+            `Question ${question.id}`,
           subParam1: question.subParam1,
-          ...counts
+          ...counts,
         });
       }
 
@@ -1389,17 +1436,20 @@ export default function AllResponses() {
 
     section.questions?.forEach(processQuestion);
 
-    const groupedStats: Map<string, {
-      id: string;
-      title: string;
-      subParam1?: string;
-      yes: number;
-      no: number;
-      na: number;
-      total: number;
-    }> = new Map();
+    const groupedStats: Map<
+      string,
+      {
+        id: string;
+        title: string;
+        subParam1?: string;
+        yes: number;
+        no: number;
+        na: number;
+        total: number;
+      }
+    > = new Map();
 
-    questionStats.forEach(stat => {
+    questionStats.forEach((stat) => {
       const key = stat.subParam1 || "No parameter";
       if (groupedStats.has(key)) {
         const existing = groupedStats.get(key)!;
@@ -1417,7 +1467,9 @@ export default function AllResponses() {
 
   const renderSectionYesNoTable = (sectionId: string): React.ReactNode => {
     const questionStats = getSectionYesNoQuestionStats(sectionId);
-    const section = selectedForm?.sections?.find((s: any) => s.id === sectionId);
+    const section = selectedForm?.sections?.find(
+      (s: any) => s.id === sectionId
+    );
 
     if (questionStats.length === 0) {
       return null;
@@ -1429,20 +1481,22 @@ export default function AllResponses() {
         yes: totals.yes + stat.yes,
         no: totals.no + stat.no,
         na: totals.na + stat.na,
-        total: totals.total + stat.total
+        total: totals.total + stat.total,
       }),
       { yes: 0, no: 0, na: 0, total: 0 }
     );
 
     // Chart data for the section
     const chartData = {
-      labels: ['Yes', 'No', 'N/A'],
-      datasets: [{
-        data: [sectionTotals.yes, sectionTotals.no, sectionTotals.na],
-        backgroundColor: ['#1d4ed8', '#3b82f6', '#93c5fd'],
-        borderColor: ['#1e40af', '#2563eb', '#60a5fa'],
-        borderWidth: 2,
-      }],
+      labels: ["Yes", "No", "N/A"],
+      datasets: [
+        {
+          data: [sectionTotals.yes, sectionTotals.no, sectionTotals.na],
+          backgroundColor: ["#1d4ed8", "#3b82f6", "#93c5fd"],
+          borderColor: ["#1e40af", "#2563eb", "#60a5fa"],
+          borderWidth: 2,
+        },
+      ],
     };
 
     const chartOptions = {
@@ -1450,20 +1504,24 @@ export default function AllResponses() {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          position: 'bottom' as const,
+          position: "bottom" as const,
           labels: {
-            color: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151',
+            color: document.documentElement.classList.contains("dark")
+              ? "#d1d5db"
+              : "#374151",
           },
         },
         tooltip: {
           callbacks: {
             label: (context: any) => {
-              const total = sectionTotals.yes + sectionTotals.no + sectionTotals.na;
-              const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+              const total =
+                sectionTotals.yes + sectionTotals.no + sectionTotals.na;
+              const percentage =
+                total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
               return `${context.label}: ${context.parsed} (${percentage}%)`;
-            }
-          }
-        }
+            },
+          },
+        },
       },
     };
 
@@ -1475,7 +1533,8 @@ export default function AllResponses() {
             {section?.name || section?.label || `Section`} - Yes/No/N/A Analysis
           </h3>
           <p className="text-blue-700 dark:text-blue-300 mt-2">
-            Question-wise breakdown of yes/no/n/a responses with overall section summary
+            Question-wise breakdown of yes/no/n/a responses with overall section
+            summary
           </p>
         </div>
 
@@ -1488,41 +1547,48 @@ export default function AllResponses() {
                 Response Distribution
               </h4>
               <select
-                value={sectionChartTypes[section.id] || 'pie'}
-                onChange={(e) => setSectionChartTypes((prev) => ({ ...prev, [section.id]: e.target.value as 'pie' | 'bar' }))}
+                value={sectionChartTypes[section.id] || "pie"}
+                onChange={(e) =>
+                  setSectionChartTypes((prev) => ({
+                    ...prev,
+                    [section.id]: e.target.value as "pie" | "bar",
+                  }))
+                }
                 className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-gray-700 border border-blue-200 dark:border-blue-600 rounded-lg text-blue-900 dark:text-blue-100 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="pie">Pie Chart</option>
                 <option value="bar">Bar Chart</option>
               </select>
             </div>
-            <div className="w-full h-64">
-              {sectionChartTypes[section.id] === 'bar' ? (
-                <Bar 
+            <div className="w-full h-64" id={`section-chart-${section.id}`}>
+              {sectionChartTypes[section.id] === "bar" ? (
+                <Bar
                   data={{
-                    labels: questionStats.map((stat) => stat.subParam1 || "No parameter"),
+                    labels: questionStats.map(
+                      (stat) => stat.subParam1 || "No parameter"
+                    ),
                     datasets: [
                       {
-                        label: 'Yes',
+                        label: "Yes",
                         data: questionStats.map((stat) => stat.yes),
-                        backgroundColor: '#10b981',
-                        borderColor: '#059669',
+                        backgroundColor: "#10b981",
+                        borderColor: "#059669",
                         borderWidth: 1,
                       },
                       {
-                        label: 'No',
+                        label: "No",
                         data: questionStats.map((stat) => stat.no),
-                        backgroundColor: '#ef4444',
-                        borderColor: '#dc2626',
+                        backgroundColor: "#ef4444",
+                        borderColor: "#dc2626",
                         borderWidth: 1,
                       },
                       {
-                        label: 'N/A',
+                        label: "N/A",
                         data: questionStats.map((stat) => stat.na),
-                        backgroundColor: '#f59e0b',
-                        borderColor: '#d97706',
+                        backgroundColor: "#f59e0b",
+                        borderColor: "#d97706",
                         borderWidth: 1,
-                      }
+                      },
                     ],
                   }}
                   options={{
@@ -1530,41 +1596,61 @@ export default function AllResponses() {
                     maintainAspectRatio: false,
                     plugins: {
                       legend: {
-                        position: 'top' as const,
+                        position: "top" as const,
                         labels: {
-                          color: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151',
+                          color: document.documentElement.classList.contains(
+                            "dark"
+                          )
+                            ? "#d1d5db"
+                            : "#374151",
                         },
                       },
                       tooltip: {
                         callbacks: {
                           label: (context: any) => {
                             return `${context.dataset.label}: ${context.parsed.y}`;
-                          }
-                        }
-                      }
+                          },
+                        },
+                      },
                     },
                     scales: {
                       x: {
                         stacked: false,
                         ticks: {
-                          color: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151',
-                          font: { size: 12 }
+                          color: document.documentElement.classList.contains(
+                            "dark"
+                          )
+                            ? "#d1d5db"
+                            : "#374151",
+                          font: { size: 12 },
                         },
                         grid: {
-                          color: document.documentElement.classList.contains('dark') ? '#374151' : '#e5e7eb',
-                        }
+                          color: document.documentElement.classList.contains(
+                            "dark"
+                          )
+                            ? "#374151"
+                            : "#e5e7eb",
+                        },
                       },
                       y: {
                         stacked: false,
                         ticks: {
-                          color: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#374151',
+                          color: document.documentElement.classList.contains(
+                            "dark"
+                          )
+                            ? "#d1d5db"
+                            : "#374151",
                           beginAtZero: true,
                         },
                         grid: {
-                          color: document.documentElement.classList.contains('dark') ? '#374151' : '#e5e7eb',
-                        }
-                      }
-                    }
+                          color: document.documentElement.classList.contains(
+                            "dark"
+                          )
+                            ? "#374151"
+                            : "#e5e7eb",
+                        },
+                      },
+                    },
                   }}
                 />
               ) : (
@@ -1605,36 +1691,66 @@ export default function AllResponses() {
                 <tbody className="divide-y divide-blue-200 dark:divide-blue-700 bg-white dark:bg-gray-900">
                   {questionStats.map((stat, index) => {
                     const total = stat.yes + stat.no + stat.na;
-                    const yesPercent = total > 0 ? ((stat.yes / total) * 100).toFixed(1) : 0;
-                    const noPercent = total > 0 ? ((stat.no / total) * 100).toFixed(1) : 0;
-                    const naPercent = total > 0 ? ((stat.na / total) * 100).toFixed(1) : 0;
+                    const yesPercent =
+                      total > 0 ? ((stat.yes / total) * 100).toFixed(1) : 0;
+                    const noPercent =
+                      total > 0 ? ((stat.no / total) * 100).toFixed(1) : 0;
+                    const naPercent =
+                      total > 0 ? ((stat.na / total) * 100).toFixed(1) : 0;
                     return (
-                    <tr key={stat.id} className={`group hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 ${index % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-blue-25 dark:bg-blue-900/5'}`}>
-                      <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
-                        <div className="font-semibold">{stat.subParam1 || "No parameter"}</div>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
-                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${stat.yes > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500'}`}>
-                          {stat.yes}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
-                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${stat.no > 0 ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500'}`}>
-                          {stat.no}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
-                        <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${stat.na > 0 ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500'}`}>
-                          {stat.na}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-bold">
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                          {total}
-                        </span>
-                      </td>
-                    </tr>
-                  );
+                      <tr
+                        key={stat.id}
+                        className={`group hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 ${
+                          index % 2 === 0
+                            ? "bg-white dark:bg-gray-900"
+                            : "bg-blue-25 dark:bg-blue-900/5"
+                        }`}
+                      >
+                        <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
+                          <div className="font-semibold">
+                            {stat.subParam1 || "No parameter"}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
+                          <span
+                            className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+                              stat.yes > 0
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
+                            }`}
+                          >
+                            {stat.yes}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
+                          <span
+                            className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+                              stat.no > 0
+                                ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                                : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
+                            }`}
+                          >
+                            {stat.no}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
+                          <span
+                            className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+                              stat.na > 0
+                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
+                            }`}
+                          >
+                            {stat.na}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-bold">
+                          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                            {total}
+                          </span>
+                        </td>
+                      </tr>
+                    );
                   })}
                   {/* Section Totals Row */}
                   <tr className="bg-blue-100 dark:bg-blue-900/50 border-t-2 border-blue-300 dark:border-blue-600">
@@ -1642,13 +1758,31 @@ export default function AllResponses() {
                       Section Total
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-green-800 dark:text-green-300 text-sm">
-                      {sectionTotals.total > 0 ? ((sectionTotals.yes / sectionTotals.total) * 100).toFixed(1) : 0}%
+                      {sectionTotals.total > 0
+                        ? (
+                            (sectionTotals.yes / sectionTotals.total) *
+                            100
+                          ).toFixed(1)
+                        : 0}
+                      %
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-red-800 dark:text-red-300 text-sm">
-                      {sectionTotals.total > 0 ? ((sectionTotals.no / sectionTotals.total) * 100).toFixed(1) : 0}%
+                      {sectionTotals.total > 0
+                        ? (
+                            (sectionTotals.no / sectionTotals.total) *
+                            100
+                          ).toFixed(1)
+                        : 0}
+                      %
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-yellow-800 dark:text-yellow-300 text-sm">
-                      {sectionTotals.total > 0 ? ((sectionTotals.na / sectionTotals.total) * 100).toFixed(1) : 0}%
+                      {sectionTotals.total > 0
+                        ? (
+                            (sectionTotals.na / sectionTotals.total) *
+                            100
+                          ).toFixed(1)
+                        : 0}
+                      %
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100">
                       <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-200 text-blue-900 dark:bg-blue-800 dark:text-blue-100">
@@ -1695,10 +1829,15 @@ export default function AllResponses() {
             });
           });
 
-          const followUpIdsWithAnswers = Array.from(allFollowUpIds).filter(id => followUpIdAnswerStatus.get(id) === true);
+          const followUpIdsWithAnswers = Array.from(allFollowUpIds).filter(
+            (id) => followUpIdAnswerStatus.get(id) === true
+          );
 
           // Group follow-ups by their subParam1 values to avoid duplicate headers
-          const followUpsBySubParam: Map<string, Array<{id: string, subParam1?: string, answer?: any}>> = new Map();
+          const followUpsBySubParam: Map<
+            string,
+            Array<{ id: string; subParam1?: string; answer?: any }>
+          > = new Map();
 
           followUpIdsWithAnswers.forEach((followUpId) => {
             const followUpObj = sectionQuestions
@@ -1712,7 +1851,7 @@ export default function AllResponses() {
             followUpsBySubParam.get(subParamKey)!.push({
               id: followUpId,
               subParam1: followUpObj?.subParam1,
-              answer: followUpObj?.answer
+              answer: followUpObj?.answer,
             });
           });
 
@@ -1724,13 +1863,12 @@ export default function AllResponses() {
               {renderSectionYesNoTable(section.id)}
 
               {/* Main Parameters Table */}
-              <div
-                className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-8 rounded-3xl shadow-xl border border-emerald-200 dark:border-emerald-800"
-              >
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-8 rounded-3xl shadow-xl border border-emerald-200 dark:border-emerald-800">
                 <div className="mb-6">
                   <h3 className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
                     <div className="w-1 h-8 bg-emerald-600 rounded-full"></div>
-                    {section.name || section.label || `Section`} - Main Parameters
+                    {section.name || section.label || `Section`} - Main
+                    Parameters
                   </h3>
                   {/* <p className="text-emerald-700 dark:text-emerald-300 mt-2">
                     Main questions with their follow-up answers organized by subparameters
@@ -1742,7 +1880,8 @@ export default function AllResponses() {
                   )} */}
                   {allFollowUpIds.size === 0 && sectionQuestions.length > 0 && (
                     <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 rounded text-sm text-yellow-800 dark:text-yellow-200">
-                      <strong>⚠️ No follow-up questions found</strong> for {sectionQuestions.length} main question(s)
+                      <strong>⚠️ No follow-up questions found</strong> for{" "}
+                      {sectionQuestions.length} main question(s)
                     </div>
                   )}
                 </div>
@@ -1755,7 +1894,10 @@ export default function AllResponses() {
                           Main Parameters
                         </th>
                         {uniqueSubParams.map((subParam) => (
-                          <th key={subParam} className="px-4 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-48 bg-emerald-50 dark:bg-emerald-900/30">
+                          <th
+                            key={subParam}
+                            className="px-4 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-48 bg-emerald-50 dark:bg-emerald-900/30"
+                          >
                             <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                               {subParam}
                             </span>
@@ -1774,20 +1916,36 @@ export default function AllResponses() {
                           }`}
                         >
                           <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-emerald-200 dark:border-emerald-800">
-                            <div className="font-bold text-base">{mainQuestion.subParam1 || "No parameter set"}</div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{mainQuestion.title}</div>
+                            <div className="font-bold text-base">
+                              {mainQuestion.subParam1 || "No parameter set"}
+                            </div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              {mainQuestion.title}
+                            </div>
                           </td>
                           {uniqueSubParams.map((subParam) => {
-                            const followUpsForParam = followUpsBySubParam.get(subParam) || [];
+                            const followUpsForParam =
+                              followUpsBySubParam.get(subParam) || [];
                             const answersForParam = followUpsForParam
-                              .map(followUp => {
-                                const followUpFromMain = mainQuestion.followUpQuestions.find((fq: any) => fq.id === followUp.id);
+                              .map((followUp) => {
+                                const followUpFromMain =
+                                  mainQuestion.followUpQuestions.find(
+                                    (fq: any) => fq.id === followUp.id
+                                  );
                                 return followUpFromMain?.answer;
                               })
-                              .filter(answer => answer !== undefined && answer !== null && answer !== "");
+                              .filter(
+                                (answer) =>
+                                  answer !== undefined &&
+                                  answer !== null &&
+                                  answer !== ""
+                              );
 
                             return (
-                              <td key={subParam} className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20">
+                              <td
+                                key={subParam}
+                                className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20"
+                              >
                                 {answersForParam.length > 0 ? (
                                   <div className="space-y-1">
                                     {answersForParam.map((answer, idx) => (
@@ -1797,7 +1955,9 @@ export default function AllResponses() {
                                     ))}
                                   </div>
                                 ) : (
-                                  <span className="text-gray-400 italic">N/A</span>
+                                  <span className="text-gray-400 italic">
+                                    N/A
+                                  </span>
                                 )}
                               </td>
                             );
@@ -1874,14 +2034,18 @@ export default function AllResponses() {
               const answer = selectedResponse.answers[question.id];
 
               return (
-                <div key={question.id} className="p-6 bg-white dark:bg-gray-800 rounded-xl border-2 border-slate-200 dark:border-slate-600 shadow-lg">
+                <div
+                  key={question.id}
+                  className="p-6 bg-white dark:bg-gray-800 rounded-xl border-2 border-slate-200 dark:border-slate-600 shadow-lg"
+                >
                   <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center text-lg">
                     <span className="w-3 h-3 bg-slate-600 rounded-full mr-4 flex-shrink-0"></span>
                     {question.text || question.id}
                   </div>
                   {question.subParam1 && (
                     <div className="mt-2 ml-7 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-700 font-medium">
-                      <span className="font-semibold">Main Parameter:</span> {question.subParam1}
+                      <span className="font-semibold">Main Parameter:</span>{" "}
+                      {question.subParam1}
                     </div>
                   )}
                   <div className="mt-3 text-slate-700 dark:text-slate-300 ml-7 text-base">
@@ -1902,27 +2066,44 @@ export default function AllResponses() {
                             : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500"
                         }`}
                       >
-                        <div className={`font-medium ${
-                          hasAnswer
-                            ? "text-blue-800 dark:text-blue-200"
-                            : "text-gray-700 dark:text-gray-300"
-                        } flex items-center`}>
-                          <span className={`mr-3 text-lg ${
-                            hasAnswer ? "text-blue-600" : "text-gray-500"
-                          }`}>↳</span>
+                        <div
+                          className={`font-medium ${
+                            hasAnswer
+                              ? "text-blue-800 dark:text-blue-200"
+                              : "text-gray-700 dark:text-gray-300"
+                          } flex items-center`}
+                        >
+                          <span
+                            className={`mr-3 text-lg ${
+                              hasAnswer ? "text-blue-600" : "text-gray-500"
+                            }`}
+                          >
+                            ↳
+                          </span>
                           {followUp.text || followUp.id}
                         </div>
                         {followUp.subParam1 && (
                           <div className="mt-2 ml-6 text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-700 font-medium w-fit">
-                            <span className="font-semibold">Follow-up Parameter:</span> {followUp.subParam1}
+                            <span className="font-semibold">
+                              Follow-up Parameter:
+                            </span>{" "}
+                            {followUp.subParam1}
                           </div>
                         )}
-                        <div className={`mt-2 ml-6 ${
-                          hasAnswer
-                            ? "text-blue-700 dark:text-blue-300"
-                            : "text-gray-600 dark:text-gray-400"
-                        }`}>
-                          {hasAnswer ? renderAnswerDisplay(followAnswer, followUp) : <span className="italic font-light">Not answered</span>}
+                        <div
+                          className={`mt-2 ml-6 ${
+                            hasAnswer
+                              ? "text-blue-700 dark:text-blue-300"
+                              : "text-gray-600 dark:text-gray-400"
+                          }`}
+                        >
+                          {hasAnswer ? (
+                            renderAnswerDisplay(followAnswer, followUp)
+                          ) : (
+                            <span className="italic font-light">
+                              Not answered
+                            </span>
+                          )}
                         </div>
                       </div>
                     );
@@ -1956,32 +2137,50 @@ export default function AllResponses() {
               }
 
               return (
-                <div key={followUp.id} className={`p-6 ml-12 border-l-4 rounded-r-xl shadow-sm hover:transition-colors duration-200 ${
-                  hasAnswer
-                    ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                    : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900/40"
-                }`}>
-                  <div className={`font-medium flex items-center text-lg ${
+                <div
+                  key={followUp.id}
+                  className={`p-6 ml-12 border-l-4 rounded-r-xl shadow-sm hover:transition-colors duration-200 ${
                     hasAnswer
-                      ? "text-blue-800 dark:text-blue-200"
-                      : "text-gray-700 dark:text-gray-300"
-                  }`}>
-                    <span className={`mr-4 text-xl ${
-                      hasAnswer ? "text-blue-600" : "text-gray-500"
-                    }`}>↳</span>
+                      ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                      : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900/40"
+                  }`}
+                >
+                  <div
+                    className={`font-medium flex items-center text-lg ${
+                      hasAnswer
+                        ? "text-blue-800 dark:text-blue-200"
+                        : "text-gray-700 dark:text-gray-300"
+                    }`}
+                  >
+                    <span
+                      className={`mr-4 text-xl ${
+                        hasAnswer ? "text-blue-600" : "text-gray-500"
+                      }`}
+                    >
+                      ↳
+                    </span>
                     {followUp.text || followUp.id}
                   </div>
                   {followUp.subParam1 && (
                     <div className="mt-2 ml-8 text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-700 font-medium w-fit">
-                      <span className="font-semibold">Follow-up Parameter:</span> {followUp.subParam1}
+                      <span className="font-semibold">
+                        Follow-up Parameter:
+                      </span>{" "}
+                      {followUp.subParam1}
                     </div>
                   )}
-                  <div className={`mt-3 ml-8 ${
-                    hasAnswer
-                      ? "text-blue-700 dark:text-blue-300"
-                      : "text-gray-600 dark:text-gray-400"
-                  } text-base`}>
-                    {hasAnswer ? renderAnswerDisplay(answer, followUp) : <span className="italic font-light">Not answered</span>}
+                  <div
+                    className={`mt-3 ml-8 ${
+                      hasAnswer
+                        ? "text-blue-700 dark:text-blue-300"
+                        : "text-gray-600 dark:text-gray-400"
+                    } text-base`}
+                  >
+                    {hasAnswer ? (
+                      renderAnswerDisplay(answer, followUp)
+                    ) : (
+                      <span className="italic font-light">Not answered</span>
+                    )}
                   </div>
                 </div>
               );
@@ -2167,10 +2366,18 @@ export default function AllResponses() {
                       }`}
                     >
                       <div className="flex items-center space-x-4">
-                        <div className={`p-2 rounded-lg ${isFollowUp ? "bg-blue-100 dark:bg-blue-900/40" : "bg-white dark:bg-gray-900"}`}>
+                        <div
+                          className={`p-2 rounded-lg ${
+                            isFollowUp
+                              ? "bg-blue-100 dark:bg-blue-900/40"
+                              : "bg-white dark:bg-gray-900"
+                          }`}
+                        >
                           {isFollowUp ? (
                             <div className="w-5 h-5 flex items-center justify-center">
-                              <span className="text-blue-600 dark:text-blue-300 text-xs font-bold">↳</span>
+                              <span className="text-blue-600 dark:text-blue-300 text-xs font-bold">
+                                ↳
+                              </span>
                             </div>
                           ) : (
                             <FileText className="w-5 h-5 text-primary-600" />
@@ -2178,7 +2385,13 @@ export default function AllResponses() {
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <h4 className={`font-medium ${isFollowUp ? "text-blue-700 dark:text-blue-300" : "text-primary-700"}`}>
+                            <h4
+                              className={`font-medium ${
+                                isFollowUp
+                                  ? "text-blue-700 dark:text-blue-300"
+                                  : "text-primary-700"
+                              }`}
+                            >
                               {response.formTitle}
                               {isFollowUp && (
                                 <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-blue-700 bg-blue-100 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/40 dark:border-blue-700">
@@ -2186,13 +2399,21 @@ export default function AllResponses() {
                                 </span>
                               )}
                             </h4>
-                            {response.yesNoScore && response.yesNoScore.total > 0 && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800">
-                                {response.yesNoScore.yes}/{response.yesNoScore.total}
-                              </span>
-                            )}
+                            {response.yesNoScore &&
+                              response.yesNoScore.total > 0 && (
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800">
+                                  {response.yesNoScore.yes}/
+                                  {response.yesNoScore.total}
+                                </span>
+                              )}
                           </div>
-                          <div className={`flex items-center text-sm mt-1 ${isFollowUp ? "text-blue-600 dark:text-blue-400" : "text-primary-500"}`}>
+                          <div
+                            className={`flex items-center text-sm mt-1 ${
+                              isFollowUp
+                                ? "text-blue-600 dark:text-blue-400"
+                                : "text-primary-500"
+                            }`}
+                          >
                             <User className="w-4 h-4 mr-1" />
                             <span>
                               Submitted {formatTimestamp(response.createdAt)}
@@ -2203,7 +2424,11 @@ export default function AllResponses() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleViewDetails(response)}
-                          className={`btn-secondary flex items-center ${isFollowUp ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}`}
+                          className={`btn-secondary flex items-center ${
+                            isFollowUp
+                              ? "bg-blue-600 hover:bg-blue-700 text-white"
+                              : ""
+                          }`}
                         >
                           <Eye className="w-4 h-4 mr-2" />
                           View Details
@@ -2226,7 +2451,9 @@ export default function AllResponses() {
                           className="flex items-center px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-60 dark:text-red-300 dark:bg-red-900/40 dark:hover:bg-red-900/60"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          {deletingResponseId === response.id ? "Deleting..." : "Delete"}
+                          {deletingResponseId === response.id
+                            ? "Deleting..."
+                            : "Delete"}
                         </button>
                       </div>
                     </div>
@@ -2343,379 +2570,618 @@ export default function AllResponses() {
                       </button>
                     </div>
 
-                    {viewMode === "dashboard" && filteredSectionStats.length > 0 && (
-                    <div className="space-y-8">
-                      {/* Dashboard Header with Logo */}
-                      <div className="bg-gradient-to-br from-white via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20 p-8 rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800">
-                        <div className="flex items-center justify-between mb-6">
-                          <div className="flex items-center space-x-4">
-                            {logo && (
-                              <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-white dark:border-gray-700">
-                                <img
-                                  src={logo}
-                                  alt="Company Logo"
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
+                    {viewMode === "dashboard" &&
+                      filteredSectionStats.length > 0 && (
+                        <div className="space-y-8">
+                          {/* Dashboard Header with Logo */}
+                          <div className="bg-gradient-to-br from-white via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20 p-8 rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800">
+                            <div className="flex items-center justify-between mb-6">
+                              <div className="flex items-center space-x-4">
+                                {logo && (
+                                  <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-white dark:border-gray-700">
+                                    <img
+                                      src={logo}
+                                      alt="Company Logo"
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = "none";
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                                <div>
+                                  <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                                    {selectedForm?.title ||
+                                      "Response Dashboard"}
+                                  </h1>
+                                  <p className="text-gray-600 dark:text-gray-300 mt-1">
+                                    Comprehensive analysis and insights
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center space-x-3">
+                                <div className="text-right">
+                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    Submitted
+                                  </p>
+                                  <p className="font-semibold text-gray-900 dark:text-white">
+                                    {formatTimestamp(
+                                      selectedResponse?.createdAt || ""
+                                    )}
+                                  </p>
+                                </div>
+                                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+                                  <FileCheck className="w-6 h-6 text-white" />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Quick Stats Row */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 backdrop-blur-sm p-6 rounded-2xl border border-yellow-200/50 dark:border-yellow-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-300 mb-1">
+                                      Overall Score
+                                    </p>
+                                    <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">
+                                      {(() => {
+                                        const totalQuestions =
+                                          filteredSectionStats.reduce(
+                                            (sum, stat) => sum + stat.total,
+                                            0
+                                          );
+                                        const totalYes =
+                                          filteredSectionStats.reduce(
+                                            (sum, stat) => sum + stat.yes,
+                                            0
+                                          );
+                                        return totalQuestions > 0
+                                          ? (
+                                              (totalYes / totalQuestions) *
+                                              100
+                                            ).toFixed(1)
+                                          : "0.0";
+                                      })()}
+                                      %
+                                    </p>
+                                  </div>
+                                  <div className="p-3 bg-yellow-500/20 rounded-full">
+                                    <Award className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 backdrop-blur-sm p-6 rounded-2xl border border-blue-200/50 dark:border-blue-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                                      Total Sections
+                                    </p>
+                                    <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
+                                      {filteredSectionStats.length}
+                                    </p>
+                                  </div>
+                                  <div className="p-3 bg-blue-500/20 rounded-full">
+                                    <Target className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div
+                                className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 backdrop-blur-sm p-6 rounded-2xl border border-green-200/50 dark:border-green-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 cursor-pointer"
+                                onClick={() =>
+                                  setExpandResponseRateBreakdown(
+                                    !expandResponseRateBreakdown
+                                  )
+                                }
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <p className="text-sm font-semibold text-green-700 dark:text-green-300 mb-1">
+                                        Response Rate
+                                      </p>
+                                      <ChevronDown
+                                        className={`w-4 h-4 text-green-700 dark:text-green-300 transition-transform duration-300 ${
+                                          expandResponseRateBreakdown
+                                            ? "rotate-180"
+                                            : ""
+                                        }`}
+                                      />
+                                    </div>
+                                    <p className="text-3xl font-bold text-green-900 dark:text-green-100">
+                                      {(() => {
+                                        const totalQuestions =
+                                          filteredSectionStats.reduce(
+                                            (sum, stat) => sum + stat.total,
+                                            0
+                                          );
+                                        const totalAnswered =
+                                          filteredSectionStats.reduce(
+                                            (sum, stat) =>
+                                              sum +
+                                              stat.yes +
+                                              stat.no +
+                                              stat.na,
+                                            0
+                                          );
+                                        return totalQuestions > 0
+                                          ? (
+                                              (totalAnswered / totalQuestions) *
+                                              100
+                                            ).toFixed(1)
+                                          : "0.0";
+                                      })()}
+                                      %
+                                    </p>
+                                  </div>
+                                  <div className="p-3 bg-green-500/20 rounded-full">
+                                    <Activity className="w-8 h-8 text-green-600 dark:text-green-400" />
+                                  </div>
+                                </div>
+
+                                {expandResponseRateBreakdown && (
+                                  <div className="mt-6 pt-6 border-t border-green-300/50 dark:border-green-600/50">
+                                    <div className="grid grid-cols-3 gap-4">
+                                      {(() => {
+                                        const totalYes =
+                                          filteredSectionStats.reduce(
+                                            (sum, stat) => sum + stat.yes,
+                                            0
+                                          );
+                                        const totalNo =
+                                          filteredSectionStats.reduce(
+                                            (sum, stat) => sum + stat.no,
+                                            0
+                                          );
+                                        const totalNA =
+                                          filteredSectionStats.reduce(
+                                            (sum, stat) => sum + stat.na,
+                                            0
+                                          );
+                                        const totalAnswered =
+                                          totalYes + totalNo + totalNA;
+
+                                        const yesPercent =
+                                          totalAnswered > 0
+                                            ? (
+                                                (totalYes / totalAnswered) *
+                                                100
+                                              ).toFixed(1)
+                                            : "0.0";
+                                        const noPercent =
+                                          totalAnswered > 0
+                                            ? (
+                                                (totalNo / totalAnswered) *
+                                                100
+                                              ).toFixed(1)
+                                            : "0.0";
+                                        const naPercent =
+                                          totalAnswered > 0
+                                            ? (
+                                                (totalNA / totalAnswered) *
+                                                100
+                                              ).toFixed(1)
+                                            : "0.0";
+
+                                        return (
+                                          <>
+                                            <div className="text-center p-3 bg-white/50 dark:bg-green-900/20 rounded-lg">
+                                              <p className="text-xs font-semibold text-green-600 dark:text-green-400 mb-1 uppercase">
+                                                Yes
+                                              </p>
+                                              <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                                                {yesPercent}%
+                                              </p>
+                                            </div>
+                                            <div className="text-center p-3 bg-white/50 dark:bg-red-900/20 rounded-lg">
+                                              <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1 uppercase">
+                                                No
+                                              </p>
+                                              <p className="text-2xl font-bold text-red-700 dark:text-red-300">
+                                                {noPercent}%
+                                              </p>
+                                            </div>
+                                            <div className="text-center p-3 bg-white/50 dark:bg-yellow-900/20 rounded-lg">
+                                              <p className="text-xs font-semibold text-yellow-600 dark:text-yellow-400 mb-1 uppercase">
+                                                N/A
+                                              </p>
+                                              <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
+                                                {naPercent}%
+                                              </p>
+                                            </div>
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Location Card */}
+                              <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 backdrop-blur-sm p-6 rounded-2xl border border-purple-200/50 dark:border-purple-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-1">
+                                      Location
+                                    </p>
+                                    <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
+                                      {selectedForm?.locationEnabled !== false
+                                        ? (() => {
+                                            const capturedLoc =
+                                              selectedResponse?.submissionMetadata?.capturedLocation;
+                                            const ipLoc =
+                                              selectedResponse?.submissionMetadata?.location;
+
+                                            let locationToUse = null;
+                                            
+                                            if (capturedLoc?.city || capturedLoc?.region || capturedLoc?.country) {
+                                              locationToUse = capturedLoc;
+                                            } else if (ipLoc?.city || ipLoc?.region || ipLoc?.country) {
+                                              locationToUse = ipLoc;
+                                            }
+
+                                            if (locationToUse) {
+                                              const parts = [];
+                                              if (locationToUse.city)
+                                                parts.push(locationToUse.city);
+                                              if (locationToUse.region)
+                                                parts.push(locationToUse.region);
+                                              if (locationToUse.country)
+                                                parts.push(locationToUse.country);
+                                              return parts.length > 0
+                                                ? parts.join(", ")
+                                                : "Location data unavailable";
+                                            }
+                                            return "Location data unavailable";
+                                          })()
+                                        : "Location disabled"}
+                                    </p>
+                                  </div>
+                                  <div className="p-3 bg-purple-500/20 rounded-full">
+                                    <MapPin className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Location Heatmap Section */}
+                          {responses && responses.length > 0 && (
+                            <LocationHeatmap responses={responses} />
+                          )}
+
+                          {/* Charts Section */}
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div className="bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 dark:from-gray-800 dark:via-blue-900/10 dark:to-indigo-900/10 p-8 rounded-3xl shadow-2xl border border-blue-200/50 dark:border-blue-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm">
+                              <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                                  <div className="p-2 bg-blue-500/20 rounded-lg mr-4">
+                                    <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                                  </div>
+                                  Section Performance
+                                </h3>
+                                <div className="flex items-center space-x-3 bg-white/50 dark:bg-gray-700/50 rounded-full px-4 py-2">
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                      Yes
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                      No
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-3 h-3 bg-blue-300 rounded-full"></div>
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                      N/A
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div
+                                className="w-full"
+                                style={{ height: sectionChartHeight }}
+                                id="section-performance-chart"
+                              >
+                                <Bar
+                                  data={sectionChartData}
+                                  options={{
+                                    ...sectionChartOptions,
+                                    plugins: {
+                                      ...sectionChartOptions.plugins,
+                                      legend: {
+                                        ...sectionChartOptions.plugins.legend,
+                                        labels: {
+                                          ...sectionChartOptions.plugins.legend
+                                            .labels,
+                                          font: {
+                                            size: 12,
+                                            weight: "bold",
+                                          },
+                                        },
+                                      },
+                                    },
+                                    onClick: (_event, elements) => {
+                                      const firstElement = elements[0] as
+                                        | ActiveElement
+                                        | undefined;
+                                      if (!firstElement) {
+                                        return;
+                                      }
+                                      const sectionId =
+                                        filteredSectionStats[firstElement.index]
+                                          ?.id;
+                                      if (sectionId) {
+                                        setPendingSectionId(sectionId);
+                                        setViewMode("responses");
+                                      }
+                                    },
                                   }}
                                 />
                               </div>
-                            )}
-                            <div>
-                              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                                {selectedForm?.title || "Response Dashboard"}
-                              </h1>
-                              <p className="text-gray-600 dark:text-gray-300 mt-1">
-                                Comprehensive analysis and insights
+                            </div>
+
+                            <div className="bg-gradient-to-br from-white via-green-50/30 to-emerald-50/30 dark:from-gray-800 dark:via-green-900/10 dark:to-emerald-900/10 p-8 rounded-3xl shadow-2xl border border-green-200/50 dark:border-green-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm">
+                              <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                                  <div className="p-2 bg-green-500/20 rounded-lg mr-4">
+                                    <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
+                                  </div>
+                                  Weighted Trends
+                                </h3>
+                                <div className="flex items-center space-x-3 bg-white/50 dark:bg-gray-700/50 rounded-full px-4 py-2">
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                      Yes × Weight
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                      No × Weight
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-1">
+                                    <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                      N/A × Weight
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div
+                                className="w-full"
+                                style={{ height: weightedChartHeight }}
+                              >
+                                <Line
+                                  data={weightedPercentageChartData}
+                                  options={{
+                                    ...weightedPercentageChartOptions,
+                                    plugins: {
+                                      ...weightedPercentageChartOptions.plugins,
+                                      legend: {
+                                        ...weightedPercentageChartOptions
+                                          .plugins.legend,
+                                        labels: {
+                                          ...weightedPercentageChartOptions
+                                            .plugins.legend,
+                                          font: {
+                                            size: 12,
+                                            weight: "bold",
+                                          },
+                                        },
+                                      },
+                                    },
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Section-wise Breakdown Table */}
+                          <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transform hover:scale-[1.01] transition-all duration-500 hover:shadow-3xl">
+                            <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6">
+                              <h3 className="text-2xl font-bold text-white flex items-center">
+                                <BarChart3 className="w-7 h-7 mr-3" />
+                                Section-wise Breakdown
+                              </h3>
+                              <p className="text-blue-100 mt-1">
+                                Detailed performance analysis by section with
+                                weightage calculations
                               </p>
                             </div>
-                          </div>
-                          <div className="flex items-center space-x-3">
-                            <div className="text-right">
-                              <p className="text-sm text-gray-500 dark:text-gray-400">Submitted</p>
-                              <p className="font-semibold text-gray-900 dark:text-white">
-                                {formatTimestamp(selectedResponse?.createdAt || "")}
-                              </p>
+                            <div className="overflow-x-auto">
+                              <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 sticky top-0">
+                                  <tr>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-48">
+                                      Section
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
+                                      Yes %
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
+                                      No %
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
+                                      N/A %
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
+                                      Weightage
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                                      Yes % × Weightage
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                                      No % × Weightage
+                                    </th>
+                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                                      N/A % × Weightage
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+                                  {sectionSummaryRows.map((row) => (
+                                    <tr
+                                      key={row.id}
+                                      className="group hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all duration-300 bg-white dark:bg-gray-900"
+                                    >
+                                      <td className="px-6 py-5 font-bold text-gray-900 dark:text-gray-100 flex items-center">
+                                        <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+                                        {row.title}
+                                      </td>
+                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                        {row.yesPercent.toFixed(1)}%
+                                      </td>
+                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                        {row.noPercent.toFixed(1)}%
+                                      </td>
+                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                        {row.naPercent.toFixed(1)}%
+                                      </td>
+                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                        {editingWeightage === row.id ? (
+                                          <div className="flex items-center space-x-2">
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="100"
+                                              step="0.1"
+                                              value={weightageValue}
+                                              onChange={(e) =>
+                                                setWeightageValue(
+                                                  e.target.value
+                                                )
+                                              }
+                                              className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
+                                              disabled={savingWeightage}
+                                            />
+                                            <button
+                                              onClick={() =>
+                                                handleSaveWeightage(row.id)
+                                              }
+                                              disabled={savingWeightage}
+                                              className="p-1 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
+                                              title="Save weightage"
+                                            >
+                                              {savingWeightage ? (
+                                                <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                                              ) : (
+                                                <Save className="w-4 h-4" />
+                                              )}
+                                            </button>
+                                            <button
+                                              onClick={
+                                                handleCancelWeightageEdit
+                                              }
+                                              disabled={savingWeightage}
+                                              className="p-1 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                                              title="Cancel editing"
+                                            >
+                                              <X className="w-4 h-4" />
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <div className="flex items-center justify-between">
+                                            <span>
+                                              {row.weightage.toFixed(1)}%
+                                            </span>
+                                            <button
+                                              onClick={() =>
+                                                handleEditWeightage(
+                                                  row.id,
+                                                  row.weightage
+                                                )
+                                              }
+                                              className="ml-2 p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                                              title="Edit weightage"
+                                            >
+                                              <Edit2 className="w-4 h-4" />
+                                            </button>
+                                          </div>
+                                        )}
+                                      </td>
+                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                        {row.yesWeighted.toFixed(1)}
+                                      </td>
+                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                        {row.noWeighted.toFixed(1)}
+                                      </td>
+                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                        {row.naWeighted.toFixed(1)}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
                             </div>
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
-                              <FileCheck className="w-6 h-6 text-white" />
-                            </div>
                           </div>
-                        </div>
 
-                        {/* Quick Stats Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 backdrop-blur-sm p-6 rounded-2xl border border-yellow-200/50 dark:border-yellow-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-300 mb-1">Overall Score</p>
-                                <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">
-                                  {(() => {
-                                    const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
-                                    const totalYes = filteredSectionStats.reduce((sum, stat) => sum + stat.yes, 0);
-                                    return totalQuestions > 0 ? ((totalYes / totalQuestions) * 100).toFixed(1) : "0.0";
-                                  })()}%
-                                </p>
-                              </div>
-                              <div className="p-3 bg-yellow-500/20 rounded-full">
-                                <Award className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
-                              </div>
-                            </div>
+                          {/* Main Parameters and Subparameters - Section Wise */}
+                          <div className="space-y-0">
+                            {renderSectionWiseMainParameters()}
                           </div>
 
-                          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 backdrop-blur-sm p-6 rounded-2xl border border-blue-200/50 dark:border-blue-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">Total Sections</p>
-                                <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
-                                  {filteredSectionStats.length}
-                                </p>
-                              </div>
-                              <div className="p-3 bg-blue-500/20 rounded-full">
-                                <Target className="w-8 h-8 text-blue-600 dark:text-blue-400" />
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 backdrop-blur-sm p-6 rounded-2xl border border-green-200/50 dark:border-green-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <p className="text-sm font-semibold text-green-700 dark:text-green-300 mb-1">Response Rate</p>
-                                <p className="text-3xl font-bold text-green-900 dark:text-green-100">
-                                  {(() => {
-                                    const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
-                                    const totalAnswered = filteredSectionStats.reduce((sum, stat) => sum + stat.yes + stat.no + stat.na, 0);
-                                    return totalQuestions > 0 ? ((totalAnswered / totalQuestions) * 100).toFixed(1) : "0.0";
-                                  })()}%
-                                </p>
-                              </div>
-                              <div className="p-3 bg-green-500/20 rounded-full">
-                                <Activity className="w-8 h-8 text-green-600 dark:text-green-400" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Charts Section */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <div className="bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 dark:from-gray-800 dark:via-blue-900/10 dark:to-indigo-900/10 p-8 rounded-3xl shadow-2xl border border-blue-200/50 dark:border-blue-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm">
-                          <div className="flex items-center justify-between mb-8">
-                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-                              <div className="p-2 bg-blue-500/20 rounded-lg mr-4">
-                                <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                              </div>
-                              Section Performance
+                          {/* Quick Actions */}
+                          <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
+                            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
+                              <Zap className="w-6 h-6 mr-3 text-yellow-500" />
+                              Quick Actions
                             </h3>
-                            <div className="flex items-center space-x-3 bg-white/50 dark:bg-gray-700/50 rounded-full px-4 py-2">
-                              <div className="flex items-center space-x-1">
-                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Yes</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">No</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <div className="w-3 h-3 bg-blue-300 rounded-full"></div>
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">N/A</span>
-                              </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <button
+                                onClick={handleExportExcel}
+                                disabled={exportingExcel}
+                                className="flex items-center justify-center p-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-50"
+                              >
+                                {exportingExcel ? (
+                                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" />
+                                ) : (
+                                  <Download className="w-5 h-5 mr-3" />
+                                )}
+                                {exportingExcel
+                                  ? "Exporting..."
+                                  : "Export Excel"}
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setViewMode("responses");
+                                }}
+                                className="flex items-center justify-center p-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                              >
+                                <Eye className="w-5 h-5 mr-3" />
+                                View Details
+                              </button>
+
+                              <button
+                                onClick={handleDownloadPDF}
+                                disabled={generatingPDF}
+                                className="flex items-center justify-center p-4 bg-gradient-to-r from-cyan-500 to-teal-600 text-white rounded-xl hover:from-cyan-600 hover:to-teal-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group"
+                              >
+                                {generatingPDF ? (
+                                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" />
+                                ) : (
+                                  <FileText className="w-5 h-5 mr-3 group-hover:animate-pulse" />
+                                )}
+                                {generatingPDF
+                                  ? "Generating PDF..."
+                                  : "Download PDF"}
+                              </button>
                             </div>
                           </div>
-                          <div className="w-full" style={{ height: sectionChartHeight }}>
-                            <Bar
-                              data={sectionChartData}
-                              options={{
-                                ...sectionChartOptions,
-                                plugins: {
-                                  ...sectionChartOptions.plugins,
-                                  legend: {
-                                    ...sectionChartOptions.plugins.legend,
-                                    labels: {
-                                      ...sectionChartOptions.plugins.legend.labels,
-                                      font: {
-                                        size: 12,
-                                        weight: 'bold'
-                                      }
-                                    }
-                                  }
-                                },
-                                onClick: (_event, elements) => {
-                                  const firstElement = elements[0] as ActiveElement | undefined;
-                                  if (!firstElement) {
-                                    return;
-                                  }
-                                  const sectionId = filteredSectionStats[firstElement.index]?.id;
-                                  if (sectionId) {
-                                    setPendingSectionId(sectionId);
-                                    setViewMode("responses");
-                                  }
-                                },
-                              }}
-                            />
-                          </div>
                         </div>
+                      )}
 
-                        <div className="bg-gradient-to-br from-white via-green-50/30 to-emerald-50/30 dark:from-gray-800 dark:via-green-900/10 dark:to-emerald-900/10 p-8 rounded-3xl shadow-2xl border border-green-200/50 dark:border-green-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm">
-                          <div className="flex items-center justify-between mb-8">
-                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-                              <div className="p-2 bg-green-500/20 rounded-lg mr-4">
-                                <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
-                              </div>
-                              Weighted Trends
-                            </h3>
-                            <div className="flex items-center space-x-3 bg-white/50 dark:bg-gray-700/50 rounded-full px-4 py-2">
-                              <div className="flex items-center space-x-1">
-                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Yes × Weight</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">No × Weight</span>
-                              </div>
-                              <div className="flex items-center space-x-1">
-                                <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">N/A × Weight</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="w-full" style={{ height: weightedChartHeight }}>
-                            <Line
-                              data={weightedPercentageChartData}
-                              options={{
-                                ...weightedPercentageChartOptions,
-                                plugins: {
-                                  ...weightedPercentageChartOptions.plugins,
-                                  legend: {
-                                    ...weightedPercentageChartOptions.plugins.legend,
-                                    labels: {
-                                      ...weightedPercentageChartOptions.plugins.legend,
-                                      font: {
-                                        size: 12,
-                                        weight: 'bold'
-                                      }
-                                    }
-                                  }
-                                }
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Section-wise Breakdown Table */}
-                      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transform hover:scale-[1.01] transition-all duration-500 hover:shadow-3xl">
-                        <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6">
-                          <h3 className="text-2xl font-bold text-white flex items-center">
-                            <BarChart3 className="w-7 h-7 mr-3" />
-                            Section-wise Breakdown
-                          </h3>
-                          <p className="text-blue-100 mt-1">Detailed performance analysis by section with weightage calculations</p>
-                        </div>
-                        <div className="overflow-x-auto">
-                          <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-                            <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 sticky top-0">
-                              <tr>
-                                <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-48">
-                                  Section
-                                </th>
-                                <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                                  Yes %
-                                </th>
-                                <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                                  No %
-                                </th>
-                                <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                                  N/A %
-                                </th>
-                                <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                                  Weightage
-                                </th>
-                                <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                                  Yes % × Weightage
-                                </th>
-                                <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                                  No % × Weightage
-                                </th>
-                                <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                                  N/A % × Weightage
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
-                              {sectionSummaryRows.map((row) => (
-                                <tr key={row.id} className="group hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all duration-300 bg-white dark:bg-gray-900">
-                                  <td className="px-6 py-5 font-bold text-gray-900 dark:text-gray-100 flex items-center">
-                                    <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
-                                    {row.title}
-                                  </td>
-                                  <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                    {row.yesPercent.toFixed(1)}%
-                                  </td>
-                                  <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                    {row.noPercent.toFixed(1)}%
-                                  </td>
-                                  <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                    {row.naPercent.toFixed(1)}%
-                                  </td>
-                                  <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                    {editingWeightage === row.id ? (
-                                      <div className="flex items-center space-x-2">
-                                        <input
-                                          type="number"
-                                          min="0"
-                                          max="100"
-                                          step="0.1"
-                                          value={weightageValue}
-                                          onChange={(e) => setWeightageValue(e.target.value)}
-                                          className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
-                                          disabled={savingWeightage}
-                                        />
-                                        <button
-                                          onClick={() => handleSaveWeightage(row.id)}
-                                          disabled={savingWeightage}
-                                          className="p-1 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
-                                          title="Save weightage"
-                                        >
-                                          {savingWeightage ? (
-                                            <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-                                          ) : (
-                                            <Save className="w-4 h-4" />
-                                          )}
-                                        </button>
-                                        <button
-                                          onClick={handleCancelWeightageEdit}
-                                          disabled={savingWeightage}
-                                          className="p-1 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
-                                          title="Cancel editing"
-                                        >
-                                          <X className="w-4 h-4" />
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center justify-between">
-                                        <span>{row.weightage.toFixed(1)}%</span>
-                                        <button
-                                          onClick={() => handleEditWeightage(row.id, row.weightage)}
-                                          className="ml-2 p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                                          title="Edit weightage"
-                                        >
-                                          <Edit2 className="w-4 h-4" />
-                                        </button>
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                    {row.yesWeighted.toFixed(1)}
-                                  </td>
-                                  <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                    {row.noWeighted.toFixed(1)}
-                                  </td>
-                                  <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                    {row.naWeighted.toFixed(1)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Main Parameters and Subparameters - Section Wise */}
-                      <div className="space-y-0">
-                        {renderSectionWiseMainParameters()}
-                      </div>
-
-                      {/* Quick Actions */}
-                      <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
-                          <Zap className="w-6 h-6 mr-3 text-yellow-500" />
-                          Quick Actions
-                        </h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <button
-                            onClick={handleExportExcel}
-                            disabled={exportingExcel}
-                            className="flex items-center justify-center p-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 shadow-lg disabled:opacity-50"
-                          >
-                            {exportingExcel ? (
-                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" />
-                            ) : (
-                              <Download className="w-5 h-5 mr-3" />
-                            )}
-                            {exportingExcel ? 'Exporting...' : 'Export Excel'}
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              setViewMode("responses");
-                            }}
-                            className="flex items-center justify-center p-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
-                          >
-                            <Eye className="w-5 h-5 mr-3" />
-                            View Details
-                          </button>
-
-                          <button
-                            onClick={handleDownloadPDF}
-                            disabled={generatingPDF}
-                            className="flex items-center justify-center p-4 bg-gradient-to-r from-cyan-500 to-teal-600 text-white rounded-xl hover:from-cyan-600 hover:to-teal-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group"
-                          >
-                            {generatingPDF ? (
-                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" />
-                            ) : (
-                              <FileText className="w-5 h-5 mr-3 group-hover:animate-pulse" />
-                            )}
-                            {generatingPDF ? 'Generating PDF...' : 'Download PDF'}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {viewMode === "responses" && renderFormContent()}
-                </div>
-              )}
+                    {viewMode === "responses" && renderFormContent()}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -2726,7 +3192,9 @@ export default function AllResponses() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl px-6 py-4 flex items-center gap-3">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-            <div className="text-primary-600 font-medium">Loading form details...</div>
+            <div className="text-primary-600 font-medium">
+              Loading form details...
+            </div>
           </div>
         </div>
       )}
@@ -2742,8 +3210,6 @@ export default function AllResponses() {
             onCancel={handleCloseEdit}
           />
         )}
-
-
     </div>
   );
 }
