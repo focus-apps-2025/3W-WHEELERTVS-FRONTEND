@@ -14,6 +14,14 @@ import { Bar, Pie } from "react-chartjs-2";
 import type { Question, Response } from "../../types";
 import ChartTypeSelector, { ChartType } from "./ChartTypeSelector";
 
+const CHART_SUPPORTED_TYPES = new Set([
+  "radio",
+  "yesNoNA",
+  "checkbox",
+  "radio-image",
+  "search-select",
+]);
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -137,7 +145,7 @@ export default function ResponseQuestion({
   ];
 
   const renderQuestionChart = (q: Question["followUpQuestions"][0]) => {
-    if (!q.options) return null;
+    if (!q.options || !CHART_SUPPORTED_TYPES.has(q.type)) return null;
 
     const distribution = getResponseDistribution(q.id);
     const validOptions = q.options.filter(
@@ -535,9 +543,12 @@ export default function ResponseQuestion({
       {/* Overview Chart */}
       {renderOverviewChart()}
 
-      <div className="space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {allQuestions.map((q) => {
-          const isTextQuestion = q.type === "text" || q.type === "paragraph";
+          const shouldRenderChart =
+            Array.isArray(q.options) &&
+            q.options.length > 0 &&
+            CHART_SUPPORTED_TYPES.has(q.type);
           const responses = getQuestionResponses(q.id);
           const responseCount = responses.length;
           const stats = getCorrectWrongStats(q);
@@ -545,9 +556,9 @@ export default function ResponseQuestion({
           return (
             <div
               key={q.id}
-              className="border-b dark:border-gray-700 pb-8 last:border-0"
+              className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 flex flex-col h-full"
             >
-              <div className="flex justify-between items-start mb-4">
+              <div className="flex justify-between items-start mb-4 gap-4">
                 <div className="flex-1">
                   <h5 className="text-lg font-medium text-gray-900 dark:text-white">
                     {q.text}
@@ -558,7 +569,6 @@ export default function ResponseQuestion({
                     </p>
                   )}
 
-                  {/* Display correct answer(s) */}
                   {(q.correctAnswer ||
                     (q.correctAnswers && q.correctAnswers.length > 0)) && (
                     <div className="mt-2">
@@ -575,7 +585,6 @@ export default function ResponseQuestion({
                     </div>
                   )}
 
-                  {/* Display correct/wrong statistics */}
                   {stats && (
                     <div className="mt-3 flex items-center space-x-4">
                       <div className="flex items-center space-x-2">
@@ -622,11 +631,11 @@ export default function ResponseQuestion({
                     </div>
                   )}
                 </div>
-                <div className="flex items-center space-x-4 ml-4">
+                <div className="flex items-center space-x-4">
                   <span className="text-sm text-gray-500 dark:text-gray-400">
                     {responseCount} responses
                   </span>
-                  {!isTextQuestion && q.options && (
+                  {shouldRenderChart && (
                     <ChartTypeSelector
                       value={chartPreferences[q.id] || "bar"}
                       onChange={(type) => handleChartTypeChange(q.id, type)}
@@ -635,17 +644,15 @@ export default function ResponseQuestion({
                 </div>
               </div>
 
-              {isTextQuestion ? (
-                renderTextQuestionSummary(q)
-              ) : (
-                renderQuestionChart(q)
-              )}
+              <div className="flex-1">
+                {shouldRenderChart ? renderQuestionChart(q) : renderTextQuestionSummary(q)}
+              </div>
             </div>
           );
         })}
 
         {allQuestions.length === 0 && (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-4">
+          <p className="lg:col-span-2 text-center text-gray-500 dark:text-gray-400 py-4">
             No questions available for analysis
           </p>
         )}

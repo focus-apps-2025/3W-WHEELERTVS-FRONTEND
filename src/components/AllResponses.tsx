@@ -39,6 +39,7 @@ import {
   Filler,
   ArcElement,
 } from "chart.js";
+import ChartDataLabels from "chartjs-plugin-datalabels";
 import type { ActiveElement } from "chart.js";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
@@ -61,7 +62,8 @@ ChartJS.register(
   Tooltip,
   Legend,
   Filler,
-  ArcElement
+  ArcElement,
+  ChartDataLabels
 );
 
 function formatSectionLabel(label: string, maxLength = 20): string {
@@ -1486,6 +1488,21 @@ export default function AllResponses() {
       { yes: 0, no: 0, na: 0, total: 0 }
     );
 
+    const sectionPercentages = {
+      yes:
+        sectionTotals.total > 0
+          ? ((sectionTotals.yes / sectionTotals.total) * 100).toFixed(1)
+          : "0.0",
+      no:
+        sectionTotals.total > 0
+          ? ((sectionTotals.no / sectionTotals.total) * 100).toFixed(1)
+          : "0.0",
+      na:
+        sectionTotals.total > 0
+          ? ((sectionTotals.na / sectionTotals.total) * 100).toFixed(1)
+          : "0.0",
+    };
+
     // Chart data for the section
     const chartData = {
       labels: ["Yes", "No", "N/A"],
@@ -1516,10 +1533,36 @@ export default function AllResponses() {
             label: (context: any) => {
               const total =
                 sectionTotals.yes + sectionTotals.no + sectionTotals.na;
+              const value =
+                typeof context.parsed === "number"
+                  ? context.parsed
+                  : context.parsed?.r || 0;
               const percentage =
-                total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
-              return `${context.label}: ${context.parsed} (${percentage}%)`;
+                total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+              return `${context.label}: ${value} (${percentage}%)`;
             },
+          },
+        },
+        datalabels: {
+          color: document.documentElement.classList.contains("dark")
+            ? "#f3f4f6"
+            : "#0f172a",
+          font: {
+            weight: "600",
+          },
+          formatter: (value: number, context: any) => {
+            const dataset = context.chart?.data?.datasets?.[0];
+            const data = Array.isArray(dataset?.data) ? dataset.data : [];
+            const total = data.reduce(
+              (sum: number, current: any) =>
+                typeof current === "number" ? sum + current : sum,
+              0
+            );
+            const numericValue =
+              typeof value === "number" ? value : Number(value) || 0;
+            const percentage =
+              total > 0 ? ((numericValue / total) * 100).toFixed(1) : 0;
+            return `${percentage}% (${numericValue})`;
           },
         },
       },
@@ -1608,8 +1651,69 @@ export default function AllResponses() {
                       tooltip: {
                         callbacks: {
                           label: (context: any) => {
-                            return `${context.dataset.label}: ${context.parsed.y}`;
+                            const dataIndex = context.dataIndex;
+                            const datasets = context.chart?.data?.datasets || [];
+                            const total = datasets.reduce(
+                              (sum: number, dataset: any) => {
+                                const value = Array.isArray(dataset.data)
+                                  ? dataset.data[dataIndex]
+                                  : 0;
+                                const numericValue =
+                                  typeof value === "number"
+                                    ? value
+                                    : Number(value) || 0;
+                                return sum + numericValue;
+                              },
+                              0
+                            );
+                            const barValue =
+                              typeof context.raw === "number"
+                                ? context.raw
+                                : typeof context.parsed?.y === "number"
+                                ? context.parsed.y
+                                : 0;
+                            const percentage =
+                              total > 0 ? ((barValue / total) * 100).toFixed(1) : 0;
+                            return `${context.dataset.label}: ${barValue} (${percentage}%)`;
                           },
+                        },
+                      },
+                      datalabels: {
+                        anchor: "end",
+                        align: "start",
+                        offset: -6,
+                        color: document.documentElement.classList.contains(
+                          "dark"
+                        )
+                          ? "#f3f4f6"
+                          : "#0f172a",
+                        font: {
+                          size: 10,
+                          weight: "600",
+                        },
+                        formatter: (value: number, context: any) => {
+                          const dataIndex = context.dataIndex;
+                          const datasets = context.chart?.data?.datasets || [];
+                          const total = datasets.reduce(
+                            (sum: number, dataset: any) => {
+                              const datasetValue = Array.isArray(dataset.data)
+                                ? dataset.data[dataIndex]
+                                : 0;
+                              const numericValue =
+                                typeof datasetValue === "number"
+                                  ? datasetValue
+                                  : Number(datasetValue) || 0;
+                              return sum + numericValue;
+                            },
+                            0
+                          );
+                          const numericValue =
+                            typeof value === "number" ? value : Number(value) || 0;
+                          if (total === 0) {
+                            return "0";
+                          }
+                          const percentage = ((numericValue / total) * 100).toFixed(1);
+                          return `${numericValue} (${percentage}%)`;
                         },
                       },
                     },
@@ -1712,37 +1816,52 @@ export default function AllResponses() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
-                          <span
-                            className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                              stat.yes > 0
-                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                            }`}
-                          >
-                            {stat.yes}
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span
+                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+                                stat.yes > 0
+                                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                  : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
+                              }`}
+                            >
+                              {stat.yes}
+                            </span>
+                            <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                              {yesPercent}%
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
-                          <span
-                            className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                              stat.no > 0
-                                ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                                : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                            }`}
-                          >
-                            {stat.no}
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span
+                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+                                stat.no > 0
+                                  ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                                  : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
+                              }`}
+                            >
+                              {stat.no}
+                            </span>
+                            <span className="text-xs font-semibold text-red-700 dark:text-red-300">
+                              {noPercent}%
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
-                          <span
-                            className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                              stat.na > 0
-                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                            }`}
-                          >
-                            {stat.na}
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span
+                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+                                stat.na > 0
+                                  ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                  : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
+                              }`}
+                            >
+                              {stat.na}
+                            </span>
+                            <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-300">
+                              {naPercent}%
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-bold">
                           <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
@@ -1757,32 +1876,35 @@ export default function AllResponses() {
                     <td className="px-4 py-3 font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">
                       Section Total
                     </td>
-                    <td className="px-4 py-3 text-center font-bold text-green-800 dark:text-green-300 text-sm">
-                      {sectionTotals.total > 0
-                        ? (
-                            (sectionTotals.yes / sectionTotals.total) *
-                            100
-                          ).toFixed(1)
-                        : 0}
-                      %
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-base font-bold text-green-900 dark:text-green-200">
+                          {sectionTotals.yes}
+                        </span>
+                        <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                          {sectionPercentages.yes}%
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-center font-bold text-red-800 dark:text-red-300 text-sm">
-                      {sectionTotals.total > 0
-                        ? (
-                            (sectionTotals.no / sectionTotals.total) *
-                            100
-                          ).toFixed(1)
-                        : 0}
-                      %
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-base font-bold text-red-900 dark:text-red-200">
+                          {sectionTotals.no}
+                        </span>
+                        <span className="text-xs font-semibold text-red-700 dark:text-red-300">
+                          {sectionPercentages.no}%
+                        </span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-center font-bold text-yellow-800 dark:text-yellow-300 text-sm">
-                      {sectionTotals.total > 0
-                        ? (
-                            (sectionTotals.na / sectionTotals.total) *
-                            100
-                          ).toFixed(1)
-                        : 0}
-                      %
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-base font-bold text-yellow-900 dark:text-yellow-200">
+                          {sectionTotals.na}
+                        </span>
+                        <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-300">
+                          {sectionPercentages.na}%
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100">
                       <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-200 text-blue-900 dark:bg-blue-800 dark:text-blue-100">
