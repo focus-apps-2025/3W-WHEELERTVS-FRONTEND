@@ -2969,10 +2969,10 @@ export default function AllResponses() {
                             </div>
                           </div>
 
-                          {/* Location Heatmap Section */}
+                          {/* Location Heatmap Section 
                           {responses && responses.length > 0 && (
                             <LocationHeatmap responses={responses} />
-                          )}
+                          )}*/}
 
                           {/* Charts Section */}
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
