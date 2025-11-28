@@ -176,11 +176,11 @@ export default function Sidebar() {
           <div className="flex items-center">
             {logo ? (
               <>
-                <img
+                {/* <img
                   src={logo}
                   alt="Tenant logo"
                   className={`${isCollapsed ? "h-8 w-8" : "h-10 w-auto"} object-contain`}
-                />
+                /> */}
                 {!isCollapsed && (
                   <span className="ml-3 text-lg font-medium truncate text-white">
                     {tenant?.companyName || tenant?.name || "Focus Form"}

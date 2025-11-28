@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, useMap, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.heat";
-import { MapPin, Globe, Users, TrendingUp } from "lucide-react";
+import { MapPin } from "lucide-react";
 import type { Response } from "../../types";
 
 interface LocationData {
@@ -316,230 +316,43 @@ export default function LocationHeatmap({
         </h3>
       </div>
 
-      {/* Locations Summary Cards */}
-      {markerLocations.length > 0 && (
-        <div className="p-6 bg-gradient-to-r from-slate-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 border-b border-gray-200 dark:border-gray-600">
-          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <MapPin className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
-            Response Summary by Location
-          </h4>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {markerLocations
-              .sort((a, b) => (b.count || 0) - (a.count || 0))
-              .map((location, idx) => {
-                const totalCount = location.count || 1;
-                const displayName =
-                  location.city && location.country
-                    ? `${location.city}, ${location.country}`
-                    : location.country || location.city || "Unknown Location";
 
-                return (
-                  <div
-                    key={idx}
-                    className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 cursor-pointer"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <div className="flex items-center mb-1">
-                          <MapPin className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400 flex-shrink-0" />
-                          <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
-                            {displayName}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      {location.city && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600 dark:text-gray-400">City:</span>
-                          <span className="font-medium text-blue-600 dark:text-blue-400">
-                            {location.city}
-                          </span>
-                        </div>
-                      )}
-                      {location.region && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600 dark:text-gray-400">Region:</span>
-                          <span className="font-medium text-amber-600 dark:text-amber-400">
-                            {location.region}
-                          </span>
-                        </div>
-                      )}
-                      {location.country && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600 dark:text-gray-400">Country:</span>
-                          <span className="font-medium text-green-600 dark:text-green-400">
-                            {location.country}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-gray-600 dark:text-gray-400">
-                          Forms Submitted
-                        </span>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                            {totalCount}
-                          </div>
-                        </div>
-                      </div>
-                      {/* Progress bar */}
-                      <div className="mt-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
-                        <div
-                          className="bg-gradient-to-r from-blue-500 to-indigo-600 h-1.5 rounded-full transition-all"
-                          style={{
-                            width: `${Math.max(10, (totalCount / Math.max(...markerLocations.map((l) => l.count || 1))) * 100)}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
-        </div>
-      )}
 
       {/* Main Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 p-6">
-        {/* Map Section */}
-        <div className="lg:col-span-2">
-          {locationStats.totalLocations > 0 ? (
-            <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 shadow-md">
-              <MapContainer
-                ref={mapRef}
-                center={mapCenter}
-                zoom={4}
-                style={{
-                  height: "500px",
-                  width: "100%",
-                  borderRadius: "8px",
-                }}
-                className="rounded-lg"
-              >
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                  maxZoom={19}
-                />
-                <HeatmapLayer data={heatmapData} />
-                <MarkerLayer locations={markerLocations} />
-              </MapContainer>
-            </div>
-          ) : (
-            <div className="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-500 h-[500px] flex items-center justify-center bg-gray-50 dark:bg-gray-700">
-              <div className="text-center">
-                <MapPin className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
-                <p className="text-gray-500 dark:text-gray-400">
-                  No location data available
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Stats Section */}
-        <div className="space-y-6">
-          {/* Total Responses with Location */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 rounded-lg p-4 border border-blue-200 dark:border-gray-500">
-            <div className="flex items-center space-x-3">
-              <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {locationStats.totalLocations}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
-                  Responses with Location
-                </div>
-              </div>
+      <div className="p-6">
+        {/* Map Section - Full Width */}
+        {locationStats.totalLocations > 0 ? (
+          <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 shadow-md">
+            <MapContainer
+              ref={mapRef}
+              center={mapCenter}
+              zoom={4}
+              style={{
+                height: "500px",
+                width: "100%",
+                borderRadius: "8px",
+              }}
+              className="rounded-lg"
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                maxZoom={19}
+              />
+              <HeatmapLayer data={heatmapData} />
+              <MarkerLayer locations={markerLocations} />
+            </MapContainer>
+          </div>
+        ) : (
+          <div className="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-500 h-[500px] flex items-center justify-center bg-gray-50 dark:bg-gray-700">
+            <div className="text-center">
+              <MapPin className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
+              <p className="text-gray-500 dark:text-gray-400">
+                No location data available
+              </p>
             </div>
           </div>
-
-          {/* Top Countries */}
-          <div className="bg-white dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
-              <Globe className="w-4 h-4 mr-2 text-green-600 dark:text-green-400" />
-              Top Countries
-            </h4>
-            <div className="space-y-2">
-              {locationStats.topCountries.length > 0 ? (
-                locationStats.topCountries.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-600 last:border-b-0"
-                  >
-                    <span className="text-sm text-gray-700 dark:text-gray-300">
-                      {index + 1}. {item.country}
-                    </span>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
-                      {item.count}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  No data
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Top Cities */}
-          <div className="bg-white dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
-              <TrendingUp className="w-4 h-4 mr-2 text-purple-600 dark:text-purple-400" />
-              Top Cities
-            </h4>
-            <div className="space-y-2">
-              {locationStats.topCities.length > 0 ? (
-                locationStats.topCities.map((item, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-600 last:border-b-0"
-                  >
-                    <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
-                      {index + 1}. {item.city}
-                    </span>
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
-                      {item.count}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  No data
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Color Legend */}
-          <div className="bg-white dark:bg-gray-700 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-              Heat Intensity
-            </h4>
-            <div className="space-y-1">
-              <div className="flex items-center text-xs">
-                <div className="w-4 h-4 bg-blue-500 rounded mr-2"></div>
-                <span className="text-gray-600 dark:text-gray-400">Low</span>
-              </div>
-              <div className="flex items-center text-xs">
-                <div className="w-4 h-4 bg-yellow-500 rounded mr-2"></div>
-                <span className="text-gray-600 dark:text-gray-400">Medium</span>
-              </div>
-              <div className="flex items-center text-xs">
-                <div className="w-4 h-4 bg-red-500 rounded mr-2"></div>
-                <span className="text-gray-600 dark:text-gray-400">High</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Detailed Locations Table */}
