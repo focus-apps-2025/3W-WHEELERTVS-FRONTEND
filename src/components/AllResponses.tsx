@@ -39,7 +39,6 @@ import {
   Filler,
   ArcElement,
 } from "chart.js";
-import ChartDataLabels from "chartjs-plugin-datalabels";
 import type { ActiveElement } from "chart.js";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
@@ -50,7 +49,7 @@ import { generateAndDownloadPDF } from "../utils/pdfExportUtils";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
 import DashboardSummaryCard from "./DashboardSummaryCard";
-import LocationHeatmap from "./analytics/LocationHeatmap";
+//import LocationHeatmap from "./analytics/LocationHeatmap";
 
 ChartJS.register(
   CategoryScale,
@@ -62,8 +61,7 @@ ChartJS.register(
   Tooltip,
   Legend,
   Filler,
-  ArcElement,
-  ChartDataLabels
+  ArcElement
 );
 
 function formatSectionLabel(label: string, maxLength = 20): string {
@@ -383,12 +381,12 @@ export default function AllResponses() {
         prev.map((r) =>
           r.id === responseId
             ? {
-                ...r,
-                answers: updated.answers,
-                updatedAt: updatedTimestamp,
-                yesNoScore:
-                  updatedScore !== undefined ? updatedScore : r.yesNoScore,
-              }
+              ...r,
+              answers: updated.answers,
+              updatedAt: updatedTimestamp,
+              yesNoScore:
+                updatedScore !== undefined ? updatedScore : r.yesNoScore,
+            }
             : r
         )
       );
@@ -452,36 +450,54 @@ export default function AllResponses() {
 
       if (selectedForm.sections) {
         selectedForm.sections.forEach((section: any) => {
-          sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(
-            section.id
-          );
+          // Get the actual question stats for the current response
+          sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(section.id);
 
           const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
           const mainParamsData: any[] = [];
 
-          sectionQuestions.forEach((q: any) => {
-            q.followUpQuestions?.forEach((fq: any) => {
-              const answer = fq.answer;
-              if (
-                answer &&
-                (typeof answer === "object" || typeof answer === "string")
-              ) {
-                const answerObj =
-                  typeof answer === "string" ? { text: answer } : answer;
-                mainParamsData.push({
-                  subParam1: q.subParam1 || fq.subParam1 || "N/A",
-                  remarks: answerObj.remarks || "Sample Remarks",
-                  actionInitiated:
-                    answerObj.actionInitiated || "Sample Action Initiated",
-                  reasonForNotOK:
-                    answerObj.reasonForNotOK || "Sample Reason fo Not OK",
-                  responsiblePerson:
-                    answerObj.responsiblePerson || "Sample Responsible person",
-                  review: answerObj.review || "Sample Review",
-                  files: answerObj.files || [],
-                });
-              }
+          // Process each main question in the section
+          sectionQuestions.forEach((mainQuestion: any) => {
+            // Find follow-ups with actual data for this main question
+            const followUpsWithData = mainQuestion.followUpQuestions?.filter((fq: any) => {
+              const answer = selectedResponse.answers?.[fq.id];
+              return answer && typeof answer === 'object' && (
+                answer.remarks ||
+                answer.actionInitiated ||
+                answer.reasonForNotOK ||
+                answer.responsiblePerson ||
+                answer.review ||
+                answer.files
+              );
             });
+
+            // If we have follow-ups with data, create parameter entries
+            if (followUpsWithData && followUpsWithData.length > 0) {
+              followUpsWithData.forEach((followUp: any) => {
+                const answer = selectedResponse.answers?.[followUp.id] || {};
+
+                mainParamsData.push({
+                  subParam1: mainQuestion.subParam1 || "No parameter set",
+                  remarks: answer.remarks || '',
+                  actionInitiated: answer.actionInitiated || '',
+                  reasonForNotOK: answer.reasonForNotOK || '',
+                  responsiblePerson: answer.responsiblePerson || '',
+                  review: answer.review || '',
+                  files: answer.files || []
+                });
+              });
+            } else {
+              // Add entry even if no follow-up data, but mark as empty
+              mainParamsData.push({
+                subParam1: mainQuestion.subParam1 || "No parameter set",
+                remarks: '',
+                actionInitiated: '',
+                reasonForNotOK: '',
+                responsiblePerson: '',
+                review: '',
+                files: []
+              });
+            }
           });
 
           sectionMainParameters[section.id] = mainParamsData;
@@ -490,23 +506,60 @@ export default function AllResponses() {
 
       // Add chart element IDs for capturing
       const chartElementIds = [
-        "section-performance-chart",
-        ...availableSections.map((section) => `section-chart-${section.id}`),
+        'section-performance-chart',
+        ...availableSections.map(section => `section-chart-${section.id}`)
       ];
 
+      // Use the current filtered section stats from the dashboard
+      const currentSectionStats = filteredSectionStats;
+
+      // Prepare section summary rows for PDF
+      const pdfSectionSummaryRows = currentSectionStats.map((stat) => {
+        let weightage = stat.weightage;
+        if (typeof weightage === "string") {
+          weightage = parseFloat(weightage);
+        }
+        weightage = Number.isFinite(weightage) ? weightage : 0;
+        if (weightage > 1) {
+          weightage = weightage;
+        } else if (weightage > 0) {
+          weightage = weightage * 100;
+        }
+
+        const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
+        const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
+        const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
+        const yesWeighted = (yesPercent * weightage) / 100;
+        const noWeighted = (noPercent * weightage) / 100;
+        const naWeighted = (naPercent * weightage) / 100;
+
+        return {
+          id: stat.id,
+          title: stat.title,
+          weightage,
+          yesPercent,
+          yesWeighted,
+          noPercent,
+          noWeighted,
+          naPercent,
+          naWeighted,
+        };
+      });
+
       await generateAndDownloadPDF({
-        filename: `${selectedForm.title}_Report.pdf`,
+        filename: `${selectedForm.title}_Report_${formatTimestamp(selectedResponse.createdAt, 'file')}.pdf`,
         formTitle: selectedForm.title,
         submittedDate: formatTimestamp(selectedResponse.createdAt),
-        sectionStats: filteredSectionStats,
-        sectionSummaryRows: sectionSummaryRows,
+        sectionStats: currentSectionStats,
+        sectionSummaryRows: pdfSectionSummaryRows,
         form: selectedForm,
         response: selectedResponse,
         sectionQuestionStats: sectionQuestionStats,
         sectionMainParameters: sectionMainParameters,
         availableSections: availableSections,
-        chartElementIds: chartElementIds,
-      } as any);
+        chartElementIds: chartElementIds
+      });
+
       showSuccess("PDF downloaded successfully.");
     } catch (error) {
       console.error("Failed to generate PDF:", error);
@@ -514,7 +567,8 @@ export default function AllResponses() {
     } finally {
       setGeneratingPDF(false);
     }
-  };
+  }; 
+
 
   const fetchData = async () => {
     try {
@@ -667,6 +721,9 @@ export default function AllResponses() {
         padding: { top: 16, right: 32, bottom: 16, left: 8 },
       },
       plugins: {
+        datalabels: {
+          color: "#FFFFFF",
+        },
         legend: {
           position: "bottom",
           labels: {
@@ -1339,7 +1396,7 @@ export default function AllResponses() {
 
     return String(value);
   };
-
+  
   const renderSectionTabs = (): React.ReactNode => {
     if (!availableSections.length || !selectedForm) return null;
 
@@ -1355,11 +1412,10 @@ export default function AllResponses() {
               <button
                 key={section.id}
                 onClick={() => setSelectedSectionId(section.id)}
-                className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-2 ${
-                  isSelected
+                className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-2 ${isSelected
                     ? "bg-blue-500 text-white shadow-lg"
                     : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
-                }`}
+                  }`}
               >
                 <span className="truncate">
                   {formatSectionLabel(
@@ -1367,11 +1423,10 @@ export default function AllResponses() {
                   )}
                 </span>
                 <span
-                  className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                    isSelected
+                  className={`text-xs font-semibold px-2 py-1 rounded-full ${isSelected
                       ? "bg-blue-600 text-white"
                       : "bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200"
-                  }`}
+                    }`}
                 >
                   {sectionResponseCount}
                 </span>
@@ -2031,11 +2086,10 @@ export default function AllResponses() {
                       {sectionQuestions.map((mainQuestion, index) => (
                         <tr
                           key={mainQuestion.id}
-                          className={`border-b border-emerald-200 dark:border-emerald-800 ${
-                            index % 2 === 0
+                          className={`border-b border-emerald-200 dark:border-emerald-800 ${index % 2 === 0
                               ? "bg-white dark:bg-gray-800/50"
                               : "bg-emerald-100/30 dark:bg-emerald-900/10"
-                          }`}
+                            }`}
                         >
                           <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-emerald-200 dark:border-emerald-800">
                             <div className="font-bold text-base">
@@ -2182,23 +2236,20 @@ export default function AllResponses() {
                     return (
                       <div
                         key={followUp.id}
-                        className={`mt-4 ml-12 p-4 border-l-4 rounded-r-xl shadow-sm ${
-                          hasAnswer
+                        className={`mt-4 ml-12 p-4 border-l-4 rounded-r-xl shadow-sm ${hasAnswer
                             ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500"
                             : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500"
-                        }`}
+                          }`}
                       >
                         <div
-                          className={`font-medium ${
-                            hasAnswer
+                          className={`font-medium ${hasAnswer
                               ? "text-blue-800 dark:text-blue-200"
                               : "text-gray-700 dark:text-gray-300"
-                          } flex items-center`}
+                            } flex items-center`}
                         >
                           <span
-                            className={`mr-3 text-lg ${
-                              hasAnswer ? "text-blue-600" : "text-gray-500"
-                            }`}
+                            className={`mr-3 text-lg ${hasAnswer ? "text-blue-600" : "text-gray-500"
+                              }`}
                           >
                             ↳
                           </span>
@@ -2213,11 +2264,10 @@ export default function AllResponses() {
                           </div>
                         )}
                         <div
-                          className={`mt-2 ml-6 ${
-                            hasAnswer
+                          className={`mt-2 ml-6 ${hasAnswer
                               ? "text-blue-700 dark:text-blue-300"
                               : "text-gray-600 dark:text-gray-400"
-                          }`}
+                            }`}
                         >
                           {hasAnswer ? (
                             renderAnswerDisplay(followAnswer, followUp)
@@ -2261,23 +2311,20 @@ export default function AllResponses() {
               return (
                 <div
                   key={followUp.id}
-                  className={`p-6 ml-12 border-l-4 rounded-r-xl shadow-sm hover:transition-colors duration-200 ${
-                    hasAnswer
+                  className={`p-6 ml-12 border-l-4 rounded-r-xl shadow-sm hover:transition-colors duration-200 ${hasAnswer
                       ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40"
                       : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900/40"
-                  }`}
+                    }`}
                 >
                   <div
-                    className={`font-medium flex items-center text-lg ${
-                      hasAnswer
+                    className={`font-medium flex items-center text-lg ${hasAnswer
                         ? "text-blue-800 dark:text-blue-200"
                         : "text-gray-700 dark:text-gray-300"
-                    }`}
+                      }`}
                   >
                     <span
-                      className={`mr-4 text-xl ${
-                        hasAnswer ? "text-blue-600" : "text-gray-500"
-                      }`}
+                      className={`mr-4 text-xl ${hasAnswer ? "text-blue-600" : "text-gray-500"
+                        }`}
                     >
                       ↳
                     </span>
@@ -2292,11 +2339,10 @@ export default function AllResponses() {
                     </div>
                   )}
                   <div
-                    className={`mt-3 ml-8 ${
-                      hasAnswer
+                    className={`mt-3 ml-8 ${hasAnswer
                         ? "text-blue-700 dark:text-blue-300"
                         : "text-gray-600 dark:text-gray-400"
-                    } text-base`}
+                      } text-base`}
                   >
                     {hasAnswer ? (
                       renderAnswerDisplay(answer, followUp)
@@ -2401,33 +2447,33 @@ export default function AllResponses() {
 
   const editingResponsePayload = editingResponse
     ? {
-        id: editingResponse.id,
-        questionId: editingResponse.questionId || editingResponse.formId || "",
-        answers: editingResponse.answers,
-        timestamp:
-          editingResponse.updatedAt ||
-          editingResponse.createdAt ||
-          new Date().toISOString(),
-        parentResponseId: editingResponse.parentResponseId,
-        assignedTo: editingResponse.assignedTo,
-        status: editingResponse.status,
-      }
+      id: editingResponse.id,
+      questionId: editingResponse.questionId || editingResponse.formId || "",
+      answers: editingResponse.answers,
+      timestamp:
+        editingResponse.updatedAt ||
+        editingResponse.createdAt ||
+        new Date().toISOString(),
+      parentResponseId: editingResponse.parentResponseId,
+      assignedTo: editingResponse.assignedTo,
+      status: editingResponse.status,
+    }
     : null;
 
   const editingQuestionPayload = editingForm
     ? {
-        id:
-          editingForm._id ||
-          editingForm.id ||
-          editingResponse?.questionId ||
-          editingResponse?.formId ||
-          "",
-        title: editingForm.title,
-        description: editingForm.description || "",
-        sections: editingForm.sections || [],
-        followUpQuestions: editingForm.followUpQuestions || [],
-        parentFormId: editingForm.parentFormId,
-      }
+      id:
+        editingForm._id ||
+        editingForm.id ||
+        editingResponse?.questionId ||
+        editingResponse?.formId ||
+        "",
+      title: editingForm.title,
+      description: editingForm.description || "",
+      sections: editingForm.sections || [],
+      followUpQuestions: editingForm.followUpQuestions || [],
+      parentFormId: editingForm.parentFormId,
+    }
     : null;
 
   if (loading) {
@@ -2481,19 +2527,17 @@ export default function AllResponses() {
                   return (
                     <div
                       key={response._id}
-                      className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${
-                        isFollowUp
+                      className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${isFollowUp
                           ? "ml-8 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/30"
                           : "bg-primary-50 dark:bg-gray-800 border-primary-100 dark:border-gray-700 hover:bg-primary-100 dark:hover:bg-gray-700"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center space-x-4">
                         <div
-                          className={`p-2 rounded-lg ${
-                            isFollowUp
+                          className={`p-2 rounded-lg ${isFollowUp
                               ? "bg-blue-100 dark:bg-blue-900/40"
                               : "bg-white dark:bg-gray-900"
-                          }`}
+                            }`}
                         >
                           {isFollowUp ? (
                             <div className="w-5 h-5 flex items-center justify-center">
@@ -2508,11 +2552,10 @@ export default function AllResponses() {
                         <div>
                           <div className="flex items-center gap-2">
                             <h4
-                              className={`font-medium ${
-                                isFollowUp
+                              className={`font-medium ${isFollowUp
                                   ? "text-blue-700 dark:text-blue-300"
                                   : "text-primary-700"
-                              }`}
+                                }`}
                             >
                               {response.formTitle}
                               {isFollowUp && (
@@ -2530,11 +2573,10 @@ export default function AllResponses() {
                               )}
                           </div>
                           <div
-                            className={`flex items-center text-sm mt-1 ${
-                              isFollowUp
+                            className={`flex items-center text-sm mt-1 ${isFollowUp
                                 ? "text-blue-600 dark:text-blue-400"
                                 : "text-primary-500"
-                            }`}
+                              }`}
                           >
                             <User className="w-4 h-4 mr-1" />
                             <span>
@@ -2546,11 +2588,10 @@ export default function AllResponses() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => handleViewDetails(response)}
-                          className={`btn-secondary flex items-center ${
-                            isFollowUp
+                          className={`btn-secondary flex items-center ${isFollowUp
                               ? "bg-blue-600 hover:bg-blue-700 text-white"
                               : ""
-                          }`}
+                            }`}
                         >
                           <Eye className="w-4 h-4 mr-2" />
                           View Details
@@ -2670,22 +2711,20 @@ export default function AllResponses() {
                     <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 flex items-center gap-1 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 rounded-xl p-1 mb-6 shadow-lg border border-slate-200 dark:border-slate-700">
                       <button
                         onClick={() => setViewMode("dashboard")}
-                        className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${
-                          viewMode === "dashboard"
+                        className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${viewMode === "dashboard"
                             ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md transform scale-105"
                             : "text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white"
-                        }`}
+                          }`}
                       >
                         <BarChart3 className="w-4 h-4" />
                         Dashboard
                       </button>
                       <button
                         onClick={() => setViewMode("responses")}
-                        className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${
-                          viewMode === "responses"
+                        className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${viewMode === "responses"
                             ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md transform scale-105"
                             : "text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white"
-                        }`}
+                          }`}
                       >
                         <FileText className="w-4 h-4" />
                         Responses
@@ -2760,9 +2799,9 @@ export default function AllResponses() {
                                           );
                                         return totalQuestions > 0
                                           ? (
-                                              (totalYes / totalQuestions) *
-                                              100
-                                            ).toFixed(1)
+                                            (totalYes / totalQuestions) *
+                                            100
+                                          ).toFixed(1)
                                           : "0.0";
                                       })()}
                                       %
@@ -2805,11 +2844,10 @@ export default function AllResponses() {
                                         Response Rate
                                       </p>
                                       <ChevronDown
-                                        className={`w-4 h-4 text-green-700 dark:text-green-300 transition-transform duration-300 ${
-                                          expandResponseRateBreakdown
+                                        className={`w-4 h-4 text-green-700 dark:text-green-300 transition-transform duration-300 ${expandResponseRateBreakdown
                                             ? "rotate-180"
                                             : ""
-                                        }`}
+                                          }`}
                                       />
                                     </div>
                                     <p className="text-3xl font-bold text-green-900 dark:text-green-100">
@@ -2830,9 +2868,9 @@ export default function AllResponses() {
                                           );
                                         return totalQuestions > 0
                                           ? (
-                                              (totalAnswered / totalQuestions) *
-                                              100
-                                            ).toFixed(1)
+                                            (totalAnswered / totalQuestions) *
+                                            100
+                                          ).toFixed(1)
                                           : "0.0";
                                       })()}
                                       %
@@ -2868,23 +2906,23 @@ export default function AllResponses() {
                                         const yesPercent =
                                           totalAnswered > 0
                                             ? (
-                                                (totalYes / totalAnswered) *
-                                                100
-                                              ).toFixed(1)
+                                              (totalYes / totalAnswered) *
+                                              100
+                                            ).toFixed(1)
                                             : "0.0";
                                         const noPercent =
                                           totalAnswered > 0
                                             ? (
-                                                (totalNo / totalAnswered) *
-                                                100
-                                              ).toFixed(1)
+                                              (totalNo / totalAnswered) *
+                                              100
+                                            ).toFixed(1)
                                             : "0.0";
                                         const naPercent =
                                           totalAnswered > 0
                                             ? (
-                                                (totalNA / totalAnswered) *
-                                                100
-                                              ).toFixed(1)
+                                              (totalNA / totalAnswered) *
+                                              100
+                                            ).toFixed(1)
                                             : "0.0";
 
                                         return (
@@ -2931,33 +2969,33 @@ export default function AllResponses() {
                                     <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
                                       {selectedForm?.locationEnabled !== false
                                         ? (() => {
-                                            const capturedLoc =
-                                              selectedResponse?.submissionMetadata?.capturedLocation;
-                                            const ipLoc =
-                                              selectedResponse?.submissionMetadata?.location;
+                                          const capturedLoc =
+                                            selectedResponse?.submissionMetadata?.capturedLocation;
+                                          const ipLoc =
+                                            selectedResponse?.submissionMetadata?.location;
 
-                                            let locationToUse = null;
-                                            
-                                            if (capturedLoc?.city || capturedLoc?.region || capturedLoc?.country) {
-                                              locationToUse = capturedLoc;
-                                            } else if (ipLoc?.city || ipLoc?.region || ipLoc?.country) {
-                                              locationToUse = ipLoc;
-                                            }
+                                          let locationToUse = null;
 
-                                            if (locationToUse) {
-                                              const parts = [];
-                                              if (locationToUse.city)
-                                                parts.push(locationToUse.city);
-                                              if (locationToUse.region)
-                                                parts.push(locationToUse.region);
-                                              if (locationToUse.country)
-                                                parts.push(locationToUse.country);
-                                              return parts.length > 0
-                                                ? parts.join(", ")
-                                                : "Location data unavailable";
-                                            }
-                                            return "Location data unavailable";
-                                          })()
+                                          if (capturedLoc?.city || capturedLoc?.region || capturedLoc?.country) {
+                                            locationToUse = capturedLoc;
+                                          } else if (ipLoc?.city || ipLoc?.region || ipLoc?.country) {
+                                            locationToUse = ipLoc;
+                                          }
+
+                                          if (locationToUse) {
+                                            const parts = [];
+                                            if (locationToUse.city)
+                                              parts.push(locationToUse.city);
+                                            if (locationToUse.region)
+                                              parts.push(locationToUse.region);
+                                            if (locationToUse.country)
+                                              parts.push(locationToUse.country);
+                                            return parts.length > 0
+                                              ? parts.join(", ")
+                                              : "Location data unavailable";
+                                          }
+                                          return "Location data unavailable";
+                                        })()
                                         : "Location disabled"}
                                     </p>
                                   </div>
@@ -2969,10 +3007,60 @@ export default function AllResponses() {
                             </div>
                           </div>
 
-                          {/* Location Heatmap Section 
-                          {responses && responses.length > 0 && (
+                          {/* Location Heatmap Section */}
+                          {/*responses && responses.length > 0 && (
                             <LocationHeatmap responses={responses} />
-                          )}*/}
+                          )*/}
+                          {selectedForm?.sections?.[0] && (
+                            <div className="border border-primary-100 rounded-lg overflow-hidden">
+                              <div className="px-4 py-3 bg-primary-50">
+                                <div className="text-base font-semibold text-primary-700">
+                                  {selectedForm.sections[0].title || "First Section"}
+                                </div>
+                                {selectedForm.sections[0].description && (
+                                  <div className="text-sm text-primary-500 mt-1">
+                                    {selectedForm.sections[0].description}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Two-column container */}
+                              <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-primary-100">
+                                {selectedForm.sections[0].questions?.map((question: any, index: number) => {
+                                  const answer = selectedResponse?.answers[question.id];
+                                  return (
+                                    <div key={question.id} className="p-4">
+                                      <div className="font-medium text-primary-700 mb-1">
+                                        {question.text || question.id}
+                                      </div>
+                                      <div className="text-primary-600 mb-3">
+                                        {renderAnswerDisplay(answer, question)}
+                                      </div>
+                                      {question.followUpQuestions?.map((followUp: any) => {
+                                        const followAnswer = selectedResponse?.answers[followUp.id];
+                                        if (!hasAnswerValue(followAnswer)) return null;
+                                        return (
+                                          <div
+                                            key={followUp.id}
+                                            className="mt-3 pl-4 border-l border-primary-100 text-sm"
+                                          >
+                                            <div className="font-medium text-primary-600 mb-1">
+                                              {followUp.text || followUp.id}
+                                            </div>
+                                            <div className="text-primary-600">
+                                              {renderAnswerDisplay(followAnswer, followUp)}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+
 
                           {/* Charts Section */}
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
