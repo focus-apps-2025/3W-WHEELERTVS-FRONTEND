@@ -24,7 +24,7 @@ interface Tenant {
   slug: string;
   companyName: string;
   isActive: boolean;
-  adminId: Array<{
+  adminId?: Array<{
     // Now it's an array of admins
     _id: string;
     firstName: string;
@@ -642,7 +642,7 @@ export default function TenantManagement() {
                         <Users className="w-4 h-4 text-white" />
                       </div>
                       <h4 className="text-sm font-semibold text-primary-900">
-                        Administrators ({tenant.adminId.length})
+                        Administrators ({tenant.adminId?.length || 0})
                       </h4>
                     </div>
                     <button
@@ -781,7 +781,7 @@ export default function TenantManagement() {
                       </div>
                     )}
 
-                    {tenant.adminId.length === 0 ? (
+                    {!tenant.adminId || tenant.adminId.length === 0 ? (
                       <p className="text-primary-600 text-sm text-center py-2">
                         No administrators assigned
                       </p>
@@ -970,7 +970,7 @@ export default function TenantManagement() {
                                     />
                                   </svg>
                                 </button>
-                                {tenant.adminId.length > 1 && (
+                                {tenant.adminId && tenant.adminId.length > 1 && (
                                   <button
                                     onClick={() =>
                                       handleDeleteAdmin(
