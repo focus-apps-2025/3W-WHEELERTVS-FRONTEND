@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from "react";
-import { BarChart3, TrendingUp, Target, Activity, Zap, ChevronDown } from "lucide-react";
+import { BarChart3, TrendingUp, Target, Activity, Zap, ChevronDown, X, Eye, User, Calendar,FileText } from "lucide-react";
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -14,24 +14,437 @@ import type { Question, Response } from "../../types";
 
 ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
 
-interface SectionAnalyticsProps {
-  question: Question;
-  responses: Response[];
+
+interface Response {
+  id: string;
+  answers: Record<string, any>;
+  timestamp?: string;
+  createdAt?: string;
+  assignedAt?: string;
+  status?: string;
+}
+
+interface Question {
+  id: string;
+  text: string;
+  type?: string;
+  parentId?: string;
+  showWhen?: {
+    questionId: string;
+  };
+  followUpQuestions?: Question[];
 }
 
 interface Section {
   id: string;
   title: string;
   description?: string;
-  questions: any[];
+  questions: Question[];
 }
+
+interface SectionAnalyticsProps {
+  question: {
+    sections?: Section[];
+  };
+  responses: Response[];
+}
+interface QuestionDetailsModalProps {
+  question: any;
+  responses: Response[];
+  sectionTitle: string;
+  formData?: any;
+  onClose: () => void;
+}
+
+const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
+  question,
+  responses,
+  sectionTitle,
+   formData, 
+  onClose,
+}) => {
+  console.log("=== DEBUG: Modal Data ===");
+console.log("Section Title:", sectionTitle);
+console.log("Question ID:", question.id);
+console.log("Question Text:", question.text);
+console.log("Question object:", question);
+console.log("Question has sections?", !!question.sections);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  const questionResponses = useMemo(() => {
+  console.log("=== DEBUG: Modal Data ===");
+  console.log("Section Title:", sectionTitle);
+  console.log("Form Data has sections?", formData?.sections?.length);
+  console.log("Form Data:", formData);
+  
+  // Check if we're in Basic Information section
+  const isBasicInfoSection = sectionTitle?.toLowerCase().includes('basic') || 
+                            sectionTitle?.toLowerCase().includes('information');
+  
+  console.log("Is Basic Info Section:", isBasicInfoSection);
+  
+  // Find dealer question ID from formData (which has sections)
+  const findDealerQuestionId = () => {
+    if (!formData?.sections || formData.sections.length === 0) {
+      console.log("No sections found in formData");
+      return null;
+    }
+    
+    // First section should be Basic Information
+    const firstSection = formData.sections[0];
+    console.log("First section:", firstSection?.title);
+    console.log("First section questions:", firstSection?.questions?.length);
+    
+    if (!firstSection?.questions) {
+      return null;
+    }
+    
+    // Search for dealer name question
+    for (const q of firstSection.questions) {
+      const questionText = q.text?.toLowerCase() || '';
+      console.log(`Checking question: ${q.text} (${q.id})`);
+      
+      if (questionText.includes('dealer')) {
+        console.log("Found dealer question:", q);
+        return q.id;
+      }
+    }
+    
+    // If no dealer question found, look for any name field
+    for (const q of firstSection.questions) {
+      const questionText = q.text?.toLowerCase() || '';
+      if (questionText.includes('name')) {
+        console.log("Found name question as fallback:", q);
+        return q.id;
+      }
+    }
+    
+    return null;
+  };
+  
+  const dealerQuestionId = findDealerQuestionId();
+  console.log("Dealer Question ID:", dealerQuestionId);
+  
+  return responses
+    .filter((response) => {
+      const answer = response.answers?.[question.id];
+      return answer !== null && answer !== undefined && answer !== "";
+    })
+    .map((response, index) => {
+      console.log(`Response ${index + 1}:`, response.id);
+      console.log("Response answers:", response.answers);
+      
+      let displayInfo = "";
+      let isDealerName = false;
+      
+      if (!isBasicInfoSection && dealerQuestionId) {
+        // For non-BasicInfo sections: show dealer name
+        const dealerName = response.answers?.[dealerQuestionId];
+        console.log(`Dealer name for response ${response.id}:`, dealerName);
+        displayInfo = dealerName || "Unknown Dealer";
+        isDealerName = true;
+      } else {
+        // For BasicInfo section: show response ID
+        displayInfo = response.id?.substring(0, 8) || "N/A";
+        isDealerName = false;
+      }
+      
+      console.log(`Will display: ${displayInfo} (isDealerName: ${isDealerName})`);
+      
+      return {
+        response,
+        answer: response.answers?.[question.id],
+        timestamp: response.timestamp || response.createdAt || response.assignedAt || "Unknown",
+        status: response.status || "pending",
+        displayInfo,
+        isDealerName,
+      };
+    });
+}, [responses, question, sectionTitle, formData]);
+
+  const answerStats = useMemo(() => {
+    const stats = {
+      totalAnswered: questionResponses.length,
+      totalResponses: responses.length,
+      percentage: ((questionResponses.length / responses.length) * 100).toFixed(1),
+    };
+
+    if (question.type === "yesNoNA") {
+      const counts = { yes: 0, no: 0, na: 0 };
+      questionResponses.forEach((qr) => {
+        const answer = String(qr.answer).toLowerCase();
+        if (answer.includes("yes")) counts.yes++;
+        else if (answer.includes("no")) counts.no++;
+        else if (answer.includes("na") || answer.includes("n/a") || answer.includes("not applicable"))
+          counts.na++;
+      });
+      return { ...stats, counts };
+    }
+
+    return stats;
+  }, [questionResponses, responses.length, question.type]);
+
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.body.style.overflow = "auto";
+    };
+  }, [onClose]);
+
+  const renderAnswerDisplay = (answer: any): React.ReactNode => {
+    if (answer === null || answer === undefined || answer === "") {
+      return <span className="text-gray-400 italic">No response</span>;
+    }
+
+    if (typeof answer === "string") {
+      if (answer.startsWith("data:")) {
+        return <span className="text-blue-600 font-medium">{answer.substring(0, 50)}...</span>;
+      }
+      if (answer.startsWith("http://") || answer.startsWith("https://")) {
+        return (
+          <a
+            href={answer}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800 underline"
+          >
+            {answer}
+          </a>
+        );
+      }
+      return <span className="text-gray-900">{answer}</span>;
+    }
+
+    if (Array.isArray(answer)) {
+      if (answer.length === 0) {
+        return <span className="text-gray-400 italic">No response</span>;
+      }
+      return (
+        <ul className="list-disc pl-4 space-y-1">
+          {answer.map((item, index) => (
+            <li key={index} className="text-gray-900">
+              {renderAnswerDisplay(item)}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    if (typeof answer === "object") {
+      if (Object.keys(answer).length === 0) {
+        return <span className="text-gray-400 italic">No response</span>;
+      }
+      return (
+        <pre className="text-sm bg-gray-50 p-3 rounded-lg overflow-auto max-h-32">
+          {JSON.stringify(answer, null, 2)}
+        </pre>
+      );
+    }
+
+    return <span className="text-gray-900">{String(answer)}</span>;
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div
+        ref={modalRef}
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col"
+      >
+        <div className="sticky top-0 z-10 bg-gradient-to-r from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800 px-6 py-4 rounded-t-2xl flex justify-between items-center">
+          <div className="flex-1">
+            <h3 className="text-xl font-bold text-white">Question Details</h3>
+            <p className="text-blue-100 text-sm mt-1">
+              {sectionTitle} • {question.text?.substring(0, 80)}
+              {question.text?.length > 80 ? "..." : ""}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="ml-4 p-2 text-white hover:bg-white/20 rounded-lg transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-6">
+          <div className="space-y-6">
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-xl border border-blue-200 dark:border-blue-700">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                    {question.text}
+                  </h4>
+                  <div className="flex flex-wrap gap-4 mt-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900/40 rounded-lg">
+                        <Activity className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Question Type</div>
+                        <div className="font-medium text-gray-900 dark:text-white">
+                          {question.type || "General"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-green-100 dark:bg-green-900/40 rounded-lg">
+                        <User className="w-4 h-4 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">Answered</div>
+                        <div className="font-medium text-gray-900 dark:text-white">
+                          {answerStats.totalAnswered} / {answerStats.totalResponses} ({answerStats.percentage}%)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-blue-600" />
+                  Responses ({questionResponses.length})
+                </h4>
+                {question.type === "yesNoNA" && answerStats.counts && (
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Yes: {answerStats.counts.yes}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        No: {answerStats.counts.no}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        N/A: {answerStats.counts.na}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {questionResponses.length === 0 ? (
+                <div className="text-center py-12 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                  <Eye className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">No responses yet</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {questionResponses.map((qr, index) => (
+                    <div
+                      key={`${qr.response.id}-${index}`}
+                      className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-bold rounded-full">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                <Calendar className="w-3 h-3" />
+                                {new Date(qr.timestamp).toLocaleString()}
+                              </div>
+                              <div className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                                <div className="flex items-center gap-2">
+                                  {qr.isDealerName ? (
+                                    // Show dealer icon and name for other sections
+                                    <>
+                                      <User className="w-3 h-3" />
+                                      <span>Dealer: {qr.displayInfo}</span>
+                                    </>
+                                  ) : (
+                                    // Show ID icon and response ID for first section
+                                    <>
+                                      <FileText className="w-3 h-3" />
+                                      <span>Response ID: {qr.displayInfo}...</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="mt-3 ml-11">
+                            <div className="font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Answer:
+                            </div>
+                            <div className="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg">
+                              {renderAnswerDisplay(qr.answer)}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="ml-4 flex-shrink-0">
+                          <div className={`px-3 py-1 rounded-full text-xs font-semibold ${qr.status === "verified"
+                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                              : qr.status === "rejected"
+                                ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            }`}>
+                            {qr.status || "pending"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-900/80 px-6 py-4 rounded-b-2xl border-t border-gray-200 dark:border-gray-700 flex justify-between items-center backdrop-blur-sm">
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            Showing {questionResponses.length} response{questionResponses.length !== 1 ? "s" : ""}
+          </div>
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-medium rounded-lg transition-all"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 export default function SectionAnalytics({
   question,
   responses,
 }: SectionAnalyticsProps) {
   const sections: Section[] = question.sections || [];
-
+  const [selectedQuestion, setSelectedQuestion] = useState<{
+    question: any;
+    sectionTitle: string;
+    formData?: any;
+  } | null>(null);
   const getSectionStats = (section: Section) => {
     const mainQuestionsOnly = section.questions.filter(
       (q: any) => !q.parentId && !q.showWhen?.questionId
@@ -42,6 +455,10 @@ export default function SectionAnalytics({
     let answeredFollowUpQuestions = 0;
     let mainQuestionResponses = 0;
     let followUpResponses = 0;
+
+
+    // ========== ADD THIS STATE HERE ==========
+
 
     const followUpQuestionsInSection = section.questions.filter(
       (q: any) => q.parentId || q.showWhen?.questionId
@@ -63,7 +480,7 @@ export default function SectionAnalytics({
       if (q.followUpQuestions && Array.isArray(q.followUpQuestions)) {
         followUpCount = q.followUpQuestions.length;
       }
-      
+
       const mainQuestionResponders = responses.filter(
         (r) => r.answers && r.answers[q.id]
       ).length;
@@ -80,6 +497,10 @@ export default function SectionAnalytics({
     const completionRate = totalQuestions > 0
       ? ((totalAnswered / totalQuestions) * 100).toFixed(1)
       : 0;
+
+
+
+
 
     const avgResponsesPerQuestion = totalQuestions > 0
       ? (totalResponses / totalQuestions).toFixed(1)
@@ -167,8 +588,8 @@ export default function SectionAnalytics({
     section.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const displaySections = selectedSectionIds.length === 0 
-    ? sectionsStats 
+  const displaySections = selectedSectionIds.length === 0
+    ? sectionsStats
     : sectionsStats.filter((item) => selectedSectionIds.includes(item.section.id));
 
   if (!sections || sections.length === 0) {
@@ -232,9 +653,8 @@ export default function SectionAnalytics({
             </span>
           </div>
           <ChevronDown
-            className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${
-              isDropdownOpen ? "rotate-180" : ""
-            }`}
+            className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${isDropdownOpen ? "rotate-180" : ""
+              }`}
           />
         </button>
 
@@ -339,256 +759,293 @@ export default function SectionAnalytics({
       ) : (
         <div className="space-y-6">
           {displaySections.map(({ section, stats }, sectionIdx) => {
-          const isExpanded = expandedSections[section.id] !== false;
+            const isExpanded = expandedSections[section.id] !== false;
 
-          const radarMetrics = {
-            mainQuestionsRate: stats.mainQuestionCount > 0 ? (stats.answeredMainQuestions / stats.mainQuestionCount) * 100 : 0,
-            followUpRate: stats.totalFollowUpCount > 0 ? (stats.answeredFollowUpQuestions / stats.totalFollowUpCount) * 100 : 0,
-            completionRate: parseFloat(stats.completionRate as any),
-            engagementRate: stats.totalResponses > 0 ? Math.min((stats.totalResponses / responses.length) * 100, 100) : 0,
-            responseAverage: Math.min(parseFloat(stats.avgResponsesPerQuestion as any) * 20, 100),
-          };
+            const radarMetrics = {
+              mainQuestionsRate: stats.mainQuestionCount > 0 ? (stats.answeredMainQuestions / stats.mainQuestionCount) * 100 : 0,
+              followUpRate: stats.totalFollowUpCount > 0 ? (stats.answeredFollowUpQuestions / stats.totalFollowUpCount) * 100 : 0,
+              completionRate: parseFloat(stats.completionRate as any),
+              engagementRate: stats.totalResponses > 0 ? Math.min((stats.totalResponses / responses.length) * 100, 100) : 0,
+              responseAverage: Math.min(parseFloat(stats.avgResponsesPerQuestion as any) * 20, 100),
+            };
 
-          return (
-            <div
-              key={section.id}
-              className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-all"
-            >
-              <button
-                onClick={() => toggleSection(section.id)}
-                className="w-full bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-left hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-between group shadow-md hover:shadow-lg"
+            return (
+              <div
+                key={section.id}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-all"
               >
-                <div>
-                  <h4 className="text-xl font-bold text-white flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center w-8 h-8 bg-white/20 rounded-lg text-sm">
-                      {sectionIdx + 1}
-                    </span>
-                    {section.title}
-                  </h4>
-                  {section.description && (
-                    <p className="text-blue-100 text-sm mt-1">{section.description}</p>
-                  )}
-                </div>
-                <ChevronDown
-                  className={`w-6 h-6 text-white transition-transform ${
-                    isExpanded ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
+                <button
+                  onClick={() => toggleSection(section.id)}
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-left hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-between group shadow-md hover:shadow-lg"
+                >
+                  <div>
+                    <h4 className="text-xl font-bold text-white flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center w-8 h-8 bg-white/20 rounded-lg text-sm">
+                        {sectionIdx + 1}
+                      </span>
+                      {section.title}
+                    </h4>
+                    {section.description && (
+                      <p className="text-blue-100 text-sm mt-1">{section.description}</p>
+                    )}
+                  </div>
+                  <ChevronDown
+                    className={`w-6 h-6 text-white transition-transform ${isExpanded ? "rotate-180" : ""
+                      }`}
+                  />
+                </button>
 
-              {isExpanded && (
-                <div className="p-8">
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2">
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700/50">
-                          <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Main Q</p>
-                          <p className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-2">{stats.mainQuestionCount}</p>
-                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Questions</p>
-                        </div>
+                {isExpanded && (
+                  <div className="p-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      <div className="lg:col-span-2">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700/50">
+                            <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Main Q</p>
+                            <p className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-2">{stats.mainQuestionCount}</p>
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Questions</p>
+                          </div>
 
-                        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 rounded-lg p-4 border border-purple-200 dark:border-purple-700/50">
-                          <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase">Follow-ups</p>
-                          <p className="text-2xl font-bold text-purple-900 dark:text-purple-200 mt-2">{stats.totalFollowUpCount}</p>
-                          <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Questions</p>
-                        </div>
+                          <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 rounded-lg p-4 border border-purple-200 dark:border-purple-700/50">
+                            <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase">Follow-ups</p>
+                            <p className="text-2xl font-bold text-purple-900 dark:text-purple-200 mt-2">{stats.totalFollowUpCount}</p>
+                            <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Questions</p>
+                          </div>
 
-                        <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 rounded-lg p-4 border border-green-200 dark:border-green-700/50">
-                          <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase">Answered</p>
-                          <p className="text-2xl font-bold text-green-900 dark:text-green-200 mt-2">{stats.totalAnswered}</p>
-                          <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                            {stats.answeredMainQuestions}M + {stats.answeredFollowUpQuestions}F
-                          </p>
-                        </div>
+                          <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 rounded-lg p-4 border border-green-200 dark:border-green-700/50">
+                            <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase">Answered</p>
+                            <p className="text-2xl font-bold text-green-900 dark:text-green-200 mt-2">{stats.totalAnswered}</p>
+                            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                              {stats.answeredMainQuestions}M + {stats.answeredFollowUpQuestions}F
+                            </p>
+                          </div>
 
-                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700/50">
-                          <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Completion</p>
-                          <p className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-2">{stats.completionRate}%</p>
-                          <div className="mt-2 bg-blue-200 dark:bg-blue-700/30 rounded-full h-1.5">
-                            <div
-                              className="bg-gradient-to-r from-blue-500 to-blue-600 h-1.5 rounded-full transition-all"
-                              style={{ width: `${stats.completionRate}%` }}
-                            ></div>
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700/50">
+                            <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Completion</p>
+                            <p className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-2">{stats.completionRate}%</p>
+                            <div className="mt-2 bg-blue-200 dark:bg-blue-700/30 rounded-full h-1.5">
+                              <div
+                                className="bg-gradient-to-r from-blue-500 to-blue-600 h-1.5 rounded-full transition-all"
+                                style={{ width: `${stats.completionRate}%` }}
+                              ></div>
+                            </div>
+                          </div>
+
+                          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700/50">
+                            <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Avg Response</p>
+                            <p className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-2">{stats.avgResponsesPerQuestion}</p>
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Per question</p>
+                          </div>
+
+                          <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-900/30 dark:to-cyan-800/30 rounded-lg p-4 border border-cyan-200 dark:border-cyan-700/50">
+                            <p className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 uppercase">Total Responses</p>
+                            <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-200 mt-2">{stats.totalResponses}</p>
+                            <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">All questions</p>
                           </div>
                         </div>
 
-                        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700/50">
-                          <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Avg Response</p>
-                          <p className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-2">{stats.avgResponsesPerQuestion}</p>
-                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Per question</p>
-                        </div>
-
-                        <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-900/30 dark:to-cyan-800/30 rounded-lg p-4 border border-cyan-200 dark:border-cyan-700/50">
-                          <p className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 uppercase">Total Responses</p>
-                          <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-200 mt-2">{stats.totalResponses}</p>
-                          <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">All questions</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                        <h5 className="text-md font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                          <Activity className="w-5 h-5 mr-2 text-blue-600" />
-                          Question Details
-                        </h5>
-                        <div className="space-y-3 max-h-96 overflow-y-auto">
-                          {stats.questionsDetail.map((q: any, idx: number) => (
-                            <div key={q.id}>
-                              <div className="flex items-start justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border-l-4 border-blue-500 hover:shadow-md transition-all">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded">
-                                      {idx + 1}
-                                    </span>
-                                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                      {q.text.length > 70 ? q.text.substring(0, 70) + "..." : q.text}
-                                    </p>
-                                  </div>
-                                  {q.followUpCount > 0 && (
-                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 ml-8">
-                                      {q.followUpCount} follow-up{q.followUpCount > 1 ? "s" : ""}
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="text-right ml-4 flex-shrink-0">
-                                  <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{q.responses}</div>
-                                  <div className="text-xs text-gray-600 dark:text-gray-400">responses</div>
-                                </div>
-                              </div>
-
-                              {q.followUpDetails && q.followUpDetails.length > 0 && (
-                                <div className="ml-6 mt-2 space-y-2">
-                                  {q.followUpDetails.map((fq: any, fIdx: number) => (
-                                    <div
-                                      key={fq.id}
-                                      className="flex items-start justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded border-l-2 border-blue-400 text-sm"
-                                    >
-                                      <div className="flex-1">
-                                        <div className="flex items-center gap-2">
-                                          <span className="inline-flex items-center justify-center w-4 h-4 bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-sm">
-                                            •
-                                          </span>
-                                          <p className="text-xs font-medium text-gray-900 dark:text-white">
-                                            {fq.text.length > 65 ? fq.text.substring(0, 65) + "..." : fq.text}
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <div className="text-right ml-4 flex-shrink-0">
-                                        <div className="text-sm font-bold text-blue-600 dark:text-blue-400">{fq.responses}</div>
-                                      </div>
+                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                          <h5 className="text-md font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                            <Activity className="w-5 h-5 mr-2 text-blue-600" />
+                            Question Details
+                          </h5>
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {stats.questionsDetail.map((q: any, idx: number) => (
+                              <div key={q.id}>
+                                {/* ========== UPDATE THIS DIV TO BE A BUTTON ========== */}
+                                <button
+                                  onClick={() => setSelectedQuestion({
+                                    question: q,
+                                    sectionTitle: section.title,
+                                    formData: question
+                                  })}
+                                  className="w-full text-left flex items-start justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border-l-4 border-blue-500 hover:shadow-md transition-all hover:border-blue-600 group"
+                                >
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded group-hover:bg-blue-200 group-hover:text-blue-700">
+                                        {idx + 1}
+                                      </span>
+                                      <p className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">
+                                        {q.text.length > 70 ? q.text.substring(0, 70) + "..." : q.text}
+                                      </p>
                                     </div>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                                    {q.followUpCount > 0 && (
+                                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 ml-8">
+                                        {q.followUpCount} follow-up{q.followUpCount > 1 ? "s" : ""}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="text-right ml-4 flex-shrink-0">
+                                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400 group-hover:text-blue-700">
+                                      {q.responses}
+                                    </div>
+                                    <div className="text-xs text-gray-600 dark:text-gray-400">responses</div>
+                                    <div className="text-xs text-blue-500 mt-1 flex items-center justify-end gap-1">
+                                      <Eye className="w-3 h-3" />
+                                      View
+                                    </div>
+                                  </div>
+                                </button>
+                                {/* ========== END OF UPDATE ========== */}
+
+                                {q.followUpDetails && q.followUpDetails.length > 0 && (
+                                  <div className="ml-6 mt-2 space-y-2">
+                                    {q.followUpDetails.map((fq: any, fIdx: number) => (
+                                      // ========== UPDATE THIS DIV TO BE A BUTTON ==========
+                                      <button
+                                        key={fq.id}
+                                        onClick={() => setSelectedQuestion({
+                                          question: fq,
+                                          sectionTitle: section.title,
+                                          formData: question
+                                        })}
+                                        className="w-full text-left flex items-start justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded border-l-2 border-blue-400 text-sm hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-500 transition-all group"
+                                      >
+                                        <div className="flex-1">
+                                          <div className="flex items-center gap-2">
+                                            <span className="inline-flex items-center justify-center w-4 h-4 bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-sm">
+                                              •
+                                            </span>
+                                            <p className="text-xs font-medium text-gray-900 dark:text-white group-hover:text-blue-600">
+                                              {fq.text.length > 65 ? fq.text.substring(0, 65) + "..." : fq.text}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="text-right ml-4 flex-shrink-0">
+                                          <div className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                                            {fq.responses}
+                                          </div>
+                                          <div className="text-[10px] text-blue-500 mt-0.5 flex items-center justify-end gap-0.5">
+                                            <Eye className="w-2.5 h-2.5" />
+                                            View
+                                          </div>
+                                        </div>
+                                      </button>
+                                      // ========== END OF UPDATE ==========
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                      <div style={{ width: "100%", height: "300px" }}>
-                        <Radar
-                          data={{
-                            labels: [
-                              "Main Q Rate",
-                              "Follow-up Rate",
-                              "Completion",
-                              "Engagement",
-                              "Avg Response",
-                            ],
-                            datasets: [
-                              {
-                                label: section.title,
-                                data: [
-                                  radarMetrics.mainQuestionsRate,
-                                  radarMetrics.followUpRate,
-                                  radarMetrics.completionRate,
-                                  radarMetrics.engagementRate,
-                                  radarMetrics.responseAverage,
-                                ],
-                                borderColor: "rgb(59, 130, 246)",
-                                backgroundColor: "rgba(59, 130, 246, 0.15)",
-                                pointBackgroundColor: "rgb(59, 130, 246)",
-                                pointBorderColor: "#fff",
-                                pointHoverBackgroundColor: "#fff",
-                                pointHoverBorderColor: "rgb(59, 130, 246)",
-                                pointRadius: 4,
-                                pointHoverRadius: 6,
-                              },
-                            ],
-                          }}
-                          options={{
-                            responsive: true,
-                            maintainAspectRatio: false,
-                            plugins: {
-                              legend: {
-                                display: true,
-                                position: "bottom",
-                                labels: {
-                                  color: document.documentElement.classList.contains("dark")
-                                    ? "#e5e7eb"
-                                    : "#374151",
-                                  font: {
-                                    size: 12,
-                                    weight: "600",
+                      <div className="flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                        <div style={{ width: "100%", height: "300px" }}>
+                          <Radar
+                            data={{
+                              labels: [
+                                "Main Q Rate",
+                                "Follow-up Rate",
+                                "Completion",
+                                "Engagement",
+                                "Avg Response",
+                              ],
+                              datasets: [
+                                {
+                                  label: section.title,
+                                  data: [
+                                    radarMetrics.mainQuestionsRate,
+                                    radarMetrics.followUpRate,
+                                    radarMetrics.completionRate,
+                                    radarMetrics.engagementRate,
+                                    radarMetrics.responseAverage,
+                                  ],
+                                  borderColor: "rgb(59, 130, 246)",
+                                  backgroundColor: "rgba(59, 130, 246, 0.15)",
+                                  pointBackgroundColor: "rgb(59, 130, 246)",
+                                  pointBorderColor: "#fff",
+                                  pointHoverBackgroundColor: "#fff",
+                                  pointHoverBorderColor: "rgb(59, 130, 246)",
+                                  pointRadius: 4,
+                                  pointHoverRadius: 6,
+                                },
+                              ],
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: {
+                                  display: true,
+                                  position: "bottom",
+                                  labels: {
+                                    color: document.documentElement.classList.contains("dark")
+                                      ? "#e5e7eb"
+                                      : "#374151",
+                                    font: {
+                                      size: 12,
+                                      weight: "600",
+                                    },
+                                  },
+                                },
+                                tooltip: {
+                                  backgroundColor: "rgba(0, 0, 0, 0.8)",
+                                  padding: 12,
+                                  titleFont: { size: 13, weight: "bold" },
+                                  bodyFont: { size: 12 },
+                                  borderColor: "rgba(59, 130, 246, 0.5)",
+                                  borderWidth: 1,
+                                  callbacks: {
+                                    label: function (context: any) {
+                                      return `${context.label}: ${context.parsed.r.toFixed(1)}%`;
+                                    },
                                   },
                                 },
                               },
-                              tooltip: {
-                                backgroundColor: "rgba(0, 0, 0, 0.8)",
-                                padding: 12,
-                                titleFont: { size: 13, weight: "bold" },
-                                bodyFont: { size: 12 },
-                                borderColor: "rgba(59, 130, 246, 0.5)",
-                                borderWidth: 1,
-                                callbacks: {
-                                  label: function (context: any) {
-                                    return `${context.label}: ${context.parsed.r.toFixed(1)}%`;
+                              scales: {
+                                r: {
+                                  beginAtZero: true,
+                                  max: 100,
+                                  ticks: {
+                                    stepSize: 20,
+                                    color: document.documentElement.classList.contains("dark")
+                                      ? "#9ca3af"
+                                      : "#9ca3af",
+                                    font: {
+                                      size: 11,
+                                    },
+                                  },
+                                  grid: {
+                                    color: document.documentElement.classList.contains("dark")
+                                      ? "rgba(107, 114, 128, 0.2)"
+                                      : "rgba(209, 213, 219, 0.5)",
+                                  },
+                                  pointLabels: {
+                                    color: document.documentElement.classList.contains("dark")
+                                      ? "#e5e7eb"
+                                      : "#1f2937",
+                                    font: {
+                                      size: 11,
+                                      weight: "600",
+                                    },
                                   },
                                 },
                               },
-                            },
-                            scales: {
-                              r: {
-                                beginAtZero: true,
-                                max: 100,
-                                ticks: {
-                                  stepSize: 20,
-                                  color: document.documentElement.classList.contains("dark")
-                                    ? "#9ca3af"
-                                    : "#9ca3af",
-                                  font: {
-                                    size: 11,
-                                  },
-                                },
-                                grid: {
-                                  color: document.documentElement.classList.contains("dark")
-                                    ? "rgba(107, 114, 128, 0.2)"
-                                    : "rgba(209, 213, 219, 0.5)",
-                                },
-                                pointLabels: {
-                                  color: document.documentElement.classList.contains("dark")
-                                    ? "#e5e7eb"
-                                    : "#1f2937",
-                                  font: {
-                                    size: 11,
-                                    weight: "600",
-                                  },
-                                },
-                              },
-                            },
-                          }}
-                        />
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </div>
-          );
+                )}
+              </div>
+            );
           })}
         </div>
+
       )}
+      {selectedQuestion && (
+  <QuestionDetailsModal
+    question={selectedQuestion.question}
+    responses={responses}
+    sectionTitle={selectedQuestion.sectionTitle}
+    formData={selectedQuestion.formData} 
+    onClose={() => setSelectedQuestion(null)}
+  />
+)}
     </div>
   );
 }

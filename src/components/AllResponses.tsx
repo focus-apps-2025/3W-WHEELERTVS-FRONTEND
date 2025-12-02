@@ -137,10 +137,11 @@ interface Response {
     total: number;
   };
   submissionMetadata?: SubmissionMetadata;
+  dealerName?: string;
 }
 
 interface GroupedResponses {
-  [date: string]: (Response & { formTitle: string })[];
+  [date: string]: (Response & { formTitle: string; dealerName?: string })[];
 }
 
 type SectionStat = {
@@ -157,7 +158,7 @@ export default function AllResponses() {
   const { showSuccess, showError, showConfirm } = useNotification();
   const { logo } = useLogo();
   const [responses, setResponses] = useState<
-    (Response & { formTitle: string })[]
+    (Response & { formTitle: string; dealerName?: string })[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -199,6 +200,8 @@ export default function AllResponses() {
   const [expandResponseRateBreakdown, setExpandResponseRateBreakdown] =
     useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+
 
   useEffect(() => {
     fetchData();
@@ -371,12 +374,34 @@ export default function AllResponses() {
     const updatedScore = editingForm
       ? computeYesNoScore(updated.answers, editingForm)
       : undefined;
+
+    // Extract dealer name from updated response
+    const extractDealerNameFromUpdated = () => {
+      if (!editingForm || !updated.answers) return null;
+
+      if (editingForm.sections && editingForm.sections.length > 0) {
+        const firstSection = editingForm.sections[0];
+        if (firstSection.questions && firstSection.questions.length > 0) {
+          for (const question of firstSection.questions) {
+            const answer = updated.answers[question.id];
+            if (answer && hasAnswerValue(answer)) {
+              return renderAnswerDisplay(answer, question) as string;
+            }
+          }
+        }
+      }
+      return null;
+    };
+
+    const updatedDealerName = extractDealerNameFromUpdated();
+
     try {
       await apiClient.updateResponse(responseId, {
         answers: updated.answers,
         status: updated.status,
         notes: updated.notes,
       });
+
       setResponses((prev) =>
         prev.map((r) =>
           r.id === responseId
@@ -384,23 +409,26 @@ export default function AllResponses() {
               ...r,
               answers: updated.answers,
               updatedAt: updatedTimestamp,
-              yesNoScore:
-                updatedScore !== undefined ? updatedScore : r.yesNoScore,
+              yesNoScore: updatedScore !== undefined ? updatedScore : r.yesNoScore,
+              dealerName: updatedDealerName || r.dealerName, // Update dealer name
             }
             : r
         )
       );
+
       if (selectedResponse && selectedResponse.id === responseId) {
         const nextSelected = {
           ...selectedResponse,
           answers: updated.answers,
           updatedAt: updatedTimestamp,
+          dealerName: updatedDealerName || selectedResponse.dealerName,
         };
         if (updatedScore !== undefined) {
           nextSelected.yesNoScore = updatedScore;
         }
         setSelectedResponse(nextSelected);
       }
+
       setEditingResponse(null);
       setEditingForm(null);
       showSuccess("Request updated successfully.");
@@ -567,8 +595,97 @@ export default function AllResponses() {
     } finally {
       setGeneratingPDF(false);
     }
-  }; 
+  };
+  
+  // Weightage Edit Functions
+const handleEditWeightage = (sectionId: string, currentWeightage: number) => {
+  setEditingWeightage(sectionId);
+  setWeightageValue(currentWeightage.toString());
+};
 
+const handleSaveWeightage = async (sectionId: string) => {
+  if (savingWeightage || !selectedForm || !weightageValue.trim()) {
+    return;
+  }
+
+  const numericValue = parseFloat(weightageValue);
+  if (isNaN(numericValue) || numericValue < 0 || numericValue > 100) {
+    showError("Please enter a valid weightage between 0 and 100");
+    return;
+  }
+
+  setSavingWeightage(true);
+  try {
+    // Get the form ID
+    const formId = selectedForm._id || selectedForm.id;
+    if (!formId) {
+      throw new Error("Form ID not found");
+    }
+
+    // Create updated sections with new weightage
+    const updatedSections = selectedForm.sections?.map((section: any) =>
+      section.id === sectionId
+        ? { ...section, weightage: numericValue }
+        : section
+    ) || [];
+
+    // Prepare the form data to update
+    const formDataToUpdate = {
+      ...selectedForm,
+      sections: updatedSections,
+    };
+
+    // Remove MongoDB-specific fields if they exist
+    delete formDataToUpdate._id;
+    delete formDataToUpdate.__v;
+    delete formDataToUpdate.createdAt;
+    delete formDataToUpdate.updatedAt;
+
+    console.log("Updating form with ID:", formId);
+    console.log("Updated sections:", updatedSections);
+
+    // Call the updateForm API
+    const response = await apiClient.updateForm(formId, formDataToUpdate);
+    
+    // Update local state with the response
+    if (response.form) {
+      setSelectedForm(response.form);
+    } else {
+      // Fallback to local update if response doesn't have form
+      setSelectedForm({
+        ...selectedForm,
+        sections: updatedSections,
+      });
+    }
+
+    // Also update the editing form if it's the same form
+    if (editingForm && (editingForm._id === formId || editingForm.id === formId)) {
+      setEditingForm({
+        ...editingForm,
+        sections: updatedSections,
+      });
+    }
+
+    showSuccess(`Weightage updated to ${numericValue}%`);
+    setEditingWeightage(null);
+    setWeightageValue("");
+    
+  } catch (error) {
+    console.error("Failed to update weightage:", error);
+    showError(
+      error instanceof Error 
+        ? error.message 
+        : "Failed to update weightage. Please try again."
+    );
+  } finally {
+    setSavingWeightage(false);
+  }
+};
+
+const handleCancelWeightageEdit = () => {
+  setEditingWeightage(null);
+  setWeightageValue("");
+};
 
   const fetchData = async () => {
     try {
@@ -587,15 +704,52 @@ export default function AllResponses() {
         {}
       );
 
+      // Helper function to extract dealer name from answers using form structure
+      const extractDealerName = (response: Response, form: Form | undefined): string | null => {
+        if (!form || !response.answers) return null;
+
+        // Look for dealer name in the first section
+        if (form.sections && form.sections.length > 0) {
+          const firstSection = form.sections[0];
+          if (firstSection.questions && firstSection.questions.length > 0) {
+            // Check each question in first section
+            for (const question of firstSection.questions) {
+              const answer = response.answers[question.id];
+              if (answer && hasAnswerValue(answer)) {
+                // Check if this question likely contains dealer name
+                const questionText = (question.text || question.label || '').toLowerCase();
+                const isDealerField = questionText.includes('dealer') ||
+                  questionText.includes('distributor') ||
+                  questionText.includes('agent') ||
+                  questionText.includes('store') ||
+                  questionText.includes('business');
+
+                if (isDealerField) {
+                  return renderAnswerDisplay(answer, question) as string;
+                }
+
+                // If no specific dealer field found, return first answer as dealer name
+                return renderAnswerDisplay(answer, question) as string;
+              }
+            }
+          }
+        }
+
+        return null;
+      };
+
       const responsesWithTitles = responsesData.responses.map(
         (response: Response) => {
           const form = formsMap[response.questionId];
+          const dealerName = extractDealerName(response, form);
+
           return {
             ...response,
             formTitle: form?.title || "Unknown Form",
             yesNoScore: form
               ? computeYesNoScore(response.answers, form)
               : undefined,
+            dealerName: dealerName || "Unknown", // Add dealer name here
           };
         }
       );
@@ -1396,7 +1550,7 @@ export default function AllResponses() {
 
     return String(value);
   };
-  
+
   const renderSectionTabs = (): React.ReactNode => {
     if (!availableSections.length || !selectedForm) return null;
 
@@ -1413,8 +1567,8 @@ export default function AllResponses() {
                 key={section.id}
                 onClick={() => setSelectedSectionId(section.id)}
                 className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all duration-200 flex items-center gap-2 ${isSelected
-                    ? "bg-blue-500 text-white shadow-lg"
-                    : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  ? "bg-blue-500 text-white shadow-lg"
+                  : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
                   }`}
               >
                 <span className="truncate">
@@ -1424,8 +1578,8 @@ export default function AllResponses() {
                 </span>
                 <span
                   className={`text-xs font-semibold px-2 py-1 rounded-full ${isSelected
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-300 dark:bg-gray-600 text-gray-800 dark:text-gray-200"
                     }`}
                 >
                   {sectionResponseCount}
@@ -1725,8 +1879,8 @@ export default function AllResponses() {
                               typeof context.raw === "number"
                                 ? context.raw
                                 : typeof context.parsed?.y === "number"
-                                ? context.parsed.y
-                                : 0;
+                                  ? context.parsed.y
+                                  : 0;
                             const percentage =
                               total > 0 ? ((barValue / total) * 100).toFixed(1) : 0;
                             return `${context.dataset.label}: ${barValue} (${percentage}%)`;
@@ -1859,11 +2013,10 @@ export default function AllResponses() {
                     return (
                       <tr
                         key={stat.id}
-                        className={`group hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 ${
-                          index % 2 === 0
+                        className={`group hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 ${index % 2 === 0
                             ? "bg-white dark:bg-gray-900"
                             : "bg-blue-25 dark:bg-blue-900/5"
-                        }`}
+                          }`}
                       >
                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
                           <div className="font-semibold">
@@ -1873,11 +2026,10 @@ export default function AllResponses() {
                         <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
                           <div className="flex flex-col items-center gap-1">
                             <span
-                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                                stat.yes > 0
+                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${stat.yes > 0
                                   ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
                                   : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                              }`}
+                                }`}
                             >
                               {stat.yes}
                             </span>
@@ -1889,11 +2041,10 @@ export default function AllResponses() {
                         <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
                           <div className="flex flex-col items-center gap-1">
                             <span
-                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                                stat.no > 0
+                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${stat.no > 0
                                   ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
                                   : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                              }`}
+                                }`}
                             >
                               {stat.no}
                             </span>
@@ -1905,11 +2056,10 @@ export default function AllResponses() {
                         <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
                           <div className="flex flex-col items-center gap-1">
                             <span
-                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                                stat.na > 0
+                              className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${stat.na > 0
                                   ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
                                   : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                              }`}
+                                }`}
                             >
                               {stat.na}
                             </span>
@@ -2087,8 +2237,8 @@ export default function AllResponses() {
                         <tr
                           key={mainQuestion.id}
                           className={`border-b border-emerald-200 dark:border-emerald-800 ${index % 2 === 0
-                              ? "bg-white dark:bg-gray-800/50"
-                              : "bg-emerald-100/30 dark:bg-emerald-900/10"
+                            ? "bg-white dark:bg-gray-800/50"
+                            : "bg-emerald-100/30 dark:bg-emerald-900/10"
                             }`}
                         >
                           <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-emerald-200 dark:border-emerald-800">
@@ -2237,14 +2387,14 @@ export default function AllResponses() {
                       <div
                         key={followUp.id}
                         className={`mt-4 ml-12 p-4 border-l-4 rounded-r-xl shadow-sm ${hasAnswer
-                            ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500"
-                            : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500"
+                          ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500"
+                          : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500"
                           }`}
                       >
                         <div
                           className={`font-medium ${hasAnswer
-                              ? "text-blue-800 dark:text-blue-200"
-                              : "text-gray-700 dark:text-gray-300"
+                            ? "text-blue-800 dark:text-blue-200"
+                            : "text-gray-700 dark:text-gray-300"
                             } flex items-center`}
                         >
                           <span
@@ -2265,8 +2415,8 @@ export default function AllResponses() {
                         )}
                         <div
                           className={`mt-2 ml-6 ${hasAnswer
-                              ? "text-blue-700 dark:text-blue-300"
-                              : "text-gray-600 dark:text-gray-400"
+                            ? "text-blue-700 dark:text-blue-300"
+                            : "text-gray-600 dark:text-gray-400"
                             }`}
                         >
                           {hasAnswer ? (
@@ -2312,14 +2462,14 @@ export default function AllResponses() {
                 <div
                   key={followUp.id}
                   className={`p-6 ml-12 border-l-4 rounded-r-xl shadow-sm hover:transition-colors duration-200 ${hasAnswer
-                      ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                      : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900/40"
+                    ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                    : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900/40"
                     }`}
                 >
                   <div
                     className={`font-medium flex items-center text-lg ${hasAnswer
-                        ? "text-blue-800 dark:text-blue-200"
-                        : "text-gray-700 dark:text-gray-300"
+                      ? "text-blue-800 dark:text-blue-200"
+                      : "text-gray-700 dark:text-gray-300"
                       }`}
                   >
                     <span
@@ -2340,8 +2490,8 @@ export default function AllResponses() {
                   )}
                   <div
                     className={`mt-3 ml-8 ${hasAnswer
-                        ? "text-blue-700 dark:text-blue-300"
-                        : "text-gray-600 dark:text-gray-400"
+                      ? "text-blue-700 dark:text-blue-300"
+                      : "text-gray-600 dark:text-gray-400"
                       } text-base`}
                   >
                     {hasAnswer ? (
@@ -2524,6 +2674,8 @@ export default function AllResponses() {
               <div className="space-y-3">
                 {groupedResponses[date].map((response) => {
                   const isFollowUp = !!response.parentResponseId;
+                  const dealerName = response.dealerName; // Use stored dealer name
+
                   return (
                     <div
                       key={response._id}
@@ -2549,13 +2701,14 @@ export default function AllResponses() {
                             <FileText className="w-5 h-5 text-primary-600" />
                           )}
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
                             <h4
-                              className={`font-medium ${isFollowUp
+                              className={`font-medium truncate ${isFollowUp
                                   ? "text-blue-700 dark:text-blue-300"
                                   : "text-primary-700"
                                 }`}
+                              title={response.formTitle}
                             >
                               {response.formTitle}
                               {isFollowUp && (
@@ -2564,28 +2717,36 @@ export default function AllResponses() {
                                 </span>
                               )}
                             </h4>
-                            {response.yesNoScore &&
-                              response.yesNoScore.total > 0 && (
-                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800">
-                                  {response.yesNoScore.yes}/
-                                  {response.yesNoScore.total}
-                                </span>
-                              )}
+                            {response.yesNoScore && response.yesNoScore.total > 0 && (
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800">
+                                {response.yesNoScore.yes}/{response.yesNoScore.total}
+                              </span>
+                            )}
                           </div>
-                          <div
-                            className={`flex items-center text-sm mt-1 ${isFollowUp
-                                ? "text-blue-600 dark:text-blue-400"
-                                : "text-primary-500"
-                              }`}
-                          >
-                            <User className="w-4 h-4 mr-1" />
-                            <span>
-                              Submitted {formatTimestamp(response.createdAt)}
-                            </span>
+
+                          {/* Dealer Name and Submission Time */}
+                          <div className="flex flex-col sm:flex-row sm:items-center text-sm gap-1 sm:gap-2">
+                            {dealerName && dealerName !== "Unknown" && (
+                              <div className={`inline-flex items-center ${isFollowUp ? "text-blue-600 dark:text-blue-400" : "text-primary-600"}`}>
+                                <User className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
+                                <span className="font-medium truncate" title={dealerName}>
+                                  {dealerName}
+                                </span>
+                              </div>
+                            )}
+
+                            <div className={`inline-flex items-center ${isFollowUp ? "text-blue-500 dark:text-blue-300" : "text-primary-500"}`}>
+                              {(!dealerName || dealerName === "Unknown") && (
+                                <User className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
+                              )}
+                              <span>
+                                Submitted {formatTimestamp(response.createdAt)}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                         <button
                           onClick={() => handleViewDetails(response)}
                           className={`btn-secondary flex items-center ${isFollowUp
@@ -2614,9 +2775,7 @@ export default function AllResponses() {
                           className="flex items-center px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-60 dark:text-red-300 dark:bg-red-900/40 dark:hover:bg-red-900/60"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          {deletingResponseId === response.id
-                            ? "Deleting..."
-                            : "Delete"}
+                          {deletingResponseId === response.id ? "Deleting..." : "Delete"}
                         </button>
                       </div>
                     </div>
@@ -2712,8 +2871,8 @@ export default function AllResponses() {
                       <button
                         onClick={() => setViewMode("dashboard")}
                         className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${viewMode === "dashboard"
-                            ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md transform scale-105"
-                            : "text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white"
+                          ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md transform scale-105"
+                          : "text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white"
                           }`}
                       >
                         <BarChart3 className="w-4 h-4" />
@@ -2722,8 +2881,8 @@ export default function AllResponses() {
                       <button
                         onClick={() => setViewMode("responses")}
                         className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${viewMode === "responses"
-                            ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md transform scale-105"
-                            : "text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white"
+                          ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md transform scale-105"
+                          : "text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white"
                           }`}
                       >
                         <FileText className="w-4 h-4" />
@@ -2739,7 +2898,7 @@ export default function AllResponses() {
                             <div className="flex items-center justify-between mb-6">
                               <div className="flex items-center space-x-4">
                                 {logo && (
-                                  <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-white dark:border-gray-700">
+                                  <div className="w-26 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-white dark:border-gray-700">
                                     <img
                                       src={logo}
                                       alt="Company Logo"
@@ -2845,8 +3004,8 @@ export default function AllResponses() {
                                       </p>
                                       <ChevronDown
                                         className={`w-4 h-4 text-green-700 dark:text-green-300 transition-transform duration-300 ${expandResponseRateBreakdown
-                                            ? "rotate-180"
-                                            : ""
+                                          ? "rotate-180"
+                                          : ""
                                           }`}
                                       />
                                     </div>

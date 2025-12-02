@@ -26,6 +26,7 @@ import { useForms, useResponses, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
 import { useNotification } from "../../context/NotificationContext";
 import { parseFormWorkbook, downloadFormImportTemplate } from "../../utils/exportUtils";
+import AnswerTemplateImport from "../AnswerTemplateImport";
 import type { Question as FormQuestion } from "../../types";
 
 interface FormItem {
@@ -60,6 +61,7 @@ export default function FormsAnalytics() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isAnswerTemplateOpen, setIsAnswerTemplateOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -465,6 +467,14 @@ export default function FormsAnalytics() {
           >
             <Upload className="w-4 h-4 mr-2" />
             {isImporting ? "Importing..." : "Import Form (Excel)"}
+          </button>
+          <button
+            onClick={() => setIsAnswerTemplateOpen(true)}
+            className="btn-secondary flex items-center justify-center"
+            title="Import answer templates for testing"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            Import Answers
           </button>
           <button
             onClick={() =>
@@ -964,6 +974,12 @@ export default function FormsAnalytics() {
           })}
         </div>
       )}
+
+      <AnswerTemplateImport
+        isOpen={isAnswerTemplateOpen}
+        onClose={() => setIsAnswerTemplateOpen(false)}
+        onSuccess={() => refetchForms()}
+      />
     </div>
   );
 }
