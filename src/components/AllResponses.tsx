@@ -2301,6 +2301,15 @@ const handleCancelWeightageEdit = () => {
     );
   };
 
+  const shouldShowFollowUp = (followUp: any): boolean => {
+    if (!followUp.showWhen) {
+      return true;
+    }
+    
+    const parentAnswer = selectedResponse?.answers?.[followUp.showWhen.questionId];
+    return parentAnswer === followUp.showWhen.value;
+  };
+
   const renderFormContent = (): React.ReactNode => {
     if (!selectedResponse) {
       return null;
@@ -2359,6 +2368,10 @@ const handleCancelWeightageEdit = () => {
               answeredKeys.add(question.id);
               const answer = selectedResponse.answers[question.id];
 
+              const visibleFollowUps = question.followUpQuestions?.filter(
+                (followUp: any) => shouldShowFollowUp(followUp)
+              ) || [];
+
               return (
                 <div
                   key={question.id}
@@ -2377,7 +2390,7 @@ const handleCancelWeightageEdit = () => {
                   <div className="mt-3 text-slate-700 dark:text-slate-300 ml-7 text-base">
                     {renderAnswerDisplay(answer, question)}
                   </div>
-                  {question.followUpQuestions?.map((followUp: any) => {
+                  {visibleFollowUps.map((followUp: any) => {
                     const followAnswer = selectedResponse.answers[followUp.id];
                     const hasAnswer = hasAnswerValue(followAnswer);
                     if (hasAnswer) {
@@ -2438,7 +2451,11 @@ const handleCancelWeightageEdit = () => {
       );
     });
 
-    if (selectedForm.followUpQuestions?.length) {
+    const visibleFormFollowUps = selectedForm.followUpQuestions?.filter(
+      (followUp: any) => shouldShowFollowUp(followUp)
+    ) || [];
+
+    if (visibleFormFollowUps.length) {
       content.push(
         <div
           key="form-follow-ups"
@@ -2451,7 +2468,7 @@ const handleCancelWeightageEdit = () => {
             </div>
           </div>
           <div className="divide-y divide-blue-200 dark:divide-blue-700">
-            {selectedForm.followUpQuestions.map((followUp: any) => {
+            {visibleFormFollowUps.map((followUp: any) => {
               const answer = selectedResponse.answers[followUp.id];
               const hasAnswer = hasAnswerValue(answer);
               if (hasAnswer) {

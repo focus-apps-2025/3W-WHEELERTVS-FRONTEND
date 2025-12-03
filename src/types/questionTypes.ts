@@ -16,4 +16,7 @@ export type QuestionType =
   | "checkbox-grid"
   | "radio-image"
   | "paragraph"
-  | "search-select";
+  | "search-select"
+  | "slider-feedback"
+  | "emoji-star-feedback"
+  | "emoji-reaction-feedback";

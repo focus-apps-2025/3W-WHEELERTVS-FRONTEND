@@ -17,6 +17,9 @@ export const questionTypes = [
   { value: "radio-grid", label: "Multiple Choice Grid" },
   { value: "checkbox-grid", label: "Checkbox Grid" },
   { value: "radio-image", label: "Image Choice" },
+  { value: "slider-feedback", label: "Slider Feedback (1-10)" },
+  { value: "emoji-star-feedback", label: "Star Rating Feedback" },
+  { value: "emoji-reaction-feedback", label: "Emoji Reaction Feedback" },
 ] as const;
 
 export type QuestionType = (typeof questionTypes)[number]["value"];

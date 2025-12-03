@@ -95,6 +95,12 @@ const createSampleAnswer = (question: FollowUpQuestion): any => {
     }
     case "radio-image":
       return question.options?.[0] ?? "";
+    case "slider-feedback":
+      return "7";
+    case "emoji-star-feedback":
+      return "4";
+    case "emoji-reaction-feedback":
+      return "4";
     default:
       return sampleText;
   }

@@ -2628,6 +2628,21 @@ export default function FormCreator() {
       label: "File Upload",
       description: "Upload files/documents",
     },
+    {
+      value: "slider-feedback",
+      label: "Slider Feedback (1-10)",
+      description: "Drag slider with emoji feedback",
+    },
+    {
+      value: "emoji-star-feedback",
+      label: "Star Rating Feedback",
+      description: "5-star emoji rating",
+    },
+    {
+      value: "emoji-reaction-feedback",
+      label: "Emoji Reaction Feedback",
+      description: "Emoji reactions (sad to laugh)",
+    },
   ];
 
   const fileTypeOptions = [
@@ -4347,6 +4362,50 @@ export default function FormCreator() {
           }
         }}
       />
+
+      {/* Section Branching Config Modal */}
+      {showBranchingConfig && branchingConfigQuestion && (
+        <SectionBranchingConfig
+          questionId={branchingConfigQuestion.questionId}
+          sectionId={branchingConfigQuestion.sectionId}
+          options={branchingConfigQuestion.options}
+          sections={form.sections.map((s) => ({ id: s.id, title: s.title }))}
+          existingRules={
+            form.sections
+              .find((s) => s.id === branchingConfigQuestion.sectionId)
+              ?.questions.find(
+                (q) => q.id === branchingConfigQuestion.questionId
+              )?.branchingRules || []
+          }
+          onSave={handleSaveBranchingRules}
+          onClose={() => {
+            setShowBranchingConfig(false);
+            setBranchingConfigQuestion(null);
+          }}
+        />
+      )}
+
+      {/* Form Routing Config Modal */}
+      {showFormRoutingConfig && formRoutingConfigQuestion && (
+        <FormRoutingConfig
+          questionId={formRoutingConfigQuestion.questionId}
+          sectionId={formRoutingConfigQuestion.sectionId}
+          options={formRoutingConfigQuestion.options}
+          availableForms={forms.map((f) => ({ id: f.id, title: f.title }))}
+          existingConfig={
+            form.sections
+              .find((s) => s.id === formRoutingConfigQuestion.sectionId)
+              ?.questions.find(
+                (q) => q.id === formRoutingConfigQuestion.questionId
+              )?.followUpConfig || {}
+          }
+          onSave={handleSaveFormRoutingConfig}
+          onClose={() => {
+            setShowFormRoutingConfig(false);
+            setFormRoutingConfigQuestion(null);
+          }}
+        />
+      )}
     </div>
   );
 }

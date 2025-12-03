@@ -143,6 +143,7 @@ export default function PreviewForm({
   const [linkedFollowUpForm, setLinkedFollowUpForm] = useState<string | null>(
     null
   );
+  const [parentSectionIndex, setParentSectionIndex] = useState<number | null>(null);
   const { getOrderedVisibleQuestions } = useQuestionLogic();
 
   const branchingRules = propBranchingRules;
@@ -290,6 +291,30 @@ export default function PreviewForm({
             questions: question.followUpQuestions,
           },
         ];
+
+  // Get sections that are linked in branching rules (section isolation)
+  const getLinkedSectionIds = (): Set<string> => {
+    const linkedIds = new Set<string>();
+    branchingRules.forEach((rule) => {
+      linkedIds.add(rule.targetSectionId);
+    });
+    return linkedIds;
+  };
+
+  // Get next sequential section (skipping linked sections)
+  const getNextSequentialSectionIndex = (currentIndex: number): number => {
+    const linkedSectionIds = getLinkedSectionIds();
+    let nextIndex = currentIndex + 1;
+
+    while (nextIndex < sections.length) {
+      if (!linkedSectionIds.has(sections[nextIndex].id)) {
+        return nextIndex;
+      }
+      nextIndex++;
+    }
+
+    return -1;
+  };
 
   const hasMissingRequiredAnswers = () => {
     let missing = false;
@@ -471,6 +496,7 @@ export default function PreviewForm({
               ...prev,
               targetSectionIndex,
             ]);
+            setParentSectionIndex(currentSectionIndex);
             setBranchingAlert(null);
             window.scrollTo({ top: 0, behavior: "smooth" });
           }, 500);
@@ -482,11 +508,15 @@ export default function PreviewForm({
     console.log(
       "No branching rule matched, proceeding to next section normally"
     );
-    if (currentSectionIndex + 1 < sections.length) {
-      const nextIndex = currentSectionIndex + 1;
+    
+    const nextIndex = getNextSequentialSectionIndex(currentSectionIndex);
+    
+    if (nextIndex !== -1) {
+      console.log(`Moving to next available section (skipping linked sections): index ${nextIndex}`);
       setCurrentSectionIndex(nextIndex);
       setVisitedSectionIndices((prev) => new Set(prev).add(nextIndex));
       setSectionNavigationHistory((prev) => [...prev, nextIndex]);
+      setParentSectionIndex(null);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
@@ -497,6 +527,19 @@ export default function PreviewForm({
       sectionNavigationHistory
     );
     console.log("[handlePrevious] Current section index:", currentSectionIndex);
+    console.log("[handlePrevious] Parent section index:", parentSectionIndex);
+
+    // If we came from a branched section, go back to the parent
+    if (parentSectionIndex !== null) {
+      console.log(
+        "[handlePrevious] Going back to parent section (branching origin):",
+        parentSectionIndex
+      );
+      setCurrentSectionIndex(parentSectionIndex);
+      setParentSectionIndex(null);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
 
     if (sectionNavigationHistory.length > 1) {
       const newHistory = [...sectionNavigationHistory];
@@ -556,6 +599,8 @@ export default function PreviewForm({
   };
 
   const currentSection = sections[currentSectionIndex];
+  const nextAvailableIndex = getNextSequentialSectionIndex(currentSectionIndex);
+  // isLastSection is true only if we're at the absolute last section with no more sections after
   const isLastSection = currentSectionIndex === sections.length - 1;
   const isFirstSection = sectionNavigationHistory.length <= 1;
   const submitDisabled = hasMissingRequiredAnswers();

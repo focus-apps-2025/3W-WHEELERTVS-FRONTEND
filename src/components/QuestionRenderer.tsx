@@ -9,6 +9,9 @@ import RatingQuestion from "./QuestionTypes/RatingQuestion";
 import ScaleQuestion from "./QuestionTypes/ScaleQuestion";
 import SearchSelect from "./QuestionTypes/SearchSelect";
 import ParagraphInput from "./QuestionTypes/ParagraphInput";
+import SliderFeedback from "./QuestionTypes/SliderFeedback";
+import EmojiStarFeedback from "./QuestionTypes/EmojiStarFeedback";
+import EmojiReactionFeedback from "./QuestionTypes/EmojiReactionFeedback";
 
 interface QuestionRendererProps {
   question: FollowUpQuestion;
@@ -139,6 +142,36 @@ export default function QuestionRenderer({
             question={question}
             value={value}
             onChange={onChange}
+          />
+        );
+
+      case "slider-feedback":
+        return (
+          <SliderFeedback
+            question={question}
+            value={value}
+            onChange={onChange}
+            readOnly={readOnly}
+          />
+        );
+
+      case "emoji-star-feedback":
+        return (
+          <EmojiStarFeedback
+            question={question}
+            value={value}
+            onChange={onChange}
+            readOnly={readOnly}
+          />
+        );
+
+      case "emoji-reaction-feedback":
+        return (
+          <EmojiReactionFeedback
+            question={question}
+            value={value}
+            onChange={onChange}
+            readOnly={readOnly}
           />
         );
 
