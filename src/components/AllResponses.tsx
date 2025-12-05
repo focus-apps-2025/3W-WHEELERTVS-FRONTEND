@@ -201,6 +201,19 @@ export default function AllResponses() {
     useState(false);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  const [showWeightageColumns, setShowWeightageColumns] = useState(false);
+  const [addWeightMode, setAddWeightMode] = useState(false);
+  const [showWeightageCheckbox, setShowWeightageCheckbox] = useState(true);
+
+  
+  const [editingAllWeightages, setEditingAllWeightages] = useState(false);
+  const [weightageValues, setWeightageValues] = useState<Record<string, string>>({});
+
+  const [redistributionMode, setRedistributionMode] = useState(false);
+  const [tempWeightageValues, setTempWeightageValues] = useState<Record<string, string>>({});
+  const [weightageBalance, setWeightageBalance] = useState(0);
+
+
 
 
   useEffect(() => {
@@ -614,6 +627,19 @@ const handleSaveWeightage = async (sectionId: string) => {
     return;
   }
 
+  // Calculate current total weightage of all sections
+  const currentTotal = sectionSummaryRows.reduce((sum, r) => sum + r.weightage, 0);
+  
+  // Calculate what the new total would be
+  const sectionOldWeightage = sectionSummaryRows.find(r => r.id === sectionId)?.weightage || 0;
+  const newTotal = currentTotal - sectionOldWeightage + numericValue;
+  
+  // Validate total in addWeightMode
+  if (addWeightMode && newTotal > 100) {
+    showError(`Cannot save: Total weightage would be ${newTotal.toFixed(1)}%, must not exceed 100%`);
+    return;
+  }
+
   setSavingWeightage(true);
   try {
     // Get the form ID
@@ -667,6 +693,19 @@ const handleSaveWeightage = async (sectionId: string) => {
     }
 
     showSuccess(`Weightage updated to ${numericValue}%`);
+    
+    // Check if we should exit addWeightMode (when total reaches 100%)
+    if (addWeightMode) {
+      const updatedTotal = sectionSummaryRows.reduce((sum, r) => 
+        sum + (r.id === sectionId ? numericValue : r.weightage), 0
+      );
+      
+      if (Math.abs(updatedTotal - 100) < 0.1) { // Allow small floating point differences
+        setAddWeightMode(false);
+        showSuccess("Weightage distribution complete! Total: 100%");
+      }
+    }
+    
     setEditingWeightage(null);
     setWeightageValue("");
     
@@ -681,6 +720,8 @@ const handleSaveWeightage = async (sectionId: string) => {
     setSavingWeightage(false);
   }
 };
+
+
 
 const handleCancelWeightageEdit = () => {
   setEditingWeightage(null);
@@ -991,6 +1032,10 @@ const handleCancelWeightageEdit = () => {
     [filteredSectionStats]
   );
 
+  const calculateTotalWeightage = useMemo(() => {
+  return sectionSummaryRows.reduce((total, row) => total + row.weightage, 0);
+}, [sectionSummaryRows]);
+
   const weightedPercentageChartData = useMemo(() => {
     return {
       labels: sectionSummaryRows.map((row) => formatSectionLabel(row.title)),
@@ -1040,6 +1085,26 @@ const handleCancelWeightageEdit = () => {
       ],
     };
   }, [sectionSummaryRows]);
+
+  useEffect(() => {
+  if (sectionSummaryRows.length > 0) {
+    // Check if ALL sections have weightage = 0
+    const allZero = sectionSummaryRows.every(row => row.weightage === 0);
+    
+    // Check if ANY section has weightage > 0
+    const hasWeightage = sectionSummaryRows.some(row => row.weightage > 0);
+    
+    // Auto-detect whether to show weightage columns
+    if (hasWeightage) {
+      setShowWeightageColumns(true);
+      setShowWeightageCheckbox(false); // Hide checkbox when weightage exists
+      setAddWeightMode(false); // Exit add weight mode
+    } else {
+      setShowWeightageColumns(false);
+      setShowWeightageCheckbox(true); // Show checkbox when no weightage
+    }
+  }
+}, [sectionSummaryRows]);
 
   const weightedPercentageChartOptions = useMemo(
     () => ({
@@ -2301,15 +2366,6 @@ const handleCancelWeightageEdit = () => {
     );
   };
 
-  const shouldShowFollowUp = (followUp: any): boolean => {
-    if (!followUp.showWhen) {
-      return true;
-    }
-    
-    const parentAnswer = selectedResponse?.answers?.[followUp.showWhen.questionId];
-    return parentAnswer === followUp.showWhen.value;
-  };
-
   const renderFormContent = (): React.ReactNode => {
     if (!selectedResponse) {
       return null;
@@ -2368,10 +2424,6 @@ const handleCancelWeightageEdit = () => {
               answeredKeys.add(question.id);
               const answer = selectedResponse.answers[question.id];
 
-              const visibleFollowUps = question.followUpQuestions?.filter(
-                (followUp: any) => shouldShowFollowUp(followUp)
-              ) || [];
-
               return (
                 <div
                   key={question.id}
@@ -2390,7 +2442,7 @@ const handleCancelWeightageEdit = () => {
                   <div className="mt-3 text-slate-700 dark:text-slate-300 ml-7 text-base">
                     {renderAnswerDisplay(answer, question)}
                   </div>
-                  {visibleFollowUps.map((followUp: any) => {
+                  {question.followUpQuestions?.map((followUp: any) => {
                     const followAnswer = selectedResponse.answers[followUp.id];
                     const hasAnswer = hasAnswerValue(followAnswer);
                     if (hasAnswer) {
@@ -2451,11 +2503,7 @@ const handleCancelWeightageEdit = () => {
       );
     });
 
-    const visibleFormFollowUps = selectedForm.followUpQuestions?.filter(
-      (followUp: any) => shouldShowFollowUp(followUp)
-    ) || [];
-
-    if (visibleFormFollowUps.length) {
+    if (selectedForm.followUpQuestions?.length) {
       content.push(
         <div
           key="form-follow-ups"
@@ -2468,7 +2516,7 @@ const handleCancelWeightageEdit = () => {
             </div>
           </div>
           <div className="divide-y divide-blue-200 dark:divide-blue-700">
-            {visibleFormFollowUps.map((followUp: any) => {
+            {selectedForm.followUpQuestions.map((followUp: any) => {
               const answer = selectedResponse.answers[followUp.id];
               const hasAnswer = hasAnswerValue(answer);
               if (hasAnswer) {
@@ -3371,143 +3419,506 @@ const handleCancelWeightageEdit = () => {
                           </div>
 
                           {/* Section-wise Breakdown Table */}
-                          <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transform hover:scale-[1.01] transition-all duration-500 hover:shadow-3xl">
-                            <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6">
-                              <h3 className="text-2xl font-bold text-white flex items-center">
-                                <BarChart3 className="w-7 h-7 mr-3" />
-                                Section-wise Breakdown
-                              </h3>
-                              <p className="text-blue-100 mt-1">
-                                Detailed performance analysis by section with
-                                weightage calculations
-                              </p>
-                            </div>
-                            <div className="overflow-x-auto">
-                              <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-                                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 sticky top-0">
-                                  <tr>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-48">
-                                      Section
-                                    </th>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                                      Yes %
-                                    </th>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                                      No %
-                                    </th>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                                      N/A %
-                                    </th>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                                      Weightage
-                                    </th>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                                      Yes % × Weightage
-                                    </th>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                                      No % × Weightage
-                                    </th>
-                                    <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                                      N/A % × Weightage
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
-                                  {sectionSummaryRows.map((row) => (
-                                    <tr
-                                      key={row.id}
-                                      className="group hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all duration-300 bg-white dark:bg-gray-900"
-                                    >
-                                      <td className="px-6 py-5 font-bold text-gray-900 dark:text-gray-100 flex items-center">
-                                        <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
-                                        {row.title}
-                                      </td>
-                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                        {row.yesPercent.toFixed(1)}%
-                                      </td>
-                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                        {row.noPercent.toFixed(1)}%
-                                      </td>
-                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                        {row.naPercent.toFixed(1)}%
-                                      </td>
-                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                        {editingWeightage === row.id ? (
-                                          <div className="flex items-center space-x-2">
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              max="100"
-                                              step="0.1"
-                                              value={weightageValue}
-                                              onChange={(e) =>
-                                                setWeightageValue(
-                                                  e.target.value
-                                                )
-                                              }
-                                              className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100"
-                                              disabled={savingWeightage}
-                                            />
-                                            <button
-                                              onClick={() =>
-                                                handleSaveWeightage(row.id)
-                                              }
-                                              disabled={savingWeightage}
-                                              className="p-1 text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
-                                              title="Save weightage"
-                                            >
-                                              {savingWeightage ? (
-                                                <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-                                              ) : (
-                                                <Save className="w-4 h-4" />
-                                              )}
-                                            </button>
-                                            <button
-                                              onClick={
-                                                handleCancelWeightageEdit
-                                              }
-                                              disabled={savingWeightage}
-                                              className="p-1 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
-                                              title="Cancel editing"
-                                            >
-                                              <X className="w-4 h-4" />
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <div className="flex items-center justify-between">
-                                            <span>
-                                              {row.weightage.toFixed(1)}%
-                                            </span>
-                                            <button
-                                              onClick={() =>
-                                                handleEditWeightage(
-                                                  row.id,
-                                                  row.weightage
-                                                )
-                                              }
-                                              className="ml-2 p-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                                              title="Edit weightage"
-                                            >
-                                              <Edit2 className="w-4 h-4" />
-                                            </button>
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                        {row.yesWeighted.toFixed(1)}
-                                      </td>
-                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                        {row.noWeighted.toFixed(1)}
-                                      </td>
-                                      <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                                        {row.naWeighted.toFixed(1)}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
+                          {/* Section-wise Breakdown Table */}
+<div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transform hover:scale-[1.01] transition-all duration-500 hover:shadow-3xl">
+  <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6">
+    <div className="flex items-center justify-between">
+      <div>
+        <h3 className="text-2xl font-bold text-white flex items-center">
+          <BarChart3 className="w-7 h-7 mr-3" />
+          Section-wise Breakdown
+        </h3>
+        <p className="text-blue-100 mt-1">
+          Detailed performance analysis by section with
+          {showWeightageColumns ? " weightage calculations" : "out weightage"}
+        </p>
+      </div>
+      
+      {/* Add Weight Checkbox - Only show when all weightages are 0 */}
+{showWeightageCheckbox && (
+      <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-lg p-3 border border-white/30">
+        <label className="flex items-center cursor-pointer">
+          <div className="relative">
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={addWeightMode}
+              onChange={(e) => {
+                setAddWeightMode(e.target.checked);
+                if (e.target.checked) {
+                  setShowWeightageColumns(true);
+                  setEditingAllWeightages(true); // Enter edit mode for all rows
+                  
+                  // Initialize weightage values for all rows
+                  const initialValues: Record<string, string> = {};
+                  sectionSummaryRows.forEach(row => {
+                    initialValues[row.id] = row.weightage.toString();
+                  });
+                  setWeightageValues(initialValues);
+                } else {
+                  setEditingAllWeightages(false);
+                  setWeightageValues({});
+                }
+              }}
+            />
+            <div className={`block w-12 h-6 rounded-full transition-colors duration-200 ${addWeightMode ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}`}></div>
+            <div className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-200 ${addWeightMode ? 'transform translate-x-6' : ''}`}></div>
+          </div>
+          <span className="ml-3 font-semibold text-white flex items-center gap-2">
+            <Target className="w-5 h-5" />
+            Add Weight
+          </span>
+        </label>
+        
+        {addWeightMode && (
+          <div className="ml-3 text-xs text-white/80 bg-black/20 px-2 py-1 rounded">
+            Total must be 100%
+          </div>
+        )}
+      </div>
+    )}
+    
+    {/* Edit Weightage Button - Show when weightage columns are visible */}
+{showWeightageColumns && !redistributionMode && !editingAllWeightages && (
+      <button
+        onClick={() => {
+          setRedistributionMode(true);
+          // Initialize temp values with current weightages
+          const initialValues: Record<string, string> = {};
+          sectionSummaryRows.forEach(row => {
+            initialValues[row.id] = row.weightage.toString();
+          });
+          setTempWeightageValues(initialValues);
+          setWeightageBalance(0);
+        }}
+        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors ml-3"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+        </svg>
+        Edit Weightage
+      </button>
+    )}
+    </div>
+  </div>
+  
+  <div className="overflow-x-auto">
+    <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+      <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 sticky top-0">
+        <tr>
+          <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-48">
+            Section
+          </th>
+          <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
+            Yes %
+          </th>
+          <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
+            No %
+          </th>
+          <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
+            N/A %
+          </th>
+          
+          {/* Conditionally show weightage columns */}
+          {showWeightageColumns && (
+            <>
+              <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
+                Weightage
+              </th>
+              <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                Yes % × Weightage
+              </th>
+              <th className="px6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                No % × Weightage
+              </th>
+              <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                N/A % × Weightage
+              </th>
+            </>
+          )}
+        </tr>
+      </thead>
+      
+    <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+  {(() => {
+    const totalWeightage = sectionSummaryRows.reduce((sum, r) => sum + r.weightage, 0);
+    
+    return (
+      <>
+        {sectionSummaryRows.map((row) => (
+          <tr
+            key={row.id}
+            className="group hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all duration-300 bg-white dark:bg-gray-900"
+          >
+            <td className="px-6 py-5 font-bold text-gray-900 dark:text-gray-100 flex items-center">
+              <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+              {row.title}
+            </td>
+            <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+              {row.yesPercent.toFixed(1)}%
+            </td>
+            <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+              {row.noPercent.toFixed(1)}%
+            </td>
+            <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+              {row.naPercent.toFixed(1)}%
+            </td>
+            
+            {/* Conditionally render weightage columns */}
+            {showWeightageColumns && (
+              <>{/* Weightage Column */}
+<td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+  {redistributionMode ? (
+    // Redistribution mode - editable input
+    <div className="flex flex-col items-center">
+      <input
+        type="number"
+        min="0"
+        max="100"
+        step="0.1"
+        value={tempWeightageValues[row.id] || row.weightage.toString()}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          // ... redistribution mode logic ...
+        }}
+        className="w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100 text-center"
+      />
+      {/* Show difference indicator */}
+      <div className="text-xs mt-1">
+        {(() => {
+          const currentVal = parseFloat(tempWeightageValues[row.id] || row.weightage.toString()) || 0;
+          const originalVal = row.weightage;
+          const diff = currentVal - originalVal;
+
+          if (diff > 0.1) {
+            return <span className="text-green-600 font-medium">+{diff.toFixed(1)}</span>;
+          } else if (diff < -0.1) {
+            return <span className="text-red-600 font-medium">{diff.toFixed(1)}</span>;
+          }
+          return null;
+        })()}
+      </div>
+    </div>
+  ) : editingAllWeightages ? (
+    // Batch edit mode (when Add Weight is checked)
+    <div className="flex flex-col items-center">
+      <input
+        type="number"
+        min="0"
+        max="100"
+        step="0.1"
+        value={weightageValues[row.id] || row.weightage.toString()}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          const oldValue = parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0;
+          const newNumericValue = parseFloat(newValue) || 0;
+
+          // Update weightage values
+          const updatedValues = {
+            ...weightageValues,
+            [row.id]: newValue
+          };
+          setWeightageValues(updatedValues);
+
+          // Calculate total
+          const total = Object.values(updatedValues).reduce((sum, val) => {
+            return sum + (parseFloat(val) || 0);
+          }, 0);
+
+          // Show helpful message
+          const difference = newNumericValue - oldValue;
+          if (difference > 0) {
+            console.log(`Increased by ${difference.toFixed(1)}%, new total: ${total.toFixed(1)}%`);
+          } else if (difference < 0) {
+            console.log(`Decreased by ${Math.abs(difference).toFixed(1)}%, new total: ${total.toFixed(1)}%`);
+          }
+        }}
+        className="w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100 text-center"
+      />
+      {/* Show difference indicator */}
+      <div className="text-xs mt-1">
+        {(() => {
+          const currentVal = parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0;
+          const originalVal = row.weightage;
+          const diff = currentVal - originalVal;
+
+          if (diff > 0.1) {
+            return <span className="text-green-600 font-medium">+{diff.toFixed(1)}</span>;
+          } else if (diff < -0.1) {
+            return <span className="text-red-600 font-medium">{diff.toFixed(1)}</span>;
+          }
+          return null;
+        })()}
+      </div>
+    </div>
+  ) : (
+    // Display mode - just show the value
+    <div className="flex items-center justify-center">
+      <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg">
+        {Number.isFinite(row.weightage) ? row.weightage.toFixed(1) : "0.0"}%
+      </span>
+    </div>
+  )}
+</td>
+                <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                  {row.yesWeighted.toFixed(1)}
+                </td>
+                <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                  {row.noWeighted.toFixed(1)}
+                </td>
+                <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                  {row.naWeighted.toFixed(1)}
+                </td>
+              </>
+            )}
+          </tr>
+        ))}
+        
+        {/* Batch Edit Controls */}
+       {editingAllWeightages && (
+  <div className="flex items-center gap-2 ml-4">
+    <button
+      onClick={async () => {
+        // Save all batch weightages
+        setSavingWeightage(true);
+        try {
+          const formId = selectedForm._id || selectedForm.id;
+          if (!formId) throw new Error("Form ID not found");
+          
+          // Calculate total from batch values
+          const batchTotal = sectionSummaryRows.reduce((sum, row) => {
+            const val = parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0;
+            return sum + val;
+          }, 0);
+          
+          // Validate total is exactly 100%
+          if (Math.abs(batchTotal - 100) > 0.1) {
+            throw new Error(`Total weightage must be exactly 100%. Current: ${batchTotal.toFixed(1)}%`);
+          }
+          
+          // Update all sections
+          const updatedSections = selectedForm.sections?.map((section: any) => {
+            const row = sectionSummaryRows.find(r => r.id === section.id);
+            if (row && weightageValues[row.id] !== undefined) {
+              return { 
+                ...section, 
+                weightage: parseFloat(weightageValues[row.id]) || 0 
+              };
+            }
+            return section;
+          }) || [];
+          
+          const formDataToUpdate = { ...selectedForm, sections: updatedSections };
+          delete formDataToUpdate._id;
+          delete formDataToUpdate.__v;
+          delete formDataToUpdate.createdAt;
+          delete formDataToUpdate.updatedAt;
+          
+          await apiClient.updateForm(formId, formDataToUpdate);
+          
+          // Update local state
+          setSelectedForm({ ...selectedForm, sections: updatedSections });
+          setEditingAllWeightages(false);
+          setAddWeightMode(false);
+          setWeightageValues({});
+          
+          showSuccess("All weightages saved successfully!");
+        } catch (error) {
+          console.error("Failed to save weightages:", error);
+          showError(error instanceof Error ? error.message : "Failed to save weightages");
+        } finally {
+          setSavingWeightage(false);
+        }
+      }}
+      disabled={savingWeightage}
+      className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+    >
+      {savingWeightage ? (
+        <>
+          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          Saving...
+        </>
+      ) : (
+        <>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          Save All
+        </>
+      )}
+    </button>
+    
+    <button
+      onClick={() => {
+        setEditingAllWeightages(false);
+        setWeightageValues({});
+        // Check if we should also disable Add Weight mode
+        if (calculateTotalWeightage === 0) {
+          setAddWeightMode(false);
+        }
+      }}
+      className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+    >
+      Cancel
+    </button>
+  </div>
+)}
+        
+        {/* Total Row - Only show when weightage columns are visible */}
+        {/* Total Weightage Row - Only show when weightage columns are visible */}
+{showWeightageColumns && (
+  <tr className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-t-2 border-blue-200 dark:border-blue-700">
+    <td colSpan={4} className="px-6 py-4 font-bold text-gray-900 dark:text-gray-100 text-right">
+      {redistributionMode ? "Current Balance:" : "Total Weightage:"}
+    </td>
+    <td className="px-6 py-4 text-center">
+      <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full font-bold ${redistributionMode ?
+        (Math.abs(weightageBalance) < 0.1 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400') :
+        (Math.abs(calculateTotalWeightage - 100) < 0.1 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400')
+        }`}>
+        {redistributionMode ? `${weightageBalance.toFixed(1)}%` : `${calculateTotalWeightage.toFixed(1)}%`}
+        {redistributionMode && Math.abs(weightageBalance) >= 0.1 && (
+          <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.732 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+        )}
+      </span>
+    </td>
+
+    {/* Status Message Column - Takes up remaining space */}
+    <td colSpan={showWeightageColumns ? 3 : 0} className="px-6 py-4">
+      <div className="flex items-center justify-between">
+        <span className={redistributionMode ?
+          (Math.abs(weightageBalance) < 0.1 ? "text-green-600 dark:text-green-400 font-medium" : "text-yellow-600 dark:text-yellow-400 font-medium") :
+          (Math.abs(calculateTotalWeightage - 100) < 0.1 ? "text-green-600 dark:text-green-400 font-medium" : "text-yellow-600 dark:text-yellow-400 font-medium")
+        }>
+          {redistributionMode ? (
+            Math.abs(weightageBalance) < 0.1 ?
+              '✓ Ready to save' :
+              `Adjust by ${Math.abs(weightageBalance).toFixed(1)}% to reach 100%`
+          ) : (
+            Math.abs(calculateTotalWeightage - 100) < 0.1 ?
+              '✓ Weightage distribution complete' :
+              (addWeightMode ?
+                `⚠️ Need ${(100 - calculateTotalWeightage).toFixed(1)}% more to reach 100%` :
+                'Weightage not fully distributed')
+          )}
+        </span>
+
+        {/* Action Buttons - Only show in redistribution mode */}
+        {redistributionMode && (
+          <div className="flex items-center gap-2 ml-4">
+            {/* Reset Button */}
+            <button
+              onClick={() => {
+                const originalValues: Record<string, string> = {};
+                sectionSummaryRows.forEach(row => {
+                  originalValues[row.id] = row.weightage.toString();
+                });
+                setTempWeightageValues(originalValues);
+                setWeightageBalance(0);
+              }}
+              className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1"
+              title="Reset to original values"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Reset
+            </button>
+
+            {/* Cancel Button */}
+            <button
+              onClick={() => {
+                setRedistributionMode(false);
+                setTempWeightageValues({});
+                setWeightageBalance(0);
+              }}
+              className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              title="Cancel redistribution"
+            >
+              Cancel
+            </button>
+
+            {/* Save Changes Button */}
+            <button
+              onClick={async () => {
+                if (Math.abs(weightageBalance) >= 0.1) {
+                  showError(`Cannot save: Balance must be 0%. Current: ${weightageBalance.toFixed(1)}%`);
+                  return;
+                }
+
+                setSavingWeightage(true);
+                try {
+                  // Save all weightages
+                  const formId = selectedForm?._id || selectedForm?.id;
+                  if (!formId) throw new Error("Form ID not found");
+
+                  // Create updated sections with new weightages
+                  const updatedSections = selectedForm?.sections?.map((section: any) => {
+                    const row = sectionSummaryRows.find(r => r.id === section.id);
+                    if (row && tempWeightageValues[row.id] !== undefined) {
+                      return {
+                        ...section,
+                        weightage: parseFloat(tempWeightageValues[row.id]) || 0
+                      };
+                    }
+                    return section;
+                  }) || [];
+
+                  const formDataToUpdate = { ...selectedForm, sections: updatedSections };
+                  delete formDataToUpdate._id;
+                  delete formDataToUpdate.__v;
+                  delete formDataToUpdate.createdAt;
+                  delete formDataToUpdate.updatedAt;
+
+                  await apiClient.updateForm(formId, formDataToUpdate);
+
+                  // Update local state
+                  setSelectedForm({ ...selectedForm, sections: updatedSections });
+                  setRedistributionMode(false);
+                  setTempWeightageValues({});
+                  setWeightageBalance(0);
+
+                  showSuccess("Weightages redistributed successfully!");
+                } catch (error) {
+                  console.error("Failed to save weightages:", error);
+                  showError("Failed to save weightages. Please try again.");
+                } finally {
+                  setSavingWeightage(false);
+                }
+              }}
+              disabled={Math.abs(weightageBalance) >= 0.1 || savingWeightage}
+              className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+              title="Save all weightage changes"
+            >
+              {savingWeightage ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Save
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+    </td>
+  </tr>
+)}
+      </>
+    );
+  })()}
+</tbody>
+    </table>
+  </div>
+</div>
 
                           {/* Main Parameters and Subparameters - Section Wise */}
                           <div className="space-y-0">

@@ -121,6 +121,9 @@ export default function PreviewFormWrapper() {
   console.log("=== PreviewFormWrapper: Processing form ===");
   console.log("Form sections:", form.sections);
 
+  // Extract branching rules from questions if not already loaded from API
+  const extractedBranchingRules: any[] = [];
+  
   const flattenedSections = (form.sections || []).map((section: any) => {
     const allQuestions: any[] = [];
 
@@ -130,6 +133,20 @@ export default function PreviewFormWrapper() {
       // Add the main question (without followUpQuestions to avoid duplication)
       const { followUpQuestions, ...mainQuestion } = question;
       allQuestions.push(mainQuestion);
+
+      // Extract branching rules from the question if they exist
+      if (question.branchingRules && question.branchingRules.length > 0) {
+        console.log("Found branching rules:", question.branchingRules);
+        question.branchingRules.forEach((rule: any) => {
+          extractedBranchingRules.push({
+            questionId: question.id,
+            sectionId: section.id,
+            optionLabel: rule.optionLabel,
+            targetSectionId: rule.targetSectionId,
+            isOtherOption: rule.isOtherOption || false,
+          });
+        });
+      }
 
       // Add follow-up questions if they exist
       if (followUpQuestions && followUpQuestions.length > 0) {
@@ -180,6 +197,9 @@ export default function PreviewFormWrapper() {
     };
   });
 
+  // Use extracted branching rules if API rules are empty
+  const finalBranchingRules = branchingRules.length > 0 ? branchingRules : extractedBranchingRules;
+
   const formData = {
     id: form.id,
     title: form.title,
@@ -188,11 +208,15 @@ export default function PreviewFormWrapper() {
     followUpQuestions: form.followUpQuestions || [],
   };
 
+  console.log("=== Final Branching Rules ===");
+  console.log("Branching Rules Count:", finalBranchingRules.length);
+  console.log("Branching Rules:", finalBranchingRules);
+
   return (
     <PreviewForm
       questions={[formData]}
       onSubmit={handleSubmit}
-      branchingRules={branchingRules}
+      branchingRules={finalBranchingRules}
     />
   );
 }

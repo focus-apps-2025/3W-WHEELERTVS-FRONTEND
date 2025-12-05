@@ -35,12 +35,12 @@ const createCustomIcon = (count: number) => {
   const iconSize = Math.max(30, Math.min(50, count * 5));
   const html = `
     <div style="
-      position: relative;
+      
       width: ${iconSize}px;
-      height: ${iconSize}px;
+      height: 300;
     ">
       <div style="
-        position: absolute;
+    
         width: 100%;
         height: 100%;
         background: linear-gradient(135deg, #3b82f6, #1e40af);
@@ -57,7 +57,7 @@ const createCustomIcon = (count: number) => {
         ${count}
       </div>
       <div style="
-        position: absolute;
+       
         bottom: -10px;
         left: 50%;
         transform: translateX(-50%);
@@ -197,11 +197,14 @@ const MarkerLayer = ({ locations }: MarkerLayerProps) => {
 interface LocationHeatmapProps {
   responses: Response[];
   title?: string;
+  id?: string;
+
 }
 
 export default function LocationHeatmap({
   responses,
   title = "Response Locations",
+  id
 }: LocationHeatmapProps) {
   const mapRef = useRef(null);
 
@@ -301,26 +304,25 @@ export default function LocationHeatmap({
     return { heatmapData, locationStats, markerLocations: markerData };
   }, [responses]);
 
-  const mapCenter: [number, number] =
+   const mapCenter: [number, number] =
     locationStats.totalLocations > 0
       ? [locationStats.avgLatitude, locationStats.avgLongitude]
       : [20, 0];
 
   return (
+    <div id={id}>
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-200 dark:border-gray-600">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 px-6 py-4 border-b border-gray-200 dark:border-gray-600">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-          <MapPin className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
+      {/* Compact Header */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
+        <h3 className="text-md font-semibold text-gray-900 dark:text-white flex items-center">
+          <MapPin className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
           {title}
         </h3>
       </div>
 
-
-
-      {/* Main Content */}
-      <div className="p-6">
-        {/* Map Section - Full Width */}
+      {/* Main Content with Reduced Padding */}
+      <div className="p-4">
+        {/* Map Section - Reduced Height */}
         {locationStats.totalLocations > 0 ? (
           <div className="rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600 shadow-md">
             <MapContainer
@@ -328,7 +330,7 @@ export default function LocationHeatmap({
               center={mapCenter}
               zoom={4}
               style={{
-                height: "500px",
+                height: "300px", // Reduced from 500px
                 width: "100%",
                 borderRadius: "8px",
               }}
@@ -344,10 +346,10 @@ export default function LocationHeatmap({
             </MapContainer>
           </div>
         ) : (
-          <div className="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-500 h-[500px] flex items-center justify-center bg-gray-50 dark:bg-gray-700">
+          <div className="rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-500 h-[350px] flex items-center justify-center bg-gray-50 dark:bg-gray-700">
             <div className="text-center">
-              <MapPin className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-3" />
-              <p className="text-gray-500 dark:text-gray-400">
+              <MapPin className="w-10 h-10 text-gray-400 dark:text-gray-500 mx-auto mb-2" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 No location data available
               </p>
             </div>
@@ -355,24 +357,24 @@ export default function LocationHeatmap({
         )}
       </div>
 
-      {/* Detailed Locations Table */}
+      {/* Detailed Locations Table - More Compact */}
       {markerLocations.length > 0 && (
-        <div className="border-t border-gray-200 dark:border-gray-600 p-6">
-          <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <MapPin className="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" />
-            All Response Locations ({markerLocations.length})
+        <div className="border-t border-gray-200 dark:border-gray-600 p-4">
+          <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+            <MapPin className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+            Response Locations ({markerLocations.length})
           </h4>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b-2 border-gray-300 dark:border-gray-500 bg-gray-50 dark:bg-gray-700">
-                  <th className="px-4 py-3 text-left font-semibold text-gray-900 dark:text-white">Location</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-900 dark:text-white">City</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-900 dark:text-white">Region</th>
-                  <th className="px-4 py-3 text-left font-semibold text-gray-900 dark:text-white">Country</th>
-                  <th className="px-4 py-3 text-center font-semibold text-gray-900 dark:text-white">
+                  <th className="px-3 py-2 text-left font-semibold text-gray-900 dark:text-white">Location</th>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-900 dark:text-white">City</th>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-900 dark:text-white">Region</th>
+                  <th className="px-3 py-2 text-left font-semibold text-gray-900 dark:text-white">Country</th>
+                  <th className="px-3 py-2 text-center font-semibold text-gray-900 dark:text-white">
                     <div className="flex items-center justify-center">
-                      <Users className="w-4 h-4 mr-1" />
+                      <Users className="w-3 h-3 mr-1" />
                       Responses
                     </div>
                   </th>
@@ -386,43 +388,43 @@ export default function LocationHeatmap({
                       key={idx}
                       className="border-b border-gray-100 dark:border-gray-600 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors"
                     >
-                      <td className="px-4 py-3 text-gray-900 dark:text-white font-medium">
+                      <td className="px-3 py-2 text-gray-900 dark:text-white font-medium">
                         <div className="flex items-center">
-                          <MapPin className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+                          <MapPin className="w-3 h-3 mr-2 text-blue-600 dark:text-blue-400" />
                           {location.city && location.country
                             ? `${location.city}, ${location.country}`
                             : location.country || location.city || "Unknown"}
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                      <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
                         {location.city ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200">
                             {location.city}
                           </span>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                      <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
                         {location.region ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 dark:bg-amber-900 text-amber-800 dark:text-amber-200">
                             {location.region}
                           </span>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                      <td className="px-3 py-2 text-gray-600 dark:text-gray-300">
                         {location.country ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                             {location.country}
                           </span>
                         ) : (
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900 dark:to-indigo-900 text-blue-800 dark:text-blue-200 min-w-max">
+                      <td className="px-3 py-2 text-center">
+                        <span className="inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900 dark:to-indigo-900 text-blue-800 dark:text-blue-200 min-w-max">
                           {location.count || 1}
                         </span>
                       </td>
@@ -433,6 +435,7 @@ export default function LocationHeatmap({
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

@@ -18,6 +18,7 @@ export interface Section {
   questions: FollowUpQuestion[];
   linkedToOption?: string;
   linkedToQuestionId?: string;
+  merging?: string;
 }
 
 export interface FollowUpQuestion {
@@ -41,6 +42,11 @@ export interface FollowUpQuestion {
   subParam1?: string;
   subParam2?: string;
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
+  branchingRules?: Array<{
+    optionLabel: string;
+    targetSectionId: string;
+    isOtherOption?: boolean;
+  }>;
   requireFollowUp?: boolean; // Make follow-up mandatory for certain question types
 }
 

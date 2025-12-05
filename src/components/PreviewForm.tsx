@@ -573,10 +573,24 @@ export default function PreviewForm({
     });
 
     const sampleAnswers: Record<string, any> = {};
+    
+    // First pass: create sample answers for all questions
     allQuestions.forEach((item) => {
       sampleAnswers[item.id] = createSampleAnswer(item);
     });
 
+    // Second pass: for questions with branching rules, try to select an option that triggers branching
+    allQuestions.forEach((item) => {
+      if (item.branchingRules && item.branchingRules.length > 0) {
+        console.log(`[Sample Data] Question "${item.text}" has ${item.branchingRules.length} branching rule(s)`);
+        // Use the first branching rule's option as the sample answer
+        const firstRule = item.branchingRules[0];
+        sampleAnswers[item.id] = firstRule.optionLabel;
+        console.log(`[Sample Data] Set answer to "${firstRule.optionLabel}" to trigger branching`);
+      }
+    });
+
+    // Third pass: handle follow-up visibility conditions
     allQuestions.forEach((item) => {
       const condition = item.showWhen;
       if (!condition?.questionId) {
@@ -595,6 +609,7 @@ export default function PreviewForm({
       }
     });
 
+    console.log("[Sample Data] Final sample answers:", sampleAnswers);
     setAnswers(sampleAnswers);
   };
 

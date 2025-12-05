@@ -405,11 +405,13 @@ export function downloadFormImportTemplate() {
     "Section Title",
     "Section Description",
     "Section Weightage",
+    "Section Merging",
     "Question",
     "Question Description",
     "Question Type",
     "Required",
     "Options",
+    "Branching",
     "SubParam1",
     "SubParam2",
     "Allowed File Types",
@@ -440,11 +442,13 @@ export function downloadFormImportTemplate() {
     "Title of the section",
     "Description of what this section covers",
     "Percentage weight (0-100, must total 100% if used)",
+    "Mark which columns should be merged together (e.g., 1,2 means columns 1 and 2 merge; leave blank to not merge)",
     "The question text to ask",
     "Additional details about the question",
     "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA, fileUpload",
     "TRUE/FALSE - is this question required?",
     "For multipleChoice/checkboxes/dropdown: option1,option2,option3 (comma-separated)",
+    "Section branching: comma-separated section numbers for each option (e.g., 2,3,4 means option1→sec2, option2→sec3, option3→sec4; use 0 to skip)",
     "Additional parameter 1 for custom question configuration",
     "Additional parameter 2 for custom question configuration",
     "For fileUpload: allowed file types (image,pdf,excel) - comma-separated",
@@ -499,6 +503,7 @@ export function downloadFormImportTemplate() {
       "Section Description":
         "Initial qualification questions - no follow-ups required",
       "Section Weightage": "30",
+      "Section Merging": "",
       Question: "Are you 18 years or older?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -511,6 +516,7 @@ export function downloadFormImportTemplate() {
     },
     {
       "Section Weightage": "30",
+      "Section Merging": "",
       Question: "Do you have valid identification documents?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -523,6 +529,7 @@ export function downloadFormImportTemplate() {
     },
     {
       "Section Weightage": "30",
+      "Section Merging": "",
       Question: "Have you previously used our service before?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -535,6 +542,7 @@ export function downloadFormImportTemplate() {
     },
     {
       "Section Weightage": "30",
+      "Section Merging": "",
       Question: "Are you available for a follow-up appointment if needed?",
       "Question Type": "yesNoNA",
       Required: "FALSE",
@@ -551,6 +559,7 @@ export function downloadFormImportTemplate() {
       "Section Description":
         "Questions about service experience with multi-level follow-ups",
       "Section Weightage": "40",
+      "Section Merging": "",
       Question: "Are you satisfied with our service quality?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -563,6 +572,7 @@ export function downloadFormImportTemplate() {
     },
     {
       "Section Weightage": "40",
+      "Section Merging": "",
       Question: "Did you complete your desired goal with our help?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -575,6 +585,7 @@ export function downloadFormImportTemplate() {
     },
     {
       "Section Weightage": "40",
+      "Section Merging": "",
       Question: "Would you recommend us to others?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -611,6 +622,7 @@ export function downloadFormImportTemplate() {
     },
     {
       "Section Weightage": "40",
+      "Section Merging": "",
       Question: "Will you use our service again in the future?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -649,6 +661,7 @@ export function downloadFormImportTemplate() {
     },
     {
       "Section Weightage": "40",
+      "Section Merging": "",
       Question: "Is your issue completely resolved?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -689,6 +702,7 @@ export function downloadFormImportTemplate() {
       "Section Description":
         "Final section with yes/no/n/a questions and follow-ups",
       "Section Weightage": "30",
+      "Section Merging": "",
       Question: "Do you need additional support or resources?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -717,6 +731,7 @@ export function downloadFormImportTemplate() {
     },
     {
       "Section Weightage": "30",
+      "Section Merging": "",
       Question: "Can we contact you with service updates?",
       "Question Type": "yesNoNA",
       Required: "FALSE",
@@ -737,6 +752,7 @@ export function downloadFormImportTemplate() {
     },
     {
       "Section Weightage": "30",
+      "Section Merging": "",
       Question: "Will you provide feedback on your experience?",
       "Question Type": "yesNoNA",
       Required: "FALSE",
@@ -764,6 +780,7 @@ export function downloadFormImportTemplate() {
       "FU2: Correct Answer": "",
     },
     {
+      "Section Merging": "",
       Question: "Do you consent to data usage for service improvement?",
       "Question Type": "yesNoNA",
       Required: "TRUE",
@@ -783,6 +800,7 @@ export function downloadFormImportTemplate() {
       "FU1: Correct Answer": "",
     },
     {
+      "Section Merging": "",
       Question: "Is there anything else you'd like to share?",
       "Question Type": "yesNoNA",
       Required: "FALSE",
@@ -803,6 +821,7 @@ export function downloadFormImportTemplate() {
     },
     {
       "Section Weightage": "30",
+      "Section Merging": "",
       Question: "Please upload any supporting documents (optional)",
       "Question Type": "fileUpload",
       Required: "FALSE",
@@ -815,24 +834,69 @@ export function downloadFormImportTemplate() {
     },
   ];
 
+  // Track section counts for merging
+  const sectionCounts: Record<string, number> = {};
+  const sectionFirstRow: Record<string, number> = {};
+  
   rows.forEach((row) => {
+    const sectionNum = row["Section Number"]?.toString().trim();
+    if (sectionNum) {
+      sectionCounts[sectionNum] = (sectionCounts[sectionNum] || 0) + 1;
+      if (!sectionFirstRow[sectionNum]) {
+        sectionFirstRow[sectionNum] = templateData.length + 3; // +3 for header, description, separator rows
+      }
+    }
+  });
+
+  rows.forEach((row, rowIndex) => {
+    const sectionNum = row["Section Number"]?.toString().trim();
+    
+    // Build branching string from individual columns or combined branching column
+    let branchingStr = "";
+    const branchingValues: (string | number)[] = [];
+    
+    // Check if we have the old format (5 separate columns)
+    for (let i = 1; i <= 5; i++) {
+      const branchKey = `Branching: Option ${i} Section`;
+      if (row[branchKey]) {
+        branchingValues.push(row[branchKey]);
+      } else {
+        branchingValues.push(0);
+      }
+    }
+    
+    // Only include if there's actual branching data
+    if (branchingValues.some(v => v !== 0 && v !== "")) {
+      branchingStr = branchingValues.join(",");
+    }
+    
     const fullRow: Record<string, any> = {
       "Form Title": row["Form Title"] || "",
       "Form Description": row["Form Description"] || "",
       "Section Number": row["Section Number"] || "",
       "Section Title": row["Section Title"] || "",
       "Section Description": row["Section Description"] || "",
+      "Section Merging": "",
       Question: row.Question || "",
       "Question Description": row["Question Description"] || "",
       "Question Type": row["Question Type"] || "",
       Required: row.Required || "FALSE",
       Options: row.Options || "",
+      Branching: branchingStr,
       SubParam1: row.SubParam1 || "",
       SubParam2: row.SubParam2 || "",
       "Allowed File Types": row["Allowed File Types"] || "",
       "Correct Answer": row["Correct Answer"] || "",
       "Correct Answers": row["Correct Answers"] || "",
     };
+
+    // Add merge instructions for section columns (3-6) when same section has multiple questions
+    if (sectionNum && sectionCounts[sectionNum] > 1) {
+      const currentRowNum = templateData.length + 3; // +3 for header rows
+      const firstRow = sectionFirstRow[sectionNum];
+      // Merge columns 3-6 (C-F: Section Number, Title, Description, Weightage)
+      fullRow["Section Merging"] = `C${firstRow}:F${firstRow + sectionCounts[sectionNum] - 1}`;
+    }
 
     for (let i = 1; i <= 10; i++) {
       fullRow[`FU${i}: Option`] = row[`FU${i}: Option`] || "";
@@ -848,11 +912,33 @@ export function downloadFormImportTemplate() {
     templateData.push(fullRow);
   });
 
+  const headerArray = [
+    ...mainHeaders,
+    ...followUpHeaders,
+  ];
+
   const worksheet = utils.json_to_sheet(templateData, {
-    header: headers,
+    header: headerArray,
   });
 
-  worksheet["!cols"] = headers.map(() => ({ wch: 25 }));
+  worksheet["!cols"] = headerArray.map(() => ({ wch: 25 }));
+
+  // Apply cell merging based on Section Merging column
+  if (!worksheet['!merges']) {
+    worksheet['!merges'] = [];
+  }
+  
+  templateData.forEach((row, idx) => {
+    const mergeInstructions = row["Section Merging"];
+    if (mergeInstructions && typeof mergeInstructions === "string") {
+      // Parse merge instructions like "C5:F10"
+      try {
+        worksheet['!merges'].push(utils.decode_range(mergeInstructions));
+      } catch (e) {
+        console.warn(`Failed to parse merge instruction: ${mergeInstructions}`);
+      }
+    }
+  });
 
   // Add data validation for SubParam1 and SubParam2 columns
   worksheet['!datavalidation'] = [
@@ -1028,6 +1114,46 @@ function parseNewTemplateFormat(
     { questionId: string; option: string }
   >();
   const questionMap = new Map<string, FollowUpQuestion>();
+  const sectionMergingMap = new Map<string, string>(); // Map to store section merging info
+
+  // Helper function to find column name (case-insensitive and flexible)
+  const findColumnName = (availableColumns: string[], searchPatterns: string[]): string | null => {
+    // First try exact match
+    const exactMatch = availableColumns.find(col => searchPatterns.some(p => col === p));
+    if (exactMatch) return exactMatch;
+    
+    // Try case-insensitive match
+    const caseInsensitiveMatch = availableColumns.find(col => 
+      searchPatterns.some(p => col.toLowerCase() === p.toLowerCase())
+    );
+    if (caseInsensitiveMatch) return caseInsensitiveMatch;
+    
+    // Try loose match (contains any search term)
+    const looseMatch = availableColumns.find(col => 
+      searchPatterns.some(p => col.toLowerCase().includes(p.toLowerCase()))
+    );
+    if (looseMatch) {
+      console.log(`[Excel Import] Using approximate column match: "${looseMatch}" for "${searchPatterns.join(', ')}"`);
+      return looseMatch;
+    }
+    
+    return null;
+  };
+
+  // Log available columns for debugging
+  let mergingColumnName = "Section Merging";
+  if (rows.length > 0) {
+    const availableColumns = Object.keys(rows[0]);
+    console.log("[Excel Import] Available columns:", availableColumns);
+    
+    const foundMergingColumn = findColumnName(availableColumns, ["Section Merging", "Merge", "Merging"]);
+    if (foundMergingColumn) {
+      mergingColumnName = foundMergingColumn;
+      console.log(`[Excel Import] "Section Merging" column found: ${mergingColumnName}`);
+    } else {
+      console.warn("[Excel Import] Warning: 'Section Merging' column not found. Make sure your Excel has this column for section merging to work.");
+    }
+  }
 
   rows.forEach((row) => {
     const sectionNo = row["Section Number"]?.toString().trim();
@@ -1042,18 +1168,38 @@ function parseNewTemplateFormat(
     if (sectionNo) {
       currentSectionNo = sectionNo;
       const sectionWeightage = parseNumber(row["Section Weightage"]);
+      const sectionMerging = row[mergingColumnName]?.toString().trim() || "";
+      
+      console.log(`[Excel Import] Section ${sectionNo}: Title="${sectionTitle}", Merging="${sectionMerging}"`);
+      
+      if (sectionMerging) {
+        sectionMergingMap.set(sectionNo, sectionMerging);
+        console.log(`[Excel Import] Stored merging data for section ${sectionNo}: "${sectionMerging}"`);
+      }
+      
       if (!sectionsMap.has(sectionNo)) {
-        sectionsMap.set(sectionNo, {
+        const newSection = {
           id: generateId(),
           title: sectionTitle || `Section ${sectionNo}`,
           description: sectionDesc || "Section description",
           weightage: sectionWeightage ?? 0,
           questions: [],
-        });
-      } else if (sectionWeightage !== undefined) {
+          merging: sectionMerging || undefined,
+          parentSectionId: undefined,
+          isSubsection: false,
+        };
+        sectionsMap.set(sectionNo, newSection);
+        console.log(`[Excel Import] Created new section ${sectionNo} with ID: ${newSection.id}, Merging: ${sectionMerging || "none"}`);
+      } else if (sectionWeightage !== undefined || sectionMerging) {
         const existingSection = sectionsMap.get(sectionNo);
         if (existingSection) {
-          existingSection.weightage = sectionWeightage;
+          if (sectionWeightage !== undefined) {
+            existingSection.weightage = sectionWeightage;
+          }
+          if (sectionMerging) {
+            existingSection.merging = sectionMerging;
+            console.log(`[Excel Import] Updated merging for section ${sectionNo}: "${sectionMerging}"`);
+          }
         }
       }
     }
@@ -1130,6 +1276,35 @@ function parseNewTemplateFormat(
       : undefined;
 
     const questionId = generateId();
+    
+    // Parse branching rules for section navigation
+    const branchingRules: Array<{
+      optionLabel: string;
+      targetSectionId: string;
+      isOtherOption?: boolean;
+    }> = [];
+    
+    if (options && options.length > 0) {
+      // Parse branching column (format: "2,3,4" where each number is section for each option)
+      const branchingStr = row["Branching"]?.toString().trim() || "";
+      if (branchingStr) {
+        const branchingNumbers = branchingStr
+          .split(",")
+          .map((n) => n.trim())
+          .filter(Boolean);
+        
+        options.forEach((option, idx) => {
+          const targetSectionNo = branchingNumbers[idx];
+          if (targetSectionNo && targetSectionNo !== "0") {
+            branchingRules.push({
+              optionLabel: option,
+              targetSectionId: targetSectionNo,
+            });
+          }
+        });
+      }
+    }
+    
     const question: FollowUpQuestion = {
       id: questionId,
       text: questionText,
@@ -1144,6 +1319,7 @@ function parseNewTemplateFormat(
       sectionId: section.id,
       correctAnswer: correctAnswer || undefined,
       correctAnswers: correctAnswers,
+      ...(branchingRules.length > 0 && { branchingRules }),
     };
 
     for (let fuIndex = 1; fuIndex <= 10; fuIndex++) {
@@ -1242,6 +1418,40 @@ function parseNewTemplateFormat(
 
   const sections = Array.from(sectionsMap.values());
 
+  // Create a mapping from section numbers to section IDs for branching
+  const sectionNumberToIdMap = new Map<string, string>();
+  sections.forEach((section, idx) => {
+    const sectionNo = Array.from(sectionsMap.entries()).find(
+      ([_, s]) => s.id === section.id
+    )?.[0];
+    if (sectionNo) {
+      sectionNumberToIdMap.set(sectionNo, section.id);
+    }
+  });
+
+  // Update branching rules to use section IDs instead of section numbers
+  sections.forEach((section) => {
+    section.questions.forEach((question) => {
+      if ((question as any).branchingRules && (question as any).branchingRules.length > 0) {
+        (question as any).branchingRules = (question as any).branchingRules.map(
+          (rule: any) => {
+            const sectionId = sectionNumberToIdMap.get(rule.targetSectionId);
+            if (sectionId) {
+              console.log(
+                `[Branching] Mapping section number ${rule.targetSectionId} to ID ${sectionId}`
+              );
+              return {
+                ...rule,
+                targetSectionId: sectionId,
+              };
+            }
+            return rule;
+          }
+        );
+      }
+    });
+  });
+
   sectionLinkMap.forEach((linkInfo, targetSectionNo) => {
     const targetSectionIdx = parseInt(targetSectionNo) - 1;
     if (targetSectionIdx >= 0 && targetSectionIdx < sections.length) {
@@ -1252,6 +1462,70 @@ function parseNewTemplateFormat(
       }
     }
   });
+
+  // Process section merging
+  // Format: "1,2" means section 1 is parent, section 2 is subsection
+  console.log(`[Section Merging] Processing merging data. Map size: ${sectionMergingMap.size}`);
+  console.log(`[Section Merging] Merging map entries:`, Array.from(sectionMergingMap.entries()));
+  
+  sectionMergingMap.forEach((mergingStr, currentSectionNo) => {
+    console.log(`[Section Merging] Processing section ${currentSectionNo}: "${mergingStr}"`);
+    
+    if (!mergingStr) {
+      console.log(`[Section Merging] Section ${currentSectionNo} has empty merging string, skipping`);
+      return;
+    }
+    
+    const sectionNumbers = mergingStr
+      .split(",")
+      .map((n) => n.trim())
+      .filter(Boolean);
+    
+    console.log(`[Section Merging] Parsed section numbers: ${sectionNumbers.join(", ")}`);
+    
+    if (sectionNumbers.length < 2) {
+      console.log(`[Section Merging] Only ${sectionNumbers.length} section(s) found, need at least 2 for merging`);
+      return;
+    }
+    
+    // First section is the parent
+    const parentSectionNo = sectionNumbers[0];
+    const parentSectionEntry = Array.from(sectionsMap.entries()).find(
+      ([sectionNo]) => sectionNo === parentSectionNo
+    );
+    const parentSection = parentSectionEntry?.[1];
+    
+    if (!parentSection) {
+      console.warn(`[Section Merging] Parent section ${parentSectionNo} not found in sections map`);
+      return;
+    }
+    
+    console.log(`[Section Merging] Parent section found: ${parentSectionNo} (ID: ${parentSection.id}), Children: ${sectionNumbers.slice(1).join(", ")}`);
+    
+    // Set remaining sections as subsections
+    for (let i = 1; i < sectionNumbers.length; i++) {
+      const childSectionNo = sectionNumbers[i];
+      const childSectionEntry = Array.from(sectionsMap.entries()).find(
+        ([sectionNo]) => sectionNo === childSectionNo
+      );
+      const childSection = childSectionEntry?.[1];
+      
+      if (childSection) {
+        childSection.parentSectionId = parentSection.id;
+        childSection.isSubsection = true;
+        console.log(`[Section Merging] ✓ Set section ${childSectionNo} (ID: ${childSection.id}) as subsection of ${parentSectionNo}`);
+      } else {
+        console.warn(`[Section Merging] Child section ${childSectionNo} not found in sections map`);
+      }
+    }
+  });
+  
+  console.log(`[Section Merging] Final sections after merging:`, sections.map(s => ({
+    id: s.id,
+    title: s.title,
+    isSubsection: s.isSubsection,
+    parentSectionId: s.parentSectionId,
+  })));
 
   const formPayload: Partial<Question> & { sections: Section[] } = {
     id: generateId(),

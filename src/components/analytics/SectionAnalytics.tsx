@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useRef, useEffect } from "react";
-import { BarChart3, TrendingUp, Target, Activity, Zap, ChevronDown, X, Eye, User, Calendar,FileText } from "lucide-react";
+import { BarChart3, TrendingUp, Target, Activity, Zap, ChevronDown, X, Eye, User, Calendar, FileText, BarChart } from "lucide-react";
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -8,11 +8,13 @@ import {
   Filler,
   Tooltip,
   Legend,
+  ArcElement,
+  Title, BarElement
 } from "chart.js";
-import { Radar } from "react-chartjs-2";
+import { Radar, Pie, Bar } from "react-chartjs-2";
 import type { Question, Response } from "../../types";
 
-ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend);
+ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend, ArcElement, BarElement);
 
 
 interface Response {
@@ -42,6 +44,51 @@ interface Section {
   questions: Question[];
 }
 
+export interface SectionAnalyticsData {
+  sectionId: string;
+  sectionTitle: string;
+  description?: string;
+  stats: {
+    mainQuestionCount: number;
+    totalFollowUpCount: number;
+    answeredMainQuestions: number;
+    answeredFollowUpQuestions: number;
+    totalAnswered: number;
+    totalResponses: number;
+    completionRate: string;
+    avgResponsesPerQuestion: string;
+    questionsDetail: Array<{
+      id: string;
+      text: string;
+      followUpCount: number;
+      responses: number;
+      followUpDetails?: Array<{
+        id: string;
+        text: string;
+        responses: number;
+      }>;
+    }>;
+  };
+  qualityBreakdown: Array<{
+    parameterName: string;
+    yes: number;
+    no: number;
+    na: number;
+    total: number;
+  }>;
+  overallQuality: {
+    totalYes: number;
+    totalNo: number;
+    totalNA: number;
+    totalResponses: number;
+    percentages: {
+      yes: string;
+      no: string;
+      na: string;
+    };
+  };
+}
+
 interface SectionAnalyticsProps {
   question: {
     sections?: Section[];
@@ -60,107 +107,107 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
   question,
   responses,
   sectionTitle,
-   formData, 
+  formData,
   onClose,
 }) => {
   console.log("=== DEBUG: Modal Data ===");
-console.log("Section Title:", sectionTitle);
-console.log("Question ID:", question.id);
-console.log("Question Text:", question.text);
-console.log("Question object:", question);
-console.log("Question has sections?", !!question.sections);
+  console.log("Section Title:", sectionTitle);
+  console.log("Question ID:", question.id);
+  console.log("Question Text:", question.text);
+  console.log("Question object:", question);
+  console.log("Question has sections?", !!question.sections);
   const modalRef = useRef<HTMLDivElement>(null);
 
   const questionResponses = useMemo(() => {
-  console.log("=== DEBUG: Modal Data ===");
-  console.log("Section Title:", sectionTitle);
-  console.log("Form Data has sections?", formData?.sections?.length);
-  console.log("Form Data:", formData);
-  
-  // Check if we're in Basic Information section
-  const isBasicInfoSection = sectionTitle?.toLowerCase().includes('basic') || 
-                            sectionTitle?.toLowerCase().includes('information');
-  
-  console.log("Is Basic Info Section:", isBasicInfoSection);
-  
-  // Find dealer question ID from formData (which has sections)
-  const findDealerQuestionId = () => {
-    if (!formData?.sections || formData.sections.length === 0) {
-      console.log("No sections found in formData");
+    console.log("=== DEBUG: Modal Data ===");
+    console.log("Section Title:", sectionTitle);
+    console.log("Form Data has sections?", formData?.sections?.length);
+    console.log("Form Data:", formData);
+
+    // Check if we're in Basic Information section
+    const isBasicInfoSection = sectionTitle?.toLowerCase().includes('basic') ||
+      sectionTitle?.toLowerCase().includes('information');
+
+    console.log("Is Basic Info Section:", isBasicInfoSection);
+
+    // Find dealer question ID from formData (which has sections)
+    const findDealerQuestionId = () => {
+      if (!formData?.sections || formData.sections.length === 0) {
+        console.log("No sections found in formData");
+        return null;
+      }
+
+      // First section should be Basic Information
+      const firstSection = formData.sections[0];
+      console.log("First section:", firstSection?.title);
+      console.log("First section questions:", firstSection?.questions?.length);
+
+      if (!firstSection?.questions) {
+        return null;
+      }
+
+      // Search for dealer name question
+      for (const q of firstSection.questions) {
+        const questionText = q.text?.toLowerCase() || '';
+        console.log(`Checking question: ${q.text} (${q.id})`);
+
+        if (questionText.includes('dealer')) {
+          console.log("Found dealer question:", q);
+          return q.id;
+        }
+      }
+
+      // If no dealer question found, look for any name field
+      for (const q of firstSection.questions) {
+        const questionText = q.text?.toLowerCase() || '';
+        if (questionText.includes('name')) {
+          console.log("Found name question as fallback:", q);
+          return q.id;
+        }
+      }
+
       return null;
-    }
-    
-    // First section should be Basic Information
-    const firstSection = formData.sections[0];
-    console.log("First section:", firstSection?.title);
-    console.log("First section questions:", firstSection?.questions?.length);
-    
-    if (!firstSection?.questions) {
-      return null;
-    }
-    
-    // Search for dealer name question
-    for (const q of firstSection.questions) {
-      const questionText = q.text?.toLowerCase() || '';
-      console.log(`Checking question: ${q.text} (${q.id})`);
-      
-      if (questionText.includes('dealer')) {
-        console.log("Found dealer question:", q);
-        return q.id;
-      }
-    }
-    
-    // If no dealer question found, look for any name field
-    for (const q of firstSection.questions) {
-      const questionText = q.text?.toLowerCase() || '';
-      if (questionText.includes('name')) {
-        console.log("Found name question as fallback:", q);
-        return q.id;
-      }
-    }
-    
-    return null;
-  };
-  
-  const dealerQuestionId = findDealerQuestionId();
-  console.log("Dealer Question ID:", dealerQuestionId);
-  
-  return responses
-    .filter((response) => {
-      const answer = response.answers?.[question.id];
-      return answer !== null && answer !== undefined && answer !== "";
-    })
-    .map((response, index) => {
-      console.log(`Response ${index + 1}:`, response.id);
-      console.log("Response answers:", response.answers);
-      
-      let displayInfo = "";
-      let isDealerName = false;
-      
-      if (!isBasicInfoSection && dealerQuestionId) {
-        // For non-BasicInfo sections: show dealer name
-        const dealerName = response.answers?.[dealerQuestionId];
-        console.log(`Dealer name for response ${response.id}:`, dealerName);
-        displayInfo = dealerName || "Unknown Dealer";
-        isDealerName = true;
-      } else {
-        // For BasicInfo section: show response ID
-        displayInfo = response.id?.substring(0, 8) || "N/A";
-        isDealerName = false;
-      }
-      
-      console.log(`Will display: ${displayInfo} (isDealerName: ${isDealerName})`);
-      
-      return {
-        response,
-        answer: response.answers?.[question.id],
-        timestamp: response.timestamp || response.createdAt || response.assignedAt || "Unknown",
-        status: response.status || "pending",
-        displayInfo,
-        isDealerName,
-      };
-    });
-}, [responses, question, sectionTitle, formData]);
+    };
+
+    const dealerQuestionId = findDealerQuestionId();
+    console.log("Dealer Question ID:", dealerQuestionId);
+
+    return responses
+      .filter((response) => {
+        const answer = response.answers?.[question.id];
+        return answer !== null && answer !== undefined && answer !== "";
+      })
+      .map((response, index) => {
+        console.log(`Response ${index + 1}:`, response.id);
+        console.log("Response answers:", response.answers);
+
+        let displayInfo = "";
+        let isDealerName = false;
+
+        if (!isBasicInfoSection && dealerQuestionId) {
+          // For non-BasicInfo sections: show dealer name
+          const dealerName = response.answers?.[dealerQuestionId];
+          console.log(`Dealer name for response ${response.id}:`, dealerName);
+          displayInfo = dealerName || "Unknown Dealer";
+          isDealerName = true;
+        } else {
+          // For BasicInfo section: show response ID
+          displayInfo = response.id?.substring(0, 8) || "N/A";
+          isDealerName = false;
+        }
+
+        console.log(`Will display: ${displayInfo} (isDealerName: ${isDealerName})`);
+
+        return {
+          response,
+          answer: response.answers?.[question.id],
+          timestamp: response.timestamp || response.createdAt || response.assignedAt || "Unknown",
+          status: response.status || "pending",
+          displayInfo,
+          isDealerName,
+        };
+      });
+  }, [responses, question, sectionTitle, formData]);
 
   const answerStats = useMemo(() => {
     const stats = {
@@ -401,10 +448,10 @@ console.log("Question has sections?", !!question.sections);
 
                         <div className="ml-4 flex-shrink-0">
                           <div className={`px-3 py-1 rounded-full text-xs font-semibold ${qr.status === "verified"
-                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                              : qr.status === "rejected"
-                                ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                            : qr.status === "rejected"
+                              ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
                             }`}>
                             {qr.status || "pending"}
                           </div>
@@ -445,6 +492,9 @@ export default function SectionAnalytics({
     sectionTitle: string;
     formData?: any;
   } | null>(null);
+
+  const [visualizationType, setVisualizationType] = useState<'radar' | 'bar'>('radar');
+
   const getSectionStats = (section: Section) => {
     const mainQuestionsOnly = section.questions.filter(
       (q: any) => !q.parentId && !q.showWhen?.questionId
@@ -457,7 +507,7 @@ export default function SectionAnalytics({
     let followUpResponses = 0;
 
 
-    // ========== ADD THIS STATE HERE ==========
+
 
 
     const followUpQuestionsInSection = section.questions.filter(
@@ -531,6 +581,124 @@ export default function SectionAnalytics({
           })),
         };
       }),
+    };
+  };
+  const getSectionQualityBreakdown = (section: Section) => {
+    const qualityData: {
+      parameterName: string;
+      yes: number;
+      no: number;
+      na: number;
+      total: number;
+    }[] = [];
+
+    // Group questions by parameter/subParam1
+    const parameterGroups = new Map<string, {
+      parameterName: string;
+      yes: number;
+      no: number;
+      na: number;
+      total: number;
+      questions: Question[];
+      isRealParameter: boolean;
+    }>();
+
+    // Process all main questions in the section
+    section.questions.forEach((q: any) => {
+      // Only process main questions (not follow-ups)
+      if (!q.parentId && !q.showWhen?.questionId) {
+        // Check if this has a real parameter name
+        const hasRealParameter = !!q.subParam1 || !!q.parameter;
+
+        // Get parameter name (prefer subParam1 or parameter over question text)
+        const paramName = q.subParam1 ||
+          q.parameter ||
+          (hasRealParameter ? null : q.text?.substring(0, 30) + (q.text?.length > 30 ? "..." : "")) ||
+          null;
+
+        // Skip if no parameter name can be extracted
+        if (!paramName) return;
+
+        if (!parameterGroups.has(paramName)) {
+          parameterGroups.set(paramName, {
+            parameterName: paramName,
+            yes: 0,
+            no: 0,
+            na: 0,
+            total: 0,
+            questions: [],
+            isRealParameter: hasRealParameter
+          });
+        }
+
+        const group = parameterGroups.get(paramName)!;
+        group.questions.push(q);
+
+        // Count responses for this question
+        responses.forEach((response) => {
+          const answer = response.answers?.[q.id];
+          if (answer !== null && answer !== undefined && answer !== "") {
+            group.total++;
+
+            const answerStr = String(answer).toLowerCase().trim();
+            if (answerStr.includes("yes") || answerStr === "y") {
+              group.yes++;
+            } else if (answerStr.includes("no") || answerStr === "n") {
+              group.no++;
+            } else if (
+              answerStr.includes("na") ||
+              answerStr.includes("n/a") ||
+              answerStr.includes("not applicable")
+            ) {
+              group.na++;
+            }
+          }
+        });
+      }
+    });
+
+    // Convert map to array and calculate percentages
+    // Also filter out groups that don't have real parameters
+    parameterGroups.forEach((group) => {
+      if (group.total > 0 && group.isRealParameter) {
+        qualityData.push({
+          parameterName: group.parameterName,
+          yes: group.yes,
+          no: group.no,
+          na: group.na,
+          total: group.total
+        });
+      }
+    });
+
+    return qualityData;
+  };
+  // Add this function after getSectionQualityBreakdown
+  const calculateOverallQuality = (qualityBreakdown: any[]) => {
+    let totalYes = 0;
+    let totalNo = 0;
+    let totalNA = 0;
+    let totalResponses = 0;
+
+    qualityBreakdown.forEach(item => {
+      totalYes += item.yes;
+      totalNo += item.no;
+      totalNA += item.na;
+      totalResponses += item.total;
+    });
+
+    const total = totalYes + totalNo + totalNA;
+
+    return {
+      totalYes,
+      totalNo,
+      totalNA,
+      totalResponses,
+      percentages: {
+        yes: total > 0 ? ((totalYes / total) * 100).toFixed(1) : "0.0",
+        no: total > 0 ? ((totalNo / total) * 100).toFixed(1) : "0.0",
+        na: total > 0 ? ((totalNA / total) * 100).toFixed(1) : "0.0",
+      }
     };
   };
 
@@ -625,8 +793,64 @@ export default function SectionAnalytics({
     };
   }, [displaySections]);
 
+
+  const prepareBarChartData = (qualityBreakdown: any[]) => {
+    // Sort by yes percentage descending for better visualization
+    const sortedData = [...qualityBreakdown].sort((a, b) => {
+      const totalA = a.yes + a.no + a.na;
+      const totalB = b.yes + b.no + b.na;
+      const percentA = totalA > 0 ? (a.yes / totalA) * 100 : 0;
+      const percentB = totalB > 0 ? (b.yes / totalB) * 100 : 0;
+      return percentB - percentA;
+    });
+
+    return {
+      labels: sortedData.map(item =>
+        item.parameterName.length > 20
+          ? item.parameterName.substring(0, 20) + "..."
+          : item.parameterName
+      ),
+      datasets: [
+        {
+          label: "Yes %",
+          data: sortedData.map(item => {
+            const total = item.yes + item.no + item.na;
+            return total > 0 ? (item.yes / total) * 100 : 0;
+          }),
+          backgroundColor: "rgba(34, 197, 94, 0.8)",
+          borderColor: "rgb(34, 197, 94)",
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+        {
+          label: "No %",
+          data: sortedData.map(item => {
+            const total = item.yes + item.no + item.na;
+            return total > 0 ? (item.no / total) * 100 : 0;
+          }),
+          backgroundColor: "rgba(239, 68, 68, 0.8)",
+          borderColor: "rgb(239, 68, 68)",
+          borderWidth: 1,
+          borderRadius: 4,
+        },
+        {
+          label: "N/A %",
+          data: sortedData.map(item => {
+            const total = item.yes + item.no + item.na;
+            return total > 0 ? (item.na / total) * 100 : 0;
+          }),
+          backgroundColor: "rgba(156, 163, 175, 0.8)",
+          borderColor: "rgb(156, 163, 175)",
+          borderWidth: 1,
+          borderRadius: 4,
+        }
+      ]
+    };
+  };
+
+
   return (
-    <div className="w-full space-y-6">
+    <div className="w-full space-y-6" id="section-analytics-dashboard">
       {/* <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-xl p-8 text-white">
         <div className="flex items-center justify-between">
           <div>
@@ -748,7 +972,40 @@ export default function SectionAnalytics({
           <div className="text-3xl font-bold text-red-900 dark:text-red-200">{totalMetrics.avgCompletionRate}%</div>
           <p className="text-xs text-red-600 dark:text-red-400 mt-1">Completion rate</p>
         </div>
+        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/30 dark:to-indigo-800/30 rounded-xl p-6 border border-indigo-200 dark:border-indigo-700/50 shadow-lg hover:shadow-xl transition-all">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Visualization</span>
+            <BarChart className="w-5 h-5 text-indigo-500" />
+          </div>
+
+          <div className="mt-3">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setVisualizationType('radar')}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${visualizationType === 'radar'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+              >
+                Spider
+              </button>
+              <button
+                onClick={() => setVisualizationType('bar')}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${visualizationType === 'bar'
+                    ? 'bg-indigo-600 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+              >
+                Bar
+              </button>
+            </div>
+          </div>
+          <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-3">
+            {visualizationType === 'radar' ? 'Spider chart view' : 'Bar chart view'}
+          </p>
+        </div>
       </div>
+
 
       {displaySections.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center border border-gray-100 dark:border-gray-700">
@@ -760,19 +1017,35 @@ export default function SectionAnalytics({
         <div className="space-y-6">
           {displaySections.map(({ section, stats }, sectionIdx) => {
             const isExpanded = expandedSections[section.id] !== false;
+            // Add this function inside SectionAnalytics component, before the sectionsStats useMemo
+            const qualityBreakdown = getSectionQualityBreakdown(section)
 
-            const radarMetrics = {
-              mainQuestionsRate: stats.mainQuestionCount > 0 ? (stats.answeredMainQuestions / stats.mainQuestionCount) * 100 : 0,
-              followUpRate: stats.totalFollowUpCount > 0 ? (stats.answeredFollowUpQuestions / stats.totalFollowUpCount) * 100 : 0,
-              completionRate: parseFloat(stats.completionRate as any),
-              engagementRate: stats.totalResponses > 0 ? Math.min((stats.totalResponses / responses.length) * 100, 100) : 0,
-              responseAverage: Math.min(parseFloat(stats.avgResponsesPerQuestion as any) * 20, 100),
-            };
+            // Get top 5 parameters for radar (or all if less than 5)
+            const radarParameters = qualityBreakdown.slice().map(item =>
+              item.parameterName.length > 12
+                ? item.parameterName.substring(0, 12) + "..."
+                : item.parameterName
+            );
+
+            // Calculate percentages for radar
+            const radarData = radarParameters.map((_, index) => {
+              if (index < qualityBreakdown.length) {
+                const item = qualityBreakdown[index];
+                const total = item.yes + item.no + item.na;
+                if (total > 0) {
+                  // Return the percentage of "Yes" responses for this parameter
+                  return (item.yes / total) * 100;
+                }
+              }
+              return 0;
+            });
+            const overallQuality = calculateOverallQuality(qualityBreakdown);
+            const noParamData = qualityBreakdown.length === 0;
 
             return (
               <div
                 key={section.id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-all"
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-all" id={`section-analytics-${section.id}`}
               >
                 <button
                   onClick={() => toggleSection(section.id)}
@@ -797,8 +1070,8 @@ export default function SectionAnalytics({
 
                 {isExpanded && (
                   <div className="p-8">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                      <div className="lg:col-span-2">
+                    <div className={`grid grid-cols-1 ${!noParamData ? 'lg:grid-cols-3' : ''} gap-8`}>
+                      <div className={`${!noParamData ? 'lg:col-span-1' : ''}`}>
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
                           <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700/50">
                             <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Main Q</p>
@@ -931,104 +1204,496 @@ export default function SectionAnalytics({
                           </div>
                         </div>
                       </div>
+                      {!noParamData && (<div className="lg:col-span-2 space-y-3">
+                        {/* Overall Quality Pie Chart - TOP SECTION */}
+                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                          <div className="flex flex-col lg:flex-row gap-8">
+                            {/* Pie Chart */}
+                            <div className="lg:w-1/2">
+                              <h6 className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-4 flex items-center">
+                                <Activity className="w-4 h-4 mr-2" />
+                                Overall Quality Distribution
+                              </h6>
 
-                      <div className="flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                        <div style={{ width: "100%", height: "300px" }}>
-                          <Radar
-                            data={{
-                              labels: [
-                                "Main Q Rate",
-                                "Follow-up Rate",
-                                "Completion",
-                                "Engagement",
-                                "Avg Response",
-                              ],
-                              datasets: [
-                                {
-                                  label: section.title,
-                                  data: [
-                                    radarMetrics.mainQuestionsRate,
-                                    radarMetrics.followUpRate,
-                                    radarMetrics.completionRate,
-                                    radarMetrics.engagementRate,
-                                    radarMetrics.responseAverage,
+                              <div style={{ width: "100%", height: "200px" }} id={`section-pie-chart-${section.id}`}>
+                                <Pie
+                                  data={{
+                                    labels: ["Yes", "No", "N/A"],
+                                    datasets: [
+                                      {
+                                        data: [
+                                          overallQuality.totalYes,
+                                          overallQuality.totalNo,
+                                          overallQuality.totalNA
+                                        ],
+                                        backgroundColor: [
+                                          "rgba(34, 197, 94, 0.8)", // Green for Yes
+                                          "rgba(239, 68, 68, 0.8)", // Red for No
+                                          "rgba(156, 163, 175, 0.8)" // Gray for N/A
+                                        ],
+                                        borderColor: [
+                                          "rgb(34, 197, 94)",
+                                          "rgb(239, 68, 68)",
+                                          "rgb(156, 163, 175)"
+                                        ],
+                                        borderWidth: 2,
+                                        hoverOffset: 15
+                                      }
+                                    ]
+                                  }}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    plugins: {
+
+                                      legend: {
+
+                                        position: "right",
+                                        labels: {
+                                          color: document.documentElement.classList.contains("dark")
+                                            ? "#e5e7eb"
+                                            : "#374151",
+                                          font: {
+                                            size: 12
+                                          },
+                                          padding: 20
+                                        }
+                                      },
+                                      tooltip: {
+                                        callbacks: {
+                                          label: function (context) {
+                                            const label = context.label || '';
+                                            const value = context.raw || 0;
+                                            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                                            return `${label}: ${value} (${percentage}%)`;
+                                          }
+                                        }
+                                      },
+                                      datalabels: {
+                                        color: "#fff",
+                                        font: {
+                                          weight: "bold",
+                                          size: 12
+                                        },
+                                        formatter: (value, context) => {
+                                          const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                          const percentage = total > 0 ? ((value / total) * 100) : 0;
+
+                                          // Hide if percentage is 0 or less than 0.1%
+                                          if (percentage < 0.1) return null;
+
+                                          return `${percentage.toFixed(1)}%`;
+                                        }
+                                      }
+                                    }
+                                  }}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Stats Cards */}
+                            <div className="lg:w-1/2">
+                              <h6 className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-4 flex items-center">
+                                <BarChart3 className="w-4 h-4 mr-2" />
+                                Overall Quality Metrics
+                              </h6>
+                              <div className="grid grid-cols-3 gap-4">
+                                <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-lg p-4 border border-green-200 dark:border-green-700">
+                                  <div className="text-center">
+                                    <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+                                      {overallQuality.percentages.yes}%
+                                    </div>
+                                    <div className="text-sm font-semibold text-green-600 dark:text-green-400 mt-1">Yes</div>
+                                    <div className="text-xs text-green-500 dark:text-green-500 mt-1">
+                                      {overallQuality.totalYes} responses
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 rounded-lg p-4 border border-red-200 dark:border-red-700">
+                                  <div className="text-center">
+                                    <div className="text-2xl font-bold text-red-700 dark:text-red-300">
+                                      {overallQuality.percentages.no}%
+                                    </div>
+                                    <div className="text-sm font-semibold text-red-600 dark:text-red-400 mt-1">No</div>
+                                    <div className="text-xs text-red-500 dark:text-red-500 mt-1">
+                                      {overallQuality.totalNo} responses
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-900/30 dark:to-slate-900/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                                  <div className="text-center">
+                                    <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">
+                                      {overallQuality.percentages.na}%
+                                    </div>
+                                    <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mt-1">N/A</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                      {overallQuality.totalNA} responses
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Summary Card */}
+                                <div className="col-span-3 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700 mt-2">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                                        Total Responses
+                                      </div>
+                                      <div className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-1">
+                                        {overallQuality.totalYes + overallQuality.totalNo + overallQuality.totalNA}
+                                      </div>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-sm text-blue-600 dark:text-blue-400">
+                                        {qualityBreakdown.length} Parameters
+                                      </div>
+                                      <div className="text-xs text-blue-500 dark:text-blue-500">
+                                        {overallQuality.totalResponses} questions
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Radar Chart - BOTTOM SECTION */}
+                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center justify-between mb-4">
+                            <h6 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center">
+                              <Target className="w-4 h-4 mr-2" />
+                              Parameter-wise Quality Breakdown
+                            </h6>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-gray-500 dark:text-gray-400">View:</span>
+                              <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                                <button
+                                  onClick={() => setVisualizationType('radar')}
+                                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${visualizationType === 'radar'
+                                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                    }`}
+                                >
+                                  Spider
+                                </button>
+                                <button
+                                  onClick={() => setVisualizationType('bar')}
+                                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${visualizationType === 'bar'
+                                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                    }`}
+                                >
+                                  Bar
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ width: "100%", height: "300px" }} id={`section-visualization-${section.id}`}>
+                            {visualizationType === 'radar' ? (
+                              <Radar
+                                data={{
+                                  labels: qualityBreakdown.map(item =>
+                                    item.parameterName.length > 15
+                                      ? item.parameterName.substring(0, 15) + "..."
+                                      : item.parameterName
+                                  ),
+                                  datasets: [
+                                    {
+                                      label: "Yes %",
+                                      data: qualityBreakdown.map(item => {
+                                        const total = item.yes + item.no + item.na;
+                                        return total > 0 ? (item.yes / total) * 100 : 0;
+                                      }),
+                                      borderColor: "rgb(34, 197, 94)",
+                                      backgroundColor: "rgba(34, 197, 94, 0.1)",
+                                      pointBackgroundColor: "rgb(34, 197, 94)",
+                                      pointBorderColor: "#fff",
+                                      pointHoverBackgroundColor: "#fff",
+                                      pointHoverBorderColor: "rgb(34, 197, 94)",
+                                      pointRadius: 4,
+                                      pointHoverRadius: 6,
+                                    },
+                                    {
+                                      label: "No %",
+                                      data: qualityBreakdown.map(item => {
+                                        const total = item.yes + item.no + item.na;
+                                        return total > 0 ? (item.no / total) * 100 : 0;
+                                      }),
+                                      borderColor: "rgb(239, 68, 68)",
+                                      backgroundColor: "rgba(239, 68, 68, 0.1)",
+                                      pointBackgroundColor: "rgb(239, 68, 68)",
+                                      pointBorderColor: "#fff",
+                                      pointHoverBackgroundColor: "#fff",
+                                      pointHoverBorderColor: "rgb(239, 68, 68)",
+                                      pointRadius: 4,
+                                      pointHoverRadius: 6,
+                                    },
+                                    {
+                                      label: "N/A %",
+                                      data: qualityBreakdown.map(item => {
+                                        const total = item.yes + item.no + item.na;
+                                        return total > 0 ? (item.na / total) * 100 : 0;
+                                      }),
+                                      borderColor: "rgb(156, 163, 175)",
+                                      backgroundColor: "rgba(156, 163, 175, 0.1)",
+                                      pointBackgroundColor: "rgb(156, 163, 175)",
+                                      pointBorderColor: "#fff",
+                                      pointHoverBackgroundColor: "#fff",
+                                      pointHoverBorderColor: "rgb(156, 163, 175)",
+                                      pointRadius: 4,
+                                      pointHoverRadius: 6,
+                                    }
                                   ],
-                                  borderColor: "rgb(59, 130, 246)",
-                                  backgroundColor: "rgba(59, 130, 246, 0.15)",
-                                  pointBackgroundColor: "rgb(59, 130, 246)",
-                                  pointBorderColor: "#fff",
-                                  pointHoverBackgroundColor: "#fff",
-                                  pointHoverBorderColor: "rgb(59, 130, 246)",
-                                  pointRadius: 4,
-                                  pointHoverRadius: 6,
-                                },
-                              ],
-                            }}
-                            options={{
-                              responsive: true,
-                              maintainAspectRatio: false,
-                              plugins: {
-                                legend: {
-                                  display: true,
-                                  position: "bottom",
-                                  labels: {
-                                    color: document.documentElement.classList.contains("dark")
-                                      ? "#e5e7eb"
-                                      : "#374151",
-                                    font: {
-                                      size: 12,
-                                      weight: "600",
+                                }}
+                                options={{
+                                  responsive: true,
+                                  maintainAspectRatio: false,
+                                  plugins: {
+                                    datalabels: {
+                                      display: false,
+                                    },
+                                    legend: {
+                                      display: true,
+                                      position: "bottom",
+                                      labels: {
+                                        color: document.documentElement.classList.contains("dark")
+                                          ? "#e5e7eb"
+                                          : "#374151",
+                                        font: {
+                                          size: 11,
+                                          weight: "600",
+                                        },
+                                      },
+                                    },
+                                    tooltip: {
+                                      backgroundColor: "rgba(0, 0, 0, 0.8)",
+                                      padding: 10,
+                                      titleFont: { size: 12, weight: "bold" },
+                                      bodyFont: { size: 11 },
+                                      callbacks: {
+                                        label: function (context: any) {
+                                          const label = context.dataset.label;
+                                          const value = context.parsed.r.toFixed(2);
+                                          const paramIndex = context.dataIndex;
+
+                                          if (paramIndex < qualityBreakdown.length) {
+                                            const item = qualityBreakdown[paramIndex];
+                                            const total = item.yes + item.no + item.na;
+
+                                            if (label === "Yes %") {
+                                              return `Yes: ${item.yes}/${total} (${value}%)`;
+                                            } else if (label === "No %") {
+                                              return `No: ${item.no}/${total} (${value}%)`;
+                                            } else if (label === "N/A %") {
+                                              return `N/A: ${item.na}/${total} (${value}%)`;
+                                            }
+                                          }
+
+                                          return `${label}: ${value}%`;
+                                        },
+                                        title: function (tooltipItems: any[]) {
+                                          const paramIndex = tooltipItems[0].dataIndex;
+                                          if (paramIndex < qualityBreakdown.length) {
+                                            return qualityBreakdown[paramIndex].parameterName;
+                                          }
+                                          return "";
+                                        }
+                                      },
                                     },
                                   },
-                                },
-                                tooltip: {
-                                  backgroundColor: "rgba(0, 0, 0, 0.8)",
-                                  padding: 12,
-                                  titleFont: { size: 13, weight: "bold" },
-                                  bodyFont: { size: 12 },
-                                  borderColor: "rgba(59, 130, 246, 0.5)",
-                                  borderWidth: 1,
-                                  callbacks: {
-                                    label: function (context: any) {
-                                      return `${context.label}: ${context.parsed.r.toFixed(1)}%`;
+                                  scales: {
+                                    r: {
+                                      beginAtZero: true,
+                                      max: 100,
+                                      ticks: {
+                                        stepSize: 20,
+                                        color: document.documentElement.classList.contains("dark")
+                                          ? "#9ca3af"
+                                          : "#9ca3af",
+                                        font: {
+                                          size: 10,
+                                        },
+                                        callback: function (value) {
+                                          return value + '%';
+                                        }
+                                      },
+                                      grid: {
+                                        color: document.documentElement.classList.contains("dark")
+                                          ? "rgba(107, 114, 128, 0.2)"
+                                          : "rgba(209, 213, 219, 0.3)",
+                                        lineWidth: 1,
+                                      },
+                                      pointLabels: {
+                                        color: document.documentElement.classList.contains("dark")
+                                          ? "#e5e7eb"
+                                          : "#1f2937",
+                                        font: {
+                                          size: 9,
+                                          weight: "600",
+                                        },
+                                        padding: 8,
+                                      },
+                                      angleLines: {
+                                        color: document.documentElement.classList.contains("dark")
+                                          ? "rgba(107, 114, 128, 0.2)"
+                                          : "rgba(209, 213, 219, 0.3)",
+                                      },
                                     },
                                   },
-                                },
-                              },
-                              scales: {
-                                r: {
-                                  beginAtZero: true,
-                                  max: 100,
-                                  ticks: {
-                                    stepSize: 20,
-                                    color: document.documentElement.classList.contains("dark")
-                                      ? "#9ca3af"
-                                      : "#9ca3af",
-                                    font: {
-                                      size: 11,
+                                }}
+                              />
+                            ) : (
+                              <Bar
+                                data={prepareBarChartData(qualityBreakdown)}
+                                options={{
+                                  responsive: true,
+                                  maintainAspectRatio: false,
+                                  indexAxis: 'y',
+                                  plugins: {
+                                    datalabels: {
+                                      display: false,
+                                    },
+                                    legend: {
+                                      display: true,
+                                      position: "bottom",
+                                      labels: {
+                                        color: document.documentElement.classList.contains("dark")
+                                          ? "#e5e7eb"
+                                          : "#374151",
+                                        font: {
+                                          size: 11,
+                                          weight: "600",
+                                        },
+                                      },
+                                    },
+                                    tooltip: {
+                                      backgroundColor: "rgba(0, 0, 0, 0.8)",
+                                      padding: 10,
+                                      titleFont: { size: 12, weight: "bold" },
+                                      bodyFont: { size: 11 },
+                                      callbacks: {
+                                        label: function (context: any) {
+                                          const label = context.dataset.label;
+                                          const value = context.parsed.x.toFixed(2);
+                                          const paramIndex = context.dataIndex;
+
+                                          if (paramIndex < qualityBreakdown.length) {
+                                            const sortedData = [...qualityBreakdown].sort((a, b) => {
+                                              const totalA = a.yes + a.no + a.na;
+                                              const totalB = b.yes + b.no + b.na;
+                                              const percentA = totalA > 0 ? (a.yes / totalA) * 100 : 0;
+                                              const percentB = totalB > 0 ? (b.yes / totalB) * 100 : 0;
+                                              return percentB - percentA;
+                                            });
+                                            const item = sortedData[paramIndex];
+                                            const total = item.yes + item.no + item.na;
+
+                                            if (label === "Yes %") {
+                                              return `Yes: ${item.yes}/${total} (${value}%)`;
+                                            } else if (label === "No %") {
+                                              return `No: ${item.no}/${total} (${value}%)`;
+                                            } else if (label === "N/A %") {
+                                              return `N/A: ${item.na}/${total} (${value}%)`;
+                                            }
+                                          }
+
+                                          return `${label}: ${value}%`;
+                                        },
+                                        title: function (tooltipItems: any[]) {
+                                          const paramIndex = tooltipItems[0].dataIndex;
+                                          const sortedData = [...qualityBreakdown].sort((a, b) => {
+                                            const totalA = a.yes + a.no + a.na;
+                                            const totalB = b.yes + b.no + b.na;
+                                            const percentA = totalA > 0 ? (a.yes / totalA) * 100 : 0;
+                                            const percentB = totalB > 0 ? (b.yes / totalB) * 100 : 0;
+                                            return percentB - percentA;
+                                          });
+                                          if (paramIndex < sortedData.length) {
+                                            return sortedData[paramIndex].parameterName;
+                                          }
+                                          return "";
+                                        }
+                                      },
                                     },
                                   },
-                                  grid: {
-                                    color: document.documentElement.classList.contains("dark")
-                                      ? "rgba(107, 114, 128, 0.2)"
-                                      : "rgba(209, 213, 219, 0.5)",
-                                  },
-                                  pointLabels: {
-                                    color: document.documentElement.classList.contains("dark")
-                                      ? "#e5e7eb"
-                                      : "#1f2937",
-                                    font: {
-                                      size: 11,
-                                      weight: "600",
+                                  scales: {
+                                    x: {
+                                      beginAtZero: true,
+                                      max: 100,
+                                      ticks: {
+                                        stepSize: 20,
+                                        color: document.documentElement.classList.contains("dark")
+                                          ? "#9ca3af"
+                                          : "#9ca3af",
+                                        font: {
+                                          size: 10,
+                                        },
+                                        callback: function (value) {
+                                          return value + '%';
+                                        }
+                                      },
+                                      grid: {
+                                        color: document.documentElement.classList.contains("dark")
+                                          ? "rgba(107, 114, 128, 0.2)"
+                                          : "rgba(209, 213, 219, 0.3)",
+                                        lineWidth: 1,
+                                      },
+                                      title: {
+                                        display: true,
+                                        text: 'Percentage',
+                                        color: document.documentElement.classList.contains("dark")
+                                          ? "#e5e7eb"
+                                          : "#374151",
+                                        font: {
+                                          size: 11,
+                                          weight: "600",
+                                        },
+                                      }
+                                    },
+                                    y: {
+                                      ticks: {
+                                        color: document.documentElement.classList.contains("dark")
+                                          ? "#e5e7eb"
+                                          : "#1f2937",
+                                        font: {
+                                          size: 9,
+                                          weight: "600",
+                                        },
+                                        padding: 0, // Remove padding
+                                        crossAlign: 'near', // Align labels to the near side (left for y-axis)
+                                        mirror: false, // Don't mirror
+                                      },
+                                      grid: {
+                                        display: false,
+                                      },
+                                      afterFit: function (scaleInstance) {
+                                        // This ensures the labels are properly positioned
+                                        scaleInstance.paddingLeft = 0;
+                                      },
                                     },
                                   },
-                                },
-                              },
-                            }}
-                          />
+                                  layout: {
+                                    padding: {
+                                      left: 0, // Remove left padding
+                                      right: 10,
+
+
+                                    }
+                                  }
+                                }}
+                              />
+                            )}
+                          </div>
                         </div>
                       </div>
+                      )}
                     </div>
+
                   </div>
                 )}
               </div>
@@ -1038,14 +1703,14 @@ export default function SectionAnalytics({
 
       )}
       {selectedQuestion && (
-  <QuestionDetailsModal
-    question={selectedQuestion.question}
-    responses={responses}
-    sectionTitle={selectedQuestion.sectionTitle}
-    formData={selectedQuestion.formData} 
-    onClose={() => setSelectedQuestion(null)}
-  />
-)}
+        <QuestionDetailsModal
+          question={selectedQuestion.question}
+          responses={responses}
+          sectionTitle={selectedQuestion.sectionTitle}
+          formData={selectedQuestion.formData}
+          onClose={() => setSelectedQuestion(null)}
+        />
+      )}
     </div>
   );
 }

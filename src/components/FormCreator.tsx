@@ -21,6 +21,8 @@ import {
   Clipboard,
   Link as LinkIcon,
   MessageSquarePlus,
+  Download,
+  Upload,
 } from "lucide-react";
 import { apiClient } from "../api/client";
 import { questionsApi } from "../api/storage";
@@ -32,6 +34,7 @@ import { SectionBranchingConfig } from "./forms/SectionBranchingConfig";
 import { FormRoutingConfig } from "./forms/FormRoutingConfig";
 import PreviewForm from "./PreviewForm";
 import ParameterModal from "./ParameterModal";
+import { downloadFormImportTemplate, parseFormWorkbook } from "../utils/exportUtils";
 
 const YES_NO_NA_OPTIONS = ["Yes", "No", "N/A"];
 const YES_NO_NA_CORRECT = "Yes";
@@ -418,6 +421,45 @@ export default function FormCreator() {
     );
 
     return isInFollowUps;
+  };
+
+  const handleExportTemplate = () => {
+    try {
+      downloadFormImportTemplate();
+      showSuccess("Template exported successfully!", "Export Template");
+    } catch (error) {
+      console.error("Failed to export template:", error);
+      showError("Failed to export template", "Error");
+    }
+  };
+
+  const handleImportTemplate = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const importedData = await parseFormWorkbook(file);
+      
+      const newForm = {
+        title: importedData.title || "Imported Form",
+        description: importedData.description || "",
+        isVisible: true,
+        locationEnabled: true,
+        sections: importedData.sections || [],
+      };
+
+      setForm(newForm);
+      if (importedData.parametersToCreate && importedData.parametersToCreate.length > 0) {
+        setTempParameters(importedData.parametersToCreate);
+      }
+      showSuccess("Template imported successfully!", "Import Template");
+    } catch (error) {
+      console.error("Failed to import template:", error);
+      showError(
+        error instanceof Error ? error.message : "Failed to import template",
+        "Import Error"
+      );
+    }
   };
 
   // Function to load sample data for testing
@@ -2830,6 +2872,33 @@ export default function FormCreator() {
                 Load Sample Data
               </button>
               <button
+                onClick={handleExportTemplate}
+                title="Export form template to Excel"
+                className="px-5 py-2.5 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+              >
+                <Download className="w-5 h-5" />
+                Export Template
+              </button>
+              <div className="relative">
+                <button
+                  title="Import form template from Excel"
+                  className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                  onClick={(e) => {
+                    const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                    input?.click();
+                  }}
+                >
+                  <Upload className="w-5 h-5" />
+                  Import Template
+                </button>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleImportTemplate}
+                  className="hidden"
+                />
+              </div>
+              <button
                 onClick={() => setShowParameterModal(true)}
                 title="Create parameters for this form"
                 className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
@@ -3140,6 +3209,11 @@ export default function FormCreator() {
                               }`}
                             >
                               {section.description}
+                            </p>
+                          )}
+                          {section.isSubsection && section.parentSectionId && (
+                            <p className="text-xs ml-11 text-green-600 dark:text-green-400 mt-2">
+                              Merged with: <strong>{form.sections.find((s) => s.id === section.parentSectionId)?.title || "Parent Section"}</strong>
                             </p>
                           )}
                         </div>
@@ -4280,6 +4354,62 @@ export default function FormCreator() {
                                       Weightage: {Number(sectionWeightage).toFixed(1).replace(/\.0$/, "")}%
                                     </p>
                                   )}
+                                  {page.filter((s) => s.isSubsection).length > 0 && (
+                                    <div className={`text-xs mt-2 pt-2 border-t ${
+                                      isCurrent ? "border-blue-400" : "border-blue-200"
+                                    }`}>
+                                      <p className={`font-semibold mb-1 ${
+                                        isCurrent ? "text-blue-100" : "text-green-700"
+                                      }`}>
+                                        Merged:
+                                      </p>
+                                      {page.filter((s) => s.isSubsection).map((subsection) => (
+                                        <p key={subsection.id} className={`ml-2 ${
+                                          isCurrent ? "text-blue-100" : "text-green-600"
+                                        }`}>
+                                          • {subsection.title || "Subsection"}
+                                        </p>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {(() => {
+                                    const routings = [];
+                                    page.forEach((section) => {
+                                      section.questions.forEach((question) => {
+                                        if (question.branchingRules && question.branchingRules.length > 0) {
+                                          question.branchingRules.forEach((rule) => {
+                                            const targetSection = form.sections.find((s) => s.id === rule.targetSectionId);
+                                            if (targetSection) {
+                                              routings.push({
+                                                from: section.title || `Section ${pageIndex + 1}`,
+                                                option: rule.optionLabel,
+                                                to: targetSection.title || "Unknown"
+                                              });
+                                            }
+                                          });
+                                        }
+                                      });
+                                    });
+                                    
+                                    return routings.length > 0 ? (
+                                      <div className={`text-xs mt-2 pt-2 border-t ${
+                                        isCurrent ? "border-blue-400" : "border-purple-200"
+                                      }`}>
+                                        <p className={`font-semibold mb-1 ${
+                                          isCurrent ? "text-blue-100" : "text-purple-700"
+                                        }`}>
+                                          🔀 Routes:
+                                        </p>
+                                        {routings.map((routing, idx) => (
+                                          <p key={idx} className={`ml-2 text-xs leading-tight ${
+                                            isCurrent ? "text-blue-100" : "text-purple-600"
+                                          }`}>
+                                            "{routing.option}" → {routing.to}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    ) : null;
+                                  })()}
                                 </div>
                               </div>
                             </button>
