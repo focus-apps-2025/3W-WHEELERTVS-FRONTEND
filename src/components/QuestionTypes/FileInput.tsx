@@ -147,7 +147,7 @@ export default function FileInput({
   const getLocation = useCallback(async () => {
     setLocationLoading(true);
     setLocationError(null);
-    
+
     if (!navigator.geolocation) {
       setLocationError("Geolocation is not supported by your browser");
       setLocationLoading(false);
@@ -182,17 +182,44 @@ export default function FileInput({
   const startCamera = useCallback(async () => {
     try {
       setError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false,
-      });
+
+      // Try with more flexible constraints
+      const constraints = {
+        video: {
+          facingMode: { ideal: "environment" }, // Use ideal instead of exact
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
       setCameraStream(stream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
+
+      // Wait for next render cycle to ensure video element exists
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          // Explicitly play the video
+          videoRef.current.play().catch(e => {
+            console.error("Video play error:", e);
+            setError("Failed to play video: " + e.message);
+          });
+        }
+      }, 100);
+
       await getLocation();
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : "Failed to access camera";
+      console.error("Camera error:", err);
+      let errorMsg = "Failed to access camera";
+      if (err.name === "NotAllowedError") {
+        errorMsg = "Camera permission denied. Please allow camera access in browser settings.";
+      } else if (err.name === "NotFoundError") {
+        errorMsg = "No camera found on this device.";
+      } else if (err.name === "NotReadableError") {
+        errorMsg = "Camera is already in use by another application.";
+      }
       setError(errorMsg);
     }
   }, [getLocation]);
@@ -429,11 +456,10 @@ export default function FileInput({
             ← Back
           </button>
           <label
-            className={`flex flex-col items-center px-4 py-6 border-2 border-dashed rounded-lg ${
-              readOnly || uploading
+            className={`flex flex-col items-center px-4 py-6 border-2 border-dashed rounded-lg ${readOnly || uploading
                 ? "cursor-not-allowed bg-gray-100 dark:bg-gray-800"
                 : "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-            } border-gray-300 dark:border-gray-600 ${error ? "border-red-300 dark:border-red-600" : ""}`}
+              } border-gray-300 dark:border-gray-600 ${error ? "border-red-300 dark:border-red-600" : ""}`}
           >
             {uploading ? (
               <>
@@ -524,11 +550,34 @@ export default function FileInput({
                     autoPlay
                     playsInline
                     muted
-                    onLoadedMetadata={() => setVideoReady(true)}
-                    onPlay={() => setVideoReady(true)}
+                    onError={(e) => {
+                      console.error("Video error:", e);
+                      setError("Failed to load video stream");
+                    }}
+                    onLoadedMetadata={() => {
+                      console.log("Video metadata loaded");
+                      setVideoReady(true);
+                      // Force play if not already playing
+                      if (videoRef.current && videoRef.current.paused) {
+                        videoRef.current.play().catch(e => {
+                          console.error("Auto-play failed:", e);
+                        });
+                      }
+                    }}
+                    onPlay={() => {
+                      console.log("Video playing");
+                      setVideoReady(true);
+                    }}
                     className="w-full h-auto max-h-96"
+                    style={{ display: 'block' }}
                   />
                   <canvas ref={canvasRef} className="hidden" />
+                  {cameraStream && !videoReady && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black">
+                      <Loader2 className="w-8 h-8 text-white animate-spin" />
+                      <span className="ml-2 text-white">Initializing camera...</span>
+                    </div>
+                  )}
                 </div>
 
                 {location ? (
