@@ -1137,6 +1137,15 @@ export default function FormAnalyticsDashboard() {
     }));
   }, [form, responses]);
 
+  const filteredSectionsStats = useMemo(() => {
+    if (!form?.sections) return [];
+
+    return form.sections.map((section) => ({
+      section,
+      stats: getSectionStats(section, filteredResponses),
+    }));
+  }, [form, filteredResponses]);
+
   const OverallQualityPieChart = () => {
     const data = {
 
@@ -1486,15 +1495,13 @@ export default function FormAnalyticsDashboard() {
       {/* Summary Cards */}
 
 
-      {/* Response Trend and Location Heatmap - 2 Columns */}
+      {/* Response Trend and Location Heatmap - 3 Columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Location Heatmap */}
-        <div className="h-[380px]">
-          <LocationHeatmap
-            responses={responses}
-            title="Response Locations Heatmap" id="location-heatmap"
-          />
-        </div>
+        {/* Location Heatmap - Self-contained component */}
+        <LocationHeatmap
+          responses={responses}
+          title="Response Locations Heatmap" id="location-heatmap"
+        />
 
         {/* Response Trend Chart - COMPACT */}
         <div className="card p-4 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col"  >
@@ -1610,7 +1617,7 @@ export default function FormAnalyticsDashboard() {
         </div>
 
         {/* Pie Chart - COMPACT */}
-        <div className="h-[380px]">
+        <div className="card p-4 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col">
           <OverallQualityPieChart />
         </div>
       </div>
@@ -1618,12 +1625,12 @@ export default function FormAnalyticsDashboard() {
       {/* Analytics View Toggle */}
       {form && (
         <>
-          <div className="flex gap-2 mb-4">
+          <div className="flex flex-wrap gap-3 mb-6">
             <button
               onClick={() => setAnalyticsView("question")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${analyticsView === "question"
-                ? "bg-indigo-600 text-white shadow-lg"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+              className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${analyticsView === "question"
+                ? "bg-indigo-600 text-white shadow-lg hover:shadow-xl hover:bg-indigo-700"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
                 }`}
             >
               <BarChart3 className="w-4 h-4" />
@@ -1631,9 +1638,9 @@ export default function FormAnalyticsDashboard() {
             </button>
             <button
               onClick={() => setAnalyticsView("section")}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${analyticsView === "section"
-                ? "bg-indigo-600 text-white shadow-lg"
-                : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600"
+              className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${analyticsView === "section"
+                ? "bg-indigo-600 text-white shadow-lg hover:shadow-xl hover:bg-indigo-700"
+                : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
                 }`}
             >
               <FileText className="w-4 h-4" />
@@ -1665,27 +1672,26 @@ export default function FormAnalyticsDashboard() {
                           )}
                         </h3>
                         {/* ADD THIS: Question & Answer Filter Section - Side by Side */}
-                        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-blue-100 dark:border-gray-700">
-                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div>
-                              <h4 className="text-md font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                                <BarChart3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                Response Distribution by Question
-                              </h4>
-                              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                Select a question and filter by answer
-                              </p>
-                            </div>
+                        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-blue-100 dark:border-gray-700 space-y-4">
+                          <div>
+                            <h4 className="text-md font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                              <BarChart3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                              Response Distribution by Question
+                            </h4>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                              Select a question and filter by answer
+                            </p>
+                          </div>
 
-                            {/* BOTH DROPDOWNS SIDE BY SIDE */}
-                            <div className="flex flex-col md:flex-row items-start md:items-center gap-4 w-full md:w-auto">
+                          {/* BOTH DROPDOWNS SIDE BY SIDE */}
+                          <div className="flex flex-col md:flex-row items-stretch md:items-end gap-4">
                               {/* Question Dropdown - Always visible */}
-                              <div className="relative w-full md:min-w-[280px]">
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              <div className="relative flex-1 md:flex-none md:min-w-[280px]">
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
                                   Select Question
                                 </label>
                                 <select
-                                  className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 appearance-none cursor-pointer"
+                                  className="w-full px-4 py-2.5 bg-white dark:bg-gray-750 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 appearance-none cursor-pointer transition-all"
                                   value={selectedQuestionId || ""}
                                   onChange={(e) => {
                                     const questionId = e.target.value;
@@ -1711,7 +1717,7 @@ export default function FormAnalyticsDashboard() {
                                       </option>
                                     ))}
                                 </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 dark:text-gray-300 top-7">
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-600 dark:text-gray-400">
                                   <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                                     <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
                                   </svg>
@@ -1719,12 +1725,12 @@ export default function FormAnalyticsDashboard() {
                               </div>
 
                               {/* Answer Dropdown - Always visible but options change based on question */}
-                              <div className="relative w-full md:min-w-[200px]">
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              <div className="relative flex-1 md:flex-none md:min-w-[240px]">
+                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
                                   Filter by Answer
                                 </label>
                                 <select
-                                  className="w-full px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 appearance-none cursor-pointer"
+                                  className="w-full px-4 py-2.5 bg-white dark:bg-gray-750 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 appearance-none cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                   value={selectedAnswer}
                                   onChange={(e) => setSelectedAnswer(e.target.value)}
                                   disabled={!selectedQuestionId}
@@ -1827,7 +1833,7 @@ export default function FormAnalyticsDashboard() {
                                     </option>
                                   )}
                                 </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 dark:text-gray-300 top-7">
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-600 dark:text-gray-400">
                                   <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                                     <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
                                   </svg>
@@ -1836,20 +1842,18 @@ export default function FormAnalyticsDashboard() {
 
                               {/* Clear Button */}
                               {(selectedQuestionId || selectedAnswer) && (
-                                <div className="w-full md:w-auto md:mt-6">
-                                  <button
-                                    onClick={() => {
-                                      setSelectedQuestionId("");
-                                      setSelectedAnswer("");
-                                    }}
-                                    className="w-full md:w-auto px-4 py-2.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2"
-                                  >
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                    Clear Filters
-                                  </button>
-                                </div>
+                                <button
+                                  onClick={() => {
+                                    setSelectedQuestionId("");
+                                    setSelectedAnswer("");
+                                  }}
+                                  className="px-4 py-2.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                  Clear Filters
+                                </button>
                               )}
                             </div>
                           </div>
@@ -2010,27 +2014,51 @@ export default function FormAnalyticsDashboard() {
                             Show Radar Chart
                           </span>
                         </label>
+
+                        {/* Toggle Weightage Visibility Button */}
+                        {totalWeightage > 0 && (
+                          <button
+                            onClick={() => setShowWeightageColumns(!showWeightageColumns)}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                              showWeightageColumns
+                                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-700 hover:bg-indigo-200 dark:hover:bg-indigo-900/50'
+                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            }`}
+                            title={showWeightageColumns ? 'Hide weightage columns' : 'Show weightage columns'}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              {showWeightageColumns ? (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              ) : (
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              )}
+                            </svg>
+                            <span className="text-sm font-medium">
+                              {showWeightageColumns ? 'Hide' : 'Show'} Weightage
+                            </span>
+                          </button>
+                        )}
+
                         {/* Add this in the color legend/controls section, after the radar chart toggle */}
-                         {showWeightageColumns && !redistributionMode && (
-    <button
-      onClick={() => {
-        setRedistributionMode(true);
-        // Initialize temp values with current weightages
-        const initialValues: Record<string, string> = {};
-        sectionSummaryRows.forEach(row => {
-          initialValues[row.id] = row.weightage.toString();
-        });
-        setTempWeightageValues(initialValues);
-        setWeightageBalance(0);
-      }}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors"
-    >
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-      </svg>
-      Edit Weightage
-    </button>
-  )}
+                        {showWeightageColumns && !redistributionMode && (
+                          <button
+                            onClick={() => {
+                              setRedistributionMode(true);
+                              const initialValues: Record<string, string> = {};
+                              sectionSummaryRows.forEach(row => {
+                                initialValues[row.id] = row.weightage.toString();
+                              });
+                              setTempWeightageValues(initialValues);
+                              setWeightageBalance(0);
+                            }}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit Weightage
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -2655,7 +2683,6 @@ export default function FormAnalyticsDashboard() {
                         </div>
                       )}
                     </div>
-                  </div>
                 </>
               ) : (
                 <div className="card p-6 text-center text-primary-500">
@@ -2664,7 +2691,7 @@ export default function FormAnalyticsDashboard() {
               )}
 
               <div className="card p-6">
-                <SectionAnalytics question={form} responses={responses} sectionsStats={sectionsStats} />
+                <SectionAnalytics question={form} responses={filteredResponses} sectionsStats={filteredSectionsStats} />
               </div>
             </div>
           )}

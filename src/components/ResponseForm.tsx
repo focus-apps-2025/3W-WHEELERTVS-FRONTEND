@@ -122,6 +122,23 @@ const normalizeTriggerValue = (
   return value;
 };
 
+const isValidFileInput = (value: any): boolean => {
+  if (!value) return false;
+  
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && parsed.url && parsed.location) {
+        return !!parsed.url;
+      }
+    } catch {
+    }
+    return value.trim().length > 0;
+  }
+  
+  return false;
+};
+
 interface ResponseFormProps {
   questions?: Question[];
   onSubmit?: (response: Response) => void;
@@ -417,9 +434,15 @@ export default function ResponseForm({
         section.questions,
         answers
       );
-      const hasRequiredAnswers = visibleQuestions.every(
-        (q) => !q.required || answers[q.id]
-      );
+      const hasRequiredAnswers = visibleQuestions.every((q) => {
+        if (!q.required) return true;
+        
+        if (q.type === "file") {
+          return isValidFileInput(answers[q.id]);
+        }
+        
+        return answers[q.id];
+      });
       if (!hasRequiredAnswers) {
         isValid = false;
       }

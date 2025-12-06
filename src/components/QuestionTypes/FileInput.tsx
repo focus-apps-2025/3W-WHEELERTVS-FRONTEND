@@ -1,5 +1,5 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Upload, Loader2, AlertCircle, CheckCircle2, Eye, X } from "lucide-react";
+import React, { useCallback, useMemo, useRef, useState, useEffect } from "react";
+import { Upload, Loader2, AlertCircle, CheckCircle2, Eye, X, Camera, MapPin } from "lucide-react";
 import type { FollowUpQuestion } from "../../types";
 import { apiClient } from "../../api/client";
 
@@ -66,10 +66,38 @@ const isImageUrl = (fileUrl: string) => {
   if (!fileUrl) {
     return false;
   }
+  try {
+    const parsed = JSON.parse(fileUrl);
+    if (parsed.url) {
+      return isImageUrl(parsed.url);
+    }
+  } catch {
+    // Not JSON, continue with regular check
+  }
   if (fileUrl.startsWith("data:")) {
     return fileUrl.startsWith("data:image");
   }
   return /\.(png|jpg|jpeg|gif|bmp|webp|svg)$/i.test(fileUrl);
+};
+
+const parseFileValue = (fileValue: string) => {
+  try {
+    const parsed = JSON.parse(fileValue);
+    if (parsed.url && parsed.location) {
+      return {
+        type: "camera",
+        url: parsed.url,
+        location: parsed.location,
+        timestamp: parsed.timestamp,
+      };
+    }
+  } catch {
+    // Not JSON, regular file URL
+  }
+  return {
+    type: "file",
+    url: fileValue,
+  };
 };
 
 export default function FileInput({
@@ -87,7 +115,18 @@ export default function FileInput({
     timeRemaining?: number;
     speed?: number;
   } | null>(null);
+  const [uploadMode, setUploadMode] = useState<"file" | "camera" | null>(null);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [videoReady, setVideoReady] = useState(false);
+  const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [showCapturePreview, setShowCapturePreview] = useState(false);
+  const [capturedImageBlob, setCapturedImageBlob] = useState<Blob | null>(null);
+  const [capturedImageUrl, setCapturedImageUrl] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const fileName = useMemo(() => resolveFileName(value), [value]);
   const showImagePreview = useMemo(() => isImageUrl(value), [value]);
@@ -104,6 +143,172 @@ export default function FileInput({
     }
     return Array.from(new Set(values)).join(",");
   }, [question.allowedFileTypes]);
+
+  const getLocation = useCallback(async () => {
+    setLocationLoading(true);
+    setLocationError(null);
+    
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation is not supported by your browser");
+      setLocationLoading(false);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: Math.min(position.coords.accuracy, 1000),
+        });
+        setLocationLoading(false);
+      },
+      (error) => {
+        let errorMsg = "Unable to get location";
+        if (error.code === 1) {
+          errorMsg = "Location permission denied";
+        } else if (error.code === 2) {
+          errorMsg = "Location unavailable";
+        } else if (error.code === 3) {
+          errorMsg = "Location request timed out";
+        }
+        setLocationError(errorMsg);
+        setLocationLoading(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    try {
+      setError(null);
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      await getLocation();
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to access camera";
+      setError(errorMsg);
+    }
+  }, [getLocation]);
+
+  const stopCamera = useCallback(() => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+      setVideoReady(false);
+    }
+  }, [cameraStream]);
+
+  const capturePhoto = useCallback(() => {
+    if (!videoRef.current || !canvasRef.current) {
+      setError("Camera not ready");
+      return;
+    }
+
+    try {
+      setError(null);
+
+      const video = videoRef.current;
+      if (!video.srcObject || video.videoWidth === 0 || video.videoHeight === 0) {
+        setError("Video stream not ready. Please wait a moment and try again.");
+        return;
+      }
+
+      if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+        setError("Video not ready. Please wait a moment and try again.");
+        return;
+      }
+
+      const context = canvasRef.current.getContext("2d");
+      if (!context) {
+        throw new Error("Failed to get canvas context");
+      }
+
+      canvasRef.current.width = videoRef.current.videoWidth;
+      canvasRef.current.height = videoRef.current.videoHeight;
+      context.drawImage(videoRef.current, 0, 0);
+
+      canvasRef.current.toBlob((blob) => {
+        if (!blob) {
+          setError("Failed to capture image");
+          return;
+        }
+
+        setCapturedImageBlob(blob);
+        setCapturedImageUrl(URL.createObjectURL(blob));
+        setShowCapturePreview(true);
+      }, "image/jpeg", 0.9);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to capture image";
+      setError(errorMsg);
+    }
+  }, []);
+
+  const uploadCapturedImage = useCallback(async () => {
+    if (!capturedImageBlob || !location) {
+      setError("Image or location not ready");
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setError(null);
+
+      const file = new File([capturedImageBlob], `camera-${Date.now()}.jpg`, {
+        type: "image/jpeg",
+      });
+
+      const result = await apiClient.uploadFile(
+        file,
+        "form",
+        question.id,
+        (progress) => {
+          setUploadProgress(progress);
+        }
+      );
+
+      const uploadedUrl = apiClient.resolveUploadedFileUrl(result);
+
+      if (!uploadedUrl) {
+        throw new Error("File upload did not return a valid URL");
+      }
+
+      const metadata = {
+        url: uploadedUrl,
+        location: {
+          latitude: location.lat,
+          longitude: location.lng,
+          accuracy: location.accuracy,
+        },
+        timestamp: new Date().toISOString(),
+      };
+
+      onChange(JSON.stringify(metadata));
+      stopCamera();
+      setShowCapturePreview(false);
+      setCapturedImageBlob(null);
+      setCapturedImageUrl(null);
+      setUploadMode(null);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to upload image";
+      setError(errorMsg);
+    } finally {
+      setUploading(false);
+      setUploadProgress(null);
+    }
+  }, [capturedImageBlob, location, question.id, onChange, stopCamera]);
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+    };
+  }, [stopCamera]);
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -191,66 +396,222 @@ export default function FileInput({
 
   return (
     <div className="space-y-4">
-      <label
-        className={`flex flex-col items-center px-4 py-6 border-2 border-dashed rounded-lg ${
-          readOnly || uploading
-            ? "cursor-not-allowed bg-gray-100 dark:bg-gray-800"
-            : "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-        } border-gray-300 dark:border-gray-600 ${error ? "border-red-300 dark:border-red-600" : ""}`}
-      >
-        {uploading ? (
-          <>
-            <Loader2 className="w-8 h-8 text-blue-400 mb-2 animate-spin" />
-            <div className="text-center space-y-2">
-              <span className="text-sm text-blue-600 dark:text-blue-400">
-                Uploading file...
-              </span>
-              {uploadProgress && (
-                <div className="space-y-2">
-                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${uploadProgress.percentage}%` }}
-                    ></div>
-                  </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
-                    <div className="flex justify-between">
-                      <span>{uploadProgress.percentage}%</span>
-                      <span>
-                        {uploadProgress.timeRemaining
-                          ? `${Math.floor(uploadProgress.timeRemaining / 60)}:${(uploadProgress.timeRemaining % 60).toString().padStart(2, '0')} remaining`
-                          : 'Calculating...'
-                        }
-                      </span>
+      {!uploadMode ? (
+        <>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setUploadMode("file")}
+              disabled={readOnly}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors border border-blue-300 dark:border-blue-700"
+            >
+              <Upload className="w-4 h-4" />
+              <span className="text-sm font-medium">Manual Upload</span>
+            </button>
+            {question.allowedFileTypes?.includes("image") && (
+              <button
+                onClick={() => setUploadMode("camera")}
+                disabled={readOnly}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors border border-green-300 dark:border-green-700"
+              >
+                <Camera className="w-4 h-4" />
+                <span className="text-sm font-medium">Camera Capture</span>
+              </button>
+            )}
+          </div>
+        </>
+      ) : uploadMode === "file" ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setUploadMode(null)}
+            className="text-sm text-blue-600 dark:text-blue-400 hover:underline mb-2"
+          >
+            ← Back
+          </button>
+          <label
+            className={`flex flex-col items-center px-4 py-6 border-2 border-dashed rounded-lg ${
+              readOnly || uploading
+                ? "cursor-not-allowed bg-gray-100 dark:bg-gray-800"
+                : "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+            } border-gray-300 dark:border-gray-600 ${error ? "border-red-300 dark:border-red-600" : ""}`}
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="w-8 h-8 text-blue-400 mb-2 animate-spin" />
+                <div className="text-center space-y-2">
+                  <span className="text-sm text-blue-600 dark:text-blue-400">
+                    Uploading file...
+                  </span>
+                  {uploadProgress && (
+                    <div className="space-y-2">
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${uploadProgress.percentage}%` }}
+                        ></div>
+                      </div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                        <div className="flex justify-between">
+                          <span>{uploadProgress.percentage}%</span>
+                          <span>
+                            {uploadProgress.timeRemaining
+                              ? `${Math.floor(uploadProgress.timeRemaining / 60)}:${(uploadProgress.timeRemaining % 60).toString().padStart(2, '0')} remaining`
+                              : 'Calculating...'
+                            }
+                          </span>
+                        </div>
+                        <div className="text-center">
+                          {(uploadProgress.loaded / 1024 / 1024).toFixed(1)}MB / {(uploadProgress.total / 1024 / 1024).toFixed(1)}MB
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      {(uploadProgress.loaded / 1024 / 1024).toFixed(1)}MB / {(uploadProgress.total / 1024 / 1024).toFixed(1)}MB
-                    </div>
-                  </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <>
-            <Upload className="w-8 h-8 text-gray-400 mb-2" />
-            <span className="text-sm text-gray-500 dark:text-gray-500">
-              {readOnly
-                ? "File upload disabled"
-                : "Click to upload or drag and drop"}
-            </span>
-          </>
-        )}
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          onChange={handleFileChange}
-          disabled={readOnly || uploading}
-          className="hidden"
-          required={question.required && !value}
-        />
-      </label>
+              </>
+            ) : (
+              <>
+                <Upload className="w-8 h-8 text-gray-400 mb-2" />
+                <span className="text-sm text-gray-500 dark:text-gray-500">
+                  {readOnly
+                    ? "File upload disabled"
+                    : "Click to upload or drag and drop"}
+                </span>
+              </>
+            )}
+            <input
+              ref={inputRef}
+              type="file"
+              accept={accept}
+              onChange={handleFileChange}
+              disabled={readOnly || uploading}
+              className="hidden"
+              required={question.required && !value}
+            />
+          </label>
+        </>
+      ) : uploadMode === "camera" ? (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              stopCamera();
+              setUploadMode(null);
+              setLocation(null);
+              setLocationError(null);
+              setVideoReady(false);
+            }}
+            className="text-sm text-green-600 dark:text-green-400 hover:underline mb-2"
+          >
+            ← Back
+          </button>
+
+          {!cameraStream ? (
+            <button
+              type="button"
+              onClick={startCamera}
+              disabled={uploading || readOnly}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              <Camera className="w-4 h-4" />
+              Start Camera
+            </button>
+          ) : (
+            <>
+              <div className="space-y-4">
+                <div className="relative bg-black rounded-lg overflow-hidden">
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    muted
+                    onLoadedMetadata={() => setVideoReady(true)}
+                    onPlay={() => setVideoReady(true)}
+                    className="w-full h-auto max-h-96"
+                  />
+                  <canvas ref={canvasRef} className="hidden" />
+                </div>
+
+                {location ? (
+                  <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                    <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                        Location Captured
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                        <strong>Latitude:</strong> {location.lat.toFixed(6)}
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        <strong>Longitude:</strong> {location.lng.toFixed(6)}
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        <strong>Accuracy:</strong> ±{location.accuracy.toFixed(1)}m
+                      </p>
+                    </div>
+                  </div>
+                ) : locationLoading ? (
+                  <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                    <Loader2 className="w-5 h-5 text-yellow-600 dark:text-yellow-400 animate-spin flex-shrink-0" />
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                      Getting your location...
+                    </p>
+                  </div>
+                ) : locationError ? (
+                  <div className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
+                        {locationError}
+                      </p>
+                      <button
+                        onClick={() => getLocation()}
+                        className="text-xs text-yellow-700 dark:text-yellow-300 hover:underline mt-1 font-medium"
+                      >
+                        Retry Location
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      stopCamera();
+                      setUploadMode(null);
+                      setLocation(null);
+                      setLocationError(null);
+                      setVideoReady(false);
+                    }}
+                    disabled={uploading}
+                    className="flex-1 px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={capturePhoto}
+                    disabled={uploading || !location || !videoReady}
+                    className="flex-1 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
+                  >
+                    {showCapturePreview ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Processing...
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-4 h-4" />
+                        Capture
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </>
+      ) : null}
 
       {error && (
         <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg">
@@ -259,49 +620,176 @@ export default function FileInput({
         </div>
       )}
 
-      {value ? (
-        <div className="space-y-3">
-          <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
-            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                {fileName || "Uploaded file"}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {showImagePreview ? "Image uploaded" : "File uploaded successfully"}
-              </p>
+      {value ? (() => {
+        const fileData = parseFileValue(value);
+        const imageUrl = fileData.type === "camera" ? fileData.url : value;
+        return (
+          <div className="space-y-3">
+            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                  {fileName || "Uploaded file"}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {fileData.type === "camera" ? "Camera captured" : showImagePreview ? "Image uploaded" : "File uploaded successfully"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={imageUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-900/40 dark:border-blue-700"
+                >
+                  <Eye className="w-4 h-4" />
+                  View
+                </a>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveFile}
+                    className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 dark:text-red-300 dark:bg-red-900/40 dark:border-red-700"
+                  >
+                    <X className="w-4 h-4" />
+                    Remove
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <a
-                href={value}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-900/40 dark:border-blue-700"
-              >
-                <Eye className="w-4 h-4" />
-                View
-              </a>
-              {!readOnly && (
+
+            {fileData.type === "camera" && fileData.location && (
+              <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                    Location Metadata
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                    <strong>Latitude:</strong> {fileData.location.latitude.toFixed(6)}
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    <strong>Longitude:</strong> {fileData.location.longitude.toFixed(6)}
+                  </p>
+                  <p className="text-xs text-blue-700 dark:text-blue-300">
+                    <strong>Accuracy:</strong> ±{fileData.location.accuracy.toFixed(1)}m
+                  </p>
+                  {fileData.timestamp && (
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                      <strong>Captured:</strong> {new Date(fileData.timestamp).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {showImagePreview ? (
+              <img
+                src={imageUrl}
+                alt={fileName || "Uploaded file"}
+                className="max-w-full h-auto rounded-lg max-h-64 border border-gray-200 dark:border-gray-700"
+              />
+            ) : null}
+          </div>
+        );
+      })() : null}
+
+      {showCapturePreview && capturedImageUrl && (
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-auto">
+            <div className="p-6 space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">Review Captured Image</h3>
                 <button
                   type="button"
-                  onClick={handleRemoveFile}
-                  className="inline-flex items-center gap-1 px-3 py-2 text-xs font-semibold text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 dark:text-red-300 dark:bg-red-900/40 dark:border-red-700"
+                  onClick={() => {
+                    setShowCapturePreview(false);
+                    setCapturedImageUrl(null);
+                  }}
+                  className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                 >
-                  <X className="w-4 h-4" />
-                  Remove
+                  ×
                 </button>
-              )}
+              </div>
+
+              <div className="flex flex-col items-center gap-4">
+                <img
+                  src={capturedImageUrl}
+                  alt="Captured preview"
+                  className="max-w-full h-auto rounded-lg max-h-96 border border-gray-200 dark:border-gray-700"
+                />
+
+                {location && (
+                  <div className="w-full flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                    <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                        Location Captured
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                        <strong>Latitude:</strong> {location.lat.toFixed(6)}
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        <strong>Longitude:</strong> {location.lng.toFixed(6)}
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300">
+                        <strong>Accuracy:</strong> ±{location.accuracy.toFixed(1)}m
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {uploading && uploadProgress && (
+                  <div className="w-full space-y-2">
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${uploadProgress.percentage}%` }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                      Uploading... {uploadProgress.percentage}%
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCapturePreview(false);
+                    setCapturedImageUrl(null);
+                    setVideoReady(true);
+                  }}
+                  disabled={uploading}
+                  className="px-4 py-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 disabled:opacity-50 transition-colors font-medium"
+                >
+                  Retake
+                </button>
+                <button
+                  type="button"
+                  onClick={uploadCapturedImage}
+                  disabled={uploading}
+                  className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
+                >
+                  {uploading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      OK
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
-          {showImagePreview ? (
-            <img
-              src={value}
-              alt={fileName || "Uploaded file"}
-              className="max-w-full h-auto rounded-lg max-h-64 border border-gray-200 dark:border-gray-700"
-            />
-          ) : null}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

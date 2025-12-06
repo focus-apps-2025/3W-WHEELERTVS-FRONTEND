@@ -9,7 +9,6 @@ import { NotificationProvider } from "./context/NotificationContext";
 import { migrateLocalStorageForms } from "./utils/migrateLocalStorage";
 import "./index.css";
 
-// Run localStorage migration on app startup
 migrateLocalStorageForms();
 
 createRoot(document.getElementById("root")!).render(

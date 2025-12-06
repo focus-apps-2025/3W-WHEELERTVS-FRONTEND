@@ -25,7 +25,7 @@ import {
   ChevronDown,
   MapPin,
 } from "lucide-react";
-import { Bar, Line, Pie } from "react-chartjs-2";
+import { Bar, Line, Pie, Radar } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -38,6 +38,7 @@ import {
   Legend,
   Filler,
   ArcElement,
+  RadialLinearScale,
 } from "chart.js";
 import type { ActiveElement } from "chart.js";
 import { apiClient } from "../api/client";
@@ -61,7 +62,8 @@ ChartJS.register(
   Tooltip,
   Legend,
   Filler,
-  ArcElement
+  ArcElement,
+  RadialLinearScale
 );
 
 function formatSectionLabel(label: string, maxLength = 20): string {
@@ -884,24 +886,45 @@ const handleCancelWeightageEdit = () => {
           data: filteredSectionStats.map((stat) =>
             calculatePercentage(stat.yes, stat.total)
           ),
-          backgroundColor: "#1d4ed8",
-          borderRadius: 4,
+          borderColor: "#1d4ed8",
+          backgroundColor: "rgba(29, 78, 216, 0.25)",
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: "#1d4ed8",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
+          pointHoverRadius: 6,
+          tension: 0.4,
         },
         {
           label: "No",
           data: filteredSectionStats.map((stat) =>
             calculatePercentage(stat.no, stat.total)
           ),
-          backgroundColor: "#3b82f6",
-          borderRadius: 4,
+          borderColor: "#3b82f6",
+          backgroundColor: "rgba(59, 130, 246, 0.25)",
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: "#3b82f6",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
+          pointHoverRadius: 6,
+          tension: 0.4,
         },
         {
           label: "N/A",
           data: filteredSectionStats.map((stat) =>
             calculatePercentage(stat.na, stat.total)
           ),
-          backgroundColor: "#93c5fd",
-          borderRadius: 4,
+          borderColor: "#93c5fd",
+          backgroundColor: "rgba(147, 197, 253, 0.25)",
+          borderWidth: 2,
+          pointRadius: 4,
+          pointBackgroundColor: "#93c5fd",
+          pointBorderColor: "#fff",
+          pointBorderWidth: 2,
+          pointHoverRadius: 6,
+          tension: 0.4,
         },
       ],
     };
@@ -909,16 +932,9 @@ const handleCancelWeightageEdit = () => {
 
   const sectionChartOptions = useMemo(
     () => ({
-      indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
-      layout: {
-        padding: { top: 16, right: 32, bottom: 16, left: 8 },
-      },
       plugins: {
-        datalabels: {
-          color: "#FFFFFF",
-        },
         legend: {
           position: "bottom",
           labels: {
@@ -947,43 +963,31 @@ const handleCancelWeightageEdit = () => {
               return filteredSectionStats[index]?.title || "";
             },
             label: (context: any) => {
-              const value = context.parsed?.x ?? 0;
+              const value = context.parsed?.r ?? 0;
               return `${context.dataset.label}: ${value.toFixed(1)}%`;
             },
           },
         },
       },
       scales: {
-        x: {
+        r: {
           beginAtZero: true,
           max: 100,
-          stacked: true,
           ticks: {
             callback: (value: any) => `${value}%`,
-            color: "#374151",
-          },
-          title: {
-            display: true,
-            text: "Percentage",
-            color: "#374151",
+            color: document.documentElement.classList.contains("dark")
+              ? "#d1d5db"
+              : "#374151",
           },
           grid: {
-            color: "#e5e7eb",
+            color: document.documentElement.classList.contains("dark")
+              ? "rgba(209, 213, 219, 0.1)"
+              : "rgba(229, 231, 235, 0.5)",
           },
-        },
-        y: {
-          stacked: true,
-          ticks: {
-            autoSkip: false,
-            color: "#374151",
-          },
-          title: {
-            display: true,
-            text: "Sections",
-            color: "#374151",
-          },
-          grid: {
-            color: "#e5e7eb",
+          angleLines: {
+            color: document.documentElement.classList.contains("dark")
+              ? "rgba(209, 213, 219, 0.1)"
+              : "rgba(229, 231, 235, 0.5)",
           },
         },
       },
@@ -991,7 +995,7 @@ const handleCancelWeightageEdit = () => {
     [filteredSectionStats]
   );
 
-  const sectionChartHeight = Math.max(320, filteredSectionStats.length * 56);
+  const sectionChartHeight = 450;
 
   const formatPercentageValue = (value: number) =>
     `${Number.isFinite(value) ? value.toFixed(1) : "0.0"}%`;
@@ -3287,8 +3291,8 @@ const handleCancelWeightageEdit = () => {
 
 
                           {/* Charts Section */}
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div className="bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 dark:from-gray-800 dark:via-blue-900/10 dark:to-indigo-900/10 p-8 rounded-3xl shadow-2xl border border-blue-200/50 dark:border-blue-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm">
+                          <div className={`grid gap-8 ${showWeightageColumns ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+                            <div className={`bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 dark:from-gray-800 dark:via-blue-900/10 dark:to-indigo-900/10 p-8 rounded-3xl shadow-2xl border border-blue-200/50 dark:border-blue-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm ${!showWeightageColumns ? 'lg:max-w-3xl mx-auto w-full' : ''}`}>
                               <div className="flex items-center justify-between mb-8">
                                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
                                   <div className="p-2 bg-blue-500/20 rounded-lg mr-4">
@@ -3318,11 +3322,11 @@ const handleCancelWeightageEdit = () => {
                                 </div>
                               </div>
                               <div
-                                className="w-full"
-                                style={{ height: sectionChartHeight }}
+                                className="w-full flex items-center justify-center"
+                                style={{ height: sectionChartHeight, minHeight: "400px" }}
                                 id="section-performance-chart"
                               >
-                                <Bar
+                                <Radar
                                   data={sectionChartData}
                                   options={{
                                     ...sectionChartOptions,
@@ -3340,26 +3344,12 @@ const handleCancelWeightageEdit = () => {
                                         },
                                       },
                                     },
-                                    onClick: (_event, elements) => {
-                                      const firstElement = elements[0] as
-                                        | ActiveElement
-                                        | undefined;
-                                      if (!firstElement) {
-                                        return;
-                                      }
-                                      const sectionId =
-                                        filteredSectionStats[firstElement.index]
-                                          ?.id;
-                                      if (sectionId) {
-                                        setPendingSectionId(sectionId);
-                                        setViewMode("responses");
-                                      }
-                                    },
                                   }}
                                 />
                               </div>
                             </div>
 
+                            {showWeightageColumns && (
                             <div className="bg-gradient-to-br from-white via-green-50/30 to-emerald-50/30 dark:from-gray-800 dark:via-green-900/10 dark:to-emerald-900/10 p-8 rounded-3xl shadow-2xl border border-green-200/50 dark:border-green-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm">
                               <div className="flex items-center justify-between mb-8">
                                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
@@ -3416,6 +3406,7 @@ const handleCancelWeightageEdit = () => {
                                 />
                               </div>
                             </div>
+                            )}
                           </div>
 
                           {/* Section-wise Breakdown Table */}
@@ -3478,12 +3469,35 @@ const handleCancelWeightageEdit = () => {
       </div>
     )}
     
+    {/* Toggle Weightage Visibility Button */}
+    {sectionSummaryRows.reduce((sum, r) => sum + r.weightage, 0) > 0 && (
+      <button
+        onClick={() => setShowWeightageColumns(!showWeightageColumns)}
+        className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ml-3 ${
+          showWeightageColumns
+            ? 'bg-indigo-400 hover:bg-indigo-500 text-white'
+            : 'bg-gray-400 hover:bg-gray-500 text-white'
+        }`}
+        title={showWeightageColumns ? 'Hide weightage columns' : 'Show weightage columns'}
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {showWeightageColumns ? (
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          ) : (
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          )}
+        </svg>
+        <span className="text-sm font-medium">
+          {showWeightageColumns ? 'Hide' : 'Show'} Weightage
+        </span>
+      </button>
+    )}
+
     {/* Edit Weightage Button - Show when weightage columns are visible */}
-{showWeightageColumns && !redistributionMode && !editingAllWeightages && (
+    {showWeightageColumns && !redistributionMode && !editingAllWeightages && (
       <button
         onClick={() => {
           setRedistributionMode(true);
-          // Initialize temp values with current weightages
           const initialValues: Record<string, string> = {};
           sectionSummaryRows.forEach(row => {
             initialValues[row.id] = row.weightage.toString();
@@ -3576,17 +3590,27 @@ const handleCancelWeightageEdit = () => {
         min="0"
         max="100"
         step="0.1"
-        value={tempWeightageValues[row.id] || row.weightage.toString()}
+        value={tempWeightageValues[row.id] !== undefined ? tempWeightageValues[row.id] : row.weightage.toString()}
         onChange={(e) => {
           const newValue = e.target.value;
-          // ... redistribution mode logic ...
+          const updatedValues = {
+            ...tempWeightageValues,
+            [row.id]: newValue
+          };
+          setTempWeightageValues(updatedValues);
+          
+          const total = Object.values(updatedValues).reduce((sum, val) => {
+            return sum + (parseFloat(val) || 0);
+          }, 0);
+          
+          setWeightageBalance(100 - total);
         }}
         className="w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100 text-center"
       />
       {/* Show difference indicator */}
       <div className="text-xs mt-1">
         {(() => {
-          const currentVal = parseFloat(tempWeightageValues[row.id] || row.weightage.toString()) || 0;
+          const currentVal = parseFloat(tempWeightageValues[row.id] !== undefined ? tempWeightageValues[row.id] : row.weightage.toString()) || 0;
           const originalVal = row.weightage;
           const diff = currentVal - originalVal;
 
@@ -3607,10 +3631,10 @@ const handleCancelWeightageEdit = () => {
         min="0"
         max="100"
         step="0.1"
-        value={weightageValues[row.id] || row.weightage.toString()}
+        value={weightageValues[row.id] !== undefined ? weightageValues[row.id] : row.weightage.toString()}
         onChange={(e) => {
           const newValue = e.target.value;
-          const oldValue = parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0;
+          const oldValue = parseFloat(weightageValues[row.id] !== undefined ? weightageValues[row.id] : row.weightage.toString()) || 0;
           const newNumericValue = parseFloat(newValue) || 0;
 
           // Update weightage values
@@ -3638,7 +3662,7 @@ const handleCancelWeightageEdit = () => {
       {/* Show difference indicator */}
       <div className="text-xs mt-1">
         {(() => {
-          const currentVal = parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0;
+          const currentVal = parseFloat(weightageValues[row.id] !== undefined ? weightageValues[row.id] : row.weightage.toString()) || 0;
           const originalVal = row.weightage;
           const diff = currentVal - originalVal;
 
@@ -3811,12 +3835,13 @@ const handleCancelWeightageEdit = () => {
             {/* Reset Button */}
             <button
               onClick={() => {
-                const originalValues: Record<string, string> = {};
+                const resetValues: Record<string, string> = {};
                 sectionSummaryRows.forEach(row => {
-                  originalValues[row.id] = row.weightage.toString();
+                  resetValues[row.id] = row.weightage.toString();
                 });
-                setTempWeightageValues(originalValues);
-                setWeightageBalance(0);
+                setTempWeightageValues(resetValues);
+                const total = sectionSummaryRows.reduce((sum, row) => sum + row.weightage, 0);
+                setWeightageBalance(100 - total);
               }}
               className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1"
               title="Reset to original values"
@@ -3831,7 +3856,11 @@ const handleCancelWeightageEdit = () => {
             <button
               onClick={() => {
                 setRedistributionMode(false);
-                setTempWeightageValues({});
+                const originalValues: Record<string, string> = {};
+                sectionSummaryRows.forEach(row => {
+                  originalValues[row.id] = row.weightage.toString();
+                });
+                setTempWeightageValues(originalValues);
                 setWeightageBalance(0);
               }}
               className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
