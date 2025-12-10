@@ -7,6 +7,7 @@ import {
 } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import { useSidebar } from "./context/SidebarContext";
+import { LAYOUT_CONFIG } from "./config/layoutConfig";
 import FormsPreview from "./components/FormsPreview";
 import TestAPI from "./components/TestAPI";
 import ResponseForm from "./components/ResponseForm";
@@ -25,6 +26,7 @@ import PreviewFormWrapper from "./components/PreviewFormWrapper";
 import FormResponses from "./components/FormResponses";
 import AllResponses from "./components/AllResponses";
 import DashboardNew from "./components/DashboardNew";
+import CustomerViewCarousel from "./components/CustomerViewCarousel";
 import TenantManagement from "./components/superadmin/TenantManagement";
 import AdminManagement from "./components/admin/AdminManagement";
 import LoginPage from "./components/auth/LoginPage";
@@ -57,7 +59,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const { isCollapsed, isMobileOpen } = useSidebar();
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
+    <div className="min-h-screen bg-white dark:bg-gray-950" style={{ zoom: LAYOUT_CONFIG.zoomScale }}>
       <Sidebar />
       <Header />
       <main
@@ -65,7 +67,9 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
           !isMobileOpen ? (isCollapsed ? "lg:ml-16" : "lg:ml-64") : "ml-0"
         }`}
       >
-        <div className="w-full overflow-x-hidden p-4 sm:p-6">{children}</div>
+        <div className="p-4 sm:p-6">
+          {children}
+        </div>
       </main>
     </div>
   );

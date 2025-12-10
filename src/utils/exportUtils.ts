@@ -75,6 +75,7 @@ function collectQuestions(section: Section) {
       Required: question.required,
       Options: (question.options || []).join("|"),
       Description: question.description || "",
+      Suggestion: question.suggestion || "",
       ParentQuestionId: question.showWhen?.questionId || "",
       TriggerValue: question.showWhen?.value ?? "",
       GridRows: question.gridOptions?.rows?.join("|") || "",
@@ -197,6 +198,7 @@ export function exportFormStructureToExcel(form: Question) {
       "Required",
       "Options",
       "Description",
+      "Suggestion",
       "ParentQuestionId",
       "TriggerValue",
       "GridRows",
@@ -255,7 +257,8 @@ export function createSampleFormData() {
   const sampleData = [
     {
       "Form Title": "Customer Service Feedback Form",
-      "Form Description": "Comprehensive feedback form with sub-parameters for enhanced customization",
+      "Form Description":
+        "Comprehensive feedback form with sub-parameters for enhanced customization",
       "Section Number": "1",
       "Section Title": "Customer Information",
       "Section Description": "Basic customer details and contact information",
@@ -265,6 +268,7 @@ export function createSampleFormData() {
       "Question Type": "shortText",
       Required: "TRUE",
       Options: "",
+      Suggestion: "Consider asking for nickname or preferred name as well",
       SubParam1: "Personal Info",
       SubParam2: "Required Field",
       "Allowed File Types": "",
@@ -277,7 +281,9 @@ export function createSampleFormData() {
       "Question Description": "Select the primary service category",
       "Question Type": "dropdown",
       Required: "TRUE",
-      Options: "Technical Support,Product Consultation,Billing Inquiry,General Inquiry",
+      Options:
+        "Technical Support,Product Consultation,Billing Inquiry,General Inquiry",
+      Suggestion: "Consider adding age range options instead of just yes/no",
       SubParam1: "Service Category",
       SubParam2: "Dropdown Selection",
       "Allowed File Types": "",
@@ -296,7 +302,8 @@ export function createSampleFormData() {
       "FU2: Required": "FALSE",
       "FU2: SubParam1": "Product Info",
       "FU2: SubParam2": "Optional Details",
-      "FU2: Question Text": "Please describe the product information you were seeking:",
+      "FU2: Question Text":
+        "Please describe the product information you were seeking:",
       "FU2: Options": "",
       "FU2: Correct Answer": "",
     },
@@ -310,6 +317,7 @@ export function createSampleFormData() {
       "Question Type": "multipleChoice",
       Required: "TRUE",
       Options: "1 - Poor,2 - Below Average,3 - Average,4 - Good,5 - Excellent",
+      Suggestion: "Consider adding age range options instead of just yes/no",
       SubParam1: "Quality Rating",
       SubParam2: "Scale 1-5",
       "Allowed File Types": "",
@@ -320,7 +328,8 @@ export function createSampleFormData() {
       "FU1: Required": "TRUE",
       "FU1: SubParam1": "Improvement Needed",
       "FU1: SubParam2": "Critical Feedback",
-      "FU1: Question Text": "What specific improvements would you suggest to enhance our service?",
+      "FU1: Question Text":
+        "What specific improvements would you suggest to enhance our service?",
       "FU1: Options": "",
       "FU1: Correct Answer": "",
       "FU2: Option": "5 - Excellent",
@@ -339,6 +348,7 @@ export function createSampleFormData() {
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
+      Suggestion: "Consider adding age range options instead of just yes/no",
       SubParam1: "NPS Question",
       SubParam2: "Recommendation",
       "Allowed File Types": "",
@@ -360,9 +370,10 @@ export function createSampleFormData() {
       "Section Weightage": "40",
       Question: "Please upload any supporting documents (optional)",
       "Question Description": "Accepted formats: PDF, images up to 5MB",
-      "Question Type": "fileUpload",
+      "Question Type": "file",
       Required: "FALSE",
       Options: "",
+      Suggestion: "Consider adding age range options instead of just yes/no",
       SubParam1: "Document Upload",
       SubParam2: "Max 5MB",
       "Allowed File Types": "pdf,image",
@@ -376,6 +387,7 @@ export function createSampleFormData() {
       "Question Type": "longText",
       Required: "FALSE",
       Options: "",
+      Suggestion: "Consider adding age range options instead of just yes/no",
       SubParam1: "Open Feedback",
       SubParam2: "Free Text",
       "Allowed File Types": "",
@@ -387,7 +399,9 @@ export function createSampleFormData() {
   return sampleData;
 }
 
-export async function loadSampleFormData(): Promise<Partial<Question> & { sections: Section[] }> {
+export async function loadSampleFormData(): Promise<
+  Partial<Question> & { sections: Section[] }
+> {
   const sampleData = createSampleFormData();
 
   // Convert sample data to the format expected by parseNewTemplateFormat
@@ -412,6 +426,7 @@ export function downloadFormImportTemplate() {
     "Required",
     "Options",
     "Branching",
+    "Suggestion",
     "SubParam1",
     "SubParam2",
     "Allowed File Types",
@@ -445,10 +460,11 @@ export function downloadFormImportTemplate() {
     "Mark which columns should be merged together (e.g., 1,2 means columns 1 and 2 merge; leave blank to not merge)",
     "The question text to ask",
     "Additional details about the question",
-    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA, fileUpload",
+    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA, file",
     "TRUE/FALSE - is this question required?",
     "For multipleChoice/checkboxes/dropdown: option1,option2,option3 (comma-separated)",
     "Section branching: comma-separated section numbers for each option (e.g., 2,3,4 means option1→sec2, option2→sec3, option3→sec4; use 0 to skip)",
+    "Suggestions or recommendations for this question",
     "Additional parameter 1 for custom question configuration",
     "Additional parameter 2 for custom question configuration",
     "For fileUpload: allowed file types (image,pdf,excel) - comma-separated",
@@ -823,7 +839,7 @@ export function downloadFormImportTemplate() {
       "Section Weightage": "30",
       "Section Merging": "",
       Question: "Please upload any supporting documents (optional)",
-      "Question Type": "fileUpload",
+      "Question Type": "file",
       Required: "FALSE",
       Options: "",
       SubParam1: "Service History",
@@ -837,7 +853,7 @@ export function downloadFormImportTemplate() {
   // Track section counts for merging
   const sectionCounts: Record<string, number> = {};
   const sectionFirstRow: Record<string, number> = {};
-  
+
   rows.forEach((row) => {
     const sectionNum = row["Section Number"]?.toString().trim();
     if (sectionNum) {
@@ -850,11 +866,11 @@ export function downloadFormImportTemplate() {
 
   rows.forEach((row, rowIndex) => {
     const sectionNum = row["Section Number"]?.toString().trim();
-    
+
     // Build branching string from individual columns or combined branching column
     let branchingStr = "";
     const branchingValues: (string | number)[] = [];
-    
+
     // Check if we have the old format (5 separate columns)
     for (let i = 1; i <= 5; i++) {
       const branchKey = `Branching: Option ${i} Section`;
@@ -864,12 +880,12 @@ export function downloadFormImportTemplate() {
         branchingValues.push(0);
       }
     }
-    
+
     // Only include if there's actual branching data
-    if (branchingValues.some(v => v !== 0 && v !== "")) {
+    if (branchingValues.some((v) => v !== 0 && v !== "")) {
       branchingStr = branchingValues.join(",");
     }
-    
+
     const fullRow: Record<string, any> = {
       "Form Title": row["Form Title"] || "",
       "Form Description": row["Form Description"] || "",
@@ -883,6 +899,7 @@ export function downloadFormImportTemplate() {
       Required: row.Required || "FALSE",
       Options: row.Options || "",
       Branching: branchingStr,
+      Suggestion: row["Suggestion"] || "",
       SubParam1: row.SubParam1 || "",
       SubParam2: row.SubParam2 || "",
       "Allowed File Types": row["Allowed File Types"] || "",
@@ -895,7 +912,9 @@ export function downloadFormImportTemplate() {
       const currentRowNum = templateData.length + 3; // +3 for header rows
       const firstRow = sectionFirstRow[sectionNum];
       // Merge columns 3-6 (C-F: Section Number, Title, Description, Weightage)
-      fullRow["Section Merging"] = `C${firstRow}:F${firstRow + sectionCounts[sectionNum] - 1}`;
+      fullRow["Section Merging"] = `C${firstRow}:F${
+        firstRow + sectionCounts[sectionNum] - 1
+      }`;
     }
 
     for (let i = 1; i <= 10; i++) {
@@ -912,10 +931,7 @@ export function downloadFormImportTemplate() {
     templateData.push(fullRow);
   });
 
-  const headerArray = [
-    ...mainHeaders,
-    ...followUpHeaders,
-  ];
+  const headerArray = [...mainHeaders, ...followUpHeaders];
 
   const worksheet = utils.json_to_sheet(templateData, {
     header: headerArray,
@@ -924,16 +940,16 @@ export function downloadFormImportTemplate() {
   worksheet["!cols"] = headerArray.map(() => ({ wch: 25 }));
 
   // Apply cell merging based on Section Merging column
-  if (!worksheet['!merges']) {
-    worksheet['!merges'] = [];
+  if (!worksheet["!merges"]) {
+    worksheet["!merges"] = [];
   }
-  
+
   templateData.forEach((row, idx) => {
     const mergeInstructions = row["Section Merging"];
     if (mergeInstructions && typeof mergeInstructions === "string") {
       // Parse merge instructions like "C5:F10"
       try {
-        worksheet['!merges'].push(utils.decode_range(mergeInstructions));
+        worksheet["!merges"].push(utils.decode_range(mergeInstructions));
       } catch (e) {
         console.warn(`Failed to parse merge instruction: ${mergeInstructions}`);
       }
@@ -941,81 +957,85 @@ export function downloadFormImportTemplate() {
   });
 
   // Add data validation for SubParam1 and SubParam2 columns
-  worksheet['!datavalidation'] = [
+  // Add data validation for SubParam1 and SubParam2 columns
+  worksheet["!datavalidation"] = [
     {
-      sqref: 'L5:L1000', // SubParam1 column L (11), from row 5 onwards
-      type: 'list',
-      formula1: '=Parameters!$A$4:$A$1000'
+      sqref: "M5:M1000", // SubParam1 column M (13), from row 5 onwards (was L, now M)
+      type: "list",
+      formula1: "=Parameters!$A$4:$A$1000",
     },
     {
-      sqref: 'M5:M1000', // SubParam2 column M (12)
-      type: 'list',
-      formula1: '=Parameters!$A$4:$A$1000'
+      sqref: "N5:N1000", // SubParam2 column N (14) (was M, now N)
+      type: "list",
+      formula1: "=Parameters!$A$4:$A$1000",
     },
     {
-      sqref: 'S5:S1000', // FU1:SubParam1 column S (19)
-      type: 'list',
-      formula1: '=Parameters!$A$4:$A$1000'
+      sqref: "T5:T1000", // FU1:SubParam1 column T (20) (was S, now T)
+      type: "list",
+      formula1: "=Parameters!$A$4:$A$1000",
     },
     {
-      sqref: 'T5:T1000', // FU1:SubParam2 column T (20)
-      type: 'list',
-      formula1: '=Parameters!$A$4:$A$1000'
+      sqref: "U5:U1000", // FU1:SubParam2 column U (21) (was T, now U)
+      type: "list",
+      formula1: "=Parameters!$A$4:$A$1000",
     },
     {
-      sqref: 'AB5:AB1000', // FU2:SubParam1 column AB (27)
-      type: 'list',
-      formula1: '=Parameters!$A$4:$A$1000'
+      sqref: "AC5:AC1000", // FU2:SubParam1 column AC (29) (was AB, now AC)
+      type: "list",
+      formula1: "=Parameters!$A$4:$A$1000",
     },
     {
-      sqref: 'AC5:AC1000', // FU2:SubParam2 column AC (28)
-      type: 'list',
-      formula1: '=Parameters!$A$4:$A$1000'
+      sqref: "AD5:AD1000", // FU2:SubParam2 column AD (30) (was AC, now AD)
+      type: "list",
+      formula1: "=Parameters!$A$4:$A$1000",
     },
     {
-      sqref: 'AJ5:AJ1000', // FU3:SubParam1 column AJ (35)
-      type: 'list',
-      formula1: '=Parameters!$A$4:$A$1000'
+      sqref: "AK5:AK1000", // FU3:SubParam1 column AK (37) (was AJ, now AK)
+      type: "list",
+      formula1: "=Parameters!$A$4:$A$1000",
     },
     {
-      sqref: 'AK5:AK1000', // FU3:SubParam2 column AK (36)
-      type: 'list',
-      formula1: '=Parameters!$A$4:$A$1000'
-    }
+      sqref: "AL5:AL1000", // FU3:SubParam2 column AL (38) (was AK, now AL)
+      type: "list",
+      formula1: "=Parameters!$A$4:$A$1000",
+    },
   ];
 
   // Create Parameters sheet
   const parametersHeaders = ["Parameter Name", "Type"];
-  const parametersDescriptions = ["Name of the parameter", "Type: Main or Followup"];
+  const parametersDescriptions = [
+    "Name of the parameter",
+    "Type: Main or Followup",
+  ];
 
   const parametersHeaderRow = {
     "Parameter Name": "Parameter Name",
-    "Type": "Type"
+    Type: "Type",
   };
 
   const parametersDescriptionRow = {
     "Parameter Name": parametersDescriptions[0],
-    "Type": parametersDescriptions[1]
+    Type: parametersDescriptions[1],
   };
 
   const parametersSeparatorRow = {
     "Parameter Name": "",
-    "Type": ""
+    Type: "",
   };
 
   const parametersSampleData = [
-    { "Parameter Name": "Eligibility", "Type": "Main" },
-    { "Parameter Name": "Document Verification", "Type": "Main" },
-    { "Parameter Name": "Service History", "Type": "Main" },
-    { "Parameter Name": "Quality Assessment", "Type": "Followup" },
-    { "Parameter Name": "Feedback Collection", "Type": "Followup" },
+    { "Parameter Name": "Eligibility", Type: "Main" },
+    { "Parameter Name": "Document Verification", Type: "Main" },
+    { "Parameter Name": "Service History", Type: "Main" },
+    { "Parameter Name": "Quality Assessment", Type: "Followup" },
+    { "Parameter Name": "Feedback Collection", Type: "Followup" },
   ];
 
   const parametersData = [
     parametersHeaderRow,
     parametersDescriptionRow,
     parametersSeparatorRow,
-    ...parametersSampleData
+    ...parametersSampleData,
   ];
 
   const parametersWorksheet = utils.json_to_sheet(parametersData, {
@@ -1037,43 +1057,66 @@ export async function parseFormWorkbook(file: File) {
   const sheetNames = workbook.SheetNames;
 
   // Find Parameters sheet
-  const parametersSheetIndex = sheetNames.findIndex(name => name.toLowerCase().includes('parameter'));
-  const parametersSheet = parametersSheetIndex >= 0 ? workbook.Sheets[sheetNames[parametersSheetIndex]] : null;
+  const parametersSheetIndex = sheetNames.findIndex((name) =>
+    name.toLowerCase().includes("parameter")
+  );
+  const parametersSheet =
+    parametersSheetIndex >= 0
+      ? workbook.Sheets[sheetNames[parametersSheetIndex]]
+      : null;
 
   // Find Form Template sheet
-  const formSheetIndex = sheetNames.findIndex(name => name.toLowerCase().includes('form') || name.toLowerCase().includes('template'));
-  const formSheet = formSheetIndex >= 0 ? workbook.Sheets[sheetNames[formSheetIndex]] : workbook.Sheets[sheetNames[0]];
+  const formSheetIndex = sheetNames.findIndex(
+    (name) =>
+      name.toLowerCase().includes("form") ||
+      name.toLowerCase().includes("template")
+  );
+  const formSheet =
+    formSheetIndex >= 0
+      ? workbook.Sheets[sheetNames[formSheetIndex]]
+      : workbook.Sheets[sheetNames[0]];
 
   if (!formSheet) {
     throw new Error("Workbook must have a Form Template sheet");
   }
 
   // Parse parameters from Parameters sheet
-  let parametersToCreate: Array<{ name: string; type: "main" | "followup" }> = [];
+  let parametersToCreate: Array<{ name: string; type: "main" | "followup" }> =
+    [];
   if (parametersSheet) {
-    const parametersRawData = utils.sheet_to_json<Record<string, any>>(parametersSheet, {
-      defval: "",
-    });
+    const parametersRawData = utils.sheet_to_json<Record<string, any>>(
+      parametersSheet,
+      {
+        defval: "",
+      }
+    );
 
     // Extract parameters - find the parameter name column (case-insensitive)
     parametersToCreate = parametersRawData
       .filter((row) => {
         // Find the first non-empty value that isn't a header
         const firstValue = Object.values(row)[0]?.toString().trim() || "";
-        return firstValue && firstValue.toLowerCase() !== "parameter name" && firstValue !== "";
+        return (
+          firstValue &&
+          firstValue.toLowerCase() !== "parameter name" &&
+          firstValue !== ""
+        );
       })
       .map((row) => {
         // Get the first non-empty value as parameter name
         const paramName = Object.values(row)[0]?.toString().trim() || "";
         // Get the second value as type, default to 'main'
-        const typeValue = Object.values(row)[1]?.toString().trim().toLowerCase() || "main";
-        
+        const typeValue =
+          Object.values(row)[1]?.toString().trim().toLowerCase() || "main";
+
         return {
           name: paramName,
-          type: (typeValue === "followup" ? "followup" : "main") as "main" | "followup"
+          type: (typeValue === "followup" ? "followup" : "main") as
+            | "main"
+            | "followup",
         };
       })
-      .filter(p => p.name && p.name.toLowerCase() !== "parameter name"); // Final validation
+      .filter((p) => p.name && p.name.toLowerCase() !== "parameter name"); // Final validation
   }
 
   // Parse form data from Form Template sheet
@@ -1098,7 +1141,7 @@ export async function parseFormWorkbook(file: File) {
   // Return combined data
   return {
     ...formData,
-    parametersToCreate
+    parametersToCreate,
   };
 }
 
@@ -1115,28 +1158,113 @@ function parseNewTemplateFormat(
   >();
   const questionMap = new Map<string, FollowUpQuestion>();
   const sectionMergingMap = new Map<string, string>(); // Map to store section merging info
+  const normalizeQuestionType = (type: string): string => {
+    if (!type) return type || "text";
+
+    // Normalize: lowercase, trim, remove extra spaces, replace slashes with nothing
+    let normalizedType = String(type)
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, " ") // normalize multiple spaces to single space
+      .replace(/\s*\/\s*/g, ""); // remove slashes and surrounding spaces
+
+    const typeMap: Record<string, string> = {
+      // Legacy/UI type names - without spaces/slashes
+      shorttext: "text",
+      shortint: "text",
+      multiplechoice: "radio",
+      longtext: "paragraph",
+      longinput: "paragraph",
+      dropdown: "select",
+      checkboxes: "checkbox",
+      fileupload: "file",
+      "file upload": "file",
+      fileuploader: "file",
+
+      // Yes/No variations
+      yesnona: "yesNoNA",
+      yesno: "yesNoNA",
+      "yes/no": "yesNoNA",
+      "yes/no/na": "yesNoNA",
+      "yes/no/n/a": "yesNoNA",
+
+      // Core types - pass through
+      text: "text",
+      radio: "radio",
+      paragraph: "paragraph",
+      select: "select",
+      checkbox: "checkbox",
+      yesnona: "yesNoNA", // lowercase pass-through
+
+      // Extended types - supported by schema
+      email: "email",
+      url: "url",
+      tel: "tel",
+      date: "date",
+      time: "time",
+      file: "file",
+      range: "range",
+      rating: "rating",
+      scale: "scale",
+      "radio-grid": "radio-grid",
+      radiogrid: "radio-grid",
+      "checkbox-grid": "checkbox-grid",
+      checkboxgrid: "checkbox-grid",
+      "radio-image": "radio-image",
+      radioimage: "radio-image",
+      "search-select": "search-select",
+      searchselect: "search-select",
+      number: "number",
+      location: "location",
+      boolean: "boolean",
+      textarea: "textarea",
+    };
+
+    // First try exact match after normalization
+    if (typeMap[normalizedType]) {
+      return typeMap[normalizedType];
+    }
+
+    // If not found, try with spaces removed entirely
+    const noSpaces = normalizedType.replace(/\s/g, "");
+    if (typeMap[noSpaces]) {
+      return typeMap[noSpaces];
+    }
+
+    // Return 'text' as default for unrecognized types
+    return "text";
+  };
 
   // Helper function to find column name (case-insensitive and flexible)
-  const findColumnName = (availableColumns: string[], searchPatterns: string[]): string | null => {
+  const findColumnName = (
+    availableColumns: string[],
+    searchPatterns: string[]
+  ): string | null => {
     // First try exact match
-    const exactMatch = availableColumns.find(col => searchPatterns.some(p => col === p));
+    const exactMatch = availableColumns.find((col) =>
+      searchPatterns.some((p) => col === p)
+    );
     if (exactMatch) return exactMatch;
-    
+
     // Try case-insensitive match
-    const caseInsensitiveMatch = availableColumns.find(col => 
-      searchPatterns.some(p => col.toLowerCase() === p.toLowerCase())
+    const caseInsensitiveMatch = availableColumns.find((col) =>
+      searchPatterns.some((p) => col.toLowerCase() === p.toLowerCase())
     );
     if (caseInsensitiveMatch) return caseInsensitiveMatch;
-    
+
     // Try loose match (contains any search term)
-    const looseMatch = availableColumns.find(col => 
-      searchPatterns.some(p => col.toLowerCase().includes(p.toLowerCase()))
+    const looseMatch = availableColumns.find((col) =>
+      searchPatterns.some((p) => col.toLowerCase().includes(p.toLowerCase()))
     );
     if (looseMatch) {
-      console.log(`[Excel Import] Using approximate column match: "${looseMatch}" for "${searchPatterns.join(', ')}"`);
+      console.log(
+        `[Excel Import] Using approximate column match: "${looseMatch}" for "${searchPatterns.join(
+          ", "
+        )}"`
+      );
       return looseMatch;
     }
-    
+
     return null;
   };
 
@@ -1145,13 +1273,21 @@ function parseNewTemplateFormat(
   if (rows.length > 0) {
     const availableColumns = Object.keys(rows[0]);
     console.log("[Excel Import] Available columns:", availableColumns);
-    
-    const foundMergingColumn = findColumnName(availableColumns, ["Section Merging", "Merge", "Merging"]);
+
+    const foundMergingColumn = findColumnName(availableColumns, [
+      "Section Merging",
+      "Merge",
+      "Merging",
+    ]);
     if (foundMergingColumn) {
       mergingColumnName = foundMergingColumn;
-      console.log(`[Excel Import] "Section Merging" column found: ${mergingColumnName}`);
+      console.log(
+        `[Excel Import] "Section Merging" column found: ${mergingColumnName}`
+      );
     } else {
-      console.warn("[Excel Import] Warning: 'Section Merging' column not found. Make sure your Excel has this column for section merging to work.");
+      console.warn(
+        "[Excel Import] Warning: 'Section Merging' column not found. Make sure your Excel has this column for section merging to work."
+      );
     }
   }
 
@@ -1169,14 +1305,18 @@ function parseNewTemplateFormat(
       currentSectionNo = sectionNo;
       const sectionWeightage = parseNumber(row["Section Weightage"]);
       const sectionMerging = row[mergingColumnName]?.toString().trim() || "";
-      
-      console.log(`[Excel Import] Section ${sectionNo}: Title="${sectionTitle}", Merging="${sectionMerging}"`);
-      
+
+      console.log(
+        `[Excel Import] Section ${sectionNo}: Title="${sectionTitle}", Merging="${sectionMerging}"`
+      );
+
       if (sectionMerging) {
         sectionMergingMap.set(sectionNo, sectionMerging);
-        console.log(`[Excel Import] Stored merging data for section ${sectionNo}: "${sectionMerging}"`);
+        console.log(
+          `[Excel Import] Stored merging data for section ${sectionNo}: "${sectionMerging}"`
+        );
       }
-      
+
       if (!sectionsMap.has(sectionNo)) {
         const newSection = {
           id: generateId(),
@@ -1189,7 +1329,11 @@ function parseNewTemplateFormat(
           isSubsection: false,
         };
         sectionsMap.set(sectionNo, newSection);
-        console.log(`[Excel Import] Created new section ${sectionNo} with ID: ${newSection.id}, Merging: ${sectionMerging || "none"}`);
+        console.log(
+          `[Excel Import] Created new section ${sectionNo} with ID: ${
+            newSection.id
+          }, Merging: ${sectionMerging || "none"}`
+        );
       } else if (sectionWeightage !== undefined || sectionMerging) {
         const existingSection = sectionsMap.get(sectionNo);
         if (existingSection) {
@@ -1198,7 +1342,9 @@ function parseNewTemplateFormat(
           }
           if (sectionMerging) {
             existingSection.merging = sectionMerging;
-            console.log(`[Excel Import] Updated merging for section ${sectionNo}: "${sectionMerging}"`);
+            console.log(
+              `[Excel Import] Updated merging for section ${sectionNo}: "${sectionMerging}"`
+            );
           }
         }
       }
@@ -1210,9 +1356,10 @@ function parseNewTemplateFormat(
 
     const section = sectionsMap.get(currentSectionNo);
     if (!section) return;
-
+    const suggestion = row["Suggestion"]?.toString().trim();
     const questionDesc = row["Question Description"]?.toString().trim();
-    const questionType = row["Question Type"]?.toString().trim() || "text";
+    const questionTypeRaw = row["Question Type"]?.toString().trim() || "text";
+    const questionType = normalizeQuestionType(questionTypeRaw);
     const requiredStr = row["Required"]?.toString().trim().toLowerCase();
     const required =
       requiredStr === "true" || requiredStr === "yes" || requiredStr === "1";
@@ -1250,20 +1397,24 @@ function parseNewTemplateFormat(
     // Validate SubParam1 and SubParam2 against parameters from the Parameters sheet (if parameters exist)
     // Allow SubParam values even if no parameters are defined - they will be auto-created if needed
     if (subParam1 && parametersToCreate.length > 0) {
-      const isSubParam1Valid = parametersToCreate.some(p =>
-        p.name.toLowerCase() === subParam1.toLowerCase()
+      const isSubParam1Valid = parametersToCreate.some(
+        (p) => p.name.toLowerCase() === subParam1.toLowerCase()
       );
       if (!isSubParam1Valid) {
-        console.warn(`SubParam1 "${subParam1}" not found in parameters. Will be treated as custom value.`);
+        console.warn(
+          `SubParam1 "${subParam1}" not found in parameters. Will be treated as custom value.`
+        );
       }
     }
 
     if (subParam2 && parametersToCreate.length > 0) {
-      const isSubParam2Valid = parametersToCreate.some(p =>
-        p.name.toLowerCase() === subParam2.toLowerCase()
+      const isSubParam2Valid = parametersToCreate.some(
+        (p) => p.name.toLowerCase() === subParam2.toLowerCase()
       );
       if (!isSubParam2Valid) {
-        console.warn(`SubParam2 "${subParam2}" not found in parameters. Will be treated as custom value.`);
+        console.warn(
+          `SubParam2 "${subParam2}" not found in parameters. Will be treated as custom value.`
+        );
       }
     }
 
@@ -1276,14 +1427,14 @@ function parseNewTemplateFormat(
       : undefined;
 
     const questionId = generateId();
-    
+
     // Parse branching rules for section navigation
     const branchingRules: Array<{
       optionLabel: string;
       targetSectionId: string;
       isOtherOption?: boolean;
     }> = [];
-    
+
     if (options && options.length > 0) {
       // Parse branching column (format: "2,3,4" where each number is section for each option)
       const branchingStr = row["Branching"]?.toString().trim() || "";
@@ -1292,7 +1443,7 @@ function parseNewTemplateFormat(
           .split(",")
           .map((n) => n.trim())
           .filter(Boolean);
-        
+
         options.forEach((option, idx) => {
           const targetSectionNo = branchingNumbers[idx];
           if (targetSectionNo && targetSectionNo !== "0") {
@@ -1304,7 +1455,7 @@ function parseNewTemplateFormat(
         });
       }
     }
-    
+
     const question: FollowUpQuestion = {
       id: questionId,
       text: questionText,
@@ -1312,6 +1463,7 @@ function parseNewTemplateFormat(
       required: required,
       options: options || undefined,
       description: questionDesc || undefined,
+      suggestion: suggestion || undefined,
       subParam1: subParam1 || undefined,
       subParam2: subParam2 || undefined,
       allowedFileTypes: allowedFileTypes,
@@ -1333,7 +1485,8 @@ function parseNewTemplateFormat(
       const fuCorrectAnswerKey = `FU${fuIndex}: Correct Answer`;
 
       const fuOption = row[fuOptionKey]?.toString().trim();
-      const fuType = row[fuTypeKey]?.toString().trim();
+      const fuTypeRaw = row[fuTypeKey]?.toString().trim();
+      const fuType = fuTypeRaw ? normalizeQuestionType(fuTypeRaw) : "text";
       const fuText = row[fuTextKey]?.toString().trim();
 
       if (fuOption && fuType && fuText) {
@@ -1345,20 +1498,24 @@ function parseNewTemplateFormat(
 
         // Validate followup SubParam1 and SubParam2 against parameters from the Parameters sheet (if parameters exist)
         if (fuSubParam1 && parametersToCreate.length > 0) {
-          const isFuSubParam1Valid = parametersToCreate.some(p =>
-            p.name.toLowerCase() === fuSubParam1.toLowerCase()
+          const isFuSubParam1Valid = parametersToCreate.some(
+            (p) => p.name.toLowerCase() === fuSubParam1.toLowerCase()
           );
           if (!isFuSubParam1Valid) {
-            console.warn(`FU${fuIndex}: SubParam1 "${fuSubParam1}" not found in parameters. Will be treated as custom value.`);
+            console.warn(
+              `FU${fuIndex}: SubParam1 "${fuSubParam1}" not found in parameters. Will be treated as custom value.`
+            );
           }
         }
 
         if (fuSubParam2 && parametersToCreate.length > 0) {
-          const isFuSubParam2Valid = parametersToCreate.some(p =>
-            p.name.toLowerCase() === fuSubParam2.toLowerCase()
+          const isFuSubParam2Valid = parametersToCreate.some(
+            (p) => p.name.toLowerCase() === fuSubParam2.toLowerCase()
           );
           if (!isFuSubParam2Valid) {
-            console.warn(`FU${fuIndex}: SubParam2 "${fuSubParam2}" not found in parameters. Will be treated as custom value.`);
+            console.warn(
+              `FU${fuIndex}: SubParam2 "${fuSubParam2}" not found in parameters. Will be treated as custom value.`
+            );
           }
         }
 
@@ -1432,7 +1589,10 @@ function parseNewTemplateFormat(
   // Update branching rules to use section IDs instead of section numbers
   sections.forEach((section) => {
     section.questions.forEach((question) => {
-      if ((question as any).branchingRules && (question as any).branchingRules.length > 0) {
+      if (
+        (question as any).branchingRules &&
+        (question as any).branchingRules.length > 0
+      ) {
         (question as any).branchingRules = (question as any).branchingRules.map(
           (rule: any) => {
             const sectionId = sectionNumberToIdMap.get(rule.targetSectionId);
@@ -1465,43 +1625,62 @@ function parseNewTemplateFormat(
 
   // Process section merging
   // Format: "1,2" means section 1 is parent, section 2 is subsection
-  console.log(`[Section Merging] Processing merging data. Map size: ${sectionMergingMap.size}`);
-  console.log(`[Section Merging] Merging map entries:`, Array.from(sectionMergingMap.entries()));
-  
+  console.log(
+    `[Section Merging] Processing merging data. Map size: ${sectionMergingMap.size}`
+  );
+  console.log(
+    `[Section Merging] Merging map entries:`,
+    Array.from(sectionMergingMap.entries())
+  );
+
   sectionMergingMap.forEach((mergingStr, currentSectionNo) => {
-    console.log(`[Section Merging] Processing section ${currentSectionNo}: "${mergingStr}"`);
-    
+    console.log(
+      `[Section Merging] Processing section ${currentSectionNo}: "${mergingStr}"`
+    );
+
     if (!mergingStr) {
-      console.log(`[Section Merging] Section ${currentSectionNo} has empty merging string, skipping`);
+      console.log(
+        `[Section Merging] Section ${currentSectionNo} has empty merging string, skipping`
+      );
       return;
     }
-    
+
     const sectionNumbers = mergingStr
       .split(",")
       .map((n) => n.trim())
       .filter(Boolean);
-    
-    console.log(`[Section Merging] Parsed section numbers: ${sectionNumbers.join(", ")}`);
-    
+
+    console.log(
+      `[Section Merging] Parsed section numbers: ${sectionNumbers.join(", ")}`
+    );
+
     if (sectionNumbers.length < 2) {
-      console.log(`[Section Merging] Only ${sectionNumbers.length} section(s) found, need at least 2 for merging`);
+      console.log(
+        `[Section Merging] Only ${sectionNumbers.length} section(s) found, need at least 2 for merging`
+      );
       return;
     }
-    
+
     // First section is the parent
     const parentSectionNo = sectionNumbers[0];
     const parentSectionEntry = Array.from(sectionsMap.entries()).find(
       ([sectionNo]) => sectionNo === parentSectionNo
     );
     const parentSection = parentSectionEntry?.[1];
-    
+
     if (!parentSection) {
-      console.warn(`[Section Merging] Parent section ${parentSectionNo} not found in sections map`);
+      console.warn(
+        `[Section Merging] Parent section ${parentSectionNo} not found in sections map`
+      );
       return;
     }
-    
-    console.log(`[Section Merging] Parent section found: ${parentSectionNo} (ID: ${parentSection.id}), Children: ${sectionNumbers.slice(1).join(", ")}`);
-    
+
+    console.log(
+      `[Section Merging] Parent section found: ${parentSectionNo} (ID: ${
+        parentSection.id
+      }), Children: ${sectionNumbers.slice(1).join(", ")}`
+    );
+
     // Set remaining sections as subsections
     for (let i = 1; i < sectionNumbers.length; i++) {
       const childSectionNo = sectionNumbers[i];
@@ -1509,23 +1688,30 @@ function parseNewTemplateFormat(
         ([sectionNo]) => sectionNo === childSectionNo
       );
       const childSection = childSectionEntry?.[1];
-      
+
       if (childSection) {
         childSection.parentSectionId = parentSection.id;
         childSection.isSubsection = true;
-        console.log(`[Section Merging] ✓ Set section ${childSectionNo} (ID: ${childSection.id}) as subsection of ${parentSectionNo}`);
+        console.log(
+          `[Section Merging] ✓ Set section ${childSectionNo} (ID: ${childSection.id}) as subsection of ${parentSectionNo}`
+        );
       } else {
-        console.warn(`[Section Merging] Child section ${childSectionNo} not found in sections map`);
+        console.warn(
+          `[Section Merging] Child section ${childSectionNo} not found in sections map`
+        );
       }
     }
   });
-  
-  console.log(`[Section Merging] Final sections after merging:`, sections.map(s => ({
-    id: s.id,
-    title: s.title,
-    isSubsection: s.isSubsection,
-    parentSectionId: s.parentSectionId,
-  })));
+
+  console.log(
+    `[Section Merging] Final sections after merging:`,
+    sections.map((s) => ({
+      id: s.id,
+      title: s.title,
+      isSubsection: s.isSubsection,
+      parentSectionId: s.parentSectionId,
+    }))
+  );
 
   const formPayload: Partial<Question> & { sections: Section[] } = {
     id: generateId(),

@@ -13,6 +13,9 @@ import {
   TrendingUp,
   PieChart,
   Download,
+  Table,
+  Edit,
+  Trash2,
 
 
 } from "lucide-react";
@@ -35,6 +38,9 @@ import { apiClient } from "../../api/client";
 import ResponseQuestion from "./ResponseQuestion";
 import SectionAnalytics from "./SectionAnalytics";
 import LocationHeatmap from "./LocationHeatmap";
+import * as XLSX from "xlsx-js-style";
+import { isImageUrl } from "../../utils/answerTemplateUtils";
+import ImageLink from "../ImageLink";
 
 
 ChartJS.register(
@@ -496,13 +502,12 @@ export default function FormAnalyticsDashboard() {
   const [form, setForm] = useState<Form | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [analyticsView, setAnalyticsView] = useState<"question" | "section">(
+  const [analyticsView, setAnalyticsView] = useState<"question" | "section" | "table" | "responses" | "dashboard">(
     "section"
   );
+  const [tableViewType, setTableViewType] = useState<"question" | "section">("question");
   const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([]);
 
-  // Add this state to your component
-  const [showRadarChart, setShowRadarChart] = useState(false);
   const [selectedQuestionId, setSelectedQuestionId] = useState<string>("");
   const [selectedQuestion, setSelectedQuestion] = useState<any>(null);
   const [filterValues, setFilterValues] = useState<string[]>([]);
@@ -522,6 +527,21 @@ export default function FormAnalyticsDashboard() {
   const [tempWeightageValues, setTempWeightageValues] = useState<Record<string, string>>({});
   const [weightageBalance, setWeightageBalance] = useState(0);
 
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [appliedFilters, setAppliedFilters] = useState<Array<{ id: string; label: string; value: string }>>([]);
+  const [showSectionDropdown, setShowSectionDropdown] = useState(false);
+  const [showSectionSelector, setShowSectionSelector] = useState(false);
+  const [selectedFilterQuestion, setSelectedFilterQuestion] = useState<any>(null);
+  const [selectedFilterQuestionIdx, setSelectedFilterQuestionIdx] = useState<number | null>(null);
+  const [selectedResponsesSectionIds, setSelectedResponsesSectionIds] = useState<string[]>([]);
+  const [showResponsesFilter, setShowResponsesFilter] = useState(false);
+  const [editingResponseId, setEditingResponseId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<Record<string, any>>({});
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingResponseId, setDeletingResponseId] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; id: string } | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -534,6 +554,16 @@ export default function FormAnalyticsDashboard() {
         // Fetch form details
         const formData = await apiClient.getForm(id);
         setForm(formData.form);
+
+        // Initialize selected sections for responses view
+        if (formData.form?.sections) {
+          const neededDetailsSection = formData.form.sections.find((s: Section) => s.title === "Needed Details");
+          if (neededDetailsSection) {
+            setSelectedResponsesSectionIds([neededDetailsSection.id]);
+          } else if (formData.form.sections.length > 0) {
+            setSelectedResponsesSectionIds([formData.form.sections[0].id]);
+          }
+        }
 
         // Fetch responses for this form
         const responsesData = await apiClient.getFormResponses(id);
@@ -657,10 +687,10 @@ export default function FormAnalyticsDashboard() {
         return [];
       }
       if (!prev.length) {
-        return availableIds;
+        return [];
       }
       const next = prev.filter((id) => availableIds.includes(id));
-      return next.length ? next : availableIds;
+      return next.length ? next : [];
     });
   }, [filteredSectionStats]);
   const filteredResponses = useMemo(() => {
@@ -1204,7 +1234,7 @@ export default function FormAnalyticsDashboard() {
     };
 
     return (
-      <div className="card p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full">
+      <div className="p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center">
             <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg mr-1.5">
@@ -1242,43 +1272,43 @@ export default function FormAnalyticsDashboard() {
               </div>
 
               {/* Stats summary */}
-              <div className="mt-0 grid grid-cols-3 gap-1">
+              <div className="mt-4 grid grid-cols-3 gap-4">
                 {/* Yes */}
-                <div className="text-center p-0.5 bg-green-50 dark:bg-green-900/10 rounded">
+                <div className="text-center">
                   <div className="text-sm font-bold text-green-600 dark:text-green-400">
                     {totalPieChartData.yes}%
                   </div>
-                  <div className="text-[11px] font-medium text-green-700 dark:text-green-300">
+                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
                     Yes
                   </div>
-                  <div className="text-[9px] text-green-600 dark:text-green-500">
-                    {totalPieChartData.counts.yes} responses
+                  <div className="text-xs text-gray-600 dark:text-gray-500">
+                    ({totalPieChartData.counts.yes})
                   </div>
                 </div>
 
                 {/* No */}
-                <div className="text-center p-0.5 bg-red-50 dark:bg-red-900/10 rounded">
+                <div className="text-center">
                   <div className="text-sm font-bold text-red-600 dark:text-red-400">
                     {totalPieChartData.no}%
                   </div>
-                  <div className="text-[11px] font-medium text-red-700 dark:text-red-300">
+                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
                     No
                   </div>
-                  <div className="text-[9px] text-red-600 dark:text-red-500">
-                    {totalPieChartData.counts.no} responses
+                  <div className="text-xs text-gray-600 dark:text-gray-500">
+                    ({totalPieChartData.counts.no})
                   </div>
                 </div>
 
                 {/* N/A */}
-                <div className="text-center p-0.5 bg-gray-50 dark:bg-gray-900/10 rounded">
+                <div className="text-center">
                   <div className="text-sm font-bold text-gray-600 dark:text-gray-400">
                     {totalPieChartData.na}%
                   </div>
-                  <div className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
                     N/A
                   </div>
-                  <div className="text-[9px] text-gray-600 dark:text-gray-500">
-                    {totalPieChartData.counts.na} responses
+                  <div className="text-xs text-gray-600 dark:text-gray-500">
+                    ({totalPieChartData.counts.na})
                   </div>
                 </div>
               </div>
@@ -1417,7 +1447,149 @@ export default function FormAnalyticsDashboard() {
     }
   };
 
+  const handleExportToExcel = () => {
+    try {
+      const headerRow: any[] = ["Timestamp"];
+      const columnInfo: Array<{ questionId: string; isFollowUp: boolean }> = [];
 
+      form?.sections?.forEach((section: Section) => {
+        if (selectedResponsesSectionIds.includes(section.id)) {
+          section.questions?.forEach((q: any) => {
+            const isFollowUp = q.parentId || q.showWhen?.questionId;
+            headerRow.push(q.text || "Question");
+            columnInfo.push({
+              questionId: q.id,
+              isFollowUp: !!isFollowUp
+            });
+          });
+        }
+      });
+
+      const wsData: any[][] = [headerRow];
+      
+      responses.forEach((response: Response) => {
+        const rowData: any[] = [
+          getResponseTimestamp(response) ? new Date(getResponseTimestamp(response)!).toLocaleString() : "-"
+        ];
+
+        columnInfo.forEach(({ questionId }) => {
+          rowData.push(response.answers?.[questionId] ? String(response.answers[questionId]) : "-");
+        });
+
+        wsData.push(rowData);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      const headerFill = { fgColor: { rgb: "FF4F46E5" } };
+      const headerFont = { color: { rgb: "FFFFFFFF" }, bold: true };
+      
+      for (let i = 0; i < headerRow.length; i++) {
+        const cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
+        ws[cellRef].s = { fill: headerFill, font: headerFont, alignment: { horizontal: "center", vertical: "center", wrapText: true } };
+      }
+
+      for (let rowIdx = 1; rowIdx < wsData.length; rowIdx++) {
+        for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 1 });
+          const isFollowUp = columnInfo[colIdx]?.isFollowUp;
+          const bgColor = isFollowUp ? "FFE9D5FF" : "FFF3F4F6";
+          
+          ws[cellRef].s = {
+            fill: { fgColor: { rgb: bgColor } },
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" }
+            }
+          };
+        }
+
+        const timestampRef = XLSX.utils.encode_cell({ r: rowIdx, c: 0 });
+        ws[timestampRef].s = {
+          fill: { fgColor: { rgb: "FFF9FAFB" } },
+          border: {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" }
+          }
+        };
+      }
+
+      ws['!cols'] = [{ wch: 20 }, ...columnInfo.map(() => ({ wch: 25 }))];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Responses");
+      XLSX.writeFile(wb, `${form?.title || "responses"}-${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      alert("Failed to export to Excel. Please try again.");
+    }
+  };
+
+  const handleEditStart = (response: Response) => {
+    setEditingResponseId(response.id);
+    setEditFormData({ ...response.answers });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingResponseId) return;
+    
+    try {
+      setIsSaving(true);
+      await apiClient.updateResponse(editingResponseId, { answers: editFormData });
+      
+      setResponses(responses.map(r => 
+        r.id === editingResponseId 
+          ? { ...r, answers: editFormData }
+          : r
+      ));
+      
+      setEditingResponseId(null);
+      setEditFormData({});
+      showToast("Response updated successfully!", "success");
+    } catch (err) {
+      console.error("Error updating response:", err);
+      showToast("Failed to update response. Please try again.", "error");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingResponseId(null);
+    setEditFormData({});
+  };
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    const id = Date.now().toString();
+    setToast({ message, type, id });
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
+
+  const handleDeleteResponse = async () => {
+    if (!deletingResponseId) return;
+    
+    try {
+      setIsDeleting(true);
+      await apiClient.deleteResponse(deletingResponseId);
+      
+      setResponses(responses.filter(r => r.id !== deletingResponseId));
+      
+      setShowDeleteConfirm(false);
+      setDeletingResponseId(null);
+      showToast("Response deleted successfully!", "success");
+    } catch (err) {
+      console.error("Error deleting response:", err);
+      showToast("Failed to delete response. Please try again.", "error");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -1447,211 +1619,278 @@ export default function FormAnalyticsDashboard() {
   return (
 
 
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-4">
+    <div className="px-4 py-3 space-y-3" id="analytics-scroll-container">
+      {/* Header with Tabs - Single Row */}
+      {form && (
+      <div className="flex items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-700">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+            {form?.title || "Form"}
+          </h1>
+        </div>
+        
+        {/* Tabs - Center */}
+        <div className="flex items-center gap-1 flex-1 justify-center overflow-x-auto px-4">
+          <button
+            onClick={() => setAnalyticsView("dashboard")}
+            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "dashboard"
+              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+              }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            Dashboard
+          </button>
+          <button
+            onClick={() => setAnalyticsView("question")}
+            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "question"
+              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+              }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            Questions
+          </button>
+          <button
+            onClick={() => setAnalyticsView("section")}
+            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "section"
+              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+              }`}
+          >
+            <FileText className="w-4 h-4" />
+            Sections
+          </button>
+          <button
+            onClick={() => setAnalyticsView("table")}
+            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "table"
+              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+              }`}
+          >
+            <Table className="w-4 h-4" />
+            Table
+          </button>
+          <button
+            onClick={() => setAnalyticsView("responses")}
+            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "responses"
+              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+              }`}
+          >
+            <Users className="w-4 h-4" />
+            Responses
+          </button>
+        </div>
+        
+        {/* Right Side - Count and Actions */}
+        <div className="flex items-center gap-3 whitespace-nowrap">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <div className="text-right">
+              <div className="text-base font-bold text-gray-900 dark:text-white">
+                {analytics.total}
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={handleDownloadPDF}
+            className="flex items-center gap-2 px-2 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+            title="Download as PDF"
+          >
+            <Download className="w-4 h-4" />
+          </button>
           <button
             onClick={() => navigate(-1)}
-            className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+            className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
             title="Go back"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-primary-800">
-              Form Analytics
-            </h1>
-            <p className="text-primary-600">
-              {form?.title || "Form"} - Response Analytics,
-            </p>
-            <p className="text-[10px] font-bold text-primary-500">Last updated: {new Date().toLocaleString()}</p>
-          </div>
-        </div>
-        <div className="card p-6">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleDownloadPDF}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl font-medium"
-              title="Download as PDF"
-            >
-              <Download className="w-4 h-4" />
-              Download PDF
-            </button>
-
-            <div className="p-3 bg-blue-50 rounded-lg mr-4">
-              <Users className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-primary-600">
-                {analytics.total}
-              </div>
-              <div className="text-xs text-primary-500">Total Responses</div>
-            </div>
-          </div>
         </div>
       </div>
+      )}
 
-      {/* Summary Cards */}
-
-
-      {/* Response Trend and Location Heatmap - 3 Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Location Heatmap - Self-contained component */}
-        <LocationHeatmap
-          responses={responses}
-          title="Response Locations Heatmap" id="location-heatmap"
-        />
-
-        {/* Response Trend Chart - COMPACT */}
-        <div className="card p-4 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col"  >
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
-              <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg mr-2">
-                <BarChart3 className="w-4 h-4 text-white" />
-              </div>
-              <div>
-                <h3 className="text-md font-bold text-primary-900 dark:text-white">
-                  Response Trend
-                </h3>
-                <p className="text-xs text-primary-500 dark:text-primary-400">
-                  Last 7 days
-                </p>
+      {/* Dashboard View */}
+      {analyticsView === "dashboard" && (
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-6" id="summary-cards">
+          {/* Response Trend Chart - COMPACT */}
+          <div className="p-4 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col rounded-xl border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center">
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg mr-2">
+                  <BarChart3 className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-md font-bold text-primary-900 dark:text-white">
+                    Response Trend
+                  </h3>
+                  <p className="text-xs text-primary-500 dark:text-primary-400">
+                    Last 7 days
+                  </p>
+                </div>
               </div>
             </div>
+
+            {Object.keys(analytics.responseTrend).length === 0 ? (
+              <div className="flex-1 flex items-center justify-center min-h-[280px]">
+                <div className="text-center">
+                  <div className="mb-2">
+                    <BarChart3 className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto" />
+                  </div>
+                  <p className="text-sm text-primary-500 dark:text-primary-400 font-medium">
+                    No responses yet
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex-1 flex flex-col">
+                <div style={{ height: "293px" }} id="response-trend-chart">
+                  <Line
+                    data={{
+                      labels: analytics.last7Days.map((date) =>
+                        new Date(date).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      ),
+                      datasets: [
+                        {
+                          label: "Responses %",
+                          data: analytics.percentageData,
+                          borderColor: "rgb(59, 130, 246)",
+                          backgroundColor: "rgba(59, 130, 246, 0.1)",
+                          fill: true,
+                          tension: 0.4,
+                          pointRadius: 4,
+                          pointHoverRadius: 6,
+                          pointBackgroundColor: "rgb(59, 130, 246)",
+                          pointBorderColor: "#fff",
+                          pointBorderWidth: 2,
+                          borderWidth: 2,
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          display: false,
+                        },
+                        tooltip: {
+                          backgroundColor: "rgba(0, 0, 0, 0.8)",
+                          titleColor: "#fff",
+                          bodyColor: "#fff",
+                          cornerRadius: 6,
+                          padding: 10,
+                          titleFont: { size: 11, weight: "bold" },
+                          bodyFont: { size: 11 },
+                          callbacks: {
+                            label: function (context) {
+                              return `${context.parsed.y}%`;
+                            },
+                          },
+                        },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          max: 100,
+                          grid: {
+                            color: "rgba(0, 0, 0, 0.05)",
+                            drawBorder: false,
+                          },
+                          ticks: {
+                            color: "rgb(107, 114, 128)",
+                            font: { size: 10 },
+                            callback: function (value) {
+                              return value + "%";
+                            },
+                          },
+                        },
+                        x: {
+                          grid: {
+                            display: false,
+                            drawBorder: false,
+                          },
+                          ticks: {
+                            color: "rgb(107, 114, 128)",
+                            font: { size: 10 },
+                          },
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
-          {Object.keys(analytics.responseTrend).length === 0 ? (
-            <div className="flex-1 flex items-center justify-center min-h-[280px]">
-              <div className="text-center">
-                <div className="mb-2">
-                  <BarChart3 className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto" />
-                </div>
-                <p className="text-sm text-primary-500 dark:text-primary-400 font-medium">
-                  No responses yet
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="flex-1 flex flex-col">
-              <div style={{ height: "293px" }} id="response-trend-chart">
-                <Line
-                  data={{
-                    labels: analytics.last7Days.map((date) =>
-                      new Date(date).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })
-                    ),
-                    datasets: [
-                      {
-                        label: "Responses %",
-                        data: analytics.percentageData,
-                        borderColor: "rgb(59, 130, 246)",
-                        backgroundColor: "rgba(59, 130, 246, 0.1)",
-                        fill: true,
-                        tension: 0.4,
-                        pointRadius: 4,
-                        pointHoverRadius: 6,
-                        pointBackgroundColor: "rgb(59, 130, 246)",
-                        pointBorderColor: "#fff",
-                        pointBorderWidth: 2,
-                        borderWidth: 2,
-                      },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        display: false,
-                      },
-                      tooltip: {
-                        backgroundColor: "rgba(0, 0, 0, 0.8)",
-                        titleColor: "#fff",
-                        bodyColor: "#fff",
-                        cornerRadius: 6,
-                        padding: 10,
-                        titleFont: { size: 11, weight: "bold" },
-                        bodyFont: { size: 11 },
-                        callbacks: {
-                          label: function (context) {
-                            return `${context.parsed.y}%`;
-                          },
-                        },
-                      },
-                    },
-                    scales: {
-                      y: {
-                        beginAtZero: true,
-                        max: 100,
-                        grid: {
-                          color: "rgba(0, 0, 0, 0.05)",
-                          drawBorder: false,
-                        },
-                        ticks: {
-                          color: "rgb(107, 114, 128)",
-                          font: { size: 10 },
-                          callback: function (value) {
-                            return value + "%";
-                          },
-                        },
-                      },
-                      x: {
-                        grid: {
-                          display: false,
-                          drawBorder: false,
-                        },
-                        ticks: {
-                          color: "rgb(107, 114, 128)",
-                          font: { size: 10 },
-                        },
-                      },
-                    },
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
+          {/* Location Heatmap - Self-contained component */}
+          <LocationHeatmap
+            responses={responses}
+            title="Response Locations Heatmap" id="location-heatmap"
+          />
 
-        {/* Pie Chart - COMPACT */}
-        <div className="card p-4 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col">
+          {/* Pie Chart - COMPACT */}
           <OverallQualityPieChart />
         </div>
-      </div>
+        </>
+      )}
 
-      {/* Analytics View Toggle */}
       {form && (
         <>
-          <div className="flex flex-wrap gap-3 mb-6">
-            <button
-              onClick={() => setAnalyticsView("question")}
-              className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${analyticsView === "question"
-                ? "bg-indigo-600 text-white shadow-lg hover:shadow-xl hover:bg-indigo-700"
-                : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
-                }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              Question Based Analytics
-            </button>
-            <button
-              onClick={() => setAnalyticsView("section")}
-              className={`px-4 py-2.5 rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${analyticsView === "section"
-                ? "bg-indigo-600 text-white shadow-lg hover:shadow-xl hover:bg-indigo-700"
-                : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
-                }`}
-            >
-              <FileText className="w-4 h-4" />
-              Section Based Analytics
-            </button>
-          </div>
-
           {/* Question-wise Analytics */}
           {analyticsView === "question" && (
-            <div className="card p-6">
-              <ResponseQuestion question={form} responses={responses} />
+            <div className="space-y-6">
+              <div className="card p-4 space-y-3">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-indigo-600" />
+                    Response Distribution by Question
+                  </h3>
+                  <button
+                    onClick={() => setShowFilterModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded transition-colors border border-indigo-200 dark:border-indigo-700"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                    </svg>
+                    Advanced Filters
+                  </button>
+                </div>
+
+                {/* Applied Filters */}
+                {appliedFilters.length > 0 && (
+                  <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Filters ({appliedFilters.length}):</span>
+                    <div className="flex flex-wrap gap-1">
+                      {appliedFilters.map((filter, idx) => (
+                        <span key={idx} className="text-xs px-2 py-0.5 bg-blue-200 dark:bg-blue-700 text-blue-900 dark:text-blue-100 rounded">
+                          {filter.value}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setAppliedFilters([]);
+                        setSelectedQuestionId("");
+                        setSelectedAnswer("");
+                      }}
+                      className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 font-medium"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="card p-6">
+                <ResponseQuestion question={form} responses={responses} />
+              </div>
             </div>
           )}
           {/* Section-wise Analytics */}
@@ -1659,387 +1898,151 @@ export default function FormAnalyticsDashboard() {
             <div className="space-y-6">
               {filteredSectionStats.length > 0 ? (
                 <>
-                  <div className="card p-6 space-y-6">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                          <PieChart className="w-5 h-5 text-indigo-600" />
-                          Section Summary with Visualization
-                          {filterValues.length > 0 && (
-                            <span className="text-sm font-normal text-blue-600 dark:text-blue-400 ml-2">
-                              (Filtered: {filteredResponses.length}/{responses.length} responses)
-                            </span>
-                          )}
-                        </h3>
-                        {/* ADD THIS: Question & Answer Filter Section - Side by Side */}
-                        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-blue-100 dark:border-gray-700 space-y-4">
-                          <div>
-                            <h4 className="text-md font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                              <BarChart3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                              Response Distribution by Question
-                            </h4>
-                            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                              Select a question and filter by answer
-                            </p>
-                          </div>
-
-                          {/* BOTH DROPDOWNS SIDE BY SIDE */}
-                          <div className="flex flex-col md:flex-row items-stretch md:items-end gap-4">
-                              {/* Question Dropdown - Always visible */}
-                              <div className="relative flex-1 md:flex-none md:min-w-[280px]">
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                  Select Question
-                                </label>
-                                <select
-                                  className="w-full px-4 py-2.5 bg-white dark:bg-gray-750 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 appearance-none cursor-pointer transition-all"
-                                  value={selectedQuestionId || ""}
-                                  onChange={(e) => {
-                                    const questionId = e.target.value;
-                                    setSelectedQuestionId(questionId || "");
-                                    // Reset answer when question changes
-                                    setSelectedAnswer("");
-                                  }}
-                                >
-                                  <option value="">All Questions</option>
-                                  <option value="" disabled>──────────────────</option>
-
-                                  {/* Only show questions from the first section */}
-                                  {form?.sections?.[0]?.questions
-                                    ?.filter((q: any) => !q.parentId && !q.showWhen?.questionId) // Only main questions
-                                    .map((question: any, index: number) => (
-                                      <option
-                                        key={question.id}
-                                        value={question.id}
-                                        className="py-1"
-                                      >
-                                        Q{index + 1}: {question.text?.substring(0, 45) || 'Unnamed Question'}
-                                        {question.text?.length > 45 ? '...' : ''}
-                                      </option>
-                                    ))}
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-600 dark:text-gray-400">
-                                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                                  </svg>
-                                </div>
-                              </div>
-
-                              {/* Answer Dropdown - Always visible but options change based on question */}
-                              <div className="relative flex-1 md:flex-none md:min-w-[240px]">
-                                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                  Filter by Answer
-                                </label>
-                                <select
-                                  className="w-full px-4 py-2.5 bg-white dark:bg-gray-750 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:focus:ring-blue-600 dark:focus:border-blue-600 appearance-none cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                  value={selectedAnswer}
-                                  onChange={(e) => setSelectedAnswer(e.target.value)}
-                                  disabled={!selectedQuestionId}
-                                >
-                                  <option value="">All Answers</option>
-                                  {selectedQuestionId ? (
-                                    (() => {
-                                      // Check for question type first
-                                      const questionType = selectedQuestion?.type || '';
-
-                                      // Handle different question types
-                                      if (questionType === 'yesNoNA') {
-                                        return (
-                                          <>
-                                            <option value="" disabled>──────────────────</option>
-                                            <option value="Yes">Yes</option>
-                                            <option value="No">No</option>
-                                            <option value="N/A">N/A</option>
-                                            <option value="yes">yes (lowercase)</option>
-                                            <option value="no">no (lowercase)</option>
-                                            <option value="na">na (lowercase)</option>
-                                          </>
-                                        );
-                                      }
-
-                                      // Handle multiple choice questions
-                                      if (selectedQuestion?.options && Array.isArray(selectedQuestion.options)) {
-                                        const validOptions = selectedQuestion.options.filter(
-                                          (opt: any) => opt && String(opt).trim() !== ''
-                                        );
-
-                                        if (validOptions.length > 0) {
-                                          return (
-                                            <>
-                                              <option value="" disabled>──────────────────</option>
-                                              {validOptions.map((option: any) => (
-                                                <option key={String(option)} value={String(option)}>
-                                                  {String(option).length > 35
-                                                    ? `${String(option).substring(0, 35)}...`
-                                                    : String(option)}
-                                                </option>
-                                              ))}
-                                            </>
-                                          );
-                                        }
-                                      }
-
-                                      // For other question types, show available answers from actual responses
-                                      if (responses.length > 0) {
-                                        // Collect unique answers for this question from responses
-                                        const uniqueAnswers = new Set<string>();
-
-                                        responses.forEach(response => {
-                                          const answer = response.answers[selectedQuestionId];
-                                          if (answer !== undefined && answer !== null && answer !== '') {
-                                            if (Array.isArray(answer)) {
-                                              answer.forEach(item => {
-                                                if (item !== null && item !== undefined && item !== '') {
-                                                  uniqueAnswers.add(String(item).trim());
-                                                }
-                                              });
-                                            } else {
-                                              uniqueAnswers.add(String(answer).trim());
-                                            }
-                                          }
-                                        });
-
-                                        const uniqueAnswersArray = Array.from(uniqueAnswers);
-
-                                        if (uniqueAnswersArray.length > 0) {
-                                          return (
-                                            <>
-                                              <option value="" disabled>──────────────────</option>
-                                              {uniqueAnswersArray.slice(0, 20).map((answer) => (
-                                                <option key={answer} value={answer}>
-                                                  {answer.length > 40 ? `${answer.substring(0, 40)}...` : answer}
-                                                </option>
-                                              ))}
-                                              {uniqueAnswersArray.length > 20 && (
-                                                <option value="" disabled>
-                                                  ... {uniqueAnswersArray.length - 20} more
-                                                </option>
-                                              )}
-                                            </>
-                                          );
-                                        }
-                                      }
-
-                                      // Default fallback
-                                      return (
-                                        <>
-                                          <option value="" disabled>──────────────────</option>
-                                          <option value="Other">Other/Text Answer</option>
-                                        </>
-                                      );
-                                    })()
-                                  ) : (
-                                    <option value="" disabled>
-                                      Select a question first
-                                    </option>
-                                  )}
-                                </select>
-                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-600 dark:text-gray-400">
-                                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                                  </svg>
-                                </div>
-                              </div>
-
-                              {/* Clear Button */}
-                              {(selectedQuestionId || selectedAnswer) && (
-                                <button
-                                  onClick={() => {
-                                    setSelectedQuestionId("");
-                                    setSelectedAnswer("");
-                                  }}
-                                  className="px-4 py-2.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                  </svg>
-                                  Clear Filters
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Show filter status */}
-                          {(selectedQuestionId || selectedAnswer) && (
-                            <div className="mt-3 p-3 bg-white/50 dark:bg-gray-800/50 rounded-lg border border-blue-100 dark:border-gray-700">
-                              <div className="flex flex-wrap items-center justify-between gap-3">
-                                <div className="space-y-1">
-                                  {selectedQuestionId && (
-                                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                                      <span className="font-medium">Question:</span>{" "}
-                                      <span className="text-blue-600 dark:text-blue-400">
-                                        {selectedQuestion?.text || 'Selected Question'}
-                                      </span>
-                                    </p>
-                                  )}
-                                  {selectedAnswer && (
-                                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                                      <span className="font-medium">Answer Filter:</span>{" "}
-                                      <span className="text-green-600 dark:text-green-400">
-                                        {selectedAnswer}
-                                      </span>
-                                    </p>
-                                  )}
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    Showing {filteredResponses.length} of {responses.length} responses
-                                  </p>
-                                </div>
-
-                                {selectedQuestion && (
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded">
-                                      {selectedQuestion.type}
-                                    </span>
-                                    {selectedQuestion.required && (
-                                      <span className="text-xs px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded">
-                                        Required
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Help text when no filters are applied */}
-                          {!selectedQuestionId && !selectedAnswer && (
-                            <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                              <p className="text-xs text-blue-700 dark:text-blue-400">
-                                <span className="font-medium">How to use:</span>
-                                1. Select a question from the first dropdown
-                                2. Filter by specific answer in the second dropdown
-                                3. View filtered analytics below
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={handleSelectAllSections}
-                        className="px-4 py-2 rounded-full text-sm font-medium bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-200 dark:border-indigo-700"
-                      >
-                        Select All Sections
-                      </button>
-
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {filteredSectionStats.map((stat) => {
-                        const selected = selectedSectionIds.includes(stat.id);
-                        return (
-                          <label
-                            key={stat.id}
-                            className={`flex items-center gap-2 px-3 py-1 rounded-full border text-sm font-medium cursor-pointer transition-colors ${selected
-                              ? "bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/40 dark:border-indigo-700 dark:text-indigo-100"
-                              : "bg-white border-gray-200 text-gray-600 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300"
-                              }`}
+                  <div className="card p-4 space-y-3">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                        <PieChart className="w-5 h-5 text-indigo-600" />
+                        Section Summary with Visualization
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        {/* Section Selection Dropdown */}
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowSectionSelector(!showSectionSelector)}
+                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded border border-indigo-200 dark:border-indigo-700 transition-colors"
                           >
-                            <input
-                              type="checkbox"
-                              className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                              checked={selected}
-                              onChange={() => toggleSectionSelection(stat.id)}
-                            />
-                            <span className="truncate max-w-[160px]">{stat.title}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 13l-7 7-7-7m0-6l7-7 7 7" />
+                            </svg>
+                            Sections ({selectedSectionIds.length}/{filteredSectionStats.length})
+                          </button>
 
-                    {/* Color Legend with Radar Chart Toggle */}
-                    <div className="flex flex-wrap items-center justify-between gap-4 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <div className="flex flex-wrap items-center gap-4">
-                        <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                          Color Legend:
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-green-500 rounded-sm"></div>
-                          <span className="text-sm text-gray-600 dark:text-gray-400">Yes</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-red-500 rounded-sm"></div>
-                          <span className="text-sm text-gray-600 dark:text-gray-400">No</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-3 h-3 bg-gray-400 rounded-sm"></div>
-                          <span className="text-sm text-gray-600 dark:text-gray-400">N/A</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        {/* Add Weight Checkbox - Only show when all weightages are 0 */}
-                        {showWeightageCheckbox && (
-                          <div className="flex items-center gap-3 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm rounded-lg p-2 border border-gray-300 dark:border-gray-700">
-                            <label className="flex items-center cursor-pointer">
-                              <div className="relative">
+                          {showSectionSelector && (
+                            <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 min-w-max max-h-64 overflow-y-auto">
+                              {/* Select All Option */}
+                              <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-700">
                                 <input
                                   type="checkbox"
-                                  className="sr-only"
-                                  checked={addWeightMode}
-                                  onChange={(e) => {
-                                    setAddWeightMode(e.target.checked);
-                                    if (e.target.checked) {
-                                      setShowWeightageColumns(true);
-                                    }
-                                  }}
+                                  checked={selectedSectionIds.length === filteredSectionStats.length && filteredSectionStats.length > 0}
+                                  onChange={handleSelectAllSections}
+                                  className="w-4 h-4 rounded border-gray-300 text-indigo-600 cursor-pointer"
                                 />
-                                <div className={`block w-10 h-5 rounded-full transition-colors duration-200 ${addWeightMode ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-700'}`}></div>
-                                <div className={`absolute left-0.5 top-0.5 bg-white w-4 h-4 rounded-full transition-transform duration-200 ${addWeightMode ? 'transform translate-x-5' : ''}`}></div>
-                              </div>
-                              <span className="ml-2 text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-1">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                </svg>
-                                Add Weight
-                              </span>
-                            </label>
+                                <span className="text-sm font-semibold text-gray-900 dark:text-white">Select All</span>
+                              </label>
 
-                            {addWeightMode && (
-                              <div className="ml-2 text-xs text-gray-600 dark:text-gray-400 bg-black/10 px-2 py-1 rounded">
-                                Total: {totalWeightage.toFixed(1)}%
-                              </div>
-                            )}
-                          </div>
+                              {/* Section Checkboxes */}
+                              {filteredSectionStats.map((stat) => {
+                                const selected = selectedSectionIds.includes(stat.id);
+                                return (
+                                  <label
+                                    key={stat.id}
+                                    className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-700 last:border-0 text-sm"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={selected}
+                                      onChange={() => toggleSectionSelection(stat.id)}
+                                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 cursor-pointer"
+                                    />
+                                    <span className="text-gray-900 dark:text-gray-300 truncate">{stat.title}</span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Advanced Filters Button */}
+                        <button
+                          onClick={() => setShowFilterModal(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded transition-colors border border-indigo-200 dark:border-indigo-700"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                          </svg>
+                          Advanced Filters
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Applied Filters */}
+                    {appliedFilters.length > 0 && (
+                      <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Filters ({appliedFilters.length}):</span>
+                        <div className="flex flex-wrap gap-1">
+                          {appliedFilters.map((filter, idx) => (
+                            <span key={idx} className="text-xs px-2 py-0.5 bg-blue-200 dark:bg-blue-700 text-blue-900 dark:text-blue-100 rounded">
+                              {filter.value}
+                            </span>
+                          ))}
+                        </div>
+                        <button
+                          onClick={() => {
+                            setAppliedFilters([]);
+                            setSelectedQuestionId("");
+                            setSelectedAnswer("");
+                          }}
+                          className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 font-medium"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    )}
+
+
+
+                    {/* Color Legend with Controls */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-gray-50 dark:bg-gray-800/50 rounded border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-3 text-xs">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-green-500 rounded"></div>
+                          <span className="text-gray-600 dark:text-gray-400">Yes</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-red-500 rounded"></div>
+                          <span className="text-gray-600 dark:text-gray-400">No</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded"></div>
+                          <span className="text-gray-600 dark:text-gray-400">N/A</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Add Weight Toggle */}
+                        {showWeightageCheckbox && (
+                          <label className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={addWeightMode}
+                              onChange={(e) => {
+                                setAddWeightMode(e.target.checked);
+                                if (e.target.checked) {
+                                  setShowWeightageColumns(true);
+                                }
+                              }}
+                              className="w-3 h-3 text-indigo-600 border-gray-300 rounded cursor-pointer"
+                            />
+                            <span className="text-gray-700 dark:text-gray-300">Add Weight</span>
+                          </label>
                         )}
 
-                        {/* Radar Chart Toggle Checkbox */}
-                        <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                          <input
-                            type="checkbox"
-                            className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-                            checked={showRadarChart}
-                            onChange={() => setShowRadarChart(!showRadarChart)}
-                          />
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Show Radar Chart
-                          </span>
-                        </label>
-
-                        {/* Toggle Weightage Visibility Button */}
+                        {/* Show Weightage Toggle */}
                         {totalWeightage > 0 && (
                           <button
                             onClick={() => setShowWeightageColumns(!showWeightageColumns)}
-                            className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
                               showWeightageColumns
-                                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-700 hover:bg-indigo-200 dark:hover:bg-indigo-900/50'
+                                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-700'
                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
                             }`}
-                            title={showWeightageColumns ? 'Hide weightage columns' : 'Show weightage columns'}
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              {showWeightageColumns ? (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              ) : (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-4.803m5.596-3.856a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0M15 12a3 3 0 11-6 0 3 3 0 016 0zm6 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              )}
-                            </svg>
-                            <span className="text-sm font-medium">
-                              {showWeightageColumns ? 'Hide' : 'Show'} Weightage
-                            </span>
+                            {showWeightageColumns ? 'Hide' : 'Show'} Weight
                           </button>
                         )}
 
-                        {/* Add this in the color legend/controls section, after the radar chart toggle */}
+                        {/* Edit Weightage Button */}
                         {showWeightageColumns && !redistributionMode && (
                           <button
                             onClick={() => {
@@ -2051,43 +2054,36 @@ export default function FormAnalyticsDashboard() {
                               setTempWeightageValues(initialValues);
                               setWeightageBalance(0);
                             }}
-                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+                            className="px-2 py-1 text-xs font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                            Edit Weightage
+                            Edit Weight
                           </button>
                         )}
                       </div>
                     </div>
 
                     {/* Combined Table with Visualization and Radar Chart */}
-                    <div className={`flex ${showRadarChart ? 'gap-6' : ''}`}>
-                      {/* Table Container - Shrinks when radar chart is shown */}
-                      <div className={`${showRadarChart ? 'flex-1' : 'w-full'}`}>
-                        <div className="overflow-x-auto rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg">
+                    <div className="flex gap-4">
+                      {/* Table Container - Always shrinks for radar chart */}
+                      <div className="flex-1">
+                        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                           <table className="min-w-full text-sm">
-                            <thead className="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 sticky top-0">
+                            <thead className="uppercase tracking-wider text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 sticky top-0">
                               <tr>
-                                <th className={`text-left ${showRadarChart ? 'px-4 py-3' : 'px-6 py-4'}`}>Section</th>
-                                <th className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>Total</th>
-                                <th className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>Yes</th>
-                                <th className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>No</th>
-                                <th className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>N/A</th>
+                                <th className="text-left px-4 py-3">Section</th>
+                                <th className="text-center px-3 py-3">Total</th>
+                                <th className="text-center px-3 py-3">Yes</th>
+                                <th className="text-center px-3 py-3">No</th>
+                                <th className="text-center px-3 py-3">N/A</th>
 
                                 {/* Conditionally show weightage columns */}
                                 {showWeightageColumns && (
                                   <>
-                                    <th className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>Weightage</th>
-                                    <th className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>Yes × W</th>
-                                    <th className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>No × W</th>
-                                    <th className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>N/A × W</th>
+                                    <th className="text-center px-3 py-3">W</th>
+                                    <th className="text-center px-3 py-3">Y×W</th>
+                                    <th className="text-center px-3 py-3">N×W</th>
+                                    <th className="text-center px-3 py-3">NA×W</th>
                                   </>
-                                )}
-
-                                {!showRadarChart && (
-                                  <th className="text-center px-6 py-4">Visualization</th>
                                 )}
                               </tr>
                             </thead>
@@ -2097,9 +2093,8 @@ export default function FormAnalyticsDashboard() {
                                   ? "bg-white dark:bg-gray-900"
                                   : "bg-gray-50 dark:bg-gray-800/50";
 
-                                // Helper function to generate the exact bar chart from your example
                                 const generateTableBarChart = (yesPercent: number, noPercent: number, naPercent: number) => {
-                                  const totalWidth = 200;
+                                  const totalWidth = 160;
                                   const yesWidth = (yesPercent / 100) * totalWidth;
                                   const noWidth = (noPercent / 100) * totalWidth;
                                   const naWidth = (naPercent / 100) * totalWidth;
@@ -2186,154 +2181,97 @@ export default function FormAnalyticsDashboard() {
                                 return (
                                   <tr
                                     key={row.id}
-                                    className={`border-t border-gray-100 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800/70 transition-colors duration-150 ${rowBgColor}`}
+                                    className={`border-t border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${rowBgColor}`}
                                   >
                                     {/* Section Column */}
-                                    <td className={showRadarChart ? "px-4 py-3" : "px-6 py-4"}>
-                                      <div className={`font-bold text-gray-900 dark:text-white ${showRadarChart ? 'text-sm' : ''}`}>
-                                        {showRadarChart ? (
-                                          <span className="truncate max-w-[180px] block">{row.title}</span>
-                                        ) : (
-                                          row.title
-                                        )}
+                                    <td className="px-4 py-2.5">
+                                      <div className="font-semibold text-gray-900 dark:text-white text-sm truncate max-w-[150px]">
+                                        {row.title}
                                       </div>
-                                      {showWeightageColumns && (
-                                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-medium">
-                                          Weightage: {Number.isFinite(row.weightage) ? row.weightage.toFixed(1) : "0.0"}%
-                                        </div>
-                                      )}
                                     </td>
 
                                     {/* Total Column */}
-                                    <td className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>
-                                      <div className="font-bold text-blue-600 dark:text-blue-400">
+                                    <td className="text-center px-3 py-2.5">
+                                      <div className="font-semibold text-blue-600 dark:text-blue-400 text-sm">
                                         {row.total}
-                                      </div>
-                                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 font-semibold">
-                                        Responses
                                       </div>
                                     </td>
 
                                     {/* Yes Column */}
-                                    <td className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>
-                                      <div className="font-bold text-green-600 dark:text-green-400">
-                                        {row.yesCount}
-                                      </div>
-                                      <div className="text-xs text-green-700 dark:text-green-300 mt-1 font-semibold">
-                                        {Number.isFinite(row.yesPercent) ? row.yesPercent.toFixed(1) : "0.0"}%
+                                    <td className="text-center px-3 py-2.5">
+                                      <div className="font-semibold text-green-600 dark:text-green-400 text-sm">
+                                        {row.yesCount} <span className="text-gray-600 dark:text-gray-400">({Number.isFinite(row.yesPercent) ? row.yesPercent.toFixed(0) : "0"}%)</span>
                                       </div>
                                     </td>
 
                                     {/* No Column */}
-                                    <td className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>
-                                      <div className="font-bold text-red-500 dark:text-red-400">
-                                        {row.noCount}
-                                      </div>
-                                      <div className="text-xs text-red-600 dark:text-red-300 mt-1 font-semibold">
-                                        {Number.isFinite(row.noPercent) ? row.noPercent.toFixed(1) : "0.0"}%
+                                    <td className="text-center px-3 py-2.5">
+                                      <div className="font-semibold text-red-600 dark:text-red-400 text-sm">
+                                        {row.noCount} <span className="text-gray-600 dark:text-gray-400">({Number.isFinite(row.noPercent) ? row.noPercent.toFixed(0) : "0"}%)</span>
                                       </div>
                                     </td>
 
                                     {/* N/A Column */}
-                                    <td className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>
-                                      <div className="font-bold text-slate-500 dark:text-slate-300">
-                                        {row.naCount}
-                                      </div>
-                                      <div className="text-xs text-slate-600 dark:text-slate-400 mt-1 font-semibold">
-                                        {Number.isFinite(row.naPercent) ? row.naPercent.toFixed(1) : "0.0"}%
+                                    <td className="text-center px-3 py-2.5">
+                                      <div className="font-semibold text-slate-600 dark:text-slate-400 text-sm">
+                                        {row.naCount} <span className="text-gray-600 dark:text-gray-400">({Number.isFinite(row.naPercent) ? row.naPercent.toFixed(0) : "0"}%)</span>
                                       </div>
                                     </td>
 
                                     {/* Conditionally render weightage columns */}
                                     {showWeightageColumns && (
                                       <>
-
                                         {/* Weightage Column */}
-                                        {/* Weightage Column */}
-                                        <td className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>
+                                        <td className="text-center px-3 py-2.5">
                                           {redistributionMode ? (
-                                            // Redistribution mode - all cells editable with input fields only
-                                            <div className="flex flex-col items-center">
-                                              <input
-                                                type="number"
-                                                min="0"
-                                                max="100"
-                                                step="0.1"
-                                                value={tempWeightageValues[row.id] || row.weightage.toString()}
-                                                onChange={(e) => {
-                                                  const newValue = e.target.value;
-                                                  const oldValue = parseFloat(tempWeightageValues[row.id] || row.weightage.toString()) || 0;
-                                                  const newNumericValue = parseFloat(newValue) || 0;
-
-                                                  // Update temp values
-                                                  const updatedTempValues = {
-                                                    ...tempWeightageValues,
-                                                    [row.id]: newValue
-                                                  };
-                                                  setTempWeightageValues(updatedTempValues);
-
-                                                  // Calculate balance
-                                                  const total = Object.values(updatedTempValues).reduce((sum, val) => {
-                                                    return sum + (parseFloat(val) || 0);
-                                                  }, 0);
-                                                  const balance = 100 - total;
-                                                  setWeightageBalance(balance);
-
-                                                  // Show helpful message
-                                                  const difference = newNumericValue - oldValue;
-                                                  if (difference > 0) {
-                                                    console.log(`Increased by ${difference.toFixed(1)}%, balance: ${balance.toFixed(1)}%`);
-                                                  } else if (difference < 0) {
-                                                    console.log(`Decreased by ${Math.abs(difference).toFixed(1)}%, balance: ${balance.toFixed(1)}%`);
-                                                  }
-                                                }}
-                                                className="w-20 px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100 text-center"
-                                              />
-                                              {/* Show difference indicator */}
-                                              <div className="text-xs mt-1">
-                                                {(() => {
-                                                  const currentVal = parseFloat(tempWeightageValues[row.id] || row.weightage.toString()) || 0;
-                                                  const originalVal = row.weightage;
-                                                  const diff = currentVal - originalVal;
-
-                                                  if (diff > 0.1) {
-                                                    return <span className="text-green-600 font-medium">+{diff.toFixed(1)}</span>;
-                                                  } else if (diff < -0.1) {
-                                                    return <span className="text-red-600 font-medium">{diff.toFixed(1)}</span>;
-                                                  }
-                                                  return null;
-                                                })()}
-                                              </div>
-                                            </div>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="100"
+                                              step="0.1"
+                                              value={tempWeightageValues[row.id] || row.weightage.toString()}
+                                              onChange={(e) => {
+                                                const newValue = e.target.value;
+                                                const oldValue = parseFloat(tempWeightageValues[row.id] || row.weightage.toString()) || 0;
+                                                const newNumericValue = parseFloat(newValue) || 0;
+                                                const updatedTempValues = {
+                                                  ...tempWeightageValues,
+                                                  [row.id]: newValue
+                                                };
+                                                setTempWeightageValues(updatedTempValues);
+                                                const total = Object.values(updatedTempValues).reduce((sum, val) => {
+                                                  return sum + (parseFloat(val) || 0);
+                                                }, 0);
+                                                setWeightageBalance(100 - total);
+                                              }}
+                                              className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded text-center dark:bg-gray-700 dark:text-gray-100"
+                                            />
                                           ) : (
-                                            // Display mode - just show the value (no edit icon)
-                                            <div className="flex items-center justify-center">
-                                              <span className="font-bold text-indigo-600 dark:text-indigo-400 text-lg">
-                                                {Number.isFinite(row.weightage) ? row.weightage.toFixed(1) : "0.0"}%
-                                              </span>
-                                            </div>
+                                            <span className="font-semibold text-indigo-600 dark:text-indigo-400 text-sm">
+                                              {Number.isFinite(row.weightage) ? row.weightage.toFixed(1) : "0.0"}%
+                                            </span>
                                           )}
                                         </td>
 
-                                        {/* Yes × Weightage Column */}
-                                        <td className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>
-                                          <div className="font-bold text-green-700 dark:text-green-300">
+                                        {/* Yes × Weightage */}
+                                        <td className="text-center px-3 py-2.5">
+                                          <span className="font-semibold text-green-700 dark:text-green-300 text-sm">
                                             {Number.isFinite(row.yesWeighted) ? row.yesWeighted.toFixed(1) : "0.0"}
-                                          </div>
+                                          </span>
                                         </td>
 
-                                        {/* No × Weightage Column */}
-                                        <td className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>
-                                          <div className="font-bold text-red-700 dark:text-red-300">
+                                        {/* No × Weightage */}
+                                        <td className="text-center px-3 py-2.5">
+                                          <span className="font-semibold text-red-700 dark:text-red-300 text-sm">
                                             {Number.isFinite(row.noWeighted) ? row.noWeighted.toFixed(1) : "0.0"}
-                                          </div>
+                                          </span>
                                         </td>
 
-                                        {/* N/A × Weightage Column */}
-                                        <td className={`text-center ${showRadarChart ? 'px-3 py-3' : 'px-6 py-4'}`}>
-                                          <div className="font-bold text-slate-700 dark:text-slate-400">
+                                        {/* N/A × Weightage */}
+                                        <td className="text-center px-3 py-2.5">
+                                          <span className="font-semibold text-slate-700 dark:text-slate-400 text-sm">
                                             {Number.isFinite(row.naWeighted) ? row.naWeighted.toFixed(1) : "0.0"}
-                                          </div>
+                                          </span>
                                         </td>
                                       </>
                                     )}
@@ -2378,18 +2316,7 @@ export default function FormAnalyticsDashboard() {
                                         </div>
                                       </div>
                                     )}
-                                    {/* Visualization Column with Bar Chart - Hidden when radar chart is shown */}
-                                    {!showRadarChart && (
-                                      <td className="px-6 py-4">
-                                        <div className="flex justify-center">
-                                          {generateTableBarChart(
-                                            Number.isFinite(row.yesPercent) ? row.yesPercent : 0,
-                                            Number.isFinite(row.noPercent) ? row.noPercent : 0,
-                                            Number.isFinite(row.naPercent) ? row.naPercent : 0
-                                          )}
-                                        </div>
-                                      </td>
-                                    )}
+
                                   </tr>
                                 );
                               })}
@@ -2416,7 +2343,7 @@ export default function FormAnalyticsDashboard() {
                                   </td>
 
                                   {/* Status Message Column - Takes up remaining space */}
-                                  <td colSpan={showWeightageColumns ? (showRadarChart ? 3 : 3) : 0} className="px-6 py-4">
+                                  <td colSpan={showWeightageColumns ? 3 : 0} className="px-6 py-4">
                                     <div className="flex items-center justify-between">
                                       <span className={redistributionMode ?
                                         (Math.abs(weightageBalance) < 0.1 ? "text-green-600 dark:text-green-400 font-medium" : "text-yellow-600 dark:text-yellow-400 font-medium") :
@@ -2546,9 +2473,8 @@ export default function FormAnalyticsDashboard() {
                         </div>
                       </div>
 
-                      {/* Radar Chart - Appears on right side when toggled */}
-                      {showRadarChart && (
-                        <div className="w-96 flex-shrink-0">
+                      {/* Radar Chart - Always displayed on right side */}
+                      <div className="w-96 flex-shrink-0">
                           <div className="card p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg h-full">
                             <div className="flex items-center justify-between mb-6">
                               <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -2677,12 +2603,10 @@ export default function FormAnalyticsDashboard() {
                                 );
                               })()}
                             </div>
-
-
                           </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
+                  </div>
                 </>
               ) : (
                 <div className="card p-6 text-center text-primary-500">
@@ -2695,83 +2619,664 @@ export default function FormAnalyticsDashboard() {
               </div>
             </div>
           )}
+
+          {/* Table View */}
+          {analyticsView === "table" && (
+            <div className="space-y-6">
+              {/* Table View Type Selector */}
+              <div className="card p-4 flex gap-3 items-center">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">View Type:</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setTableViewType("question")}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                      tableViewType === "question"
+                        ? "bg-indigo-600 text-white shadow-md"
+                        : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
+                    }`}
+                  >
+                    Question Based
+                  </button>
+                  <button
+                    onClick={() => setTableViewType("section")}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                      tableViewType === "section"
+                        ? "bg-indigo-600 text-white shadow-md"
+                        : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
+                    }`}
+                  >
+                    Section Based
+                  </button>
+                </div>
+              </div>
+
+              {/* Question Based Table - All Questions from All Sections */}
+              {tableViewType === "question" && form?.sections && form.sections.length > 0 && (
+                <div className="card p-6">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                      <BarChart3 className="w-5 h-5 text-indigo-600" />
+                      All Questions Analytics - Table View
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Showing all questions from all sections including follow-ups</p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 border-b-2 border-indigo-200 dark:border-indigo-700">
+                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Question</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Total Responses</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Yes</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">No</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">N/A</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white">Yes %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {form.sections.map((section: Section, sectionIdx: number) => {
+                          const allQuestionsInSection = section.questions || [];
+                          
+                          return (
+                            <React.Fragment key={`section-${section.id}`}>
+                              <tr className="bg-indigo-100 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40">
+                                <td colSpan={6} className="px-6 py-4 text-center text-sm font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wide">
+                                  {section.title}
+                                </td>
+                              </tr>
+                              {allQuestionsInSection.map((question: any, qIdx: number) => {
+                                const questionResponses = responses.filter((r) => r.answers && r.answers[question.id]);
+                                const yesCount = questionResponses.filter((r) => {
+                                  const answer = String(r.answers[question.id]).toLowerCase().trim();
+                                  return answer.includes("yes") || answer === "y";
+                                }).length;
+                                const noCount = questionResponses.filter((r) => {
+                                  const answer = String(r.answers[question.id]).toLowerCase().trim();
+                                  return answer.includes("no") || answer === "n";
+                                }).length;
+                                const naCount = questionResponses.filter((r) => {
+                                  const answer = String(r.answers[question.id]).toLowerCase().trim();
+                                  return answer.includes("na") || answer.includes("n/a") || answer.includes("not applicable");
+                                }).length;
+                                const total = questionResponses.length;
+                                const yesPercentage = total > 0 ? ((yesCount / total) * 100).toFixed(1) : "0.0";
+                                
+                                const isFollowUp = question.parentId || question.showWhen?.questionId;
+
+                                return (
+                                  <tr key={question.id} className={`hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors ${
+                                    isFollowUp 
+                                      ? "bg-purple-50 dark:bg-purple-900/20" 
+                                      : "bg-white dark:bg-gray-800"
+                                  }`}>
+                                    <td className={`px-6 py-4 text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium max-w-sm ${
+                                      isFollowUp ? "pl-12" : ""
+                                    }`}>
+                                      <div className="truncate" title={question.text || "Unnamed Question"}>
+                                        {question.text || "Unnamed Question"}
+                                      </div>
+                                    </td>
+                                    <td className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
+                                      <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 px-3 py-1 rounded-full text-xs">{total}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
+                                      <span className="bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-300 px-3 py-1 rounded-full text-xs">{yesCount}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
+                                      <span className="bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-300 px-3 py-1 rounded-full text-xs">{noCount}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
+                                      <span className="bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-gray-200 px-3 py-1 rounded-full text-xs">{naCount}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-center text-sm font-semibold text-indigo-600 dark:text-indigo-400">{yesPercentage}%</td>
+                                  </tr>
+                                );
+                              })}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Section Based Table */}
+              {tableViewType === "section" && filteredSectionStats.length > 0 && (
+                <div className="card p-6">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-indigo-600" />
+                      Section Analytics - Table View
+                    </h3>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 border-b-2 border-indigo-200 dark:border-indigo-700">
+                          <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Section Name</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Total</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Yes</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">No</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">N/A</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Yes %</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white">No %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {filteredSectionStats.map((stat: SectionPerformanceStat, index: number) => {
+                          const yesPercentage = stat.total > 0 ? ((stat.yes / stat.total) * 100).toFixed(1) : "0.0";
+                          const noPercentage = stat.total > 0 ? ((stat.no / stat.total) * 100).toFixed(1) : "0.0";
+
+                          return (
+                            <tr key={stat.id} className={`${index % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-750"} hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors`}>
+                              <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
+                                {stat.title}
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
+                                <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 px-3 py-1 rounded-full text-xs">{stat.total}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
+                                <span className="bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-300 px-3 py-1 rounded-full text-xs">{stat.yes}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
+                                <span className="bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-300 px-3 py-1 rounded-full text-xs">{stat.no}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
+                                <span className="bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-gray-200 px-3 py-1 rounded-full text-xs">{stat.na}</span>
+                              </td>
+                              <td className="px-6 py-4 text-center text-sm font-semibold text-green-600 dark:text-green-400 border-r border-gray-200 dark:border-gray-700">{yesPercentage}%</td>
+                              <td className="px-6 py-4 text-center text-sm font-semibold text-red-600 dark:text-red-400">{noPercentage}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Responses as Table */}
+          {analyticsView === "responses" && (
+            <div className="space-y-6">
+              <div className="card p-6">
+                <div className="mb-4 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                      <Table className="w-5 h-5 text-indigo-600" />
+                      All Responses - Table View
+                    </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Viewing all {responses.length} responses</p>
+                  </div>
+                  <div className="flex gap-2 items-center relative">
+                    <button
+                      onClick={() => setShowResponsesFilter(!showResponsesFilter)}
+                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                      </svg>
+                      Filter Sections ({selectedResponsesSectionIds.length})
+                    </button>
+                    <button
+                      onClick={() => handleExportToExcel()}
+                      disabled={selectedResponsesSectionIds.length === 0}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 16v-4m0 0V8m0 4h4m-4 0H8" />
+                      </svg>
+                      Download as Excel
+                    </button>
+
+                    {showResponsesFilter && (
+                      <div className="absolute top-full left-0 mt-2 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 min-w-max">
+                        <div className="space-y-3">
+                          {form?.sections?.map((section: Section) => (
+                            <label key={section.id} className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selectedResponsesSectionIds.includes(section.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedResponsesSectionIds([...selectedResponsesSectionIds, section.id]);
+                                  } else {
+                                    setSelectedResponsesSectionIds(selectedResponsesSectionIds.filter(id => id !== section.id));
+                                  }
+                                }}
+                                className="w-4 h-4 text-indigo-600 border-gray-300 rounded cursor-pointer"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">{section.title}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {selectedResponsesSectionIds.length > 0 ? (
+                  <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                    <table className="text-sm border-collapse">
+                      <thead className="sticky top-0 z-10">
+                        <tr className="bg-indigo-50 dark:bg-indigo-900/20">
+                          <td className="px-6 py-3"></td>
+                          {form?.sections?.map((section: Section) => {
+                            const sectionQuestionsCount = section.questions?.length || 0;
+                            return (
+                              selectedResponsesSectionIds.includes(section.id) && (
+                                <td key={`header-${section.id}`} colSpan={sectionQuestionsCount} className="px-6 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">
+                                  {section.title}
+                                </td>
+                              )
+                            );
+                          })}
+                        </tr>
+                        
+                        <tr className="bg-gray-100 dark:bg-gray-800">
+                          <th className="sticky left-0 z-20 text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-100 dark:bg-gray-800">Actions</th>
+                          <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">Timestamp</th>
+                          {form?.sections?.map((section: Section) => (
+                            selectedResponsesSectionIds.includes(section.id) && (
+                              section.questions?.map((q: any) => {
+                                const isFollowUp = q.parentId || q.showWhen?.questionId;
+                                
+                                return (
+                                  <th key={q.id} className={`text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider border border-gray-200 dark:border-gray-700 max-w-xs ${isFollowUp ? 'bg-purple-100 dark:bg-purple-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                                    <div className="line-clamp-2 overflow-hidden text-ellipsis">{q.text || "Question"}</div>
+                                  </th>
+                                );
+                              })
+                            )
+                          ))}
+                        </tr>
+                      </thead>
+                      
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {responses.length > 0 ? (
+                          responses.map((response: Response, idx: number) => (
+                            <tr key={response.id} className={`${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+                              <td className={`px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 z-20 ${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+                                <div className="flex items-center gap-2">
+                                  {editingResponseId === response.id ? (
+                                    <>
+                                      <button
+                                        onClick={handleSaveEdit}
+                                        disabled={isSaving}
+                                        title="Save Response"
+                                        className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors disabled:opacity-50"
+                                      >
+                                        <CheckCircle className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={handleCancelEdit}
+                                        disabled={isSaving}
+                                        title="Cancel"
+                                        className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                                      >
+                                        <XCircle className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => handleEditStart(response)}
+                                        title="Edit Response"
+                                        className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition-colors"
+                                      >
+                                        <Edit className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setDeletingResponseId(response.id);
+                                          setShowDeleteConfirm(true);
+                                        }}
+                                        title="Delete Response"
+                                        className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
+                                {getResponseTimestamp(response) ? new Date(getResponseTimestamp(response)!).toLocaleString() : "-"}
+                              </td>
+                              {form?.sections?.map((section: Section) => (
+                                selectedResponsesSectionIds.includes(section.id) && (
+                                  section.questions?.map((q: any) => {
+                                    const isFollowUp = q.parentId || q.showWhen?.questionId;
+                                    const isEditing = editingResponseId === response.id;
+                                    return (
+                                      <td key={`${response.id}-${q.id}`} className={`px-6 py-3 text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 min-w-64 break-words ${isFollowUp ? 'bg-purple-50 dark:bg-purple-900/10' : ''}`}>
+                                        {isEditing ? (
+                                          <input
+                                            type="text"
+                                            value={editFormData[q.id] || ""}
+                                            onChange={(e) => setEditFormData({ ...editFormData, [q.id]: e.target.value })}
+                                            className="w-full px-2 py-1 border border-blue-400 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Enter answer"
+                                          />
+                                        ) : (
+                                          <div>
+                                            {response.answers?.[q.id] ? (
+                                              isImageUrl(String(response.answers[q.id])) ? (
+                                                <div className="w-32 h-32 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 hover:shadow-lg transition-shadow">
+                                                  <img
+                                                    src={String(response.answers[q.id])}
+                                                    alt={q.text || "Image"}
+                                                    className="w-full h-full object-cover cursor-pointer"
+                                                    onClick={() => window.open(String(response.answers[q.id]), '_blank')}
+                                                    title="Click to open in new tab"
+                                                  />
+                                                </div>
+                                              ) : (
+                                                <span title={String(response.answers[q.id])}>
+                                                  {String(response.answers[q.id])}
+                                                </span>
+                                              )
+                                            ) : (
+                                              <span>-</span>
+                                            )}
+                                          </div>
+                                        )}
+                                      </td>
+                                    );
+                                  })
+                                )
+                              ))}
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={1 + (form?.sections?.reduce((acc: number, sec: Section) => (selectedResponsesSectionIds.includes(sec.id) ? acc + (sec.questions?.length || 0) : acc), 0) || 0)} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                              No responses yet
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+                    Select at least one section to view responses
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
 
-      {/* Form Details */}
-      {form && (
-        <div className="card p-6">
-          <h3 className="text-lg font-semibold text-primary-800 mb-4 flex items-center">
-            <FileText className="w-5 h-5 mr-2" />
-            Form Details
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <h4 className="font-medium text-primary-800 mb-2">
-                Form Information
-              </h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-primary-600">Title:</span>
-                  <span className="font-medium">{form.title}</span>
-                </div>
-                {form.description && (
-                  <div className="flex justify-between">
-                    <span className="text-primary-600">Description:</span>
-                    <span className="font-medium">{form.description}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-primary-600">Status:</span>
-                  <span
-                    className={`font-medium ${form.isVisible ? "text-green-600" : "text-yellow-600"
-                      }`}
-                  >
-                    {form.isVisible ? "Public" : "Private"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-primary-600">Created:</span>
-                  <span className="font-medium">
-                    {form.createdAt
-                      ? new Date(form.createdAt).toLocaleDateString()
-                      : "Unknown"}
-                  </span>
+
+
+      {/* Advanced Filter Modal */}
+      {showFilterModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-7xl max-h-[70vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="bg-white dark:bg-gray-800 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Advanced Filters</h2>
+              <button
+                onClick={() => {
+                  setShowFilterModal(false);
+                  setShowSectionDropdown(false);
+                }}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex flex-1 overflow-hidden">
+              {/* Left Side - Questions */}
+              <div className="flex-1 border-r border-gray-200 dark:border-gray-700 overflow-y-auto p-6">
+                <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-4 uppercase">
+                  Select Question ({form?.sections?.[0]?.questions?.filter((q: any) => !q.parentId && !q.showWhen?.questionId).length || 0})
+                </label>
+                <div className="space-y-2">
+                  {form?.sections?.[0]?.questions
+                    ?.filter((q: any) => !q.parentId && !q.showWhen?.questionId)
+                    .map((q: any, idx: number) => (
+                      <div
+                        key={q.id}
+                        onClick={() => {
+                          setSelectedFilterQuestion(q);
+                          setSelectedFilterQuestionIdx(idx);
+                        }}
+                        className={`p-3 rounded-lg cursor-pointer border-2 transition-all ${
+                          selectedFilterQuestion?.id === q.id
+                            ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30'
+                            : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-indigo-400'
+                        }`}
+                      >
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">Q{idx + 1}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mt-1">{q.text || 'Question'}</p>
+                      </div>
+                    ))}
                 </div>
               </div>
+
+              {/* Right Side - Question Answers & Section & Applied */}
+              <div className="w-80 bg-gray-50 dark:bg-gray-700 overflow-y-auto p-6 flex flex-col">
+                {selectedFilterQuestion ? (
+                  <>
+                    {/* Selected Question Info */}
+                    <div className="mb-6 p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                      <p className="text-xs font-semibold text-indigo-900 dark:text-indigo-300 uppercase">Selected Question</p>
+                      <p className="text-sm text-indigo-900 dark:text-indigo-300 mt-1 font-medium">Q{selectedFilterQuestionIdx + 1}</p>
+                      <p className="text-xs text-indigo-800 dark:text-indigo-400 mt-1 line-clamp-2">{selectedFilterQuestion.text}</p>
+                    </div>
+
+                    {/* Question Answers */}
+                    <div className="mb-6">
+                      <p className="text-xs font-semibold text-gray-900 dark:text-white mb-3 uppercase">Question Answers</p>
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {Array.from(
+                          new Set(
+                            responses
+                              .map(r => r.answers?.[selectedFilterQuestion.id])
+                              .filter(a => a !== null && a !== undefined && a !== '')
+                              .map(a => String(a).trim())
+                          )
+                        )
+                          .sort()
+                          .map((answer) => (
+                            <label key={answer} className="flex items-center gap-2 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 p-2 rounded transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={appliedFilters.some(f => f.id === 'answer_' + selectedFilterQuestion.id + '_' + answer)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setAppliedFilters([
+                                      ...appliedFilters,
+                                      {
+                                        id: 'answer_' + selectedFilterQuestion.id + '_' + answer,
+                                        label: `Q${selectedFilterQuestionIdx + 1}`,
+                                        value: answer
+                                      }
+                                    ]);
+                                  } else {
+                                    setAppliedFilters(appliedFilters.filter(f => f.id !== 'answer_' + selectedFilterQuestion.id + '_' + answer));
+                                  }
+                                }}
+                                className="w-4 h-4 rounded border-gray-300 text-indigo-600 cursor-pointer"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{answer}</span>
+                            </label>
+                          ))}
+                      </div>
+                    </div>
+
+                    {/* Section Filter */}
+                    <div className="mb-6">
+                      <div className="relative">
+                        <button
+                          onClick={() => setShowSectionDropdown(!showSectionDropdown)}
+                          className="w-full flex items-center justify-between px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          <span className="font-medium">Section</span>
+                          <svg className={`w-4 h-4 transition-transform ${showSectionDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                          </svg>
+                        </button>
+                        {showSectionDropdown && (
+                          <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 max-h-40 overflow-y-auto">
+                            {form?.sections?.map((s: any) => (
+                              <label key={s.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-0">
+                                <input
+                                  type="checkbox"
+                                  checked={appliedFilters.some(f => f.id === 'section_' + s.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setAppliedFilters([
+                                        ...appliedFilters,
+                                        { id: 'section_' + s.id, label: 'Section', value: s.title || 'Section' }
+                                      ]);
+                                    } else {
+                                      setAppliedFilters(appliedFilters.filter(f => f.id !== 'section_' + s.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 rounded border-gray-300 text-indigo-600 cursor-pointer"
+                                />
+                                <span className="text-xs text-gray-700 dark:text-gray-300">{s.title}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center">Select a question to see answers</p>
+                  </div>
+                )}
+
+                {/* Applied Filters Summary */}
+                {selectedFilterQuestion && (
+                  <div className="flex-1 mt-6 border-t border-gray-300 dark:border-gray-600 pt-4">
+                    <p className="text-xs font-semibold text-gray-900 dark:text-white mb-3 uppercase">Applied ({appliedFilters.length})</p>
+                    <div className="space-y-2">
+                      {appliedFilters.length === 0 ? (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">No filters</p>
+                      ) : (
+                        appliedFilters.map((filter, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-2 p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded border border-indigo-200 dark:border-indigo-800">
+                            <div className="flex-1">
+                              <p className="text-xs font-medium text-indigo-900 dark:text-indigo-300">{filter.label}</p>
+                              <p className="text-xs text-indigo-800 dark:text-indigo-400 truncate">{filter.value}</p>
+                            </div>
+                            <button
+                              onClick={() => setAppliedFilters(appliedFilters.filter((_, i) => i !== idx))}
+                              className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 flex-shrink-0 text-sm"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <div>
-              <h4 className="font-medium text-primary-800 mb-2">
-                Response Summary
-              </h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-primary-600">Total Responses:</span>
-                  <span className="font-medium">{analytics.total}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-primary-600">Completion Rate:</span>
-                  <span className="font-medium">
-                    {analytics.total > 0
-                      ? Math.round((analytics.verified / analytics.total) * 100)
-                      : 0}
-                    %
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-primary-600">Average per Day:</span>
-                  <span className="font-medium">
-                    {analytics.total > 0
-                      ? (analytics.total / 7).toFixed(1)
-                      : "0"}
-                  </span>
-                </div>
+
+            {/* Footer */}
+            <div className="bg-gray-50 dark:bg-gray-700 px-6 py-3 border-t border-gray-200 dark:border-gray-600 flex items-center justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowFilterModal(false);
+                  setAppliedFilters([]);
+                  setShowSectionDropdown(false);
+                  setSelectedFilterQuestion(null);
+                }}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
+              >
+                Reset
+              </button>
+              <button
+                onClick={() => {
+                  setShowFilterModal(false);
+                  setShowSectionDropdown(false);
+                  setSelectedFilterQuestion(null);
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-sm">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+                <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+                Delete Response
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 text-center mb-6">
+                Are you sure you want to delete this response? This action cannot be undone.
+              </p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={() => {
+                    setShowDeleteConfirm(false);
+                    setDeletingResponseId(null);
+                  }}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteResponse}
+                  disabled={isDeleting}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    "Delete"
+                  )}
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 ${
+          toast.type === 'success' 
+            ? 'bg-green-500 dark:bg-green-600' 
+            : 'bg-red-500 dark:bg-red-600'
+        }`}>
+          <div className="flex items-center gap-2">
+            {toast.type === 'success' ? (
+              <CheckCircle className="w-5 h-5" />
+            ) : (
+              <XCircle className="w-5 h-5" />
+            )}
+            {toast.message}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

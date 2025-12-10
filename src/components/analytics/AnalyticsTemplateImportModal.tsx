@@ -105,21 +105,51 @@ export default function AnalyticsTemplateImportModal({
 
     try {
       const rows = await parseAnalyticsWorkbook(file, form);
-      setImportedRows(rows);
+      
+      try {
+        console.log('Processing images from Excel rows...');
+        const processedRows = [];
+        
+        for (const row of rows) {
+          try {
+            const processedAnswers = await apiClient.processImages(row.answer);
+            processedRows.push({
+              ...row,
+              answer: processedAnswers
+            });
+          } catch (err) {
+            console.warn('Failed to process image for row:', row.rowIndex, err);
+            processedRows.push(row);
+          }
+        }
+        
+        setImportedRows(processedRows);
+        const validation = validateImportedAnswers(processedRows, form);
+        setValidationResult(validation);
 
-      const validation = validateImportedAnswers(rows, form);
-      setValidationResult(validation);
+        if (validation.isValid) {
+          showSuccess(
+            `Template imported: ${validation.validRows.length} valid answers found (images converted)`,
+            "Import Complete"
+          );
+        } else {
+          showError(
+            `${validation.rowsWithErrors.length} rows have validation errors. Please review before submitting.`,
+            "Import Complete with Errors"
+          );
+        }
+      } catch (imageError) {
+        console.warn('Image processing failed, using original answers:', imageError);
+        setImportedRows(rows);
+        const validation = validateImportedAnswers(rows, form);
+        setValidationResult(validation);
 
-      if (validation.isValid) {
-        showSuccess(
-          `Template imported: ${validation.validRows.length} valid answers found`,
-          "Import Complete"
-        );
-      } else {
-        showError(
-          `${validation.rowsWithErrors.length} rows have validation errors. Please review before submitting.`,
-          "Import Complete with Errors"
-        );
+        if (validation.isValid) {
+          showSuccess(
+            `Template imported: ${validation.validRows.length} valid answers found`,
+            "Import Complete"
+          );
+        }
       }
     } catch (error: any) {
       showError(
@@ -152,20 +182,23 @@ export default function AnalyticsTemplateImportModal({
     setIsSubmitting(true);
 
     try {
-      const answers = formatImportedAnswersForResponse(
-        validationResult.validRows,
-        form
-      );
-
-      const responseData = {
-        answers,
-        formId,
+      const responsePayload = {
+        questionId: formId,
+        responses: validationResult.validRows.map(row => {
+          const answers = formatImportedAnswersForResponse([row], form);
+          return {
+            answers,
+            submittedBy: row.submittedBy || "Excel Import",
+            submitterContact: row.submitterContact,
+            parentResponseId: row.parentResponseId
+          };
+        })
       };
 
-      await apiClient.createResponse(responseData);
+      const data = await apiClient.batchImportResponses(responsePayload);
 
       showSuccess(
-        `Response created with ${validationResult.validRows.length} answers`,
+        `${data.imported} response(s) imported successfully with automatic image processing!`,
         "Submission Complete"
       );
 
@@ -182,7 +215,7 @@ export default function AnalyticsTemplateImportModal({
       }, 1500);
     } catch (error: any) {
       showError(
-        error?.message || "Failed to submit response",
+        error?.message || "Failed to submit responses",
         "Submission Failed"
       );
     } finally {

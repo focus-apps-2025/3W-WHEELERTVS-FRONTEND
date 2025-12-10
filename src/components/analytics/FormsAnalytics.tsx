@@ -115,6 +115,11 @@ export default function FormsAnalytics() {
   const forms = formsData?.forms || [];
   const parentForms = forms.filter((form: FormItem) => !form.parentFormId);
   const totalForms = parentForms.length;
+  
+  console.log('DEBUG: Total forms from API:', forms.length);
+  console.log('DEBUG: Parent forms (no parentFormId):', parentForms.length);
+  console.log('DEBUG: Child forms (with parentFormId):', forms.filter((f: FormItem) => f.parentFormId).length);
+  console.log('DEBUG: All forms data:', forms.map((f: FormItem) => ({ id: f._id || f.id, title: f.title, parentFormId: f.parentFormId })));
   const activeFormsCount = parentForms.filter(
     (form: FormItem) => form.isActive === true
   ).length;

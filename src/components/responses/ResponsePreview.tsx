@@ -2,6 +2,8 @@ import React from 'react';
 import { X } from 'lucide-react';
 import type { Question, Response } from '../../types';
 import { formatTimestamp } from '../../utils/dateUtils';
+import ImageLink from '../ImageLink';
+import { isImageUrl } from '../../utils/answerTemplateUtils';
 
 interface ResponsePreviewProps {
   response: Response;
@@ -10,21 +12,42 @@ interface ResponsePreviewProps {
 }
 
 export default function ResponsePreview({ response, question, onClose }: ResponsePreviewProps) {
-  // Get all questions from sections or fallback to followUpQuestions
   const allQuestions = question.sections.length > 0
     ? question.sections.flatMap(section => section.questions)
     : question.followUpQuestions;
 
   const renderAnswer = (answer: any) => {
     if (Array.isArray(answer)) {
-      return answer.join(', ');
+      return answer.map((item, idx) => (
+        <div key={idx} className="flex items-center gap-2 mb-2">
+          {isImageUrl(String(item)) ? (
+            <ImageLink text={String(item)} />
+          ) : (
+            <span>{String(item)}</span>
+          )}
+        </div>
+      ));
     }
     if (typeof answer === 'object') {
-      return Object.entries(answer)
-        .map(([key, value]) => `${key}: ${value}`)
-        .join(', ');
+      return (
+        <div className="space-y-2">
+          {Object.entries(answer).map(([key, value]) => (
+            <div key={key} className="flex items-start gap-2">
+              <span className="font-medium text-gray-600 dark:text-gray-400">{key}:</span>
+              {isImageUrl(String(value)) ? (
+                <ImageLink text={String(value)} />
+              ) : (
+                <span>{String(value)}</span>
+              )}
+            </div>
+          ))}
+        </div>
+      );
     }
-    return String(answer);
+    if (isImageUrl(String(answer))) {
+      return <ImageLink text={String(answer)} />;
+    }
+    return <span>{String(answer)}</span>;
   };
 
   return (

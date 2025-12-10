@@ -12,7 +12,62 @@ type Section = {
 };
 
 export interface ParsedAnswers {
-  [questionId: string]: any;
+  [questionId: string]: unknown;
+}
+
+export function convertGoogleDriveLink(url: string): string {
+  if (!url || typeof url !== 'string') {
+    return url;
+  }
+
+  const trimmed = url.trim();
+  
+  const fileIdMatch = trimmed.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  if (fileIdMatch && fileIdMatch[1]) {
+    const fileId = fileIdMatch[1];
+    return `https://drive.google.com/uc?export=view&id=${fileId}`;
+  }
+  
+  return trimmed;
+}
+
+export function isImageUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+
+  const trimmed = url.trim().toLowerCase();
+  
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.svg'];
+  if (imageExtensions.some(ext => trimmed.endsWith(ext))) {
+    return true;
+  }
+  
+  if (trimmed.includes('drive.google.com')) {
+    return true;
+  }
+  
+  if (trimmed.includes('imgur.com') || trimmed.includes('cloudinary.com') || 
+      trimmed.includes('s3.amazonaws.com') || trimmed.includes('cdn.')) {
+    return true;
+  }
+  
+  return false;
+}
+
+export function isGoogleDriveUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+  return url.trim().toLowerCase().includes('drive.google.com');
+}
+
+export function isCloudinaryUrl(url: string): boolean {
+  if (!url || typeof url !== 'string') {
+    return false;
+  }
+  return url.trim().toLowerCase().includes('cloudinary.com') || 
+         url.trim().toLowerCase().includes('res.cloudinary.com');
 }
 
 function parseNumber(value: unknown) {
@@ -205,10 +260,10 @@ export function generateAnswerTemplate(form: Question) {
   );
 
   // Build Excel data array WITH QUESTION TYPE COLUMN
-  const data: any[][] = [];
+  const data: Array<Array<string | number>> = [];
 
   // HEADER ROW - DYNAMIC based on max questions
-  const headerRow: any[] = ["Section"];
+  const headerRow: Array<string | number> = ["Section"];
   for (let i = 0; i < maxQuestionsPerRow; i++) {
     headerRow.push(i === 0 ? "Main Question" : "Follow‑Up Question");
     headerRow.push("Question Type");
@@ -231,7 +286,7 @@ export function generateAnswerTemplate(form: Question) {
         } questions (1 main + ${row.followUps.length} follow-ups)`
       );
 
-      const excelRow: any[] = new Array(1 + maxQuestionsPerRow * 4).fill("");
+      const excelRow: Array<string | number> = new Array(1 + maxQuestionsPerRow * 4).fill("");
 
       // First column: Section title (only on first row of section)
       excelRow[0] = firstRowInSection ? section.title : "";
@@ -239,7 +294,7 @@ export function generateAnswerTemplate(form: Question) {
 
       // Fill question-type-options-answer quadruples
       let columnIndex = 1;
-      row.allQuestions.forEach((q, questionIndex) => {
+      row.allQuestions.forEach((q) => {
         excelRow[columnIndex] = q.label; // Question text
         excelRow[columnIndex + 1] = q.type; // Question Type
         excelRow[columnIndex + 2] = q.options; // Options
@@ -526,7 +581,7 @@ export async function parseAnswerWorkbook(
   }
 
   // Read as array to preserve column structure
-  const rawData = utils.sheet_to_json<any[]>(worksheet, {
+  const rawData = utils.sheet_to_json<Array<unknown>>(worksheet, {
     defval: "",
     header: 1, // Get as array of arrays
   });
@@ -546,14 +601,24 @@ export async function parseAnswerWorkbook(
 
   const gatherAllQuestions = (
     questions: FollowUpQuestion[],
-    base: string
+    sectionIndex: number
   ): void => {
-    questions.forEach((question, index) => {
+    // Separate main questions from follow-ups
+    const mainQuestions = questions.filter(q => !q.parentId && !q.showWhen?.questionId);
+    const followUps = questions.filter(q => q.parentId || q.showWhen?.questionId);
+
+    // Keep track of global question counter for this section
+    let globalQuestionCounter = sectionIndex * 1000; // Start counting from section offset
+
+    // Map main questions with incrementing numbers (Q1, Q2, Q3, ...)
+    mainQuestions.forEach((question, mainIndex) => {
+      const questionNumber = mainIndex + 1;
+      const base = `Q${questionNumber}`;
       const label = `${base}. ${question.text}`;
       questionMap.set(label.toLowerCase().trim(), question.id);
-      //console.log(`   📝 Mapped: "${label}" → ${question.id}`);
+      //console.log(`   📝 Mapped MAIN: "${label}" → ${question.id}`);
 
-      // Add follow-ups with proper numbering
+      // Add this question's follow-ups with proper numbering
       if (question.followUpQuestions && question.followUpQuestions.length > 0) {
         const gatherFollowUps = (
           fuQuestions: FollowUpQuestion[],
@@ -564,7 +629,7 @@ export async function parseAnswerWorkbook(
               fu.text
             }`;
             questionMap.set(fuLabel.toLowerCase().trim(), fu.id);
-            // console.log(`   📝 Mapped: "${fuLabel}" → ${fu.id}`);
+            // console.log(`   📝 Mapped FOLLOWUP: "${fuLabel}" → ${fu.id}`);
 
             if (fu.followUpQuestions && fu.followUpQuestions.length > 0) {
               gatherFollowUps(fu.followUpQuestions, [...path, fuIndex + 1]);
@@ -575,43 +640,70 @@ export async function parseAnswerWorkbook(
         gatherFollowUps(question.followUpQuestions);
       }
     });
+
+    // Also map standalone follow-ups (shouldn't happen, but just in case)
+    followUps.forEach((fu) => {
+      const label = `Q${sectionIndex + 1}. ${fu.text}`;
+      questionMap.set(label.toLowerCase().trim(), fu.id);
+    });
   };
 
   //console.log("📋 Building question map...");
 
   // Map all questions from the form
-  form.sections.forEach((section: Section, sectionIndex: number) => {
-    const base = `Q${sectionIndex + 1}`;
-    gatherAllQuestions(section.questions, base);
+  form.sections.forEach((section: Section, sectionIndex) => {
+    gatherAllQuestions(section.questions, sectionIndex);
   });
 
-  // Parse answers from Excel - NEW FORMAT: Section | Question | Type | Options | Answer
-  //console.log("📋 Parsing answers from Excel (new format with Type)...");
+  // Parse answers from Excel - Handle BOTH formats:
+  // Format 1 (WIDE): [Section | Q1 | Type | Options | Answer | Q2 | Type | Options | Answer | ...]
+  // Format 2 (VERTICAL): Each row has [Section | Question | Type | Options | Answer]
+  //console.log("📋 Parsing answers from Excel...");
 
-  answerRows.forEach((row: any[], rowIndex: number) => {
-    if (!Array.isArray(row)) return;
+  // First, detect format by checking if multiple questions exist in first data row
+  const isWideFormat = answerRows.length > 0 && 
+    Array.isArray(answerRows[0]) && 
+    answerRows[0].length > 5 && 
+    answerRows[0][5] !== undefined && 
+    answerRows[0][5] !== '';
 
-    let columnIndex = 1; // Skip section column
-    let questionIndex = 0;
+  if (isWideFormat) {
+    // WIDE FORMAT: All questions in one row, side-by-side
+    answerRows.forEach((row) => {
+      if (!Array.isArray(row)) return;
 
-    while (columnIndex < row.length) {
-      const questionText = row[columnIndex]?.toString().trim();
-      const answerValue = row[columnIndex + 3]?.toString().trim(); // Skip Type and Options columns
+      let columnIndex = 1; // Skip section column
+      while (columnIndex < row.length) {
+        const questionText = row[columnIndex]?.toString().trim();
+        const answerValue = row[columnIndex + 3]?.toString().trim();
+
+        if (questionText && answerValue !== undefined && answerValue !== "") {
+          const questionId = questionMap.get(questionText.toLowerCase().trim());
+          if (questionId) {
+            answers[questionId] = answerValue;
+          }
+        }
+        columnIndex += 4;
+      }
+    });
+  } else {
+    // VERTICAL FORMAT: Each question is in its own row
+    answerRows.forEach((row) => {
+      if (!Array.isArray(row) || row.length < 5) {
+        return;
+      }
+
+      const questionText = row[1]?.toString().trim(); // Column B: Question
+      const answerValue = row[4]?.toString().trim();  // Column E: Answer
 
       if (questionText && answerValue !== undefined && answerValue !== "") {
         const questionId = questionMap.get(questionText.toLowerCase().trim());
         if (questionId) {
           answers[questionId] = answerValue;
-          // console.log(`   ✅ Found answer for ${questionId}: "${answerValue}"`);
-        } else {
-          //console.log(`   ❌ No match for question: "${questionText}"`);
         }
       }
-
-      columnIndex += 4; // Move to next Question-Type-Options-Answer quadruple
-      questionIndex++;
-    }
-  });
+    });
+  }
 
   //console.log(`✅ Parsed ${Object.keys(answers).length} answers`);
   return answers;
@@ -621,7 +713,7 @@ export function formatAnswersForSubmission(
   form: Question,
   parsedAnswers: ParsedAnswers
 ) {
-  const answers: Record<string, any> = {};
+  const answers: Record<string, unknown> = {};
 
   const flattenQuestions = (
     questions: FollowUpQuestion[]
@@ -650,6 +742,11 @@ export function formatAnswersForSubmission(
           answers[question.id] = answerValue;
         } else if (question.type === "number" || question.type === "rating") {
           answers[question.id] = parseNumber(answerValue) || answerValue;
+        } else if (question.type === "fileInput" || question.type === "image") {
+          const imageUrl = String(answerValue).trim();
+          answers[question.id] = isImageUrl(imageUrl) 
+            ? convertGoogleDriveLink(imageUrl)
+            : imageUrl;
         } else {
           answers[question.id] = answerValue;
         }

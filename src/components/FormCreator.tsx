@@ -78,6 +78,7 @@ interface Question {
     targetSectionId: string;
     isOtherOption?: boolean;
   }>;
+   suggestion?: string;
 }
 
 interface ShowWhen {
@@ -101,6 +102,8 @@ interface FollowUpQuestion {
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
   requireFollowUp?: boolean; // Make follow-up mandatory for certain question types
   correctAnswer?: string;
+  suggestion?: string;  
+ 
 }
 
 export default function FormCreator() {
@@ -201,6 +204,19 @@ export default function FormCreator() {
         try {
           const response = await apiClient.getForm(id);
           const backendForm = response.form;
+
+           console.log("=== DEBUG: Form loaded from backend ===");
+           console.log("Backend form structure:", backendForm);
+    
+    // Check first few questions for suggestions
+    backendForm.sections?.forEach((section: any, sIndex: number) => {
+      console.log(`\nSection ${sIndex + 1}: ${section.title}`);
+      section.questions?.slice(0, 3).forEach((q: any, qIndex: number) => {
+        console.log(`  Q${qIndex + 1}: "${q.text?.substring(0, 50)}..."`);
+        console.log(`    Has suggestion field: ${'suggestion' in q}`);
+        console.log(`    Suggestion value: "${q.suggestion || 'NO SUGGESTION'}"`);
+      });
+    });
 
           // Set the tenant ID from the loaded form
           if (backendForm.tenantId) {
@@ -1409,6 +1425,7 @@ export default function FormCreator() {
       imageUrl: "",
       subParam1: "",
       subParam2: "",
+      suggestion: "", 
     };
 
     updateSection(sectionId, {
@@ -1433,6 +1450,7 @@ export default function FormCreator() {
       imageUrl: "",
       subParam1: "",
       subParam2: "",
+      suggestion: "",
     };
 
     const questions = [...section.questions];
@@ -1456,6 +1474,7 @@ export default function FormCreator() {
       return {
         ...q,
         id: crypto.randomUUID(),
+        suggestion: q.suggestion || "",
         followUpQuestions: q.followUpQuestions?.map(
           (fq) =>
             ({
@@ -3567,13 +3586,30 @@ export default function FormCreator() {
                                         required: e.target.checked,
                                       })
                                     }
-                                    className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all"
+                                    className="mb-4 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all"
                                   />
-                                  <span className="ml-2.5 text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-700 font-medium transition-colors">
+                                  <span className="ml-1.5 text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-700 font-small transition-colors mb-4">
                                     Required question
                                   </span>
                                 </label>
                               </div>
+                              <div className="mb-4">
+  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                    Suggestion
+                                  </label>
+  <textarea
+    value={question.suggestion || ""}
+    onChange={(e) =>
+      updateQuestion(section.id, question.id, {
+        suggestion: e.target.value,
+      })
+    }
+    placeholder="Suggestions or recommendations for this question"
+    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-gray-100"
+    rows={3}
+  />
+  
+</div>
 
                               <div className="mt-4 grid grid-cols-2 gap-3">
                                 <div>

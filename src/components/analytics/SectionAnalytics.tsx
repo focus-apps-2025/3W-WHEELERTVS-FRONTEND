@@ -1,5 +1,18 @@
 import React, { useMemo, useState, useRef, useEffect } from "react";
-import { BarChart3, TrendingUp, Target, Activity, Zap, ChevronDown, X, Eye, User, Calendar, FileText, BarChart } from "lucide-react";
+import {
+  BarChart3,
+  TrendingUp,
+  Target,
+  Activity,
+  Zap,
+  ChevronDown,
+  X,
+  Eye,
+  User,
+  Calendar,
+  FileText,
+  BarChart,
+} from "lucide-react";
 import {
   Chart as ChartJS,
   RadialLinearScale,
@@ -9,13 +22,24 @@ import {
   Tooltip,
   Legend,
   ArcElement,
-  Title, BarElement
+  Title,
+  BarElement,
 } from "chart.js";
 import { Radar, Pie, Bar } from "react-chartjs-2";
 import type { Question, Response } from "../../types";
+import { isImageUrl } from "../../utils/answerTemplateUtils";
+import ImageLink from "../ImageLink";
 
-ChartJS.register(RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend, ArcElement, BarElement);
-
+ChartJS.register(
+  RadialLinearScale,
+  PointElement,
+  LineElement,
+  Filler,
+  Tooltip,
+  Legend,
+  ArcElement,
+  BarElement
+);
 
 interface Response {
   id: string;
@@ -125,8 +149,9 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
     console.log("Form Data:", formData);
 
     // Check if we're in Basic Information section
-    const isBasicInfoSection = sectionTitle?.toLowerCase().includes('basic') ||
-      sectionTitle?.toLowerCase().includes('information');
+    const isBasicInfoSection =
+      sectionTitle?.toLowerCase().includes("basic") ||
+      sectionTitle?.toLowerCase().includes("information");
 
     console.log("Is Basic Info Section:", isBasicInfoSection);
 
@@ -148,10 +173,10 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
 
       // Search for dealer name question
       for (const q of firstSection.questions) {
-        const questionText = q.text?.toLowerCase() || '';
+        const questionText = q.text?.toLowerCase() || "";
         console.log(`Checking question: ${q.text} (${q.id})`);
 
-        if (questionText.includes('dealer')) {
+        if (questionText.includes("dealer")) {
           console.log("Found dealer question:", q);
           return q.id;
         }
@@ -159,8 +184,8 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
 
       // If no dealer question found, look for any name field
       for (const q of firstSection.questions) {
-        const questionText = q.text?.toLowerCase() || '';
-        if (questionText.includes('name')) {
+        const questionText = q.text?.toLowerCase() || "";
+        if (questionText.includes("name")) {
           console.log("Found name question as fallback:", q);
           return q.id;
         }
@@ -196,12 +221,18 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
           isDealerName = false;
         }
 
-        console.log(`Will display: ${displayInfo} (isDealerName: ${isDealerName})`);
+        console.log(
+          `Will display: ${displayInfo} (isDealerName: ${isDealerName})`
+        );
 
         return {
           response,
           answer: response.answers?.[question.id],
-          timestamp: response.timestamp || response.createdAt || response.assignedAt || "Unknown",
+          timestamp:
+            response.timestamp ||
+            response.createdAt ||
+            response.assignedAt ||
+            "Unknown",
           status: response.status || "pending",
           displayInfo,
           isDealerName,
@@ -213,7 +244,9 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
     const stats = {
       totalAnswered: questionResponses.length,
       totalResponses: responses.length,
-      percentage: ((questionResponses.length / responses.length) * 100).toFixed(1),
+      percentage: ((questionResponses.length / responses.length) * 100).toFixed(
+        1
+      ),
     };
 
     if (question.type === "yesNoNA") {
@@ -222,7 +255,11 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
         const answer = String(qr.answer).toLowerCase();
         if (answer.includes("yes")) counts.yes++;
         else if (answer.includes("no")) counts.no++;
-        else if (answer.includes("na") || answer.includes("n/a") || answer.includes("not applicable"))
+        else if (
+          answer.includes("na") ||
+          answer.includes("n/a") ||
+          answer.includes("not applicable")
+        )
           counts.na++;
       });
       return { ...stats, counts };
@@ -259,9 +296,16 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
 
     if (typeof answer === "string") {
       if (answer.startsWith("data:")) {
-        return <span className="text-blue-600 font-medium">{answer.substring(0, 50)}...</span>;
+        return (
+          <span className="text-blue-600 font-medium">
+            {answer.substring(0, 50)}...
+          </span>
+        );
       }
       if (answer.startsWith("http://") || answer.startsWith("https://")) {
+        if (isImageUrl(answer)) {
+          return <ImageLink text={answer} />;
+        }
         return (
           <a
             href={answer}
@@ -341,7 +385,9 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
                         <Activity className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Question Type</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          Question Type
+                        </div>
                         <div className="font-medium text-gray-900 dark:text-white">
                           {question.type || "General"}
                         </div>
@@ -352,9 +398,13 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
                         <User className="w-4 h-4 text-green-600 dark:text-green-400" />
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">Answered</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          Answered
+                        </div>
                         <div className="font-medium text-gray-900 dark:text-white">
-                          {answerStats.totalAnswered} / {answerStats.totalResponses} ({answerStats.percentage}%)
+                          {answerStats.totalAnswered} /{" "}
+                          {answerStats.totalResponses} ({answerStats.percentage}
+                          %)
                         </div>
                       </div>
                     </div>
@@ -396,7 +446,9 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
               {questionResponses.length === 0 ? (
                 <div className="text-center py-12 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-200 dark:border-gray-700">
                   <Eye className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                  <p className="text-gray-500 dark:text-gray-400 font-medium">No responses yet</p>
+                  <p className="text-gray-500 dark:text-gray-400 font-medium">
+                    No responses yet
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -428,7 +480,9 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
                                     // Show ID icon and response ID for first section
                                     <>
                                       <FileText className="w-3 h-3" />
-                                      <span>Response ID: {qr.displayInfo}...</span>
+                                      <span>
+                                        Response ID: {qr.displayInfo}...
+                                      </span>
                                     </>
                                   )}
                                 </div>
@@ -447,12 +501,15 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
                         </div>
 
                         <div className="ml-4 flex-shrink-0">
-                          <div className={`px-3 py-1 rounded-full text-xs font-semibold ${qr.status === "verified"
-                            ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                            : qr.status === "rejected"
-                              ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                            }`}>
+                          <div
+                            className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                              qr.status === "verified"
+                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                : qr.status === "rejected"
+                                ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                            }`}
+                          >
                             {qr.status || "pending"}
                           </div>
                         </div>
@@ -467,7 +524,8 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
 
         <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-900/80 px-6 py-4 rounded-b-2xl border-t border-gray-200 dark:border-gray-700 flex justify-between items-center backdrop-blur-sm">
           <div className="text-sm text-gray-500 dark:text-gray-400">
-            Showing {questionResponses.length} response{questionResponses.length !== 1 ? "s" : ""}
+            Showing {questionResponses.length} response
+            {questionResponses.length !== 1 ? "s" : ""}
           </div>
           <button
             onClick={onClose}
@@ -481,7 +539,6 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
   );
 };
 
-
 export default function SectionAnalytics({
   question,
   responses,
@@ -493,7 +550,9 @@ export default function SectionAnalytics({
     formData?: any;
   } | null>(null);
 
-  const [visualizationType, setVisualizationType] = useState<'radar' | 'bar'>('radar');
+  const [visualizationType, setVisualizationType] = useState<"radar" | "bar">(
+    "radar"
+  );
 
   const getSectionStats = (section: Section) => {
     const mainQuestionsOnly = section.questions.filter(
@@ -505,10 +564,6 @@ export default function SectionAnalytics({
     let answeredFollowUpQuestions = 0;
     let mainQuestionResponses = 0;
     let followUpResponses = 0;
-
-
-
-
 
     const followUpQuestionsInSection = section.questions.filter(
       (q: any) => q.parentId || q.showWhen?.questionId
@@ -544,17 +599,13 @@ export default function SectionAnalytics({
     const totalQuestions = mainQuestionCount + totalFollowUpCount;
     const totalResponses = mainQuestionResponses + followUpResponses;
 
-    const completionRate = totalQuestions > 0
-      ? ((totalAnswered / totalQuestions) * 100).toFixed(1)
-      : 0;
+    const completionRate =
+      totalQuestions > 0
+        ? ((totalAnswered / totalQuestions) * 100).toFixed(1)
+        : 0;
 
-
-
-
-
-    const avgResponsesPerQuestion = totalQuestions > 0
-      ? (totalResponses / totalQuestions).toFixed(1)
-      : 0;
+    const avgResponsesPerQuestion =
+      totalQuestions > 0 ? (totalResponses / totalQuestions).toFixed(1) : 0;
 
     return {
       mainQuestionCount,
@@ -573,11 +624,13 @@ export default function SectionAnalytics({
           id: q.id,
           text: q.text,
           followUpCount: relatedFollowUps.length,
-          responses: responses.filter((r) => r.answers && r.answers[q.id]).length,
+          responses: responses.filter((r) => r.answers && r.answers[q.id])
+            .length,
           followUpDetails: relatedFollowUps.map((fq: any) => ({
             id: fq.id,
             text: fq.text,
-            responses: responses.filter((r) => r.answers && r.answers[fq.id]).length,
+            responses: responses.filter((r) => r.answers && r.answers[fq.id])
+              .length,
           })),
         };
       }),
@@ -593,15 +646,18 @@ export default function SectionAnalytics({
     }[] = [];
 
     // Group questions by parameter/subParam1
-    const parameterGroups = new Map<string, {
-      parameterName: string;
-      yes: number;
-      no: number;
-      na: number;
-      total: number;
-      questions: Question[];
-      isRealParameter: boolean;
-    }>();
+    const parameterGroups = new Map<
+      string,
+      {
+        parameterName: string;
+        yes: number;
+        no: number;
+        na: number;
+        total: number;
+        questions: Question[];
+        isRealParameter: boolean;
+      }
+    >();
 
     // Process all main questions in the section
     section.questions.forEach((q: any) => {
@@ -611,9 +667,12 @@ export default function SectionAnalytics({
         const hasRealParameter = !!q.subParam1 || !!q.parameter;
 
         // Get parameter name (prefer subParam1 or parameter over question text)
-        const paramName = q.subParam1 ||
+        const paramName =
+          q.subParam1 ||
           q.parameter ||
-          (hasRealParameter ? null : q.text?.substring(0, 30) + (q.text?.length > 30 ? "..." : "")) ||
+          (hasRealParameter
+            ? null
+            : q.text?.substring(0, 30) + (q.text?.length > 30 ? "..." : "")) ||
           null;
 
         // Skip if no parameter name can be extracted
@@ -627,7 +686,7 @@ export default function SectionAnalytics({
             na: 0,
             total: 0,
             questions: [],
-            isRealParameter: hasRealParameter
+            isRealParameter: hasRealParameter,
           });
         }
 
@@ -666,7 +725,7 @@ export default function SectionAnalytics({
           yes: group.yes,
           no: group.no,
           na: group.na,
-          total: group.total
+          total: group.total,
         });
       }
     });
@@ -680,7 +739,7 @@ export default function SectionAnalytics({
     let totalNA = 0;
     let totalResponses = 0;
 
-    qualityBreakdown.forEach(item => {
+    qualityBreakdown.forEach((item) => {
       totalYes += item.yes;
       totalNo += item.no;
       totalNA += item.na;
@@ -698,7 +757,7 @@ export default function SectionAnalytics({
         yes: total > 0 ? ((totalYes / total) * 100).toFixed(1) : "0.0",
         no: total > 0 ? ((totalNo / total) * 100).toFixed(1) : "0.0",
         na: total > 0 ? ((totalNA / total) * 100).toFixed(1) : "0.0",
-      }
+      },
     };
   };
 
@@ -709,15 +768,23 @@ export default function SectionAnalytics({
     }));
   }, [sections, responses]);
 
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [expandedSections, setExpandedSections] = useState<
+    Record<string, boolean>
+  >({});
   const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [expandedQualityBreakdown, setExpandedQualityBreakdown] = useState<
+    Record<string, boolean>
+  >({});
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsDropdownOpen(false);
       }
     };
@@ -733,6 +800,13 @@ export default function SectionAnalytics({
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => ({
+      ...prev,
+      [sectionId]: !prev[sectionId],
+    }));
+  };
+
+  const toggleQualityBreakdown = (sectionId: string) => {
+    setExpandedQualityBreakdown((prev) => ({
       ...prev,
       [sectionId]: !prev[sectionId],
     }));
@@ -756,15 +830,20 @@ export default function SectionAnalytics({
     section.title.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const displaySections = selectedSectionIds.length === 0
-    ? sectionsStats
-    : sectionsStats.filter((item) => selectedSectionIds.includes(item.section.id));
+  const displaySections =
+    selectedSectionIds.length === 0
+      ? sectionsStats
+      : sectionsStats.filter((item) =>
+          selectedSectionIds.includes(item.section.id)
+        );
 
   if (!sections || sections.length === 0) {
     return (
       <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg p-8 text-center border border-gray-100 dark:border-gray-700">
         <BarChart3 className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
-        <p className="text-gray-600 dark:text-gray-400 font-medium">No sections available</p>
+        <p className="text-gray-600 dark:text-gray-400 font-medium">
+          No sections available
+        </p>
       </div>
     );
   }
@@ -782,7 +861,10 @@ export default function SectionAnalytics({
       totalCompletionRate += parseFloat(stats.completionRate as any);
     });
 
-    const avgCompletionRate = displaySections.length > 0 ? (totalCompletionRate / displaySections.length).toFixed(1) : 0;
+    const avgCompletionRate =
+      displaySections.length > 0
+        ? (totalCompletionRate / displaySections.length).toFixed(1)
+        : 0;
 
     return {
       totalMainQuestions,
@@ -792,7 +874,6 @@ export default function SectionAnalytics({
       sections: displaySections.length,
     };
   }, [displaySections]);
-
 
   const prepareBarChartData = (qualityBreakdown: any[]) => {
     // Sort by yes percentage descending for better visualization
@@ -805,7 +886,7 @@ export default function SectionAnalytics({
     });
 
     return {
-      labels: sortedData.map(item =>
+      labels: sortedData.map((item) =>
         item.parameterName.length > 20
           ? item.parameterName.substring(0, 20) + "..."
           : item.parameterName
@@ -813,7 +894,7 @@ export default function SectionAnalytics({
       datasets: [
         {
           label: "Yes %",
-          data: sortedData.map(item => {
+          data: sortedData.map((item) => {
             const total = item.yes + item.no + item.na;
             return total > 0 ? (item.yes / total) * 100 : 0;
           }),
@@ -824,7 +905,7 @@ export default function SectionAnalytics({
         },
         {
           label: "No %",
-          data: sortedData.map(item => {
+          data: sortedData.map((item) => {
             const total = item.yes + item.no + item.na;
             return total > 0 ? (item.no / total) * 100 : 0;
           }),
@@ -835,7 +916,7 @@ export default function SectionAnalytics({
         },
         {
           label: "N/A %",
-          data: sortedData.map(item => {
+          data: sortedData.map((item) => {
             const total = item.yes + item.no + item.na;
             return total > 0 ? (item.na / total) * 100 : 0;
           }),
@@ -843,11 +924,10 @@ export default function SectionAnalytics({
           borderColor: "rgb(156, 163, 175)",
           borderWidth: 1,
           borderRadius: 4,
-        }
-      ]
+        },
+      ],
     };
   };
-
 
   return (
     <div className="w-full space-y-6" id="section-analytics-dashboard">
@@ -873,12 +953,15 @@ export default function SectionAnalytics({
             <span className="text-gray-900 dark:text-white font-medium">
               {selectedSectionIds.length === 0
                 ? "Select Sections (All)"
-                : `${selectedSectionIds.length} section${selectedSectionIds.length > 1 ? "s" : ""} selected`}
+                : `${selectedSectionIds.length} section${
+                    selectedSectionIds.length > 1 ? "s" : ""
+                  } selected`}
             </span>
           </div>
           <ChevronDown
-            className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${isDropdownOpen ? "rotate-180" : ""
-              }`}
+            className={`w-5 h-5 text-gray-600 dark:text-gray-400 transition-transform ${
+              isDropdownOpen ? "rotate-180" : ""
+            }`}
           />
         </button>
 
@@ -927,105 +1010,141 @@ export default function SectionAnalytics({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-xl p-6 border border-blue-200 dark:border-blue-700/50 shadow-lg hover:shadow-xl transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">Sections</span>
-            <Target className="w-5 h-5 text-blue-500" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-2">
+        {/* Total Sections: Count of all form sections being displayed */}
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-3 border border-blue-200 dark:border-blue-700/50 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+              Sections
+            </span>
+            <Target className="w-4 h-4 text-blue-500" />
           </div>
-          <div className="text-3xl font-bold text-blue-900 dark:text-blue-200">{totalMetrics.sections}</div>
-          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Total sections</p>
+          <div className="text-2xl font-bold text-blue-900 dark:text-blue-200">
+            {totalMetrics.sections}
+          </div>
+          <p className="text-xs text-blue-600 dark:text-blue-400">
+            Total sections
+          </p>
         </div>
 
-        <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 rounded-xl p-6 border border-green-200 dark:border-green-700/50 shadow-lg hover:shadow-xl transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-green-600 dark:text-green-400">Main Questions</span>
-            <Activity className="w-5 h-5 text-green-500" />
+        {/* Total Main Questions: Aggregate count of all primary questions across selected sections */}
+        <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 rounded-lg p-3 border border-green-200 dark:border-green-700/50 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-green-600 dark:text-green-400">
+              Main Q
+            </span>
+            <Activity className="w-4 h-4 text-green-500" />
           </div>
-          <div className="text-3xl font-bold text-green-900 dark:text-green-200">{totalMetrics.totalMainQuestions}</div>
-          <p className="text-xs text-green-600 dark:text-green-400 mt-1">Primary questions</p>
+          <div className="text-2xl font-bold text-green-900 dark:text-green-200">
+            {totalMetrics.totalMainQuestions}
+          </div>
+          <p className="text-xs text-green-600 dark:text-green-400">Primary</p>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 rounded-xl p-6 border border-purple-200 dark:border-purple-700/50 shadow-lg hover:shadow-xl transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-purple-600 dark:text-purple-400">Follow-ups</span>
-            <Zap className="w-5 h-5 text-purple-500" />
+        {/* Total Follow-up Questions: Aggregate count of all conditional/dependent questions across selected sections */}
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 rounded-lg p-3 border border-purple-200 dark:border-purple-700/50 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-purple-600 dark:text-purple-400">
+              Follow-ups
+            </span>
+            <Zap className="w-4 h-4 text-purple-500" />
           </div>
-          <div className="text-3xl font-bold text-purple-900 dark:text-purple-200">{totalMetrics.totalFollowUpQuestions}</div>
-          <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Follow-up questions</p>
+          <div className="text-2xl font-bold text-purple-900 dark:text-purple-200">
+            {totalMetrics.totalFollowUpQuestions}
+          </div>
+          <p className="text-xs text-purple-600 dark:text-purple-400">
+            Dependent
+          </p>
         </div>
 
-        <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 rounded-xl p-6 border border-orange-200 dark:border-orange-700/50 shadow-lg hover:shadow-xl transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">Answered</span>
-            <TrendingUp className="w-5 h-5 text-orange-500" />
+        {/* Total Answered Questions: Aggregate count of all questions (main + follow-ups) that received responses across selected sections */}
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 rounded-lg p-3 border border-orange-200 dark:border-orange-700/50 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-orange-600 dark:text-orange-400">
+              Answered
+            </span>
+            <TrendingUp className="w-4 h-4 text-orange-500" />
           </div>
-          <div className="text-3xl font-bold text-orange-900 dark:text-orange-200">{totalMetrics.totalQuestionsAnswered}</div>
-          <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Total answered</p>
+          <div className="text-2xl font-bold text-orange-900 dark:text-orange-200">
+            {totalMetrics.totalQuestionsAnswered}
+          </div>
+          <p className="text-xs text-orange-600 dark:text-orange-400">Total</p>
         </div>
 
-        <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 rounded-xl p-6 border border-red-200 dark:border-red-700/50 shadow-lg hover:shadow-xl transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-red-600 dark:text-red-400">Avg Rate</span>
-            <BarChart3 className="w-5 h-5 text-red-500" />
+        {/* Average Completion Rate: Mean completion percentage across all selected sections */}
+        <div className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 rounded-lg p-3 border border-red-200 dark:border-red-700/50 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+              Avg Rate
+            </span>
+            <BarChart3 className="w-4 h-4 text-red-500" />
           </div>
-          <div className="text-3xl font-bold text-red-900 dark:text-red-200">{totalMetrics.avgCompletionRate}%</div>
-          <p className="text-xs text-red-600 dark:text-red-400 mt-1">Completion rate</p>
+          <div className="text-2xl font-bold text-red-900 dark:text-red-200">
+            {totalMetrics.avgCompletionRate}%
+          </div>
+          <p className="text-xs text-red-600 dark:text-red-400">Completion</p>
         </div>
-        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/30 dark:to-indigo-800/30 rounded-xl p-6 border border-indigo-200 dark:border-indigo-700/50 shadow-lg hover:shadow-xl transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Visualization</span>
-            <BarChart className="w-5 h-5 text-indigo-500" />
+        {/* Visualization Type Toggle: Switch between Spider (radar) and Bar chart views */}
+        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900/30 dark:to-indigo-800/30 rounded-lg p-3 border border-indigo-200 dark:border-indigo-700/50 shadow-sm">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+              View
+            </span>
+            <BarChart className="w-4 h-4 text-indigo-500" />
           </div>
 
-          <div className="mt-3">
-            <div className="flex items-center gap-2">
+          <div className="mt-2">
+            <div className="flex items-center gap-1">
               <button
-                onClick={() => setVisualizationType('radar')}
-                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${visualizationType === 'radar'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
+                onClick={() => setVisualizationType("radar")}
+                className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-all ${
+                  visualizationType === "radar"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
               >
                 Spider
               </button>
               <button
-                onClick={() => setVisualizationType('bar')}
-                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-all ${visualizationType === 'bar'
-                    ? 'bg-indigo-600 text-white shadow-md'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
+                onClick={() => setVisualizationType("bar")}
+                className={`flex-1 px-2 py-1 text-xs font-medium rounded transition-all ${
+                  visualizationType === "bar"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600"
+                }`}
               >
                 Bar
               </button>
             </div>
           </div>
-          <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-3">
-            {visualizationType === 'radar' ? 'Spider chart view' : 'Bar chart view'}
-          </p>
         </div>
       </div>
-
 
       {displaySections.length === 0 ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-12 text-center border border-gray-100 dark:border-gray-700">
           <Target className="w-12 h-12 text-gray-400 dark:text-gray-600 mx-auto mb-3" />
-          <p className="text-gray-600 dark:text-gray-400 font-medium">No sections selected</p>
-          <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">Select at least one section to view analytics</p>
+          <p className="text-gray-600 dark:text-gray-400 font-medium">
+            No sections selected
+          </p>
+          <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">
+            Select at least one section to view analytics
+          </p>
         </div>
       ) : (
         <div className="space-y-6">
           {displaySections.map(({ section, stats }, sectionIdx) => {
-            const isExpanded = expandedSections[section.id] !== false;
+            const isExpanded = expandedSections[section.id] === true;
             // Add this function inside SectionAnalytics component, before the sectionsStats useMemo
-            const qualityBreakdown = getSectionQualityBreakdown(section)
+            const qualityBreakdown = getSectionQualityBreakdown(section);
 
             // Get top 5 parameters for radar (or all if less than 5)
-            const radarParameters = qualityBreakdown.slice().map(item =>
-              item.parameterName.length > 12
-                ? item.parameterName.substring(0, 12) + "..."
-                : item.parameterName
-            );
+            const radarParameters = qualityBreakdown
+              .slice()
+              .map((item) =>
+                item.parameterName.length > 12
+                  ? item.parameterName.substring(0, 12) + "..."
+                  : item.parameterName
+              );
 
             // Calculate percentages for radar
             const radarData = radarParameters.map((_, index) => {
@@ -1045,46 +1164,57 @@ export default function SectionAnalytics({
             return (
               <div
                 key={section.id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-all" id={`section-analytics-${section.id}`}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-xl transition-all"
+                id={`section-analytics-${section.id}`}
               >
                 <button
                   onClick={() => toggleSection(section.id)}
-                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-left hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-between group shadow-md hover:shadow-lg"
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-3 text-left hover:from-blue-600 hover:to-blue-700 transition-all flex items-center justify-between group shadow-sm"
                 >
                   <div>
-                    <h4 className="text-xl font-bold text-white flex items-center gap-2">
-                      <span className="inline-flex items-center justify-center w-8 h-8 bg-white/20 rounded-lg text-sm">
+                    <h4 className="text-lg font-bold text-white flex items-center gap-1">
+                      <span className="inline-flex items-center justify-center w-6 h-6 bg-white/20 rounded text-xs">
                         {sectionIdx + 1}
                       </span>
                       {section.title}
                     </h4>
                     {section.description && (
-                      <p className="text-blue-100 text-sm mt-1">{section.description}</p>
+                      <p className="text-blue-100 text-xs mt-0.5">
+                        {section.description}
+                      </p>
                     )}
                   </div>
                   <ChevronDown
-                    className={`w-6 h-6 text-white transition-transform ${isExpanded ? "rotate-180" : ""
-                      }`}
+                    className={`w-5 h-5 text-white transition-transform ${
+                      isExpanded ? "rotate-180" : ""
+                    }`}
                   />
                 </button>
 
                 {isExpanded && (
-                  <div className="p-8">
-                    <div className={`grid grid-cols-1 ${!noParamData ? 'lg:grid-cols-3' : ''} gap-8`}>
-                      <div className={`${!noParamData ? 'lg:col-span-1' : ''}`}>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                  <div className="p-4">
+                    <div
+                      className={`grid grid-cols-1 ${
+                        !noParamData ? "lg:grid-cols-3" : ""
+                      } gap-4`}
+                    >
+                      <div className={`${!noParamData ? "lg:col-span-1" : ""}`}>
+                        {/* <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
+                          Main Questions: Count of primary/root level questions in this section
                           <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700/50">
                             <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Main Q</p>
                             <p className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-2">{stats.mainQuestionCount}</p>
                             <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Questions</p>
                           </div>
 
+                          Follow-up Questions: Count of conditional/dependent follow-up questions
                           <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 rounded-lg p-4 border border-purple-200 dark:border-purple-700/50">
                             <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase">Follow-ups</p>
                             <p className="text-2xl font-bold text-purple-900 dark:text-purple-200 mt-2">{stats.totalFollowUpCount}</p>
                             <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Questions</p>
                           </div>
 
+                          Answered Questions: Total count of main + follow-up questions that received at least one response
                           <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 rounded-lg p-4 border border-green-200 dark:border-green-700/50">
                             <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase">Answered</p>
                             <p className="text-2xl font-bold text-green-900 dark:text-green-200 mt-2">{stats.totalAnswered}</p>
@@ -1093,6 +1223,7 @@ export default function SectionAnalytics({
                             </p>
                           </div>
 
+                          Completion Rate: Percentage of all questions (main + follow-ups) that have been answered
                           <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700/50">
                             <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Completion</p>
                             <p className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-2">{stats.completionRate}%</p>
@@ -1104,603 +1235,755 @@ export default function SectionAnalytics({
                             </div>
                           </div>
 
+                          Average Responses Per Question: Total number of responses divided by total number of questions
                           <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700/50">
                             <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Avg Response</p>
                             <p className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-2">{stats.avgResponsesPerQuestion}</p>
                             <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Per question</p>
                           </div>
 
+                          Total Responses: Sum of all responses from all respondents across all questions in this section
                           <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 dark:from-cyan-900/30 dark:to-cyan-800/30 rounded-lg p-4 border border-cyan-200 dark:border-cyan-700/50">
                             <p className="text-xs font-semibold text-cyan-600 dark:text-cyan-400 uppercase">Total Responses</p>
                             <p className="text-2xl font-bold text-cyan-900 dark:text-cyan-200 mt-2">{stats.totalResponses}</p>
                             <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-1">All questions</p>
                           </div>
-                        </div>
+                        </div> */}
 
-                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                          <h5 className="text-md font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-                            <Activity className="w-5 h-5 mr-2 text-blue-600" />
+                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                          <h5 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+                            <Activity className="w-4 h-4 mr-1.5 text-blue-600" />
                             Question Details
                           </h5>
-                          <div className="space-y-3 max-h-96 overflow-y-auto">
-                            {stats.questionsDetail.map((q: any, idx: number) => (
-                              <div key={q.id}>
-                                {/* ========== UPDATE THIS DIV TO BE A BUTTON ========== */}
-                                <button
-                                  onClick={() => setSelectedQuestion({
-                                    question: q,
-                                    sectionTitle: section.title,
-                                    formData: question
-                                  })}
-                                  className="w-full text-left flex items-start justify-between p-3 bg-white dark:bg-gray-800 rounded-lg border-l-4 border-blue-500 hover:shadow-md transition-all hover:border-blue-600 group"
-                                >
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2">
-                                      <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded group-hover:bg-blue-200 group-hover:text-blue-700">
-                                        {idx + 1}
-                                      </span>
-                                      <p className="text-sm font-medium text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">
-                                        {q.text.length > 70 ? q.text.substring(0, 70) + "..." : q.text}
-                                      </p>
+                          <div className="space-y-2 max-h-96 overflow-y-auto">
+                            {stats.questionsDetail.map(
+                              (q: any, idx: number) => (
+                                <div key={q.id}>
+                                  {/* ========== UPDATE THIS DIV TO BE A BUTTON ========== */}
+                                  <button
+                                    onClick={() =>
+                                      setSelectedQuestion({
+                                        question: q,
+                                        sectionTitle: section.title,
+                                        formData: question,
+                                      })
+                                    }
+                                    className="w-full text-left flex items-start justify-between p-2 bg-white dark:bg-gray-800 rounded border-l-4 border-blue-500 hover:shadow-sm transition-all hover:border-blue-600 group"
+                                  >
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="inline-flex items-center justify-center w-5 h-5 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded group-hover:bg-blue-200 group-hover:text-blue-700">
+                                          {idx + 1}
+                                        </span>
+                                        <p className="text-xs font-medium text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">
+                                          {q.text.length > 70
+                                            ? q.text.substring(0, 70) + "..."
+                                            : q.text}
+                                        </p>
+                                      </div>
+                                      {q.followUpCount > 0 && (
+                                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 ml-7">
+                                          {q.followUpCount} follow-up
+                                          {q.followUpCount > 1 ? "s" : ""}
+                                        </p>
+                                      )}
                                     </div>
-                                    {q.followUpCount > 0 && (
-                                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 ml-8">
-                                        {q.followUpCount} follow-up{q.followUpCount > 1 ? "s" : ""}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div className="text-right ml-4 flex-shrink-0">
-                                    <div className="text-lg font-bold text-blue-600 dark:text-blue-400 group-hover:text-blue-700">
-                                      {q.responses}
+                                    <div className="text-right ml-2 flex-shrink-0">
+                                      <div className="text-base font-bold text-blue-600 dark:text-blue-400 group-hover:text-blue-700">
+                                        {q.responses}
+                                      </div>
+                                      <div className="text-xs text-blue-500 flex items-center justify-end gap-0.5">
+                                        <Eye className="w-2.5 h-2.5" />
+                                        View
+                                      </div>
                                     </div>
-                                    <div className="text-xs text-gray-600 dark:text-gray-400">responses</div>
-                                    <div className="text-xs text-blue-500 mt-1 flex items-center justify-end gap-1">
-                                      <Eye className="w-3 h-3" />
-                                      View
-                                    </div>
-                                  </div>
-                                </button>
-                                {/* ========== END OF UPDATE ========== */}
+                                  </button>
+                                  {/* ========== END OF UPDATE ========== */}
 
-                                {q.followUpDetails && q.followUpDetails.length > 0 && (
-                                  <div className="ml-6 mt-2 space-y-2">
-                                    {q.followUpDetails.map((fq: any, fIdx: number) => (
-                                      // ========== UPDATE THIS DIV TO BE A BUTTON ==========
-                                      <button
-                                        key={fq.id}
-                                        onClick={() => setSelectedQuestion({
-                                          question: fq,
-                                          sectionTitle: section.title,
-                                          formData: question
-                                        })}
-                                        className="w-full text-left flex items-start justify-between p-2 bg-blue-50 dark:bg-blue-900/20 rounded border-l-2 border-blue-400 text-sm hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-500 transition-all group"
-                                      >
-                                        <div className="flex-1">
-                                          <div className="flex items-center gap-2">
-                                            <span className="inline-flex items-center justify-center w-4 h-4 bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-sm">
-                                              •
-                                            </span>
-                                            <p className="text-xs font-medium text-gray-900 dark:text-white group-hover:text-blue-600">
-                                              {fq.text.length > 65 ? fq.text.substring(0, 65) + "..." : fq.text}
-                                            </p>
-                                          </div>
-                                        </div>
-                                        <div className="text-right ml-4 flex-shrink-0">
-                                          <div className="text-sm font-bold text-blue-600 dark:text-blue-400">
-                                            {fq.responses}
-                                          </div>
-                                          <div className="text-[10px] text-blue-500 mt-0.5 flex items-center justify-end gap-0.5">
-                                            <Eye className="w-2.5 h-2.5" />
-                                            View
-                                          </div>
-                                        </div>
-                                      </button>
-                                      // ========== END OF UPDATE ==========
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                                  {q.followUpDetails &&
+                                    q.followUpDetails.length > 0 && (
+                                      <div className="ml-6 mt-2 space-y-2">
+                                        {q.followUpDetails.map(
+                                          (fq: any, fIdx: number) => (
+                                            // ========== UPDATE THIS DIV TO BE A BUTTON ==========
+                                            <button
+                                              key={fq.id}
+                                              onClick={() =>
+                                                setSelectedQuestion({
+                                                  question: fq,
+                                                  sectionTitle: section.title,
+                                                  formData: question,
+                                                })
+                                              }
+                                              className="w-full text-left flex items-start justify-between p-1.5 bg-blue-50 dark:bg-blue-900/20 rounded border-l-2 border-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-500 transition-all group"
+                                            >
+                                              <div className="flex-1">
+                                                <div className="flex items-center gap-1">
+                                                  <span className="inline-flex items-center justify-center w-3 h-3 bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-sm">
+                                                    •
+                                                  </span>
+                                                  <p className="text-xs font-medium text-gray-900 dark:text-white group-hover:text-blue-600">
+                                                    {fq.text.length > 65
+                                                      ? fq.text.substring(
+                                                          0,
+                                                          65
+                                                        ) + "..."
+                                                      : fq.text}
+                                                  </p>
+                                                </div>
+                                              </div>
+                                              <div className="text-right ml-2 flex-shrink-0">
+                                                <div className="text-xs font-bold text-blue-600 dark:text-blue-400">
+                                                  {fq.responses}
+                                                </div>
+                                                <div className="text-[9px] text-blue-500 flex items-center justify-end gap-0.5">
+                                                  <Eye className="w-2 h-2" />
+                                                  View
+                                                </div>
+                                              </div>
+                                            </button>
+                                            // ========== END OF UPDATE ==========
+                                          )
+                                        )}
+                                      </div>
+                                    )}
+                                </div>
+                              )
+                            )}
                           </div>
                         </div>
                       </div>
-                      {!noParamData && (<div className="lg:col-span-2 space-y-3">
-                        {/* Overall Quality Pie Chart - TOP SECTION */}
-                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                          <div className="flex flex-col lg:flex-row gap-8">
-                            {/* Pie Chart */}
-                            <div className="lg:w-1/2">
-                              <h6 className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-4 flex items-center">
-                                <Activity className="w-4 h-4 mr-2" />
-                                Overall Quality Distribution
-                              </h6>
+                      {!noParamData && (
+                        <div className="lg:col-span-2 space-y-3">
+                          {/* Overall Quality Pie Chart - TOP SECTION */}
+                          <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                            <div className="flex flex-col lg:flex-row gap-8">
+                              {/* Pie Chart */}
+                              <div className="lg:w-1/2">
+                                <h6 className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-4 flex items-center">
+                                  <Activity className="w-4 h-4 mr-2" />
+                                  Overall Quality Distribution
+                                </h6>
 
-                              <div style={{ width: "100%", height: "200px" }} id={`section-pie-chart-${section.id}`}>
-                                <Pie
+                                <div
+                                  style={{ width: "100%", height: "200px" }}
+                                  id={`section-pie-chart-${section.id}`}
+                                >
+                                  <Pie
+                                    data={{
+                                      labels: ["Yes", "No", "N/A"],
+                                      datasets: [
+                                        {
+                                          data: [
+                                            overallQuality.totalYes,
+                                            overallQuality.totalNo,
+                                            overallQuality.totalNA,
+                                          ],
+                                          backgroundColor: [
+                                            "rgba(34, 197, 94, 0.8)", // Green for Yes
+                                            "rgba(239, 68, 68, 0.8)", // Red for No
+                                            "rgba(156, 163, 175, 0.8)", // Gray for N/A
+                                          ],
+                                          borderColor: [
+                                            "rgb(34, 197, 94)",
+                                            "rgb(239, 68, 68)",
+                                            "rgb(156, 163, 175)",
+                                          ],
+                                          borderWidth: 2,
+                                          hoverOffset: 15,
+                                        },
+                                      ],
+                                    }}
+                                    options={{
+                                      responsive: true,
+                                      maintainAspectRatio: false,
+                                      plugins: {
+                                        legend: {
+                                          position: "right",
+                                          labels: {
+                                            color:
+                                              document.documentElement.classList.contains(
+                                                "dark"
+                                              )
+                                                ? "#e5e7eb"
+                                                : "#374151",
+                                            font: {
+                                              size: 12,
+                                            },
+                                            padding: 20,
+                                          },
+                                        },
+                                        tooltip: {
+                                          callbacks: {
+                                            label: function (context) {
+                                              const label = context.label || "";
+                                              const value = context.raw || 0;
+                                              const total =
+                                                context.dataset.data.reduce(
+                                                  (a: number, b: number) =>
+                                                    a + b,
+                                                  0
+                                                );
+                                              const percentage =
+                                                total > 0
+                                                  ? (
+                                                      (value / total) *
+                                                      100
+                                                    ).toFixed(1)
+                                                  : 0;
+                                              return `${label}: ${value} (${percentage}%)`;
+                                            },
+                                          },
+                                        },
+                                        datalabels: {
+                                          color: "#fff",
+                                          font: {
+                                            weight: "bold",
+                                            size: 12,
+                                          },
+                                          formatter: (value, context) => {
+                                            const total =
+                                              context.dataset.data.reduce(
+                                                (a, b) => a + b,
+                                                0
+                                              );
+                                            const percentage =
+                                              total > 0
+                                                ? (value / total) * 100
+                                                : 0;
+
+                                            // Hide if percentage is 0 or less than 0.1%
+                                            if (percentage < 0.1) return null;
+
+                                            return `${percentage.toFixed(1)}%`;
+                                          },
+                                        },
+                                      },
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Stats Cards */}
+                              <div className="lg:w-1/2">
+                                <h6 className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-4 flex items-center">
+                                  <BarChart3 className="w-4 h-4 mr-2" />
+                                  Overall Quality Metrics
+                                </h6>
+                                <div className="grid grid-cols-3 gap-4">
+                                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-lg p-4 border border-green-200 dark:border-green-700">
+                                    <div className="text-center">
+                                      <div className="text-2xl font-bold text-green-700 dark:text-green-300">
+                                        {overallQuality.percentages.yes}%
+                                      </div>
+                                      <div className="text-sm font-semibold text-green-600 dark:text-green-400 mt-1">
+                                        Yes
+                                      </div>
+                                      <div className="text-xs text-green-500 dark:text-green-500 mt-1">
+                                        {overallQuality.totalYes} responses
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 rounded-lg p-4 border border-red-200 dark:border-red-700">
+                                    <div className="text-center">
+                                      <div className="text-2xl font-bold text-red-700 dark:text-red-300">
+                                        {overallQuality.percentages.no}%
+                                      </div>
+                                      <div className="text-sm font-semibold text-red-600 dark:text-red-400 mt-1">
+                                        No
+                                      </div>
+                                      <div className="text-xs text-red-500 dark:text-red-500 mt-1">
+                                        {overallQuality.totalNo} responses
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-900/30 dark:to-slate-900/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                                    <div className="text-center">
+                                      <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">
+                                        {overallQuality.percentages.na}%
+                                      </div>
+                                      <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mt-1">
+                                        N/A
+                                      </div>
+                                      <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                        {overallQuality.totalNA} responses
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Summary Card */}
+                                  <div className="col-span-3 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700 mt-2">
+                                    <div className="flex items-center justify-between">
+                                      <div>
+                                        <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                                          Total Responses
+                                        </div>
+                                        <div className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-1">
+                                          {overallQuality.totalYes +
+                                            overallQuality.totalNo +
+                                            overallQuality.totalNA}
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-sm text-blue-600 dark:text-blue-400">
+                                          {qualityBreakdown.length} Parameters
+                                        </div>
+                                        <div className="text-xs text-blue-500 dark:text-blue-500">
+                                          {overallQuality.totalResponses}{" "}
+                                          questions
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Radar Chart - BOTTOM SECTION */}
+                          <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+                            <div className="flex items-center justify-between mb-4">
+                              <h6 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center">
+                                <Target className="w-4 h-4 mr-2" />
+                                Parameter-wise Quality Breakdown
+                              </h6>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  View:
+                                </span>
+                                <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                                  <button
+                                    onClick={() =>
+                                      setVisualizationType("radar")
+                                    }
+                                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                                      visualizationType === "radar"
+                                        ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                    }`}
+                                  >
+                                    Spider
+                                  </button>
+                                  <button
+                                    onClick={() => setVisualizationType("bar")}
+                                    className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${
+                                      visualizationType === "bar"
+                                        ? "bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm"
+                                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                                    }`}
+                                  >
+                                    Bar
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div
+                              style={{ width: "100%", height: "300px" }}
+                              id={`section-visualization-${section.id}`}
+                            >
+                              {visualizationType === "radar" ? (
+                                <Radar
                                   data={{
-                                    labels: ["Yes", "No", "N/A"],
+                                    labels: qualityBreakdown.map((item) =>
+                                      item.parameterName.length > 15
+                                        ? item.parameterName.substring(0, 15) +
+                                          "..."
+                                        : item.parameterName
+                                    ),
                                     datasets: [
                                       {
-                                        data: [
-                                          overallQuality.totalYes,
-                                          overallQuality.totalNo,
-                                          overallQuality.totalNA
-                                        ],
-                                        backgroundColor: [
-                                          "rgba(34, 197, 94, 0.8)", // Green for Yes
-                                          "rgba(239, 68, 68, 0.8)", // Red for No
-                                          "rgba(156, 163, 175, 0.8)" // Gray for N/A
-                                        ],
-                                        borderColor: [
+                                        label: "Yes %",
+                                        data: qualityBreakdown.map((item) => {
+                                          const total =
+                                            item.yes + item.no + item.na;
+                                          return total > 0
+                                            ? (item.yes / total) * 100
+                                            : 0;
+                                        }),
+                                        borderColor: "rgb(34, 197, 94)",
+                                        backgroundColor:
+                                          "rgba(34, 197, 94, 0.1)",
+                                        pointBackgroundColor:
                                           "rgb(34, 197, 94)",
+                                        pointBorderColor: "#fff",
+                                        pointHoverBackgroundColor: "#fff",
+                                        pointHoverBorderColor:
+                                          "rgb(34, 197, 94)",
+                                        pointRadius: 4,
+                                        pointHoverRadius: 6,
+                                      },
+                                      {
+                                        label: "No %",
+                                        data: qualityBreakdown.map((item) => {
+                                          const total =
+                                            item.yes + item.no + item.na;
+                                          return total > 0
+                                            ? (item.no / total) * 100
+                                            : 0;
+                                        }),
+                                        borderColor: "rgb(239, 68, 68)",
+                                        backgroundColor:
+                                          "rgba(239, 68, 68, 0.1)",
+                                        pointBackgroundColor:
                                           "rgb(239, 68, 68)",
-                                          "rgb(156, 163, 175)"
-                                        ],
-                                        borderWidth: 2,
-                                        hoverOffset: 15
-                                      }
-                                    ]
+                                        pointBorderColor: "#fff",
+                                        pointHoverBackgroundColor: "#fff",
+                                        pointHoverBorderColor:
+                                          "rgb(239, 68, 68)",
+                                        pointRadius: 4,
+                                        pointHoverRadius: 6,
+                                      },
+                                      {
+                                        label: "N/A %",
+                                        data: qualityBreakdown.map((item) => {
+                                          const total =
+                                            item.yes + item.no + item.na;
+                                          return total > 0
+                                            ? (item.na / total) * 100
+                                            : 0;
+                                        }),
+                                        borderColor: "rgb(156, 163, 175)",
+                                        backgroundColor:
+                                          "rgba(156, 163, 175, 0.1)",
+                                        pointBackgroundColor:
+                                          "rgb(156, 163, 175)",
+                                        pointBorderColor: "#fff",
+                                        pointHoverBackgroundColor: "#fff",
+                                        pointHoverBorderColor:
+                                          "rgb(156, 163, 175)",
+                                        pointRadius: 4,
+                                        pointHoverRadius: 6,
+                                      },
+                                    ],
                                   }}
                                   options={{
                                     responsive: true,
                                     maintainAspectRatio: false,
                                     plugins: {
-
-                                      legend: {
-
-                                        position: "right",
-                                        labels: {
-                                          color: document.documentElement.classList.contains("dark")
-                                            ? "#e5e7eb"
-                                            : "#374151",
-                                          font: {
-                                            size: 12
-                                          },
-                                          padding: 20
-                                        }
-                                      },
-                                      tooltip: {
-                                        callbacks: {
-                                          label: function (context) {
-                                            const label = context.label || '';
-                                            const value = context.raw || 0;
-                                            const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-                                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                                            return `${label}: ${value} (${percentage}%)`;
-                                          }
-                                        }
-                                      },
                                       datalabels: {
-                                        color: "#fff",
-                                        font: {
-                                          weight: "bold",
-                                          size: 12
-                                        },
-                                        formatter: (value, context) => {
-                                          const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                                          const percentage = total > 0 ? ((value / total) * 100) : 0;
-
-                                          // Hide if percentage is 0 or less than 0.1%
-                                          if (percentage < 0.1) return null;
-
-                                          return `${percentage.toFixed(1)}%`;
-                                        }
-                                      }
-                                    }
-                                  }}
-                                />
-                              </div>
-                            </div>
-
-                            {/* Stats Cards */}
-                            <div className="lg:w-1/2">
-                              <h6 className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-4 flex items-center">
-                                <BarChart3 className="w-4 h-4 mr-2" />
-                                Overall Quality Metrics
-                              </h6>
-                              <div className="grid grid-cols-3 gap-4">
-                                <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-lg p-4 border border-green-200 dark:border-green-700">
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-green-700 dark:text-green-300">
-                                      {overallQuality.percentages.yes}%
-                                    </div>
-                                    <div className="text-sm font-semibold text-green-600 dark:text-green-400 mt-1">Yes</div>
-                                    <div className="text-xs text-green-500 dark:text-green-500 mt-1">
-                                      {overallQuality.totalYes} responses
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 rounded-lg p-4 border border-red-200 dark:border-red-700">
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-red-700 dark:text-red-300">
-                                      {overallQuality.percentages.no}%
-                                    </div>
-                                    <div className="text-sm font-semibold text-red-600 dark:text-red-400 mt-1">No</div>
-                                    <div className="text-xs text-red-500 dark:text-red-500 mt-1">
-                                      {overallQuality.totalNo} responses
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-900/30 dark:to-slate-900/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                                  <div className="text-center">
-                                    <div className="text-2xl font-bold text-gray-700 dark:text-gray-300">
-                                      {overallQuality.percentages.na}%
-                                    </div>
-                                    <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mt-1">N/A</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                                      {overallQuality.totalNA} responses
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Summary Card */}
-                                <div className="col-span-3 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/30 dark:to-cyan-900/30 rounded-lg p-4 border border-blue-200 dark:border-blue-700 mt-2">
-                                  <div className="flex items-center justify-between">
-                                    <div>
-                                      <div className="text-sm font-semibold text-blue-700 dark:text-blue-300">
-                                        Total Responses
-                                      </div>
-                                      <div className="text-2xl font-bold text-blue-900 dark:text-blue-200 mt-1">
-                                        {overallQuality.totalYes + overallQuality.totalNo + overallQuality.totalNA}
-                                      </div>
-                                    </div>
-                                    <div className="text-right">
-                                      <div className="text-sm text-blue-600 dark:text-blue-400">
-                                        {qualityBreakdown.length} Parameters
-                                      </div>
-                                      <div className="text-xs text-blue-500 dark:text-blue-500">
-                                        {overallQuality.totalResponses} questions
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Radar Chart - BOTTOM SECTION */}
-                        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                          <div className="flex items-center justify-between mb-4">
-                            <h6 className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center">
-                              <Target className="w-4 h-4 mr-2" />
-                              Parameter-wise Quality Breakdown
-                            </h6>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-gray-500 dark:text-gray-400">View:</span>
-                              <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-                                <button
-                                  onClick={() => setVisualizationType('radar')}
-                                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${visualizationType === 'radar'
-                                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                  Spider
-                                </button>
-                                <button
-                                  onClick={() => setVisualizationType('bar')}
-                                  className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${visualizationType === 'bar'
-                                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                                    }`}
-                                >
-                                  Bar
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div style={{ width: "100%", height: "300px" }} id={`section-visualization-${section.id}`}>
-                            {visualizationType === 'radar' ? (
-                              <Radar
-                                data={{
-                                  labels: qualityBreakdown.map(item =>
-                                    item.parameterName.length > 15
-                                      ? item.parameterName.substring(0, 15) + "..."
-                                      : item.parameterName
-                                  ),
-                                  datasets: [
-                                    {
-                                      label: "Yes %",
-                                      data: qualityBreakdown.map(item => {
-                                        const total = item.yes + item.no + item.na;
-                                        return total > 0 ? (item.yes / total) * 100 : 0;
-                                      }),
-                                      borderColor: "rgb(34, 197, 94)",
-                                      backgroundColor: "rgba(34, 197, 94, 0.1)",
-                                      pointBackgroundColor: "rgb(34, 197, 94)",
-                                      pointBorderColor: "#fff",
-                                      pointHoverBackgroundColor: "#fff",
-                                      pointHoverBorderColor: "rgb(34, 197, 94)",
-                                      pointRadius: 4,
-                                      pointHoverRadius: 6,
-                                    },
-                                    {
-                                      label: "No %",
-                                      data: qualityBreakdown.map(item => {
-                                        const total = item.yes + item.no + item.na;
-                                        return total > 0 ? (item.no / total) * 100 : 0;
-                                      }),
-                                      borderColor: "rgb(239, 68, 68)",
-                                      backgroundColor: "rgba(239, 68, 68, 0.1)",
-                                      pointBackgroundColor: "rgb(239, 68, 68)",
-                                      pointBorderColor: "#fff",
-                                      pointHoverBackgroundColor: "#fff",
-                                      pointHoverBorderColor: "rgb(239, 68, 68)",
-                                      pointRadius: 4,
-                                      pointHoverRadius: 6,
-                                    },
-                                    {
-                                      label: "N/A %",
-                                      data: qualityBreakdown.map(item => {
-                                        const total = item.yes + item.no + item.na;
-                                        return total > 0 ? (item.na / total) * 100 : 0;
-                                      }),
-                                      borderColor: "rgb(156, 163, 175)",
-                                      backgroundColor: "rgba(156, 163, 175, 0.1)",
-                                      pointBackgroundColor: "rgb(156, 163, 175)",
-                                      pointBorderColor: "#fff",
-                                      pointHoverBackgroundColor: "#fff",
-                                      pointHoverBorderColor: "rgb(156, 163, 175)",
-                                      pointRadius: 4,
-                                      pointHoverRadius: 6,
-                                    }
-                                  ],
-                                }}
-                                options={{
-                                  responsive: true,
-                                  maintainAspectRatio: false,
-                                  plugins: {
-                                    datalabels: {
-                                      display: false,
-                                    },
-                                    legend: {
-                                      display: true,
-                                      position: "bottom",
-                                      labels: {
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "#e5e7eb"
-                                          : "#374151",
-                                        font: {
-                                          size: 11,
-                                          weight: "600",
-                                        },
-                                      },
-                                    },
-                                    tooltip: {
-                                      backgroundColor: "rgba(0, 0, 0, 0.8)",
-                                      padding: 10,
-                                      titleFont: { size: 12, weight: "bold" },
-                                      bodyFont: { size: 11 },
-                                      callbacks: {
-                                        label: function (context: any) {
-                                          const label = context.dataset.label;
-                                          const value = context.parsed.r.toFixed(2);
-                                          const paramIndex = context.dataIndex;
-
-                                          if (paramIndex < qualityBreakdown.length) {
-                                            const item = qualityBreakdown[paramIndex];
-                                            const total = item.yes + item.no + item.na;
-
-                                            if (label === "Yes %") {
-                                              return `Yes: ${item.yes}/${total} (${value}%)`;
-                                            } else if (label === "No %") {
-                                              return `No: ${item.no}/${total} (${value}%)`;
-                                            } else if (label === "N/A %") {
-                                              return `N/A: ${item.na}/${total} (${value}%)`;
-                                            }
-                                          }
-
-                                          return `${label}: ${value}%`;
-                                        },
-                                        title: function (tooltipItems: any[]) {
-                                          const paramIndex = tooltipItems[0].dataIndex;
-                                          if (paramIndex < qualityBreakdown.length) {
-                                            return qualityBreakdown[paramIndex].parameterName;
-                                          }
-                                          return "";
-                                        }
-                                      },
-                                    },
-                                  },
-                                  scales: {
-                                    r: {
-                                      beginAtZero: true,
-                                      max: 100,
-                                      ticks: {
-                                        stepSize: 20,
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "#9ca3af"
-                                          : "#9ca3af",
-                                        font: {
-                                          size: 10,
-                                        },
-                                        callback: function (value) {
-                                          return value + '%';
-                                        }
-                                      },
-                                      grid: {
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "rgba(107, 114, 128, 0.2)"
-                                          : "rgba(209, 213, 219, 0.3)",
-                                        lineWidth: 1,
-                                      },
-                                      pointLabels: {
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "#e5e7eb"
-                                          : "#1f2937",
-                                        font: {
-                                          size: 9,
-                                          weight: "600",
-                                        },
-                                        padding: 8,
-                                      },
-                                      angleLines: {
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "rgba(107, 114, 128, 0.2)"
-                                          : "rgba(209, 213, 219, 0.3)",
-                                      },
-                                    },
-                                  },
-                                }}
-                              />
-                            ) : (
-                              <Bar
-                                data={prepareBarChartData(qualityBreakdown)}
-                                options={{
-                                  responsive: true,
-                                  maintainAspectRatio: false,
-                                  indexAxis: 'y',
-                                  plugins: {
-                                    datalabels: {
-                                      display: false,
-                                    },
-                                    legend: {
-                                      display: true,
-                                      position: "bottom",
-                                      labels: {
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "#e5e7eb"
-                                          : "#374151",
-                                        font: {
-                                          size: 11,
-                                          weight: "600",
-                                        },
-                                      },
-                                    },
-                                    tooltip: {
-                                      backgroundColor: "rgba(0, 0, 0, 0.8)",
-                                      padding: 10,
-                                      titleFont: { size: 12, weight: "bold" },
-                                      bodyFont: { size: 11 },
-                                      callbacks: {
-                                        label: function (context: any) {
-                                          const label = context.dataset.label;
-                                          const value = context.parsed.x.toFixed(2);
-                                          const paramIndex = context.dataIndex;
-
-                                          if (paramIndex < qualityBreakdown.length) {
-                                            const sortedData = [...qualityBreakdown].sort((a, b) => {
-                                              const totalA = a.yes + a.no + a.na;
-                                              const totalB = b.yes + b.no + b.na;
-                                              const percentA = totalA > 0 ? (a.yes / totalA) * 100 : 0;
-                                              const percentB = totalB > 0 ? (b.yes / totalB) * 100 : 0;
-                                              return percentB - percentA;
-                                            });
-                                            const item = sortedData[paramIndex];
-                                            const total = item.yes + item.no + item.na;
-
-                                            if (label === "Yes %") {
-                                              return `Yes: ${item.yes}/${total} (${value}%)`;
-                                            } else if (label === "No %") {
-                                              return `No: ${item.no}/${total} (${value}%)`;
-                                            } else if (label === "N/A %") {
-                                              return `N/A: ${item.na}/${total} (${value}%)`;
-                                            }
-                                          }
-
-                                          return `${label}: ${value}%`;
-                                        },
-                                        title: function (tooltipItems: any[]) {
-                                          const paramIndex = tooltipItems[0].dataIndex;
-                                          const sortedData = [...qualityBreakdown].sort((a, b) => {
-                                            const totalA = a.yes + a.no + a.na;
-                                            const totalB = b.yes + b.no + b.na;
-                                            const percentA = totalA > 0 ? (a.yes / totalA) * 100 : 0;
-                                            const percentB = totalB > 0 ? (b.yes / totalB) * 100 : 0;
-                                            return percentB - percentA;
-                                          });
-                                          if (paramIndex < sortedData.length) {
-                                            return sortedData[paramIndex].parameterName;
-                                          }
-                                          return "";
-                                        }
-                                      },
-                                    },
-                                  },
-                                  scales: {
-                                    x: {
-                                      beginAtZero: true,
-                                      max: 100,
-                                      ticks: {
-                                        stepSize: 20,
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "#9ca3af"
-                                          : "#9ca3af",
-                                        font: {
-                                          size: 10,
-                                        },
-                                        callback: function (value) {
-                                          return value + '%';
-                                        }
-                                      },
-                                      grid: {
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "rgba(107, 114, 128, 0.2)"
-                                          : "rgba(209, 213, 219, 0.3)",
-                                        lineWidth: 1,
-                                      },
-                                      title: {
-                                        display: true,
-                                        text: 'Percentage',
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "#e5e7eb"
-                                          : "#374151",
-                                        font: {
-                                          size: 11,
-                                          weight: "600",
-                                        },
-                                      }
-                                    },
-                                    y: {
-                                      ticks: {
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "#e5e7eb"
-                                          : "#1f2937",
-                                        font: {
-                                          size: 9,
-                                          weight: "600",
-                                        },
-                                        padding: 0, // Remove padding
-                                        crossAlign: 'near', // Align labels to the near side (left for y-axis)
-                                        mirror: false, // Don't mirror
-                                      },
-                                      grid: {
                                         display: false,
                                       },
-                                      afterFit: function (scaleInstance) {
-                                        // This ensures the labels are properly positioned
-                                        scaleInstance.paddingLeft = 0;
+                                      legend: {
+                                        display: true,
+                                        position: "bottom",
+                                        labels: {
+                                          color:
+                                            document.documentElement.classList.contains(
+                                              "dark"
+                                            )
+                                              ? "#e5e7eb"
+                                              : "#374151",
+                                          font: {
+                                            size: 11,
+                                            weight: "600",
+                                          },
+                                        },
+                                      },
+                                      tooltip: {
+                                        backgroundColor: "rgba(0, 0, 0, 0.8)",
+                                        padding: 10,
+                                        titleFont: { size: 12, weight: "bold" },
+                                        bodyFont: { size: 11 },
+                                        callbacks: {
+                                          label: function (context: any) {
+                                            const label = context.dataset.label;
+                                            const value =
+                                              context.parsed.r.toFixed(2);
+                                            const paramIndex =
+                                              context.dataIndex;
+
+                                            if (
+                                              paramIndex <
+                                              qualityBreakdown.length
+                                            ) {
+                                              const item =
+                                                qualityBreakdown[paramIndex];
+                                              const total =
+                                                item.yes + item.no + item.na;
+
+                                              if (label === "Yes %") {
+                                                return `Yes: ${item.yes}/${total} (${value}%)`;
+                                              } else if (label === "No %") {
+                                                return `No: ${item.no}/${total} (${value}%)`;
+                                              } else if (label === "N/A %") {
+                                                return `N/A: ${item.na}/${total} (${value}%)`;
+                                              }
+                                            }
+
+                                            return `${label}: ${value}%`;
+                                          },
+                                          title: function (
+                                            tooltipItems: any[]
+                                          ) {
+                                            const paramIndex =
+                                              tooltipItems[0].dataIndex;
+                                            if (
+                                              paramIndex <
+                                              qualityBreakdown.length
+                                            ) {
+                                              return qualityBreakdown[
+                                                paramIndex
+                                              ].parameterName;
+                                            }
+                                            return "";
+                                          },
+                                        },
                                       },
                                     },
-                                  },
-                                  layout: {
-                                    padding: {
-                                      left: 0, // Remove left padding
-                                      right: 10,
+                                    scales: {
+                                      r: {
+                                        beginAtZero: true,
+                                        max: 100,
+                                        ticks: {
+                                          stepSize: 20,
+                                          color:
+                                            document.documentElement.classList.contains(
+                                              "dark"
+                                            )
+                                              ? "#9ca3af"
+                                              : "#9ca3af",
+                                          font: {
+                                            size: 10,
+                                          },
+                                          callback: function (value) {
+                                            return value + "%";
+                                          },
+                                        },
+                                        grid: {
+                                          color:
+                                            document.documentElement.classList.contains(
+                                              "dark"
+                                            )
+                                              ? "rgba(107, 114, 128, 0.2)"
+                                              : "rgba(209, 213, 219, 0.3)",
+                                          lineWidth: 1,
+                                        },
+                                        pointLabels: {
+                                          color:
+                                            document.documentElement.classList.contains(
+                                              "dark"
+                                            )
+                                              ? "#e5e7eb"
+                                              : "#1f2937",
+                                          font: {
+                                            size: 9,
+                                            weight: "600",
+                                          },
+                                          padding: 8,
+                                        },
+                                        angleLines: {
+                                          color:
+                                            document.documentElement.classList.contains(
+                                              "dark"
+                                            )
+                                              ? "rgba(107, 114, 128, 0.2)"
+                                              : "rgba(209, 213, 219, 0.3)",
+                                        },
+                                      },
+                                    },
+                                  }}
+                                />
+                              ) : (
+                                <Bar
+                                  data={prepareBarChartData(qualityBreakdown)}
+                                  options={{
+                                    responsive: true,
+                                    maintainAspectRatio: false,
+                                    indexAxis: "y",
+                                    plugins: {
+                                      datalabels: {
+                                        display: false,
+                                      },
+                                      legend: {
+                                        display: true,
+                                        position: "bottom",
+                                        labels: {
+                                          color:
+                                            document.documentElement.classList.contains(
+                                              "dark"
+                                            )
+                                              ? "#e5e7eb"
+                                              : "#374151",
+                                          font: {
+                                            size: 11,
+                                            weight: "600",
+                                          },
+                                        },
+                                      },
+                                      tooltip: {
+                                        backgroundColor: "rgba(0, 0, 0, 0.8)",
+                                        padding: 10,
+                                        titleFont: { size: 12, weight: "bold" },
+                                        bodyFont: { size: 11 },
+                                        callbacks: {
+                                          label: function (context: any) {
+                                            const label = context.dataset.label;
+                                            const value =
+                                              context.parsed.x.toFixed(2);
+                                            const paramIndex =
+                                              context.dataIndex;
 
+                                            if (
+                                              paramIndex <
+                                              qualityBreakdown.length
+                                            ) {
+                                              const sortedData = [
+                                                ...qualityBreakdown,
+                                              ].sort((a, b) => {
+                                                const totalA =
+                                                  a.yes + a.no + a.na;
+                                                const totalB =
+                                                  b.yes + b.no + b.na;
+                                                const percentA =
+                                                  totalA > 0
+                                                    ? (a.yes / totalA) * 100
+                                                    : 0;
+                                                const percentB =
+                                                  totalB > 0
+                                                    ? (b.yes / totalB) * 100
+                                                    : 0;
+                                                return percentB - percentA;
+                                              });
+                                              const item =
+                                                sortedData[paramIndex];
+                                              const total =
+                                                item.yes + item.no + item.na;
 
-                                    }
-                                  }
-                                }}
-                              />
-                            )}
+                                              if (label === "Yes %") {
+                                                return `Yes: ${item.yes}/${total} (${value}%)`;
+                                              } else if (label === "No %") {
+                                                return `No: ${item.no}/${total} (${value}%)`;
+                                              } else if (label === "N/A %") {
+                                                return `N/A: ${item.na}/${total} (${value}%)`;
+                                              }
+                                            }
+
+                                            return `${label}: ${value}%`;
+                                          },
+                                          title: function (
+                                            tooltipItems: any[]
+                                          ) {
+                                            const paramIndex =
+                                              tooltipItems[0].dataIndex;
+                                            const sortedData = [
+                                              ...qualityBreakdown,
+                                            ].sort((a, b) => {
+                                              const totalA =
+                                                a.yes + a.no + a.na;
+                                              const totalB =
+                                                b.yes + b.no + b.na;
+                                              const percentA =
+                                                totalA > 0
+                                                  ? (a.yes / totalA) * 100
+                                                  : 0;
+                                              const percentB =
+                                                totalB > 0
+                                                  ? (b.yes / totalB) * 100
+                                                  : 0;
+                                              return percentB - percentA;
+                                            });
+                                            if (
+                                              paramIndex < sortedData.length
+                                            ) {
+                                              return sortedData[paramIndex]
+                                                .parameterName;
+                                            }
+                                            return "";
+                                          },
+                                        },
+                                      },
+                                    },
+                                    scales: {
+                                      x: {
+                                        beginAtZero: true,
+                                        max: 100,
+                                        ticks: {
+                                          stepSize: 20,
+                                          color:
+                                            document.documentElement.classList.contains(
+                                              "dark"
+                                            )
+                                              ? "#9ca3af"
+                                              : "#9ca3af",
+                                          font: {
+                                            size: 10,
+                                          },
+                                          callback: function (value) {
+                                            return value + "%";
+                                          },
+                                        },
+                                        grid: {
+                                          color:
+                                            document.documentElement.classList.contains(
+                                              "dark"
+                                            )
+                                              ? "rgba(107, 114, 128, 0.2)"
+                                              : "rgba(209, 213, 219, 0.3)",
+                                          lineWidth: 1,
+                                        },
+                                        title: {
+                                          display: true,
+                                          text: "Percentage",
+                                          color:
+                                            document.documentElement.classList.contains(
+                                              "dark"
+                                            )
+                                              ? "#e5e7eb"
+                                              : "#374151",
+                                          font: {
+                                            size: 11,
+                                            weight: "600",
+                                          },
+                                        },
+                                      },
+                                      y: {
+                                        ticks: {
+                                          color:
+                                            document.documentElement.classList.contains(
+                                              "dark"
+                                            )
+                                              ? "#e5e7eb"
+                                              : "#1f2937",
+                                          font: {
+                                            size: 9,
+                                            weight: "600",
+                                          },
+                                          padding: 0, // Remove padding
+                                          crossAlign: "near", // Align labels to the near side (left for y-axis)
+                                          mirror: false, // Don't mirror
+                                        },
+                                        grid: {
+                                          display: false,
+                                        },
+                                        afterFit: function (scaleInstance) {
+                                          // This ensures the labels are properly positioned
+                                          scaleInstance.paddingLeft = 0;
+                                        },
+                                      },
+                                    },
+                                    layout: {
+                                      padding: {
+                                        left: 0, // Remove left padding
+                                        right: 10,
+                                      },
+                                    },
+                                  }}
+                                />
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
                       )}
                     </div>
-
                   </div>
                 )}
               </div>
             );
           })}
         </div>
-
       )}
       {selectedQuestion && (
         <QuestionDetailsModal

@@ -500,19 +500,19 @@ d:\FOCUSPRJ\frontend\src\components\analytics\FormAnalyticsDashboard.tsx
   1444:42   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
   1455:21   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
   1458:24   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
-  2179:55   error    'oldValue' is assigned a value but never used                                                                         @typescript-eslint/no-unused-vars
-  2180:55   error    'newNumericValue' is assigned a value but never used                                                                  @typescript-eslint/no-unused-vars
-  2239:57   error    'newWeightage' is assigned a value but never used                                                                     @typescript-eslint/no-unused-vars
-  2370:103  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
-  2633:63   error    'sectionIdx' is defined but never used                                                                                @typescript-eslint/no-unused-vars
-  2643:69   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
-  2643:74   error    'qIdx' is defined but never used                                                                                      @typescript-eslint/no-unused-vars
-  2838:58   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
-  2861:62   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
-  2993:80   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
-  2997:34   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
-  2998:30   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
-  3083:54   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  2177:55   error    'oldValue' is assigned a value but never used                                                                         @typescript-eslint/no-unused-vars
+  2178:55   error    'newNumericValue' is assigned a value but never used                                                                  @typescript-eslint/no-unused-vars
+  2237:57   error    'newWeightage' is assigned a value but never used                                                                     @typescript-eslint/no-unused-vars
+  2368:103  error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  2631:63   error    'sectionIdx' is defined but never used                                                                                @typescript-eslint/no-unused-vars
+  2641:69   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  2641:74   error    'qIdx' is defined but never used                                                                                      @typescript-eslint/no-unused-vars
+  2836:58   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  2859:62   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  2991:80   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  2995:34   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  2996:30   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
+  3081:54   error    Unexpected any. Specify a different type                                                                              @typescript-eslint/no-explicit-any
 
 d:\FOCUSPRJ\frontend\src\components\analytics\FormsAnalytics.tsx
     9:3   error    'ChevronRight' is defined but never used                                                                                                                                                    @typescript-eslint/no-unused-vars

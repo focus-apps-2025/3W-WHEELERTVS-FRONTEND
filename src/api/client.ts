@@ -367,6 +367,30 @@ class ApiClient {
     });
   }
 
+  async batchImportResponses(batchData: any) {
+    return this.request<any>("/responses/batch/import", {
+      method: "POST",
+      body: JSON.stringify(batchData),
+    });
+  }
+
+  async processImages(answers: any) {
+    return this.request<any>("/responses/process-images", {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    });
+  }
+
+  async convertImageUrl(imageUrl: string) {
+    return this.request<{ cloudinaryUrl: string }>(
+      "/responses/convert-image",
+      {
+        method: "POST",
+        body: JSON.stringify({ imageUrl }),
+      }
+    );
+  }
+
   async submitResponse(formId: string, responseData: any) {
     return this.request<{ response: any }>(`/responses/${formId}`, {
       method: "POST",

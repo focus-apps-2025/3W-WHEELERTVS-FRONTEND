@@ -50,6 +50,8 @@ import { generateAndDownloadPDF } from "../utils/pdfExportUtils";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
 import DashboardSummaryCard from "./DashboardSummaryCard";
+import { isImageUrl } from "../utils/answerTemplateUtils";
+import ImageLink from "./ImageLink";
 //import LocationHeatmap from "./analytics/LocationHeatmap";
 
 ChartJS.register(
@@ -187,6 +189,9 @@ export default function AllResponses() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [editingFormLoading, setEditingFormLoading] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
+ // Add this line
+  const [selectedPDFType, setSelectedPDFType] = useState<'no-only' | 'yes-only' | 'both' | null>(null);
+
   const [editingWeightage, setEditingWeightage] = useState<string | null>(null);
   const [weightageValue, setWeightageValue] = useState<string>("");
   const [savingWeightage, setSavingWeightage] = useState(false);
@@ -215,7 +220,14 @@ export default function AllResponses() {
   const [tempWeightageValues, setTempWeightageValues] = useState<Record<string, string>>({});
   const [weightageBalance, setWeightageBalance] = useState(0);
 
+  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [showResponseDropdown, setShowResponseDropdown] = useState(false);
 
+  const handlePDFTypeSelect = (type: 'no-only' | 'yes-only' | 'both') => {
+  setSelectedPDFType(type);
+  
+  handleDownloadPDF(type);
+};
 
 
   useEffect(() => {
@@ -481,136 +493,198 @@ export default function AllResponses() {
     }
   };
 
-  const handleDownloadPDF = async () => {
-    if (generatingPDF || !selectedResponse || !selectedForm) {
-      return;
-    }
+ const handleDownloadPDF = async (type?: 'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default') => {
+  if (generatingPDF || !selectedResponse || !selectedForm) {
+    return;
+  }
 
-    setGeneratingPDF(true);
-    try {
-      const sectionQuestionStats: Record<string, any[]> = {};
-      const sectionMainParameters: Record<string, any[]> = {};
+  setGeneratingPDF(true);
+  
+  // If type is not provided, show the modal
+  if (!type) {
+    setShowDownloadOptions(true);
+    setGeneratingPDF(false);
+    return;
+  }
 
-      if (selectedForm.sections) {
-        selectedForm.sections.forEach((section: any) => {
-          // Get the actual question stats for the current response
-          sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(section.id);
+  try {
+    // For 'section' type, we need section data
+    let sectionQuestionStats: Record<string, any[]> = {};
+    let sectionMainParameters: Record<string, any[]> = {};
 
-          const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
-          const mainParamsData: any[] = [];
+    if (selectedForm.sections && (type === 'both' || type === 'default' || type === 'section')) {
+      selectedForm.sections.forEach((section: any) => {
+        // Get the actual question stats for the current response
+        sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(section.id);
 
-          // Process each main question in the section
-          sectionQuestions.forEach((mainQuestion: any) => {
-            // Find follow-ups with actual data for this main question
-            const followUpsWithData = mainQuestion.followUpQuestions?.filter((fq: any) => {
-              const answer = selectedResponse.answers?.[fq.id];
-              return answer && typeof answer === 'object' && (
-                answer.remarks ||
-                answer.actionInitiated ||
-                answer.reasonForNotOK ||
-                answer.responsiblePerson ||
-                answer.review ||
-                answer.files
-              );
-            });
+        const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
+        const mainParamsData: any[] = [];
 
-            // If we have follow-ups with data, create parameter entries
-            if (followUpsWithData && followUpsWithData.length > 0) {
-              followUpsWithData.forEach((followUp: any) => {
-                const answer = selectedResponse.answers?.[followUp.id] || {};
-
-                mainParamsData.push({
-                  subParam1: mainQuestion.subParam1 || "No parameter set",
-                  remarks: answer.remarks || '',
-                  actionInitiated: answer.actionInitiated || '',
-                  reasonForNotOK: answer.reasonForNotOK || '',
-                  responsiblePerson: answer.responsiblePerson || '',
-                  review: answer.review || '',
-                  files: answer.files || []
-                });
-              });
-            } else {
-              // Add entry even if no follow-up data, but mark as empty
-              mainParamsData.push({
-                subParam1: mainQuestion.subParam1 || "No parameter set",
-                remarks: '',
-                actionInitiated: '',
-                reasonForNotOK: '',
-                responsiblePerson: '',
-                review: '',
-                files: []
-              });
-            }
+        // Process each main question in the section
+        sectionQuestions.forEach((mainQuestion: any) => {
+          // Find follow-ups with actual data for this main question
+          const followUpsWithData = mainQuestion.followUpQuestions?.filter((fq: any) => {
+            const answer = selectedResponse.answers?.[fq.id];
+            return answer && typeof answer === 'object' && (
+              answer.remarks ||
+              answer.actionInitiated ||
+              answer.reasonForNotOK ||
+              answer.responsiblePerson ||
+              answer.review ||
+              answer.files
+            );
           });
 
-          sectionMainParameters[section.id] = mainParamsData;
+          // If we have follow-ups with data, create parameter entries
+          if (followUpsWithData && followUpsWithData.length > 0) {
+            followUpsWithData.forEach((followUp: any) => {
+              const answer = selectedResponse.answers?.[followUp.id] || {};
+
+              mainParamsData.push({
+                subParam1: mainQuestion.subParam1 || "No parameter set",
+                remarks: answer.remarks || '',
+                actionInitiated: answer.actionInitiated || '',
+                reasonForNotOK: answer.reasonForNotOK || '',
+                responsiblePerson: answer.responsiblePerson || '',
+                review: answer.review || '',
+                files: answer.files || []
+              });
+            });
+          } else {
+            // Add entry even if no follow-up data, but mark as empty
+            mainParamsData.push({
+              subParam1: mainQuestion.subParam1 || "No parameter set",
+              remarks: '',
+              actionInitiated: '',
+              reasonForNotOK: '',
+              responsiblePerson: '',
+              review: '',
+              files: []
+            });
+          }
         });
+
+        sectionMainParameters[section.id] = mainParamsData;
+      });
+    }
+
+    // Add chart element IDs for capturing
+    const chartElementIds = [
+      'section-performance-chart',
+      ...availableSections.map(section => `section-chart-${section.id}`)
+    ];
+
+    // Use the current filtered section stats from the dashboard
+    const currentSectionStats = filteredSectionStats;
+
+    // Prepare section summary rows for PDF
+    const pdfSectionSummaryRows = currentSectionStats.map((stat) => {
+      let weightage = stat.weightage;
+      if (typeof weightage === "string") {
+        weightage = parseFloat(weightage);
+      }
+      weightage = Number.isFinite(weightage) ? weightage : 0;
+      if (weightage > 1) {
+        weightage = weightage;
+      } else if (weightage > 0) {
+        weightage = weightage * 100;
       }
 
-      // Add chart element IDs for capturing
-      const chartElementIds = [
-        'section-performance-chart',
-        ...availableSections.map(section => `section-chart-${section.id}`)
-      ];
+      const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
+      const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
+      const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
+      const yesWeighted = (yesPercent * weightage) / 100;
+      const noWeighted = (noPercent * weightage) / 100;
+      const naWeighted = (naPercent * weightage) / 100;
 
-      // Use the current filtered section stats from the dashboard
-      const currentSectionStats = filteredSectionStats;
+      return {
+        id: stat.id,
+        title: stat.title,
+        weightage,
+        yesPercent,
+        yesWeighted,
+        noPercent,
+        noWeighted,
+        naPercent,
+        naWeighted,
+      };
+    });
 
-      // Prepare section summary rows for PDF
-      const pdfSectionSummaryRows = currentSectionStats.map((stat) => {
-        let weightage = stat.weightage;
-        if (typeof weightage === "string") {
-          weightage = parseFloat(weightage);
-        }
-        weightage = Number.isFinite(weightage) ? weightage : 0;
-        if (weightage > 1) {
-          weightage = weightage;
-        } else if (weightage > 0) {
-          weightage = weightage * 100;
-        }
+    // Add the type parameter to the PDF options
+    await generateAndDownloadPDF({
+      filename: `${selectedForm.title}_Report_${formatTimestamp(selectedResponse.createdAt, 'file')}_${type}.pdf`,
+      formTitle: selectedForm.title,
+      submittedDate: formatTimestamp(selectedResponse.createdAt),
+      sectionStats: currentSectionStats,
+      sectionSummaryRows: pdfSectionSummaryRows,
+      form: selectedForm,
+      response: selectedResponse,
+      sectionQuestionStats: sectionQuestionStats,
+      sectionMainParameters: sectionMainParameters,
+      availableSections: availableSections,
+      chartElementIds: chartElementIds,
+      type: type // Add the type parameter
+    });
 
-        const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
-        const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
-        const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
-        const yesWeighted = (yesPercent * weightage) / 100;
-        const noWeighted = (noPercent * weightage) / 100;
-        const naWeighted = (naPercent * weightage) / 100;
+    showSuccess(`PDF with ${getPDFTypeLabel(type)} downloaded successfully.`);
+    setSelectedPDFType(null);
+    setShowDownloadOptions(false);
+    
+  } catch (error) {
+    console.error("Failed to generate PDF:", error);
+    showError("Failed to generate PDF. Please try again.");
+    setSelectedPDFType(null);
+    setShowDownloadOptions(false);
+  } finally {
+    setGeneratingPDF(false);
+  }
+};
 
-        return {
-          id: stat.id,
-          title: stat.title,
-          weightage,
-          yesPercent,
-          yesWeighted,
-          noPercent,
-          noWeighted,
-          naPercent,
-          naWeighted,
-        };
-      });
+// Helper function to get PDF type label
+// Helper function to get PDF type label
+const getPDFTypeLabel = (type: 'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default') => {
+  switch (type) {
+    case 'no-only':
+      return 'NO Response Analysis';
+    case 'yes-only':
+      return 'YES Response Analysis';
+    case 'na-only':
+      return 'N/A Response Analysis';
+    case 'both':
+      return 'BOTH YES, NO & N/A Response Analysis';
+    case 'section':
+      return 'Section Analysis';
+    case 'default':
+      return 'Full Analysis';
+    default:
+      return 'Full Analysis';
+  }
+};
 
-      await generateAndDownloadPDF({
-        filename: `${selectedForm.title}_Report_${formatTimestamp(selectedResponse.createdAt, 'file')}.pdf`,
-        formTitle: selectedForm.title,
-        submittedDate: formatTimestamp(selectedResponse.createdAt),
-        sectionStats: currentSectionStats,
-        sectionSummaryRows: pdfSectionSummaryRows,
-        form: selectedForm,
-        response: selectedResponse,
-        sectionQuestionStats: sectionQuestionStats,
-        sectionMainParameters: sectionMainParameters,
-        availableSections: availableSections,
-        chartElementIds: chartElementIds
-      });
+const handleDropdownClick = (type: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section', e: React.MouseEvent) => {
+  e.stopPropagation();
+  setShowDownloadOptions(false);
+  setShowResponseDropdown(false);
+  
+  // Handle all PDF types
+  handleDownloadPDF(type);
+};
 
-      showSuccess("PDF downloaded successfully.");
-    } catch (error) {
-      console.error("Failed to generate PDF:", error);
-      showError("Failed to generate PDF. Please try again.");
-    } finally {
-      setGeneratingPDF(false);
+useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    const target = event.target as HTMLElement;
+    if (!target.closest('.download-container') && !target.closest('.responses-dropdown')) {
+      setShowDownloadOptions(false);
+      setShowResponseDropdown(false);
     }
   };
+
+  document.addEventListener('click', handleClickOutside);
+  return () => {
+    document.removeEventListener('click', handleClickOutside);
+  };
+}, []);
+
   
   // Weightage Edit Functions
 const handleEditWeightage = (sectionId: string, currentWeightage: number) => {
@@ -1541,6 +1615,9 @@ const handleCancelWeightageEdit = () => {
         }
       }
       if (value.startsWith("http://") || value.startsWith("https://")) {
+        if (isImageUrl(value)) {
+          return <ImageLink text={value} />;
+        }
         return (
           <a
             href={value}
@@ -1594,7 +1671,21 @@ const handleCancelWeightageEdit = () => {
           />
         );
       }
-      return value.join(", ");
+      return (
+        <div className="flex flex-wrap gap-2">
+          {value.map((item: any, index: number) => {
+            const itemStr = String(item);
+            if (isImageUrl(itemStr)) {
+              return (
+                <div key={index}>
+                  <ImageLink text={itemStr} />
+                </div>
+              );
+            }
+            return <span key={index}>{itemStr}</span>;
+          })}
+        </div>
+      );
     }
 
     if (typeof value === "object") {
@@ -2869,7 +2960,6 @@ const handleCancelWeightageEdit = () => {
           </div>
         )}
       </div>
-
       {/* Response Preview Modal */}
       {selectedResponse && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2885,19 +2975,94 @@ const handleCancelWeightageEdit = () => {
               </div>
               <div className="flex items-center gap-2">
                 {viewMode === "dashboard" ? (
-                  <button
-                    onClick={handleDownloadPDF}
-                    disabled={generatingPDF}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-cyan-700 bg-cyan-50 rounded-lg hover:bg-cyan-100 transition-colors disabled:opacity-60"
-                    title="Download PDF"
-                  >
-                    {generatingPDF ? (
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
-                    ) : (
-                      <FileText className="w-4 h-4" />
-                    )}
-                    Download PDF
-                  </button>
+                 <div className="flex items-center download-container">
+  {showDownloadOptions && (
+    <div className="flex items-center gap-2">
+      {/* Responses Dropdown */}
+      <div className="relative responses-dropdown"  style={{ zIndex: 10000 }}>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowResponseDropdown(!showResponseDropdown);
+          }}
+          className="flex items-center  px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors "
+        >
+          <span>Responses</span>
+          <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${showResponseDropdown ? 'rotate-180' : ''}`} />
+        </button>
+        
+        {/* Dropdown Menu */}
+        {showResponseDropdown && (
+  <div className="absolute left-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-[1000]" > {/* Increased z-index */}
+    <div className="py-1 ">
+      <button
+        onClick={(e) => handleDropdownClick('yes-only', e)}
+        className="flex items-center w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+      >
+        <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
+        Yes (Type 1)
+      </button>
+      <button
+        onClick={(e) => handleDropdownClick('no-only', e)}
+        className="flex items-center w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+      >
+        <XCircle className="w-4 h-4 text-red-600 mr-2" />
+        No (Type 2)
+      </button>
+      <button
+        onClick={(e) => handleDropdownClick('na-only', e)}
+        className="flex items-center w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+      >
+        <AlertTriangle className="w-4 h-4 text-yellow-600 mr-2" />
+        N/A(Type 3)
+      </button>
+      <button
+        onClick={(e) => handleDropdownClick('both', e)}
+        className="flex items-center w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+      >
+        <FileText className="w-4 h-4 text-blue-600 mr-2" />
+        Both (All Type )
+      </button>
+    </div>
+  </div>
+)}
+      </div>
+      
+      {/* Sections Button */}
+      <button
+        onClick={() => handleDownloadPDF('section')}
+        className="flex items-center mr-2 gap-2 px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+      >
+        Sections
+      </button>
+    </div>
+  )}
+  
+  {/* Main Download PDF Button */}
+  <div className="relative">
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        setShowDownloadOptions(!showDownloadOptions);
+        setShowResponseDropdown(false);
+      }}
+      disabled={generatingPDF}
+      className={`flex items-center gap-2 px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors ${showDownloadOptions ? 'rounded-r-xl' : 'rounded-xl'}`}
+    >
+      {generatingPDF ? (
+        <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+      ) : (
+        <>
+          <FileText className="w-4 h-4" />
+          Download PDF
+        </>
+      )}
+      {showDownloadOptions && (
+        <ChevronDown className="w-4 h-4 ml-2 rotate-90 transition-transform" />
+      )}
+    </button>
+  </div>
+</div>
                 ) : (
                   <button
                     onClick={handleExportExcel}
@@ -2936,7 +3101,7 @@ const handleCancelWeightageEdit = () => {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 flex items-center gap-1 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 rounded-xl p-1 mb-6 shadow-lg border border-slate-200 dark:border-slate-700">
+                    <div className="sticky top-0 z-5 bg-white dark:bg-gray-900 flex items-center gap-1 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 rounded-xl p-1 mb-6 shadow-lg border border-slate-200 dark:border-slate-700">
                       <button
                         onClick={() => setViewMode("dashboard")}
                         className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${viewMode === "dashboard"
@@ -4036,6 +4201,7 @@ const handleCancelWeightageEdit = () => {
             onCancel={handleCloseEdit}
           />
         )}
+       
     </div>
   );
 }

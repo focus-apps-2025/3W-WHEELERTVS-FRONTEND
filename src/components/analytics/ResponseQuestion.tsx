@@ -724,7 +724,7 @@ export default function ResponseQuestion({
         )}
       </div>
 
-      {filterableQuestions.length > 0 && (
+      {false && filterableQuestions.length > 0 && (
         <div className="mb-6 bg-gray-50 dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

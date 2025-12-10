@@ -4,6 +4,8 @@ import type { Question, Response } from "../types";
 import { formatTimestamp } from "../utils/dateUtils";
 import FilePreview from "./FilePreview";
 import SubmissionMetadata from "./SubmissionMetadata";
+import ImageLink from "./ImageLink";
+import { isImageUrl } from "../utils/answerTemplateUtils";
 import { useNotification } from "../context/NotificationContext";
 
 interface ResponseDetailsProps {
@@ -30,10 +32,14 @@ export default function ResponseDetails({
 
     if (Array.isArray(answer)) {
       return (
-        <ul className="list-disc list-inside">
+        <ul className="list-disc list-inside space-y-2">
           {answer.map((item, index) => (
             <li key={index} className="text-gray-700 dark:text-gray-300">
-              {item}
+              {isImageUrl(String(item)) ? (
+                <ImageLink text={String(item)} />
+              ) : (
+                item
+              )}
             </li>
           ))}
         </ul>
@@ -50,13 +56,21 @@ export default function ResponseDetails({
                   {key}:
                 </td>
                 <td className="py-2 text-gray-600 dark:text-gray-400">
-                  {String(value)}
+                  {isImageUrl(String(value)) ? (
+                    <ImageLink text={String(value)} />
+                  ) : (
+                    String(value)
+                  )}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       );
+    }
+
+    if (isImageUrl(String(answer))) {
+      return <ImageLink text={String(answer)} />;
     }
 
     return <p className="text-gray-700 dark:text-gray-300">{String(answer)}</p>;

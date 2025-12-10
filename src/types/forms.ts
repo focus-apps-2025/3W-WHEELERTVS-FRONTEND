@@ -38,6 +38,7 @@ export interface FollowUpQuestion {
   parentId?: string;
   imageUrl?: string;
   description?: string;
+  suggestion?: string;
   sectionId?: string;
   subParam1?: string;
   subParam2?: string;
