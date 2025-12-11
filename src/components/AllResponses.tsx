@@ -177,6 +177,10 @@ export default function AllResponses() {
     "dashboard"
   );
   const [pendingSectionId, setPendingSectionId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
+  const [showFormFilter, setShowFormFilter] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const [exportingExcel, setExportingExcel] = useState(false);
   const [deletingResponseId, setDeletingResponseId] = useState<string | null>(
@@ -892,7 +896,41 @@ const handleCancelWeightageEdit = () => {
     }, {} as GroupedResponses);
   };
 
-  const groupedResponses = groupResponsesByDate(responses);
+  // Get unique forms from responses
+  const uniqueForms = useMemo(() => {
+    const formMap = new Map<string, { id: string; title: string }>();
+    responses.forEach(response => {
+      const key = response.questionId || response.formId || '';
+      if (key && !formMap.has(key)) {
+        formMap.set(key, {
+          id: key,
+          title: response.formTitle
+        });
+      }
+    });
+    return Array.from(formMap.values()).sort((a, b) => a.title.localeCompare(b.title));
+  }, [responses]);
+
+  // Initialize selectedFormIds with all forms on first load only
+  useEffect(() => {
+    if (!isInitialized && uniqueForms.length > 0) {
+      setSelectedFormIds(uniqueForms.map(f => f.id));
+      setIsInitialized(true);
+    }
+  }, [uniqueForms, isInitialized]);
+
+  // Filter responses based on search and selected forms
+  const filteredResponses = useMemo(() => {
+    return responses.filter(response => {
+      const matchesSearch = response.formTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (typeof response.dealerName === 'string' ? response.dealerName.toLowerCase().includes(searchQuery.toLowerCase()) : false);
+      const matchesForm = selectedFormIds.length === 0 || 
+                         selectedFormIds.includes(response.questionId || response.formId || '');
+      return matchesSearch && matchesForm;
+    });
+  }, [responses, searchQuery, selectedFormIds]);
+
+  const groupedResponses = groupResponsesByDate(filteredResponses);
 
   const groupResponsesBySection = useMemo(() => {
     if (!selectedForm?.sections) return {};
@@ -1052,16 +1090,22 @@ const handleCancelWeightageEdit = () => {
             color: document.documentElement.classList.contains("dark")
               ? "#d1d5db"
               : "#374151",
+            font: {
+              size: 11,
+            },
           },
           grid: {
             color: document.documentElement.classList.contains("dark")
-              ? "rgba(209, 213, 219, 0.1)"
-              : "rgba(229, 231, 235, 0.5)",
+              ? "rgba(147, 197, 253, 0.3)"
+              : "rgba(59, 130, 246, 0.3)",
+            lineWidth: 1.5,
           },
           angleLines: {
+            display: true,
             color: document.documentElement.classList.contains("dark")
-              ? "rgba(209, 213, 219, 0.1)"
-              : "rgba(229, 231, 235, 0.5)",
+              ? "rgba(147, 197, 253, 0.4)"
+              : "rgba(59, 130, 246, 0.4)",
+            lineWidth: 1.5,
           },
         },
       },
@@ -2804,15 +2848,125 @@ const handleCancelWeightageEdit = () => {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div className="max-w-7xl mx-auto px-4">
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-medium text-primary-600 mb-2">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-3">
+          <FileText className="w-8 h-8 text-indigo-600" />
           Customer Requests
         </h1>
-        <p className="text-primary-500">
+        <p className="text-gray-600 dark:text-gray-300">
           View all customer service requests and responses
         </p>
+      </div>
+
+      {/* Search and Filter Controls */}
+      <div className="card p-6 mb-8">
+        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+          <div className="flex-1 min-w-0">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search by form name or dealer name..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              />
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 relative">
+            <button
+              onClick={() => setShowFormFilter(!showFormFilter)}
+              className={`px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap ${showFormFilter ? 'ring-2 ring-indigo-400 ring-offset-2 dark:ring-offset-gray-900' : ''}`}
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+              </svg>
+              Forms ({selectedFormIds.length}/{uniqueForms.length})
+            </button>
+
+            {showFormFilter && (
+              <div className="absolute top-full right-0 mt-2 p-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 min-w-80 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="sticky top-0 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                      <svg className="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                      </svg>
+                      Select Forms
+                    </h4>
+                    <button
+                      onClick={() => setShowFormFilter(false)}
+                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                    >
+                      <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setSelectedFormIds(uniqueForms.map(f => f.id))}
+                      className="flex-1 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 rounded transition-colors"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={() => setSelectedFormIds([])}
+                      className="flex-1 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                    >
+                      Clear All
+                    </button>
+                  </div>
+                </div>
+                
+                <div className="p-4 max-h-96 overflow-y-auto space-y-2">
+                  {uniqueForms.length > 0 ? (
+                    uniqueForms.map(form => (
+                      <label key={form.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer transition-colors group">
+                        <div className="relative flex items-center flex-shrink-0">
+                          <input
+                            type="checkbox"
+                            checked={selectedFormIds.includes(form.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedFormIds([...selectedFormIds, form.id]);
+                              } else {
+                                setSelectedFormIds(selectedFormIds.filter(id => id !== form.id));
+                              }
+                            }}
+                            className="w-5 h-5 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-200 block truncate">{form.title}</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {responses.filter(r => (r.questionId || r.formId) === form.id).length} responses
+                          </span>
+                        </div>
+                        <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                      </label>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No forms available</p>
+                  )}
+                </div>
+                
+                <div className="sticky bottom-0 px-4 py-3 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700">
+                  <p className="text-xs text-gray-600 dark:text-gray-400 text-center">
+                    {selectedFormIds.length} of {uniqueForms.length} forms selected
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Responses by Date */}
@@ -2820,102 +2974,106 @@ const handleCancelWeightageEdit = () => {
         {Object.keys(groupedResponses)
           .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
           .map((date) => (
-            <div key={date} className="card p-6">
+            <div key={date} className="card p-6 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
               {/* Date Header */}
-              <div className="flex items-center mb-4 pb-2 border-b border-primary-100">
-                <Calendar className="w-5 h-5 text-primary-600 mr-2" />
-                <h3 className="text-lg font-medium text-primary-600">{date}</h3>
-                <span className="ml-2 text-sm text-primary-500">
-                  ({groupedResponses[date].length} requests)
-                </span>
+              <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-gray-200 dark:border-gray-700">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-gradient-to-br from-indigo-100 to-blue-100 dark:from-indigo-900/30 dark:to-blue-900/30 rounded-lg">
+                    <Calendar className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">{date}</h3>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {groupedResponses[date].length} request{groupedResponses[date].length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Responses List */}
               <div className="space-y-3">
-                {groupedResponses[date].map((response) => {
+                {groupedResponses[date].map((response, idx) => {
                   const isFollowUp = !!response.parentResponseId;
                   const dealerName = response.dealerName; // Use stored dealer name
 
                   return (
                     <div
                       key={response._id}
-                      className={`flex items-center justify-between p-4 rounded-lg border transition-colors ${isFollowUp
-                          ? "ml-8 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700 hover:bg-blue-100 dark:hover:bg-blue-900/30"
-                          : "bg-primary-50 dark:bg-gray-800 border-primary-100 dark:border-gray-700 hover:bg-primary-100 dark:hover:bg-gray-700"
+                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-5 rounded-xl border-2 transition-all duration-200 ${isFollowUp
+                          ? "ml-0 sm:ml-8 bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-900/20 dark:to-blue-900/10 border-blue-200 dark:border-blue-700/50 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm"
+                          : "bg-gradient-to-r from-white to-gray-50/50 dark:from-gray-800/50 dark:to-gray-800/30 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm"
                         }`}
                     >
-                      <div className="flex items-center space-x-4">
+                      <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
                         <div
-                          className={`p-2 rounded-lg ${isFollowUp
-                              ? "bg-blue-100 dark:bg-blue-900/40"
-                              : "bg-white dark:bg-gray-900"
+                          className={`p-2.5 rounded-lg flex-shrink-0 ${isFollowUp
+                              ? "bg-blue-200 dark:bg-blue-900/50"
+                              : "bg-indigo-100 dark:bg-indigo-900/40"
                             }`}
                         >
                           {isFollowUp ? (
                             <div className="w-5 h-5 flex items-center justify-center">
-                              <span className="text-blue-600 dark:text-blue-300 text-xs font-bold">
+                              <span className="text-blue-700 dark:text-blue-300 text-sm font-bold">
                                 ↳
                               </span>
                             </div>
                           ) : (
-                            <FileText className="w-5 h-5 text-primary-600" />
+                            <FileText className="w-5 h-5 text-indigo-700 dark:text-indigo-300" />
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex flex-wrap items-center gap-2 mb-2">
                             <h4
-                              className={`font-medium truncate ${isFollowUp
-                                  ? "text-blue-700 dark:text-blue-300"
-                                  : "text-primary-700"
+                              className={`font-semibold truncate ${isFollowUp
+                                  ? "text-blue-900 dark:text-blue-200"
+                                  : "text-gray-900 dark:text-white"
                                 }`}
                               title={response.formTitle}
                             >
                               {response.formTitle}
-                              {isFollowUp && (
-                                <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-blue-700 bg-blue-100 border border-blue-200 dark:text-blue-300 dark:bg-blue-900/40 dark:border-blue-700">
-                                  Follow-up
-                                </span>
-                              )}
                             </h4>
+                            {isFollowUp && (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold text-blue-700 bg-blue-200 dark:text-blue-300 dark:bg-blue-900/40 whitespace-nowrap">
+                                Follow-up
+                              </span>
+                            )}
                             {response.yesNoScore && response.yesNoScore.total > 0 && (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold text-green-700 bg-green-50 border border-green-100 dark:text-green-300 dark:bg-green-900/30 dark:border-green-800">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/40 whitespace-nowrap">
                                 {response.yesNoScore.yes}/{response.yesNoScore.total}
                               </span>
                             )}
                           </div>
 
                           {/* Dealer Name and Submission Time */}
-                          <div className="flex flex-col sm:flex-row sm:items-center text-sm gap-1 sm:gap-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center text-xs sm:text-sm gap-2 sm:gap-3">
                             {dealerName && dealerName !== "Unknown" && (
-                              <div className={`inline-flex items-center ${isFollowUp ? "text-blue-600 dark:text-blue-400" : "text-primary-600"}`}>
-                                <User className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
+                              <div className={`inline-flex items-center ${isFollowUp ? "text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-300"}`}>
+                                <User className="w-4 h-4 mr-1.5 flex-shrink-0" />
                                 <span className="font-medium truncate" title={dealerName}>
                                   {dealerName}
                                 </span>
                               </div>
                             )}
 
-                            <div className={`inline-flex items-center ${isFollowUp ? "text-blue-500 dark:text-blue-300" : "text-primary-500"}`}>
-                              {(!dealerName || dealerName === "Unknown") && (
-                                <User className="w-3.5 h-3.5 mr-1 flex-shrink-0" />
-                              )}
+                            <div className={`inline-flex items-center ${isFollowUp ? "text-blue-600 dark:text-blue-400" : "text-gray-600 dark:text-gray-400"}`}>
+                              <Calendar className="w-4 h-4 mr-1.5 flex-shrink-0" />
                               <span>
-                                Submitted {formatTimestamp(response.createdAt)}
+                                {formatTimestamp(response.createdAt)}
                               </span>
                             </div>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                      <div className="flex items-center gap-2 flex-shrink-0 mt-4 sm:mt-0 sm:ml-4">
                         <button
                           onClick={() => handleViewDetails(response)}
-                          className={`btn-secondary flex items-center ${isFollowUp
-                              ? "bg-blue-600 hover:bg-blue-700 text-white"
-                              : ""
+                          className={`flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 whitespace-nowrap ${isFollowUp
+                              ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg"
+                              : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg"
                             }`}
                         >
                           <Eye className="w-4 h-4 mr-2" />
-                          View Details
+                          View
                         </button>
                         <button
                           onClick={() => handleEditResponse(response)}
@@ -2924,7 +3082,7 @@ const handleCancelWeightageEdit = () => {
                             editingResponse.id === response.id &&
                             (editingFormLoading || savingEdit)
                           }
-                          className="flex items-center px-3 py-2 text-sm text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors disabled:opacity-60 dark:text-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60"
+                          className="flex items-center px-4 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                         >
                           <Edit2 className="w-4 h-4 mr-2" />
                           Edit
@@ -2932,10 +3090,10 @@ const handleCancelWeightageEdit = () => {
                         <button
                           onClick={() => handleDeleteResponse(response)}
                           disabled={deletingResponseId === response.id}
-                          className="flex items-center px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-60 dark:text-red-300 dark:bg-red-900/40 dark:hover:bg-red-900/60"
+                          className="flex items-center px-4 py-2 text-sm font-semibold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
-                          {deletingResponseId === response.id ? "Deleting..." : "Delete"}
+                          {deletingResponseId === response.id ? "..." : "Delete"}
                         </button>
                       </div>
                     </div>
@@ -2945,33 +3103,37 @@ const handleCancelWeightageEdit = () => {
             </div>
           ))}
 
-        {responses.length === 0 && (
-          <div className="text-center py-16 card">
-            <div className="p-4 bg-primary-50 dark:bg-gray-800 rounded-full w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-              <FileText className="w-10 h-10 text-primary-600 dark:text-primary-300" />
+        {groupedResponses && Object.keys(groupedResponses).length === 0 && (
+          <div className="text-center py-16 card border border-gray-200 dark:border-gray-700">
+            <div className="p-5 bg-gradient-to-br from-indigo-100 to-blue-100 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
+              <FileText className="w-12 h-12 text-indigo-600 dark:text-indigo-300" />
             </div>
-            <h3 className="text-lg font-medium text-primary-600 mb-2">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
               No Customer Requests
             </h3>
-            <p className="text-primary-500 max-w-md mx-auto">
-              There are currently no customer service requests. Requests will
-              appear here once customers submit forms.
+            <p className="text-gray-600 dark:text-gray-300 max-w-md mx-auto">
+              {selectedFormIds.length === 0 
+                ? "There are currently no customer service requests. Requests will appear here once customers submit forms."
+                : "No requests match your current filters. Try adjusting your search or form selection."}
             </p>
           </div>
         )}
       </div>
       {/* Response Preview Modal */}
       {selectedResponse && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-6xl w-full m-4 max-h-[90vh] flex flex-col">
-            <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 px-6 py-4 border-b border-primary-200 flex justify-between items-center">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] overflow-y-auto p-2 animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-7xl w-full my-auto max-h-[95vh] flex flex-col border border-gray-200 dark:border-gray-700 animate-in slide-in-from-bottom duration-300">
+            <div className="sticky top-0 z-50 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 px-6 py-3 border-b border-indigo-200 dark:border-indigo-700/50 flex justify-between items-center">
               <div>
-                <h3 className="text-xl font-semibold text-primary-700">
+                <h3 className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-400 dark:to-blue-400 bg-clip-text text-transparent">
                   {selectedResponse.formTitle}
                 </h3>
-                <p className="text-sm text-primary-500">
-                  Submitted on {formatTimestamp(selectedResponse.createdAt)}
-                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Calendar className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+                  <p className="text-xs text-gray-600 dark:text-gray-300">
+                    Submitted on {formatTimestamp(selectedResponse.createdAt)}
+                  </p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 {viewMode === "dashboard" ? (
@@ -2979,49 +3141,50 @@ const handleCancelWeightageEdit = () => {
   {showDownloadOptions && (
     <div className="flex items-center gap-2">
       {/* Responses Dropdown */}
-      <div className="relative responses-dropdown"  style={{ zIndex: 10000 }}>
+      <div className="relative responses-dropdown">
         <button
           onClick={(e) => {
             e.stopPropagation();
             setShowResponseDropdown(!showResponseDropdown);
           }}
-          className="flex items-center  px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors "
+          className="flex items-center px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all duration-200 shadow-sm hover:shadow-md"
         >
           <span>Responses</span>
-          <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${showResponseDropdown ? 'rotate-180' : ''}`} />
+          <ChevronDown className={`w-3 h-3 ml-1.5 transition-transform duration-200 ${showResponseDropdown ? 'rotate-180' : ''}`} />
         </button>
         
         {/* Dropdown Menu */}
         {showResponseDropdown && (
-  <div className="absolute left-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-[1000]" > {/* Increased z-index */}
-    <div className="py-1 ">
+  <div className="absolute left-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+    <div className="py-1">
       <button
         onClick={(e) => handleDropdownClick('yes-only', e)}
-        className="flex items-center w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+        className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors duration-150"
       >
-        <CheckCircle className="w-4 h-4 text-green-600 mr-2" />
-        Yes (Type 1)
+        <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
+        <span>Yes Responses (Type 1)</span>
       </button>
       <button
         onClick={(e) => handleDropdownClick('no-only', e)}
-        className="flex items-center w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+        className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
       >
-        <XCircle className="w-4 h-4 text-red-600 mr-2" />
-        No (Type 2)
+        <XCircle className="w-3 h-3 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
+        <span>No Responses (Type 2)</span>
       </button>
       <button
         onClick={(e) => handleDropdownClick('na-only', e)}
-        className="flex items-center w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+        className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors duration-150"
       >
-        <AlertTriangle className="w-4 h-4 text-yellow-600 mr-2" />
-        N/A(Type 3)
+        <AlertTriangle className="w-3 h-3 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
+        <span>N/A Responses (Type 3)</span>
       </button>
+      <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
       <button
         onClick={(e) => handleDropdownClick('both', e)}
-        className="flex items-center w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700"
+        className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
       >
-        <FileText className="w-4 h-4 text-blue-600 mr-2" />
-        Both (All Type )
+        <FileText className="w-3 h-3 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
+        <span>All Response Types</span>
       </button>
     </div>
   </div>
@@ -3031,7 +3194,7 @@ const handleCancelWeightageEdit = () => {
       {/* Sections Button */}
       <button
         onClick={() => handleDownloadPDF('section')}
-        className="flex items-center mr-2 gap-2 px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+        className="flex items-center mr-1.5 gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-all duration-200 shadow-sm hover:shadow-md"
       >
         Sections
       </button>
@@ -3047,18 +3210,18 @@ const handleCancelWeightageEdit = () => {
         setShowResponseDropdown(false);
       }}
       disabled={generatingPDF}
-      className={`flex items-center gap-2 px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors ${showDownloadOptions ? 'rounded-r-xl' : 'rounded-xl'}`}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed ${showDownloadOptions ? 'rounded-r-xl' : 'rounded-lg'}`}
     >
       {generatingPDF ? (
-        <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
       ) : (
         <>
-          <FileText className="w-4 h-4" />
+          <FileText className="w-3 h-3" />
           Download PDF
         </>
       )}
       {showDownloadOptions && (
-        <ChevronDown className="w-4 h-4 ml-2 rotate-90 transition-transform" />
+        <ChevronDown className="w-3 h-3 ml-0.5 transition-transform" />
       )}
     </button>
   </div>
@@ -3067,13 +3230,13 @@ const handleCancelWeightageEdit = () => {
                   <button
                     onClick={handleExportExcel}
                     disabled={exportingExcel}
-                    className="flex items-center gap-2 px-3 py-2 text-sm text-green-700 bg-green-50 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-60"
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                     title="Export Excel"
                   >
                     {exportingExcel ? (
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-green-400 border-t-transparent" />
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
                     ) : (
-                      <Download className="w-4 h-4" />
+                      <Download className="w-3 h-3" />
                     )}
                     Export Excel
                   </button>
@@ -3087,52 +3250,53 @@ const handleCancelWeightageEdit = () => {
                     setPendingSectionId(null);
                     sectionRefs.current = {};
                   }}
-                  className="text-primary-500 hover:text-primary-700"
+                  className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-all duration-200"
+                  title="Close modal"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
-            <div className="overflow-y-auto flex-1">
-              <div className="p-6">
+            <div className="overflow-y-auto flex-1 bg-white dark:bg-gray-900">
+              <div className="p-4">
                 {formLoading ? (
-                  <div className="flex items-center justify-center py-8">
+                  <div className="flex items-center justify-center py-4">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
                   </div>
                 ) : (
-                  <div className="space-y-6">
-                    <div className="sticky top-0 z-5 bg-white dark:bg-gray-900 flex items-center gap-1 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-800 dark:to-gray-800 rounded-xl p-1 mb-6 shadow-lg border border-slate-200 dark:border-slate-700">
+                  <div className="space-y-4">
+                    <div className="sticky top-0 z-40 bg-white dark:bg-gray-900 flex items-center gap-2 bg-gradient-to-r from-indigo-50/50 to-blue-50/50 dark:from-indigo-900/10 dark:to-blue-900/10 rounded-xl p-1.5 mb-4 shadow-md border border-indigo-100 dark:border-indigo-900/30">
                       <button
                         onClick={() => setViewMode("dashboard")}
-                        className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${viewMode === "dashboard"
-                          ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md transform scale-105"
-                          : "text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white"
+                        className={`flex-1 px-4 py-2 text-xs font-semibold rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${viewMode === "dashboard"
+                          ? "bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-500 dark:to-blue-500 text-white shadow-lg"
+                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/60 dark:hover:bg-gray-800/60"
                           }`}
                       >
-                        <BarChart3 className="w-4 h-4" />
+                        <BarChart3 className="w-3 h-3" />
                         Dashboard
                       </button>
                       <button
                         onClick={() => setViewMode("responses")}
-                        className={`px-6 py-3 text-sm font-semibold rounded-lg transition-all duration-300 flex items-center gap-2 ${viewMode === "responses"
-                          ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-md transform scale-105"
-                          : "text-slate-600 dark:text-slate-300 hover:bg-white/50 dark:hover:bg-slate-700/50 hover:text-slate-900 dark:hover:text-white"
+                        className={`flex-1 px-4 py-2 text-xs font-semibold rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${viewMode === "responses"
+                          ? "bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-500 dark:to-blue-500 text-white shadow-lg"
+                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/60 dark:hover:bg-gray-800/60"
                           }`}
                       >
-                        <FileText className="w-4 h-4" />
+                        <FileText className="w-3 h-3" />
                         Responses
                       </button>
                     </div>
 
                     {viewMode === "dashboard" &&
                       filteredSectionStats.length > 0 && (
-                        <div className="space-y-8">
+                        <div className="space-y-4">
                           {/* Dashboard Header with Logo */}
-                          <div className="bg-gradient-to-br from-white via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20 p-8 rounded-3xl shadow-2xl border border-blue-200 dark:border-blue-800">
-                            <div className="flex items-center justify-between mb-6">
-                              <div className="flex items-center space-x-4">
+                          <div className="bg-gradient-to-br from-white via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20 p-4 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-800">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center space-x-3">
                                 {logo && (
-                                  <div className="w-26 h-16 rounded-2xl overflow-hidden shadow-lg border-2 border-white dark:border-gray-700">
+                                  <div className="w-12 h-10 rounded-lg overflow-hidden shadow-lg border-2 border-white dark:border-gray-700">
                                     <img
                                       src={logo}
                                       alt="Company Logo"
@@ -3144,41 +3308,41 @@ const handleCancelWeightageEdit = () => {
                                   </div>
                                 )}
                                 <div>
-                                  <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                                  <h1 className="text-lg font-bold text-gray-900 dark:text-white">
                                     {selectedForm?.title ||
                                       "Response Dashboard"}
                                   </h1>
-                                  <p className="text-gray-600 dark:text-gray-300 mt-1">
+                                  <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5">
                                     Comprehensive analysis and insights
                                   </p>
                                 </div>
                               </div>
-                              <div className="flex items-center space-x-3">
+                              <div className="flex items-center space-x-2">
                                 <div className="text-right">
-                                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
                                     Submitted
                                   </p>
-                                  <p className="font-semibold text-gray-900 dark:text-white">
+                                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
                                     {formatTimestamp(
                                       selectedResponse?.createdAt || ""
                                     )}
                                   </p>
                                 </div>
-                                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
-                                  <FileCheck className="w-6 h-6 text-white" />
+                                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
+                                  <FileCheck className="w-4 h-4 text-white" />
                                 </div>
                               </div>
                             </div>
 
                             {/* Quick Stats Row */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 backdrop-blur-sm p-6 rounded-2xl border border-yellow-200/50 dark:border-yellow-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 backdrop-blur-sm p-3 rounded-xl border border-yellow-200/50 dark:border-yellow-700/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
                                 <div className="flex items-center justify-between">
                                   <div>
-                                    <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-300 mb-1">
+                                    <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-300 mb-1">
                                       Overall Score
                                     </p>
-                                    <p className="text-3xl font-bold text-yellow-900 dark:text-yellow-100">
+                                    <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">
                                       {(() => {
                                         const totalQuestions =
                                           filteredSectionStats.reduce(
@@ -3200,30 +3364,30 @@ const handleCancelWeightageEdit = () => {
                                       %
                                     </p>
                                   </div>
-                                  <div className="p-3 bg-yellow-500/20 rounded-full">
-                                    <Award className="w-8 h-8 text-yellow-600 dark:text-yellow-400" />
+                                  <div className="p-2 bg-yellow-500/20 rounded-full">
+                                    <Award className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
                                   </div>
                                 </div>
                               </div>
 
-                              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 backdrop-blur-sm p-6 rounded-2xl border border-blue-200/50 dark:border-blue-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 backdrop-blur-sm p-3 rounded-xl border border-blue-200/50 dark:border-blue-700/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
                                 <div className="flex items-center justify-between">
                                   <div>
-                                    <p className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                                    <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">
                                       Total Sections
                                     </p>
-                                    <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
+                                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
                                       {filteredSectionStats.length}
                                     </p>
                                   </div>
-                                  <div className="p-3 bg-blue-500/20 rounded-full">
-                                    <Target className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                                  <div className="p-2 bg-blue-500/20 rounded-full">
+                                    <Target className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                                   </div>
                                 </div>
                               </div>
 
                               <div
-                                className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 backdrop-blur-sm p-6 rounded-2xl border border-green-200/50 dark:border-green-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 cursor-pointer"
+                                className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 backdrop-blur-sm p-3 rounded-xl border border-green-200/50 dark:border-green-700/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 cursor-pointer"
                                 onClick={() =>
                                   setExpandResponseRateBreakdown(
                                     !expandResponseRateBreakdown
@@ -3232,8 +3396,8 @@ const handleCancelWeightageEdit = () => {
                               >
                                 <div className="flex items-center justify-between">
                                   <div>
-                                    <div className="flex items-center gap-2">
-                                      <p className="text-sm font-semibold text-green-700 dark:text-green-300 mb-1">
+                                    <div className="flex items-center gap-1">
+                                      <p className="text-xs font-semibold text-green-700 dark:text-green-300 mb-1">
                                         Response Rate
                                       </p>
                                       <ChevronDown
@@ -3243,7 +3407,7 @@ const handleCancelWeightageEdit = () => {
                                           }`}
                                       />
                                     </div>
-                                    <p className="text-3xl font-bold text-green-900 dark:text-green-100">
+                                    <p className="text-2xl font-bold text-green-900 dark:text-green-100">
                                       {(() => {
                                         const totalQuestions =
                                           filteredSectionStats.reduce(
@@ -3269,14 +3433,14 @@ const handleCancelWeightageEdit = () => {
                                       %
                                     </p>
                                   </div>
-                                  <div className="p-3 bg-green-500/20 rounded-full">
-                                    <Activity className="w-8 h-8 text-green-600 dark:text-green-400" />
+                                  <div className="p-2 bg-green-500/20 rounded-full">
+                                    <Activity className="w-5 h-5 text-green-600 dark:text-green-400" />
                                   </div>
                                 </div>
 
                                 {expandResponseRateBreakdown && (
-                                  <div className="mt-6 pt-6 border-t border-green-300/50 dark:border-green-600/50">
-                                    <div className="grid grid-cols-3 gap-4">
+                                  <div className="mt-3 pt-3 border-t border-green-300/50 dark:border-green-600/50">
+                                    <div className="grid grid-cols-3 gap-2">
                                       {(() => {
                                         const totalYes =
                                           filteredSectionStats.reduce(
@@ -3320,27 +3484,27 @@ const handleCancelWeightageEdit = () => {
 
                                         return (
                                           <>
-                                            <div className="text-center p-3 bg-white/50 dark:bg-green-900/20 rounded-lg">
-                                              <p className="text-xs font-semibold text-green-600 dark:text-green-400 mb-1 uppercase">
+                                            <div className="text-center p-2 bg-white/50 dark:bg-green-900/20 rounded-lg">
+                                              <p className="text-xs font-semibold text-green-600 dark:text-green-400 mb-0.5 uppercase">
                                                 Yes
                                               </p>
-                                              <p className="text-2xl font-bold text-green-700 dark:text-green-300">
+                                              <p className="text-xl font-bold text-green-700 dark:text-green-300">
                                                 {yesPercent}%
                                               </p>
                                             </div>
-                                            <div className="text-center p-3 bg-white/50 dark:bg-red-900/20 rounded-lg">
-                                              <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-1 uppercase">
+                                            <div className="text-center p-2 bg-white/50 dark:bg-red-900/20 rounded-lg">
+                                              <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-0.5 uppercase">
                                                 No
                                               </p>
-                                              <p className="text-2xl font-bold text-red-700 dark:text-red-300">
+                                              <p className="text-xl font-bold text-red-700 dark:text-red-300">
                                                 {noPercent}%
                                               </p>
                                             </div>
-                                            <div className="text-center p-3 bg-white/50 dark:bg-yellow-900/20 rounded-lg">
-                                              <p className="text-xs font-semibold text-yellow-600 dark:text-yellow-400 mb-1 uppercase">
+                                            <div className="text-center p-2 bg-white/50 dark:bg-yellow-900/20 rounded-lg">
+                                              <p className="text-xs font-semibold text-yellow-600 dark:text-yellow-400 mb-0.5 uppercase">
                                                 N/A
                                               </p>
-                                              <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">
+                                              <p className="text-xl font-bold text-yellow-700 dark:text-yellow-300">
                                                 {naPercent}%
                                               </p>
                                             </div>
@@ -3353,13 +3517,13 @@ const handleCancelWeightageEdit = () => {
                               </div>
 
                               {/* Location Card */}
-                              <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 backdrop-blur-sm p-6 rounded-2xl border border-purple-200/50 dark:border-purple-700/50 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105">
+                              <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 backdrop-blur-sm p-3 rounded-xl border border-purple-200/50 dark:border-purple-700/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
                                 <div className="flex items-center justify-between">
                                   <div>
-                                    <p className="text-sm font-semibold text-purple-700 dark:text-purple-300 mb-1">
+                                    <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-1">
                                       Location
                                     </p>
-                                    <p className="text-lg font-bold text-purple-900 dark:text-purple-100">
+                                    <p className="text-sm font-bold text-purple-900 dark:text-purple-100">
                                       {selectedForm?.locationEnabled !== false
                                         ? (() => {
                                           const capturedLoc =
@@ -3392,8 +3556,8 @@ const handleCancelWeightageEdit = () => {
                                         : "Location disabled"}
                                     </p>
                                   </div>
-                                  <div className="p-3 bg-purple-500/20 rounded-full">
-                                    <MapPin className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                                  <div className="p-2 bg-purple-500/20 rounded-full">
+                                    <MapPin className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                                   </div>
                                 </div>
                               </div>

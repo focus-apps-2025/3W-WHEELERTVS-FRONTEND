@@ -311,13 +311,22 @@ export default function LocationHeatmap({
 
   return (
     <div id={id}>
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+    <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-xl shadow-lg hover:shadow-xl overflow-hidden border border-gray-200 dark:border-gray-700 transition-shadow">
       {/* Compact Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 px-4 py-3 border-b border-gray-200 dark:border-gray-600">
-        <h3 className="text-md font-semibold text-gray-900 dark:text-white flex items-center">
-          <MapPin className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
-          {title}
-        </h3>
+      <div className="flex items-center justify-between p-4 mb-2">
+        <div className="flex items-center">
+          <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg mr-2">
+            <MapPin className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-primary-900 dark:text-white">
+              {title}
+            </h3>
+            <p className="text-xs text-primary-500 dark:text-primary-400">
+              Location Distribution
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Main Content with Reduced Padding */}

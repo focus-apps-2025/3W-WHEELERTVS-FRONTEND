@@ -1757,9 +1757,9 @@ export default function SectionAnalytics({
                                             document.documentElement.classList.contains(
                                               "dark"
                                             )
-                                              ? "rgba(107, 114, 128, 0.2)"
-                                              : "rgba(209, 213, 219, 0.3)",
-                                          lineWidth: 1,
+                                              ? "rgba(147, 197, 253, 0.3)"
+                                              : "rgba(59, 130, 246, 0.3)",
+                                          lineWidth: 1.5,
                                         },
                                         pointLabels: {
                                           color:
@@ -1775,12 +1775,14 @@ export default function SectionAnalytics({
                                           padding: 8,
                                         },
                                         angleLines: {
+                                          display: true,
                                           color:
                                             document.documentElement.classList.contains(
                                               "dark"
                                             )
-                                              ? "rgba(107, 114, 128, 0.2)"
-                                              : "rgba(209, 213, 219, 0.3)",
+                                              ? "rgba(147, 197, 253, 0.4)"
+                                              : "rgba(59, 130, 246, 0.4)",
+                                          lineWidth: 1.5,
                                         },
                                       },
                                     },
