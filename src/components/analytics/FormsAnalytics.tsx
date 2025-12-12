@@ -65,7 +65,7 @@ export default function FormsAnalytics() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const { data: formsData, loading, error, execute: refetchForms } = useForms();
+  const { data: formsData, loading, error, execute: refetchForms } = useForms(!isAnswerTemplateOpen);
 
   const { data: responsesData, loading: responsesLoading } = useResponses();
 

@@ -374,10 +374,10 @@ class ApiClient {
     });
   }
 
-  async processImages(answers: any) {
+  async processImages(answers: any, submissionId?: string) {
     return this.request<any>("/responses/process-images", {
       method: "POST",
-      body: JSON.stringify({ answers }),
+      body: JSON.stringify({ answers, submissionId }),
     });
   }
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Eye,
   Calendar,
@@ -159,6 +160,7 @@ type SectionStat = {
 };
 
 export default function AllResponses() {
+  const navigate = useNavigate();
   const { showSuccess, showError, showConfirm } = useNotification();
   const { logo } = useLogo();
   const [responses, setResponses] = useState<
@@ -226,6 +228,7 @@ export default function AllResponses() {
 
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [showResponseDropdown, setShowResponseDropdown] = useState(false);
+  const [openViewDropdown, setOpenViewDropdown] = useState<string | null>(null);
 
   const handlePDFTypeSelect = (type: 'no-only' | 'yes-only' | 'both') => {
   setSelectedPDFType(type);
@@ -249,14 +252,17 @@ export default function AllResponses() {
     }
   }, [viewMode, pendingSectionId]);
 
-  const handleViewDetails = async (
+  const handleViewDetails = (
+    response: Response & { formTitle: string }
+  ) => {
+    const responseId = response._id || response.id;
+    navigate(`/responses/${responseId}`);
+  };
+
+  const handleOpenModal = async (
     response: Response & { formTitle: string }
   ) => {
     setSelectedResponse(response);
-    setViewMode("dashboard");
-    setPendingSectionId(null);
-    sectionRefs.current = {};
-    setFormLoading(true);
     try {
       const formIdentifier = response.questionId || response.formId;
       if (!formIdentifier) {
@@ -264,32 +270,11 @@ export default function AllResponses() {
       }
       const formData = await apiClient.getForm(formIdentifier);
       const form = formData.form;
-
-      // Ensure nested followUpQuestions are properly populated
-      if (form?.sections) {
-        form.sections.forEach((section: any) => {
-          if (section.questions) {
-            section.questions.forEach((question: any) => {
-              // Ensure followUpQuestions is an array
-              if (!Array.isArray(question.followUpQuestions)) {
-                question.followUpQuestions = [];
-              }
-            });
-          }
-        });
-      }
-
-      // Ensure followUpQuestions array exists at form level
-      if (!Array.isArray(form.followUpQuestions)) {
-        form.followUpQuestions = [];
-      }
-
       setSelectedForm(form);
     } catch (err) {
-      console.error("Failed to load form details:", err);
-      setSelectedForm(null);
-    } finally {
-      setFormLoading(false);
+      console.error("Failed to load form for modal:", err);
+      showError("Failed to load form. Please try again.");
+      setSelectedResponse(null);
     }
   };
 
@@ -3065,16 +3050,43 @@ const handleCancelWeightageEdit = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0 mt-4 sm:mt-0 sm:ml-4">
-                        <button
-                          onClick={() => handleViewDetails(response)}
-                          className={`flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 whitespace-nowrap ${isFollowUp
-                              ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg"
-                              : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg"
-                            }`}
-                        >
-                          <Eye className="w-4 h-4 mr-2" />
-                          View
-                        </button>
+                        <div className="relative">
+                          <button
+                            onClick={() => setOpenViewDropdown(openViewDropdown === response.id ? null : response.id)}
+                            className={`flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 whitespace-nowrap gap-2 ${isFollowUp
+                                ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg"
+                                : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg"
+                              }`}
+                          >
+                            <Eye className="w-4 h-4" />
+                            View
+                            <ChevronDown className={`w-4 h-4 transition-transform ${openViewDropdown === response.id ? 'rotate-180' : ''}`} />
+                          </button>
+                          {openViewDropdown === response.id && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                              <button
+                                onClick={() => {
+                                  handleOpenModal(response);
+                                  setOpenViewDropdown(null);
+                                }}
+                                className="flex items-center w-full px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors duration-150 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+                              >
+                                <Eye className="w-4 h-4 text-indigo-600 dark:text-indigo-400 mr-3 flex-shrink-0" />
+                                <span>View Details (Modal)</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  handleViewDetails(response);
+                                  setOpenViewDropdown(null);
+                                }}
+                                className="flex items-center w-full px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
+                              >
+                                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-3 flex-shrink-0" />
+                                <span>View as Page</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                         <button
                           onClick={() => handleEditResponse(response)}
                           disabled={
@@ -3136,6 +3148,40 @@ const handleCancelWeightageEdit = () => {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {/* Edit Button */}
+                <button
+                  onClick={() => {
+                    if (selectedResponse) {
+                      handleEditResponse(selectedResponse);
+                    }
+                  }}
+                  disabled={
+                    !!editingResponse &&
+                    editingResponse.id === selectedResponse?.id &&
+                    (editingFormLoading || savingEdit)
+                  }
+                  className="flex items-center px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Edit response"
+                >
+                  <Edit2 className="w-3 h-3 mr-1.5" />
+                  Edit
+                </button>
+
+                {/* Delete Button */}
+                <button
+                  onClick={() => {
+                    if (selectedResponse) {
+                      handleDeleteResponse(selectedResponse);
+                    }
+                  }}
+                  disabled={deletingResponseId === selectedResponse?.id}
+                  className="flex items-center px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Delete response"
+                >
+                  <Trash2 className="w-3 h-3 mr-1.5" />
+                  {deletingResponseId === selectedResponse?.id ? "..." : "Delete"}
+                </button>
+
                 {viewMode === "dashboard" ? (
                  <div className="flex items-center download-container">
   {showDownloadOptions && (

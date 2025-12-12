@@ -15,7 +15,8 @@ interface UseApiReturn<T> extends UseApiState<T> {
 export function useApi<T>(
   apiFunction: (...args: any[]) => Promise<T>,
   immediate: boolean = false,
-  pollInterval?: number
+  pollInterval?: number,
+  enabled: boolean = true
 ): UseApiReturn<T> {
   const [state, setState] = useState<UseApiState<T>>({
     data: null,
@@ -50,19 +51,19 @@ export function useApi<T>(
   }, []);
 
   useEffect(() => {
-    if (immediate) {
+    if (immediate && enabled) {
       execute();
     }
-  }, [execute, immediate]);
+  }, [execute, immediate, enabled]);
 
   useEffect(() => {
-    if (pollInterval && pollInterval > 0) {
+    if (pollInterval && pollInterval > 0 && enabled) {
       const interval = setInterval(() => {
         execute();
       }, pollInterval);
       return () => clearInterval(interval);
     }
-  }, [execute, pollInterval]);
+  }, [execute, pollInterval, enabled]);
 
   return {
     ...state,
@@ -72,8 +73,8 @@ export function useApi<T>(
 }
 
 // Specific hooks for common operations
-export function useForms() {
-  return useApi(apiClient.getForms.bind(apiClient), true, 30000); // Poll every 30 seconds
+export function useForms(enabled: boolean = true) {
+  return useApi(apiClient.getForms.bind(apiClient), true, 30000, enabled); // Poll every 30 seconds
 }
 
 export function useResponses() {

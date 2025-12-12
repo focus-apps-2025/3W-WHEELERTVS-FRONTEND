@@ -484,7 +484,7 @@ function generateResponseAnalysis(
 <!-- Separate Table for EACH Main Question (${responseType.toUpperCase()} Response) -->
 <table style="width: 100%; border-collapse: collapse; border: 1px solid #666; margin: ${
           responseIndex === 0 ? "0" : "20px"
-        } 0 20px 0;page-break-before:always;">
+        } 0 20px 0;">
   
   <!-- SECTION HEADER -->
   <tr style="background: #ffffffff;">
@@ -498,7 +498,7 @@ function generateResponseAnalysis(
     <td style="border: 1px solid #666; padding: 8px; font-weight: 700; font-size: 11px; width: 15%;background:#1e3a8a; color:#ffffffff">
       Question No
     </td>
-    <td style="border: 1px solid #666; padding: 8px; font-weight: 700; font-size: 11px; width: 60%;background:#1e3a8a;color:#ffffffff";>
+    <td style="border: 1px solid #666; padding: 8px; font-weight: 700; font-size: 11px; width: 60%;background:#1e3a8a;color:#ffffffff">
       Question
     </td>
     <td style="border: 1px solid #666; padding: 8px; text-align: center; font-weight: 700; font-size: 11px; width: 25%;background:#1e3a8a;color:#ffffffff">
@@ -1387,7 +1387,7 @@ function generateSectionTables(
               `Section ${index + 1}`;
 
             html += `
-        <div style="font-size: 18px; font-weight: 700; color: #1e3a8a; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 2px solid #1e3a8a;page-break-before:always; "> 
+        <div style="font-size: 18px; font-weight: 700; color: #1e3a8a; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 2px solid #1e3a8a;"> 
           ${sectionDisplayName} - Response Analysis
         </div>
         <p style="font-size: 12px; color: #64748b; margin-bottom: 20px;">

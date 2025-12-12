@@ -117,10 +117,12 @@ export default function SubmissionProgressModal({
             </div>
           )}
 
-          {/* Estimated Time */}
+          {/* Info Message */}
           {isProcessing && totalImages > 0 && (
-            <div className="text-center text-xs text-gray-500 dark:text-gray-400">
-              <p>Estimated time: ~{totalImages * 10} seconds</p>
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-3">
+              <p className="text-xs text-blue-800 dark:text-blue-200 text-center">
+                💡 Large batches may take several minutes. Please don't close this window until conversion completes.
+              </p>
             </div>
           )}
         </div>

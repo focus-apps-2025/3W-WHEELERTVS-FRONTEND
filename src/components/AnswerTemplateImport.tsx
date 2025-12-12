@@ -66,12 +66,20 @@ export default function AnswerTemplateImport({
     const getSocketUrl = () => {
       const apiBase = import.meta.env.VITE_API_BASE_URL;
       if (apiBase) {
-        return apiBase.replace("/api", "");
+        const url = apiBase.replace("/api", "");
+        console.log("📌 Using API base URL for socket:", url);
+        return url;
       }
       
+      const protocol = window.location.protocol;
       const hostname = window.location.hostname;
-      const isLocal = hostname === "localhost" || hostname === "127.0.0.1";
-      return isLocal ? "http://localhost:5000" : window.location.origin;
+      const port = window.location.port;
+      
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return "http://localhost:5000";
+      }
+      
+      return `${protocol}//${hostname}${port ? ':' + port : ''}`;
     };
 
     const socketUrl = getSocketUrl();
@@ -81,24 +89,45 @@ export default function AnswerTemplateImport({
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5
+      reconnectionAttempts: 10,
+      transports: ['websocket', 'polling'],
+      withCredentials: true,
+      autoConnect: true
     });
     socketRef.current = socket;
 
     socket.on("connect", () => {
-      console.log("✅ Connected to socket server");
+      console.log("✅ Connected to socket server:", socket.id);
     });
 
     socket.on("connect_error", (error: any) => {
       console.error("❌ Socket connection error:", error);
     });
 
+    socket.on("disconnect", (reason: string) => {
+      console.log("⚠️ Socket disconnected:", reason);
+    });
+
     socket.on("image-progress", (data: any) => {
       console.log("📊 Progress update:", data);
       if (data.submissionId === submissionId) {
-        setCurrentImage(data.status.currentImage || 0);
-        setTotalImages(data.status.totalImages || 0);
-        setProgressMessage(data.status.message);
+        const current = data.status.currentImage || 0;
+        const total = data.status.totalImages || 0;
+        setCurrentImage(current);
+        setTotalImages(total);
+        
+        let message = data.status.message || "Converting...";
+        if (current > 0 && total > 0) {
+          const remaining = total - current;
+          const avgPerImage = current > 0 ? (Date.now() - (window as any).conversionStartTime) / current / 1000 : 0;
+          const estimatedSecondsRemaining = Math.ceil(remaining * avgPerImage);
+          const estimatedTime = estimatedSecondsRemaining > 60 
+            ? `${Math.ceil(estimatedSecondsRemaining / 60)}m remaining`
+            : `${estimatedSecondsRemaining}s remaining`;
+          message = `Converting image ${current} of ${total} (${estimatedTime})`;
+        }
+        
+        setProgressMessage(message);
         setProgressStatus(data.status.status);
       }
     });
@@ -166,21 +195,46 @@ export default function AnswerTemplateImport({
     }
 
     setIsImporting(true);
+    setProgressStatus("processing");
+    setProgressMessage("Parsing Excel file...");
 
     try {
-      const answers = await parseAnswerWorkbook(file, selectedForm);
+      const answers = await parseAnswerWorkbook(file, selectedForm, (current, total, message) => {
+        setCurrentImage(current);
+        setTotalImages(total);
+        setProgressMessage(message);
+        console.log(`✅ Progress: ${current}/${total} - ${message}`);
+      });
+      
+      setProgressStatus("uploading");
+      setProgressMessage("Converting images to Cloudinary...");
+      
+      const imageCount = Object.values(answers).filter((val: any) => 
+        typeof val === 'string' && (val.includes('drive.google.com') || val.includes('cloudinary.com'))
+      ).length;
+      setTotalImages(imageCount);
+      setCurrentImage(0);
+      
+      const tempSubmissionId = `temp-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      setSubmissionId(tempSubmissionId);
       
       try {
-        const processedAnswers = await apiClient.processImages(answers);
+        const processedAnswers = await apiClient.processImages(answers, tempSubmissionId);
         setParsedAnswers(processedAnswers);
+        setProgressStatus("complete");
+        setProgressMessage("✓ Template imported successfully!");
         showSuccess("Template imported successfully with images converted to Cloudinary!", "Import Complete");
       } catch (imageError) {
         console.warn('Image processing failed, using original answers:', imageError);
         setParsedAnswers(answers);
+        setProgressStatus("complete");
+        setProgressMessage("✓ Template imported (image conversion skipped)");
         showSuccess("Template imported but image conversion skipped", "Import Complete");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to import template";
+      setProgressStatus("error");
+      setProgressError(message);
       showError(
         message || "Failed to import template",
         "Import Failed"
@@ -188,6 +242,13 @@ export default function AnswerTemplateImport({
       setParsedAnswers(null);
     } finally {
       setIsImporting(false);
+      setTimeout(() => {
+        setProgressStatus("idle");
+        setProgressMessage("");
+        setCurrentImage(0);
+        setTotalImages(0);
+        setProgressError(undefined);
+      }, 1500);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -259,11 +320,27 @@ export default function AnswerTemplateImport({
       return;
     }
 
+    const imageAnswers = getImageAnswers();
+    const unconvertedCount = imageAnswers.filter(img => !img.isConverted).length;
+    
+    if (unconvertedCount === 0) {
+      setProgressStatus("complete");
+      setProgressMessage("✓ All images already converted!");
+      setConvertedAnswers(parsedAnswers);
+      setTimeout(() => {
+        setProgressStatus("idle");
+      }, 1500);
+      return;
+    }
+
     const newSubmissionId = `submission-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    (window as any).conversionStartTime = Date.now();
     setSubmissionId(newSubmissionId);
     setIsConverting(true);
     setProgressStatus("converting");
-    setProgressMessage("Starting image conversion...");
+    setTotalImages(unconvertedCount);
+    setCurrentImage(0);
+    setProgressMessage(`Starting conversion of ${unconvertedCount} image(s)...`);
     setProgressError(undefined);
     
     const preventUnload = (e: BeforeUnloadEvent) => {
@@ -275,23 +352,28 @@ export default function AnswerTemplateImport({
     window.addEventListener('beforeunload', preventUnload);
 
     try {
-      const imageAnswers = getImageAnswers();
-      const unconvertedCount = imageAnswers.filter(img => !img.isConverted).length;
+      const answersToProcess: any = {};
       
-      if (unconvertedCount > 0) {
-        setTotalImages(unconvertedCount);
-      } else {
-        setProgressStatus("complete");
-        setProgressMessage("✓ All images already converted!");
-        setConvertedAnswers(parsedAnswers);
-        setIsConverting(false);
-        window.removeEventListener('beforeunload', preventUnload);
-        return;
-      }
+      imageAnswers.forEach(img => {
+        if (!img.isConverted) {
+          answersToProcess[img.questionId] = img.url;
+        }
+      });
+      
+      Object.keys(parsedAnswers).forEach(key => {
+        if (!(key in answersToProcess) && !answersToProcess.hasOwnProperty(key)) {
+          answersToProcess[key] = parsedAnswers[key];
+        }
+      });
 
-      const data = await apiClient.processImages(parsedAnswers);
+      const data = await apiClient.processImages(answersToProcess, newSubmissionId);
       
-      setConvertedAnswers(data);
+      const mergedAnswers = {
+        ...parsedAnswers,
+        ...data
+      };
+      
+      setConvertedAnswers(mergedAnswers);
       setProgressStatus("complete");
       setProgressMessage("✓ All images successfully converted!");
       
@@ -488,6 +570,23 @@ export default function AnswerTemplateImport({
                       </>
                     )}
                   </button>
+                  {isImporting && (progressStatus === "processing" || totalImages > 0) && (
+                    <div className="mt-4 space-y-2">
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                        <div
+                          className="bg-gradient-to-r from-primary-500 to-primary-600 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${totalImages > 0 ? (currentImage / totalImages) * 100 : 0}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400">
+                        <span>{progressMessage || "Importing..."}</span>
+                        <span className="font-semibold">{currentImage > 0 ? `${currentImage} of ${totalImages}` : "Starting..."}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-500 text-center">
+                        {totalImages > 0 ? Math.round((currentImage / totalImages) * 100) : 0}% Complete
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

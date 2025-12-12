@@ -412,21 +412,14 @@ d:\FOCUSPRJ\frontend\src\components\ResponseDetails.tsx
 d:\FOCUSPRJ\frontend\src\components\ResponseDetailsPage.tsx
     1:38  error    'useMemo' is defined but never used                                                                                      @typescript-eslint/no-unused-vars
     4:3   error    'Eye' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
-    5:3   error    'Calendar' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
     7:3   error    'User' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
     8:3   error    'X' is defined but never used                                                                                            @typescript-eslint/no-unused-vars
    13:3   error    'Trash2' is defined but never used                                                                                       @typescript-eslint/no-unused-vars
    16:3   error    'PieChart' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
    17:3   error    'Activity' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
-   18:3   error    'Zap' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
-   19:3   error    'Target' is defined but never used                                                                                       @typescript-eslint/no-unused-vars
-   20:3   error    'Award' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
-   21:3   error    'Users' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
-   22:3   error    'FileCheck' is defined but never used                                                                                    @typescript-eslint/no-unused-vars
    23:3   error    'AlertTriangle' is defined but never used                                                                                @typescript-eslint/no-unused-vars
    24:3   error    'Save' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
    25:3   error    'ChevronDown' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
-   26:3   error    'MapPin' is defined but never used                                                                                       @typescript-eslint/no-unused-vars
    29:10  error    'Bar' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
    29:15  error    'Line' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
    29:21  error    'Pie' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
@@ -440,7 +433,6 @@ d:\FOCUSPRJ\frontend\src\components\ResponseDetailsPage.tsx
   134:27  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
   147:6   error    'SectionStat' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
   160:35  error    'showConfirm' is assigned a value but never used                                                                         @typescript-eslint/no-unused-vars
-  161:11  error    'logo' is assigned a value but never used                                                                                @typescript-eslint/no-unused-vars
   173:10  error    'generatingPDF' is assigned a value but never used                                                                       @typescript-eslint/no-unused-vars
   174:10  error    'selectedPDFType' is assigned a value but never used                                                                     @typescript-eslint/no-unused-vars
   174:27  error    'setSelectedPDFType' is assigned a value but never used                                                                  @typescript-eslint/no-unused-vars
@@ -480,8 +472,9 @@ d:\FOCUSPRJ\frontend\src\components\ResponseDetailsPage.tsx
   412:45  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
   414:56  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
   420:48  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  764:40  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  765:36  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  427:9   error    'renderFormContent' is assigned a value but never used                                                                   @typescript-eslint/no-unused-vars
+  945:40  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  946:36  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
 
 d:\FOCUSPRJ\frontend\src\components\ResponseForm.tsx
    20:58  error    Unexpected any. Specify a different type                                                                                                                                                     @typescript-eslint/no-explicit-any
@@ -1233,6 +1226,6 @@ d:\FOCUSPRJ\frontend\src\utils\responseExportUtils.ts
 d:\FOCUSPRJ\frontend\src\utils\staffUtils.ts
   20:12  error  'error' is defined but never used  @typescript-eslint/no-unused-vars
 
-✖ 993 problems (955 errors, 38 warnings)
+✖ 986 problems (948 errors, 38 warnings)
   6 errors and 0 warnings potentially fixable with the `--fix` option.
 

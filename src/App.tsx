@@ -33,6 +33,7 @@ import LoginPage from "./components/auth/LoginPage";
 import NotificationContainer from "./components/ui/NotificationContainer";
 import Sidebar from "./components/layout/Sidebar";
 import Header from "./components/Header";
+import ResponseDetailsPage from "./components/ResponseDetailsPage";
 
 const ROUTE_PERMISSIONS = {
   DASHBOARD: "dashboard:view",
@@ -232,6 +233,12 @@ const router = createBrowserRouter(
         {
           path: "/responses/all",
           element: withAccessControl(<AllResponses />, {
+            requiredPermission: ROUTE_PERMISSIONS.CUSTOMER_REQUESTS,
+          }),
+        },
+        {
+          path: "/responses/:id",
+          element: withAccessControl(<ResponseDetailsPage />, {
             requiredPermission: ROUTE_PERMISSIONS.CUSTOMER_REQUESTS,
           }),
         },
