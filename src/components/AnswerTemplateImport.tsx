@@ -60,7 +60,13 @@ export default function AnswerTemplateImport({
   const socketRef = useRef<any>(null);
 
   const forms = formsData?.forms || [];
-  const parentForms = forms.filter((form) => !form.parentFormId);
+  const parentForms = Array.from(
+    new Map(
+      forms
+        .filter((form) => !form.parentFormId)
+        .map((form) => [(form.id || form._id), form])
+    ).values()
+  ).sort((a, b) => (a.title || '').localeCompare(b.title || ''));
 
   useEffect(() => {
     const getSocketUrl = () => {

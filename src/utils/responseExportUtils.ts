@@ -285,7 +285,8 @@ function buildNestedForm(form: FormData): FormData {
 
 function buildResponsesSheetContent(
   response: ResponseData,
-  form: FormData
+  form: FormData,
+  type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'default'
 ): {
   data: any[][];
   links: HyperlinkEntry[];
@@ -357,7 +358,19 @@ function buildResponsesSheetContent(
       (q: any, qi: number) => ({
         pairs: gatherPairs(q, `Q${qi + 1}`), // Back to original
       })
-    );
+    ).filter(row => {
+      if (!type || type === 'default') return true;
+      
+      const mainAns = row.pairs[0]?.ans?.display;
+      if (!mainAns) return false;
+
+      if (type === 'yes-only') return mainAns === 'Yes';
+      if (type === 'no-only') return mainAns === 'No';
+      if (type === 'na-only') return mainAns === 'N/A';
+      if (type === 'both') return ['Yes', 'No', 'N/A'].includes(mainAns);
+      
+      return true;
+    });
 
     preparedSections.push({ title, rows: rowsForSection });
     console.log(`   - Questions in section: ${rowsForSection.length}`);
@@ -622,56 +635,76 @@ function applyHyperlinks(sheet: XLSX.WorkSheet, links: HyperlinkEntry[]): void {
 
 // ▼▼▼ MAIN EXPORT FUNCTION - RESPONSES ONLY ▼▼▼
 export function generateResponseExcelReport(
-  response: ResponseData,
-  form: FormData
+  responses: ResponseData | ResponseData[],
+  form: FormData,
+  fileName?: string,
+  type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'default'
 ): void {
   const workbook = utils.book_new();
+  
+  // Handle single response or array of responses
+  const responsesArray = Array.isArray(responses) ? responses : [responses];
+  
+  if (responsesArray.length === 0) {
+    console.error("No responses to export");
+    return;
+  }
 
-  // Build nested form structure and create responses sheet
+  // Build nested form structure
   const nestedForm = buildNestedForm(form);
-  const {
-    data: responsesData,
-    links: responsesLinks,
-    headerStyle,
-    cellStyles,
-  } = buildResponsesSheetContent(response, nestedForm);
 
-  const responsesSheet = XLSX.utils.aoa_to_sheet(responsesData);
+  // Process each response
+  responsesArray.forEach((response, index) => {
+    const {
+      data: responsesData,
+      links: responsesLinks,
+      headerStyle,
+      cellStyles,
+    } = buildResponsesSheetContent(response, nestedForm, type);
 
-  // Apply styles
-  Object.keys(headerStyle).forEach((address) => {
-    if (!responsesSheet[address]) responsesSheet[address] = { t: "s", v: "" };
-    responsesSheet[address].s = headerStyle[address];
-  });
+    const responsesSheet = XLSX.utils.aoa_to_sheet(responsesData);
 
-  Object.keys(cellStyles).forEach((address) => {
-    if (!responsesSheet[address]) {
-      const coord = XLSX.utils.decode_cell(address);
-      if (
-        coord.r < responsesData.length &&
-        coord.c < responsesData[coord.r].length
-      ) {
-        responsesSheet[address] = {
-          t: "s",
-          v: responsesData[coord.r][coord.c] || "",
-        };
-      } else {
-        responsesSheet[address] = { t: "s", v: "" };
+    // Apply styles
+    Object.keys(headerStyle).forEach((address) => {
+      if (!responsesSheet[address]) responsesSheet[address] = { t: "s", v: "" };
+      responsesSheet[address].s = headerStyle[address];
+    });
+
+    Object.keys(cellStyles).forEach((address) => {
+      if (!responsesSheet[address]) {
+        const coord = XLSX.utils.decode_cell(address);
+        if (
+          coord.r < responsesData.length &&
+          coord.c < responsesData[coord.r].length
+        ) {
+          responsesSheet[address] = {
+            t: "s",
+            v: responsesData[coord.r][coord.c] || "",
+          };
+        } else {
+          responsesSheet[address] = { t: "s", v: "" };
+        }
       }
-    }
-    responsesSheet[address].s = cellStyles[address];
-  });
+      responsesSheet[address].s = cellStyles[address];
+    });
 
-  responsesSheet["!cols"] = Array(20).fill({ wch: 25 });
-  applyHyperlinks(responsesSheet, responsesLinks);
-  utils.book_append_sheet(workbook, responsesSheet, "Responses");
+    responsesSheet["!cols"] = Array(20).fill({ wch: 25 });
+    applyHyperlinks(responsesSheet, responsesLinks);
+    
+    // Use response ID or index for sheet name if multiple responses
+    const sheetName = responsesArray.length > 1 
+      ? `Response ${index + 1}` 
+      : "Responses";
+      
+    utils.book_append_sheet(workbook, responsesSheet, sheetName);
+  });
 
   // Save file
-  const fileName = `${response.formTitle.replace(/\s+/g, "_")}_${
+  const finalFileName = fileName || `${form.title.replace(/\s+/g, "_")}_${
     new Date().toISOString().split("T")[0]
   }.xlsx`;
 
-  writeFile(workbook, fileName);
+  writeFile(workbook, finalFileName);
 
   console.log("✅ Excel file generated with styled responses");
 }
@@ -679,7 +712,8 @@ export function generateResponseExcelReport(
 // ▼▼▼ EMAIL VERSION (returns Blob) ▼▼▼
 export function createExcelWorkbook(
   response: ResponseData,
-  form: FormData
+  form: FormData,
+  type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'default'
 ): Blob {
   const workbook = utils.book_new();
 
@@ -690,7 +724,7 @@ export function createExcelWorkbook(
     links: responsesLinks,
     headerStyle,
     cellStyles,
-  } = buildResponsesSheetContent(response, nestedForm);
+  } = buildResponsesSheetContent(response, nestedForm, type);
 
   const responsesSheet = XLSX.utils.aoa_to_sheet(responsesData);
 

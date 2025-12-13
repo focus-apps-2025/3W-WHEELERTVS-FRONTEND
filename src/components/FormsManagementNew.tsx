@@ -199,28 +199,47 @@ export default function FormsManagementNew() {
   const forms = formsData?.forms || [];
 
   const searchValue = searchTerm.toLowerCase();
-  const activeForms = forms.filter((form: Form) => form.isActive);
+  const activeForms = React.useMemo(
+    () => forms.filter((form: Form) => form.isActive),
+    [forms]
+  );
 
   // Separate parent/standalone forms and child forms
-  const parentAndStandaloneForms = activeForms.filter(
-    (form: Form) => !form.parentFormId
+  const parentAndStandaloneForms = React.useMemo(
+    () => activeForms.filter((form: Form) => !form.parentFormId),
+    [activeForms]
   );
 
   // Filter forms based on search (parent/standalone only, children will be shown under parents)
-  const filteredForms = parentAndStandaloneForms.filter(
-    (form: Form) =>
-      form.title.toLowerCase().includes(searchValue) ||
-      form.description.toLowerCase().includes(searchValue)
+  const filteredForms = React.useMemo(
+    () =>
+      parentAndStandaloneForms.filter(
+        (form: Form) =>
+          form.title.toLowerCase().includes(searchValue) ||
+          form.description.toLowerCase().includes(searchValue)
+      ),
+    [parentAndStandaloneForms, searchValue]
   );
 
   const hasAnyForms = forms.length > 0;
   const hasActiveForms = activeForms.length > 0;
 
-  // Get child forms for a parent
+  // Get child forms for a parent - memoized to avoid recalculating on every render
+  const childFormsMap = React.useMemo(() => {
+    const map = new Map<string, Form[]>();
+    activeForms.forEach((form: Form) => {
+      if (form.parentFormId) {
+        if (!map.has(form.parentFormId)) {
+          map.set(form.parentFormId, []);
+        }
+        map.get(form.parentFormId)!.push(form);
+      }
+    });
+    return map;
+  }, [activeForms]);
+
   const getChildFormsForParent = (parentFormId: string) => {
-    return activeForms.filter(
-      (form: Form) => form.parentFormId === parentFormId
-    );
+    return childFormsMap.get(parentFormId) || [];
   };
 
   // Render a single form card (used for both parent and child forms)

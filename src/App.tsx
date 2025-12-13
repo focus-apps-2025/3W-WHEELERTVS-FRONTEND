@@ -6,7 +6,6 @@ import {
   Outlet,
 } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
-import { useSidebar } from "./context/SidebarContext";
 import { LAYOUT_CONFIG } from "./config/layoutConfig";
 import FormsPreview from "./components/FormsPreview";
 import TestAPI from "./components/TestAPI";
@@ -31,7 +30,6 @@ import TenantManagement from "./components/superadmin/TenantManagement";
 import AdminManagement from "./components/admin/AdminManagement";
 import LoginPage from "./components/auth/LoginPage";
 import NotificationContainer from "./components/ui/NotificationContainer";
-import Sidebar from "./components/layout/Sidebar";
 import Header from "./components/Header";
 import ResponseDetailsPage from "./components/ResponseDetailsPage";
 
@@ -57,17 +55,10 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
-  const { isCollapsed, isMobileOpen } = useSidebar();
-
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950" style={{ zoom: LAYOUT_CONFIG.zoomScale }}>
-      <Sidebar />
       <Header />
-      <main
-        className={`pt-16 transition-all duration-300 ${
-          !isMobileOpen ? (isCollapsed ? "lg:ml-16" : "lg:ml-64") : "ml-0"
-        }`}
-      >
+      <main className="pt-16 transition-all duration-300">
         <div className="p-4 sm:p-6">
           {children}
         </div>

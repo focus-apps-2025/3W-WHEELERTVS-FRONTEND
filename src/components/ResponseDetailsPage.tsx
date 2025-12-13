@@ -188,6 +188,8 @@ export default function ResponseDetailsPage() {
   const [weightageValues, setWeightageValues] = useState<Record<string, string>>({});
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [showResponseDropdown, setShowResponseDropdown] = useState(false);
+  const [showPDFTypeSelector, setShowPDFTypeSelector] = useState(false);
+  const [showExcelTypeSelector, setShowExcelTypeSelector] = useState(false);
   const [savingWeightage, setSavingWeightage] = useState(false);
   const [redistributionMode, setRedistributionMode] = useState(false);
   const [tempWeightageValues, setTempWeightageValues] = useState<Record<string, string>>({});
@@ -195,10 +197,28 @@ export default function ResponseDetailsPage() {
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [pendingSectionId, setPendingSectionId] = useState<string | null>(null);
   const [sectionChartTypes, setSectionChartTypes] = useState<Record<string, "pie" | "bar">>({});
+  const [showMainParamsImages, setShowMainParamsImages] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchResponseDetails();
   }, [id]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.pdf-type-selector')) {
+        setShowPDFTypeSelector(false);
+      }
+      if (!target.closest('.excel-type-selector')) {
+        setShowExcelTypeSelector(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
 
   const fetchResponseDetails = async () => {
     try {
@@ -336,15 +356,20 @@ export default function ResponseDetailsPage() {
     }
   };
 
-  const handleExportExcel = async () => {
+  const handleExportExcel = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'default') => {
     if (!response || !form) return;
 
     setExportingExcel(true);
+    setShowExcelTypeSelector(false);
     try {
-      const fileName = `${form.title}_${formatTimestamp(
+      // If type is not provided, default to 'default' (full report)
+      const exportType = type || 'default';
+      
+      const fileName = `${form.title}_${exportType !== 'default' ? exportType + '_' : ''}${formatTimestamp(
         response.createdAt
       )}.xlsx`;
-      await generateResponseExcelReport([response], form, fileName);
+      
+      await generateResponseExcelReport([response], form, fileName, exportType);
       showSuccess("Excel file downloaded successfully.");
     } catch (err) {
       console.error("Failed to export Excel:", err);
@@ -354,16 +379,149 @@ export default function ResponseDetailsPage() {
     }
   };
 
-  const handleDownloadPDF = async (type?: string) => {
+  const handleDeleteResponse = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete this response? This action cannot be undone."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await apiClient.deleteResponse(id!);
+      showSuccess("Response deleted successfully");
+      navigate("/responses/all");
+    } catch (err) {
+      console.error("Failed to delete response:", err);
+      showError("Failed to delete response");
+    }
+  };
+
+  const handleDownloadPDF = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default') => {
     if (!response || !form) return;
 
     setGeneratingPDF(true);
+    setShowPDFTypeSelector(false);
     try {
-      await generateAndDownloadPDF(
-        response as any,
-        form as any,
-        type as any
-      );
+      // For 'section' type, we need section data
+      let sectionQuestionStats: Record<string, any[]> = {};
+      let sectionMainParameters: Record<string, any[]> = {};
+      const availableSections = form.sections || [];
+
+      if (form.sections && (type === 'both' || type === 'default' || type === 'section')) {
+        form.sections.forEach((section: any) => {
+          // Get the actual question stats for the current response
+          sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(section.id);
+
+          const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
+          const mainParamsData: any[] = [];
+
+          // Process each main question in the section
+          sectionQuestions.forEach((mainQuestion: any) => {
+            // Find follow-ups with actual data for this main question
+            const followUpsWithData = mainQuestion.followUpQuestions?.filter((fq: any) => {
+              const answer = response.answers?.[fq.id];
+              return answer && typeof answer === 'object' && (
+                answer.remarks ||
+                answer.actionInitiated ||
+                answer.reasonForNotOK ||
+                answer.responsiblePerson ||
+                answer.review ||
+                answer.files
+              );
+            });
+
+            // If we have follow-ups with data, create parameter entries
+            if (followUpsWithData && followUpsWithData.length > 0) {
+              followUpsWithData.forEach((followUp: any) => {
+                const answer = response.answers?.[followUp.id] || {};
+
+                mainParamsData.push({
+                  subParam1: mainQuestion.subParam1 || "No parameter set",
+                  remarks: answer.remarks || '',
+                  actionInitiated: answer.actionInitiated || '',
+                  reasonForNotOK: answer.reasonForNotOK || '',
+                  responsiblePerson: answer.responsiblePerson || '',
+                  review: answer.review || '',
+                  files: answer.files || []
+                });
+              });
+            } else {
+              // Add entry even if no follow-up data, but mark as empty
+              mainParamsData.push({
+                subParam1: mainQuestion.subParam1 || "No parameter set",
+                remarks: '',
+                actionInitiated: '',
+                reasonForNotOK: '',
+                responsiblePerson: '',
+                review: '',
+                files: []
+              });
+            }
+          });
+
+          sectionMainParameters[section.id] = mainParamsData;
+        });
+      }
+
+      // Add chart element IDs for capturing
+      const chartElementIds = [
+        'section-performance-chart',
+        ...availableSections.map((section: any) => `section-chart-${section.id}`)
+      ];
+
+      // Use the current filtered section stats
+      const currentSectionStats = filteredSectionStats;
+
+      // Prepare section summary rows for PDF
+      const pdfSectionSummaryRows = currentSectionStats.map((stat) => {
+        let weightage = stat.weightage;
+        if (typeof weightage === "string") {
+          weightage = parseFloat(weightage);
+        }
+        weightage = Number.isFinite(weightage) ? weightage : 0;
+        if (weightage > 1) {
+          weightage = weightage;
+        } else if (weightage > 0) {
+          weightage = weightage * 100;
+        }
+
+        const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
+        const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
+        const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
+        const yesWeighted = (yesPercent * weightage) / 100;
+        const noWeighted = (noPercent * weightage) / 100;
+        const naWeighted = (naPercent * weightage) / 100;
+
+        return {
+          id: stat.id,
+          title: stat.title,
+          weightage,
+          yesPercent,
+          yesWeighted,
+          noPercent,
+          noWeighted,
+          naPercent,
+          naWeighted,
+        };
+      });
+
+      await generateAndDownloadPDF({
+        filename: `${form.title}_Report_${formatTimestamp(response.createdAt, 'file')}_${type || 'default'}.pdf`,
+        formTitle: form.title,
+        submittedDate: formatTimestamp(response.createdAt),
+        sectionStats: currentSectionStats,
+        sectionSummaryRows: pdfSectionSummaryRows,
+        form: form,
+        response: response,
+        sectionQuestionStats: sectionQuestionStats,
+        sectionMainParameters: sectionMainParameters,
+        availableSections: availableSections,
+        chartElementIds: chartElementIds,
+        type: type // Add the type parameter
+      });
+
       showSuccess("PDF downloaded successfully.");
     } catch (err) {
       console.error("Failed to generate PDF:", err);
@@ -1040,7 +1198,7 @@ export default function ResponseDetailsPage() {
                         className="text-primary-700 dark:text-gray-200"
                       >
                         {isImageUrl(String(v)) ? (
-                          <ImageLink url={String(v)} />
+                          <ImageLink text={String(v)} />
                         ) : (
                           String(v)
                         )}
@@ -1054,7 +1212,7 @@ export default function ResponseDetailsPage() {
                 ) : (
                   <div className="text-primary-700 dark:text-gray-200">
                     {isImageUrl(String(value)) ? (
-                      <ImageLink url={String(value)} />
+                      <ImageLink text={String(value)} />
                     ) : (
                       String(value)
                     )}
@@ -1115,190 +1273,246 @@ export default function ResponseDetailsPage() {
   const questions = getAllQuestions(form);
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950">
-      {/* Header Section */}
-      <div className="sticky top-0 z-40 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border-b border-indigo-200 dark:border-indigo-700/50 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      {/* Main Content */}
+      <div className="px-6 md:px-8 py-6">
+
+        {/* View Mode Tabs & Back Button */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex gap-1 bg-white dark:bg-gray-700 rounded-lg p-1 w-fit border border-gray-200 dark:border-gray-600">
             <button
-              onClick={() => navigate("/responses/all")}
-              className="p-2 hover:bg-white/50 dark:hover:bg-gray-800/50 rounded-lg transition-colors"
-              title="Back to responses"
+              onClick={() => setViewMode("dashboard")}
+              className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                viewMode === "dashboard"
+                  ? "text-white shadow-sm"
+                  : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
+              }`}
+              style={{ backgroundColor: viewMode === "dashboard" ? "#1e3a8a" : "transparent" }}
             >
-              <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              <BarChart3 className="w-4 h-4" />
+              Dashboard
             </button>
-            <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-400 dark:to-blue-400 bg-clip-text text-transparent">
-                {form.title}
-              </h1>
-              <div className="flex items-center gap-2 mt-1">
-                <Calendar className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Submitted on {formatTimestamp(response.createdAt)}
-                </p>
-              </div>
-            </div>
+            <button
+              onClick={() => setViewMode("responses")}
+              className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                viewMode === "responses"
+                  ? "text-white shadow-sm"
+                  : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
+              }`}
+              style={{ backgroundColor: viewMode === "responses" ? "#1e3a8a" : "transparent" }}
+            >
+              <FileText className="w-4 h-4" />
+              Responses
+            </button>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2">
             <button
               onClick={handleEditResponse}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all duration-200 shadow-sm"
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:opacity-90"
+              style={{ backgroundColor: "#2563eb" }}
+              title="Edit Response"
             >
               <Edit2 className="w-4 h-4" />
-              Edit
+              <span className="hidden sm:inline">Edit</span>
             </button>
+
             <button
-              onClick={handleExportExcel}
-              disabled={exportingExcel}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm"
+              onClick={handleDeleteResponse}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:opacity-90"
+              style={{ backgroundColor: "#dc2626" }}
+              title="Delete Response"
             >
-              {exportingExcel ? (
-                <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+
+            {viewMode === "responses" && (
+              <div className="relative excel-type-selector">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowExcelTypeSelector(!showExcelTypeSelector);
+                  }}
+                  disabled={exportingExcel}
+                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: "#16a34a" }}
+                  title="Export to Excel"
+                >
+                  {exportingExcel ? (
+                    <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  <span className="hidden sm:inline">
+                    {exportingExcel ? "Exporting..." : "Excel"}
+                  </span>
+                  {showExcelTypeSelector && (
+                    <ChevronDown className="w-4 h-4 ml-1 transition-transform" />
+                  )}
+                </button>
+
+                {showExcelTypeSelector && (
+                  <div className="absolute top-full mt-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="py-1">
+                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        Response Types
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowExcelTypeSelector(false);
+                          handleExportExcel('yes-only');
+                        }}
+                        className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
+                      >
+                        <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
+                        <span>Yes Responses (Type 1)</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowExcelTypeSelector(false);
+                          handleExportExcel('no-only');
+                        }}
+                        className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
+                      >
+                        <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
+                        <span>No Responses (Type 2)</span>
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowExcelTypeSelector(false);
+                          handleExportExcel('na-only');
+                        }}
+                        className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors duration-150"
+                      >
+                        <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
+                        <span>N/A Responses (Type 3)</span>
+                      </button>
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowExcelTypeSelector(false);
+                          handleExportExcel('both');
+                        }}
+                        className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
+                      >
+                        <FileCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
+                        <span>All Response Types (Type 4)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {viewMode === "dashboard" && (
+              <div className="relative pdf-type-selector">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowPDFTypeSelector(!showPDFTypeSelector);
+                }}
+                disabled={generatingPDF}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: "#0891b2" }}
+                title="Download PDF"
+              >
+                {generatingPDF ? (
+                  <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">
+                  {generatingPDF ? "Generating..." : "PDF"}
+                </span>
+                {showPDFTypeSelector && (
+                  <ChevronDown className="w-4 h-4 ml-1 transition-transform" />
+                )}
+              </button>
+
+              {showPDFTypeSelector && (
+                <div className="absolute top-full mt-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="py-1">
+                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                      Response Types
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPDFTypeSelector(false);
+                        handleDownloadPDF('yes-only');
+                      }}
+                      className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors duration-150"
+                    >
+                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
+                      <span>Yes Responses (Type 1)</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPDFTypeSelector(false);
+                        handleDownloadPDF('no-only');
+                      }}
+                      className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
+                    >
+                      <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
+                      <span>No Responses (Type 2)</span>
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPDFTypeSelector(false);
+                        handleDownloadPDF('na-only');
+                      }}
+                      className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors duration-150"
+                    >
+                      <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
+                      <span>N/A Responses (Type 3)</span>
+                    </button>
+                    <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPDFTypeSelector(false);
+                        handleDownloadPDF('both');
+                      }}
+                      className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
+                    >
+                      <FileCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
+                      <span>All Response Types (Type 4)</span>
+                    </button>
+                  </div>
+                </div>
               )}
-              {exportingExcel ? "Exporting..." : "Export"}
+            </div>
+            )}
+
+            <div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div>
+
+            <button
+              onClick={() => navigate("/responses/all")}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Back</span>
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto p-6">
-        {/* Status and Details Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* Status Card */}
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 hover:shadow-xl transition-shadow duration-300">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
-                  Status
-                </p>
-                <div className="flex items-center gap-2">
-                  <div className={`p-2 rounded-lg ${statusInfo.bgColor}`}>
-                    <StatusIcon className={`w-5 h-5 ${statusInfo.color}`} />
-                  </div>
-                  <span className={`text-lg font-bold ${statusInfo.color}`}>
-                    {statusInfo.label}
-                  </span>
-                </div>
-              </div>
-              <button
-                onClick={() => setShowStatusUpdate(!showStatusUpdate)}
-                className="px-3 py-1 text-xs font-semibold text-primary-700 dark:text-primary-300 bg-primary-100 dark:bg-primary-900/30 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-900/50 transition-colors"
-              >
-                Update
-              </button>
-            </div>
-
-            {showStatusUpdate && (
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                <button
-                  onClick={() => handleStatusUpdate("pending")}
-                  disabled={
-                    updatingStatus ||
-                    response.status?.toLowerCase() === "pending"
-                  }
-                  className="w-full px-3 py-2 text-xs font-semibold rounded-lg text-yellow-700 bg-yellow-100 hover:bg-yellow-200 dark:text-yellow-300 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <Clock className="w-3 h-3 inline mr-1" />
-                  Pending
-                </button>
-                <button
-                  onClick={() => handleStatusUpdate("verified")}
-                  disabled={
-                    updatingStatus ||
-                    response.status?.toLowerCase() === "verified"
-                  }
-                  className="w-full px-3 py-2 text-xs font-semibold rounded-lg text-green-700 bg-green-100 hover:bg-green-200 dark:text-green-300 dark:bg-green-900/30 dark:hover:bg-green-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <CheckCircle className="w-3 h-3 inline mr-1" />
-                  Verified
-                </button>
-                <button
-                  onClick={() => handleStatusUpdate("rejected")}
-                  disabled={
-                    updatingStatus ||
-                    response.status?.toLowerCase() === "rejected"
-                  }
-                  className="w-full px-3 py-2 text-xs font-semibold rounded-lg text-red-700 bg-red-100 hover:bg-red-200 dark:text-red-300 dark:bg-red-900/30 dark:hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <XCircle className="w-3 h-3 inline mr-1" />
-                  Rejected
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Submitted Date Card */}
-          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700/50 p-4 hover:shadow-xl transition-shadow duration-300">
-            <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider mb-2">
-              Submitted On
-            </p>
-            <p className="text-xl font-bold text-gray-900 dark:text-white mb-1">
-              {formatTimestamp(response.createdAt).split(",")[0]}
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              {formatTimestamp(response.createdAt).split(",")[1]}
-            </p>
-          </div>
-
-          {/* Forms Card */}
-          <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-2xl shadow-lg border border-purple-200 dark:border-purple-700/50 p-4 hover:shadow-xl transition-shadow duration-300">
-            <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 uppercase tracking-wider mb-2">
-              Response Form
-            </p>
-            <p className="text-lg font-bold text-gray-900 dark:text-white truncate">
-              {form.title}
-            </p>
-            {response.submissionMetadata?.location && (
-              <div className="flex items-center gap-1 mt-2 text-sm text-gray-600 dark:text-gray-300">
-                <MapPin className="w-3 h-3" />
-                <span>
-                  {response.submissionMetadata.location.city},{" "}
-                  {response.submissionMetadata.location.country}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* View Mode Tabs */}
-        <div className="flex gap-2 mb-6 bg-white dark:bg-gray-900 rounded-xl p-1 border border-gray-200 dark:border-gray-700 w-fit shadow-lg">
-          <button
-            onClick={() => setViewMode("dashboard")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300 ${
-              viewMode === "dashboard"
-                ? "bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-500 dark:to-blue-500 text-white shadow-lg"
-                : "text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/60 dark:hover:bg-gray-800/60"
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            Dashboard
-          </button>
-          <button
-            onClick={() => setViewMode("responses")}
-            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-lg transition-all duration-300 ${
-              viewMode === "responses"
-                ? "bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-500 dark:to-blue-500 text-white shadow-lg"
-                : "text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/60 dark:hover:bg-gray-800/60"
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            Responses
-          </button>
         </div>
 
         {/* Content Area */}
         {viewMode === "dashboard" ? (
           filteredSectionStats.length > 0 ? (
-            <div className="space-y-6">
+            <div className="space-y-5 flex flex-col" style={{ gap: "1.25rem" }}>
               {/* Dashboard Header with Logo */}
-              <div className="bg-gradient-to-br from-white via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-blue-900/20 dark:to-indigo-900/20 p-6 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-800">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center space-x-4">
+              <div className="bg-white dark:bg-gray-700 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-600 hover:shadow-md transition-shadow">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
                     {logo && (
-                      <div className="w-16 h-12 rounded-lg overflow-hidden shadow-lg border-2 border-white dark:border-gray-700">
+                      <div className="w-14 h-10 rounded-lg overflow-hidden shadow border border-gray-200 dark:border-gray-700 flex-shrink-0">
                         <img
                           src={logo}
                           alt="Company Logo"
@@ -1310,15 +1524,15 @@ export default function ResponseDetailsPage() {
                       </div>
                     )}
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">
                         {form.title}
                       </h2>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
                         Comprehensive analysis and insights
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center gap-2 flex-shrink-0">
                     <div className="text-right">
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         Submitted
@@ -1327,21 +1541,21 @@ export default function ResponseDetailsPage() {
                         {formatTimestamp(response.createdAt)}
                       </p>
                     </div>
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg flex-shrink-0">
-                      <FileCheck className="w-5 h-5 text-white" />
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center shadow flex-shrink-0" style={{ backgroundColor: "#1e3a8a" }}>
+                      <FileCheck className="w-4 h-4 text-white" />
                     </div>
                   </div>
                 </div>
 
                 {/* Quick Stats Row */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 backdrop-blur-sm p-3 rounded-xl border border-yellow-200/50 dark:border-yellow-700/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-                    <div className="flex items-center justify-between">
+                <div className="grid grid-cols-4 gap-2 mt-3">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-2.5 rounded-lg border border-blue-200 dark:border-blue-700 hover:shadow-md transition-shadow duration-300">
+                    <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-300 mb-1">
+                        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-0.5">
                           Overall Score
                         </p>
-                        <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">
+                        <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
                           {(() => {
                             const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
                             const totalYes = filteredSectionStats.reduce((sum, stat) => sum + stat.yes, 0);
@@ -1349,38 +1563,38 @@ export default function ResponseDetailsPage() {
                           })()}%
                         </p>
                       </div>
-                      <div className="p-2 bg-yellow-500/20 rounded-full">
-                        <Award className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+                      <div className="p-1 bg-blue-100 dark:bg-blue-900/40 rounded-full flex-shrink-0">
+                        <Award className="w-3 h-3 text-blue-600 dark:text-blue-400" />
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 backdrop-blur-sm p-3 rounded-xl border border-blue-200/50 dark:border-blue-700/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-                    <div className="flex items-center justify-between">
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-700 hover:shadow-md transition-shadow duration-300">
+                    <div className="flex items-start justify-between gap-2">
                       <div>
-                        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">
+                        <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-0.5">
                           Total Sections
                         </p>
-                        <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                        <p className="text-lg font-bold text-indigo-900 dark:text-indigo-100">
                           {filteredSectionStats.length}
                         </p>
                       </div>
-                      <div className="p-2 bg-blue-500/20 rounded-full">
-                        <Target className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      <div className="p-1 bg-indigo-100 dark:bg-indigo-900/40 rounded-full flex-shrink-0">
+                        <Target className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 backdrop-blur-sm p-3 rounded-xl border border-green-200/50 dark:border-green-700/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 cursor-pointer" onClick={() => setExpandResponseRateBreakdown(!expandResponseRateBreakdown)}>
-                    <div className="flex items-center justify-between">
+                  <div className="bg-green-50 dark:bg-green-900/20 p-2.5 rounded-lg border border-green-200 dark:border-green-700 hover:shadow-md transition-shadow duration-300 cursor-pointer" onClick={() => setExpandResponseRateBreakdown(!expandResponseRateBreakdown)}>
+                    <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-1">
-                          <p className="text-xs font-semibold text-green-700 dark:text-green-300 mb-1">
+                          <p className="text-xs font-semibold text-green-700 dark:text-green-300 mb-0.5">
                             Response Rate
                           </p>
-                          <ChevronDown className={`w-4 h-4 text-green-700 dark:text-green-300 transition-transform duration-300 ${expandResponseRateBreakdown ? "rotate-180" : ""}`} />
+                          <ChevronDown className={`w-3 h-3 text-green-700 dark:text-green-300 transition-transform duration-300 ${expandResponseRateBreakdown ? "rotate-180" : ""}`} />
                         </div>
-                        <p className="text-2xl font-bold text-green-900 dark:text-green-100">
+                        <p className="text-lg font-bold text-green-900 dark:text-green-100">
                           {(() => {
                             const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
                             const totalAnswered = filteredSectionStats.reduce((sum, stat) => sum + stat.yes + stat.no + stat.na, 0);
@@ -1388,14 +1602,14 @@ export default function ResponseDetailsPage() {
                           })()}%
                         </p>
                       </div>
-                      <div className="p-2 bg-green-500/20 rounded-full">
-                        <Activity className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      <div className="p-1 bg-green-100 dark:bg-green-900/30 rounded-full flex-shrink-0">
+                        <Activity className="w-3 h-3 text-green-600 dark:text-green-400" />
                       </div>
                     </div>
 
                     {expandResponseRateBreakdown && (
-                      <div className="mt-3 pt-3 border-t border-green-300/50 dark:border-green-600/50">
-                        <div className="grid grid-cols-3 gap-2">
+                      <div className="mt-2 pt-2 border-t border-green-300 dark:border-green-800">
+                        <div className="grid grid-cols-3 gap-2 mt-2">
                           {(() => {
                             const totalYes = filteredSectionStats.reduce((sum, stat) => sum + stat.yes, 0);
                             const totalNo = filteredSectionStats.reduce((sum, stat) => sum + stat.no, 0);
@@ -1407,17 +1621,17 @@ export default function ResponseDetailsPage() {
 
                             return (
                               <>
-                                <div className="text-center p-2 bg-white/50 dark:bg-green-900/20 rounded-lg">
-                                  <p className="text-xs font-semibold text-green-600 dark:text-green-400 mb-0.5 uppercase">Yes</p>
-                                  <p className="text-lg font-bold text-green-700 dark:text-green-300">{yesPercent}%</p>
+                                <div className="text-center p-1.5 bg-green-100/60 dark:bg-green-900/20 rounded-md">
+                                  <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase">Yes</p>
+                                  <p className="text-sm font-bold text-green-800 dark:text-green-300">{yesPercent}%</p>
                                 </div>
-                                <div className="text-center p-2 bg-white/50 dark:bg-red-900/20 rounded-lg">
-                                  <p className="text-xs font-semibold text-red-600 dark:text-red-400 mb-0.5 uppercase">No</p>
-                                  <p className="text-lg font-bold text-red-700 dark:text-red-300">{noPercent}%</p>
+                                <div className="text-center p-1.5 bg-red-100/60 dark:bg-red-900/20 rounded-md">
+                                  <p className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase">No</p>
+                                  <p className="text-sm font-bold text-red-800 dark:text-red-300">{noPercent}%</p>
                                 </div>
-                                <div className="text-center p-2 bg-white/50 dark:bg-yellow-900/20 rounded-lg">
-                                  <p className="text-xs font-semibold text-yellow-600 dark:text-yellow-400 mb-0.5 uppercase">N/A</p>
-                                  <p className="text-lg font-bold text-yellow-700 dark:text-yellow-300">{naPercent}%</p>
+                                <div className="text-center p-1.5 bg-yellow-100/60 dark:bg-yellow-900/20 rounded-md">
+                                  <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 uppercase">N/A</p>
+                                  <p className="text-sm font-bold text-yellow-800 dark:text-yellow-300">{naPercent}%</p>
                                 </div>
                               </>
                             );
@@ -1427,13 +1641,13 @@ export default function ResponseDetailsPage() {
                     )}
                   </div>
 
-                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 backdrop-blur-sm p-3 rounded-xl border border-purple-200/50 dark:border-purple-700/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-1">
+                  <div className="bg-purple-50 dark:bg-purple-900/20 p-2.5 rounded-lg border border-purple-200 dark:border-purple-700 hover:shadow-md transition-shadow duration-300">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-0.5">
                           Location
                         </p>
-                        <p className="text-sm font-bold text-purple-900 dark:text-purple-100">
+                        <p className="text-xs font-medium text-purple-900 dark:text-purple-100 truncate">
                           {response.submissionMetadata?.location
                             ? (() => {
                               const loc = response.submissionMetadata.location;
@@ -1441,14 +1655,14 @@ export default function ResponseDetailsPage() {
                               if (loc.city) parts.push(loc.city);
                               if (loc.region) parts.push(loc.region);
                               if (loc.country) parts.push(loc.country);
-                              return parts.length > 0 ? parts.join(", ") : "Location data unavailable";
+                              return parts.length > 0 ? parts.join(", ") : "Unavailable";
                             })()
-                            : "Location disabled"
+                            : "Disabled"
                           }
                         </p>
                       </div>
-                      <div className="p-2 bg-purple-500/20 rounded-full">
-                        <MapPin className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                      <div className="p-1 bg-purple-100 dark:bg-purple-900/30 rounded-full flex-shrink-0">
+                        <MapPin className="w-3 h-3 text-purple-600 dark:text-purple-400" />
                       </div>
                     </div>
                   </div>
@@ -1456,568 +1670,115 @@ export default function ResponseDetailsPage() {
               </div>
 
               {/* Basic Information Section */}
-              <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 p-8">
-                <div className="flex items-center gap-3 mb-8">
-                  <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-                    <FileText className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+              <div className="bg-white dark:bg-gray-900 rounded-xl shadow border border-gray-200 dark:border-gray-800 p-5">
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
+                    <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                     Basic Information
                   </h3>
                 </div>
-                <div className="space-y-6">
-                  {form?.sections && form.sections.length > 0 ? (
-                    (() => {
-                      const section = form.sections[0];
-                      return (
-                        <div key={section.id || 0} className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden">
-                          <div className="px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 border-b border-gray-200 dark:border-gray-600">
-                            <h4 className="text-lg font-semibold text-indigo-900 dark:text-indigo-100">
-                              {section.title || "Section 1"}
-                            </h4>
-                            {section.description && (
-                              <p className="text-sm text-indigo-700 dark:text-indigo-300 mt-1">
-                                {section.description}
-                              </p>
-                            )}
-                          </div>
-                          <div className="divide-y divide-gray-200 dark:divide-gray-600">
-                            {section.questions && section.questions.length > 0 ? (
-                              section.questions.map((question: any) => {
-                                const answer = response.answers?.[question.id];
-                                return (
-                                  <div key={question.id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                                    <p className="font-medium text-gray-900 dark:text-white mb-2">
-                                      {question.text || question.id}
-                                    </p>
-                                    <p className="text-gray-700 dark:text-gray-300">
-                                      {answer !== undefined && answer !== null && answer !== '' 
-                                        ? (Array.isArray(answer) ? answer.join(', ') : String(answer))
-                                        : <span className="text-gray-400 italic">No answer provided</span>
-                                      }
-                                    </p>
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <div className="p-4 text-gray-500 dark:text-gray-400 italic">
-                                No questions in this section
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })()
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {response.dealerName && (
-                        <div className="p-4 bg-white dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600">
-                          <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                            Dealer Name
-                          </p>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white break-words">
-                            {response.dealerName}
-                          </p>
-                        </div>
-                      )}
-                      {response.answers?.dealerCode && (
-                        <div className="p-4 bg-white dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600">
-                          <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                            Dealer Code
-                          </p>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white break-words">
-                            {String(response.answers.dealerCode)}
-                          </p>
-                        </div>
-                      )}
-                      {response.answers?.location && (
-                        <div className="p-4 bg-white dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600">
-                          <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                            Location
-                          </p>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white break-words">
-                            {String(response.answers.location)}
-                          </p>
-                        </div>
-                      )}
-                      {response.answers?.auditorDate && (
-                        <div className="p-4 bg-white dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600">
-                          <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                            Auditor Date
-                          </p>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white break-words">
-                            {String(response.answers.auditorDate)}
-                          </p>
-                        </div>
-                      )}
-                      {response.answers?.auditorName && (
-                        <div className="p-4 bg-white dark:bg-gray-700/50 rounded-xl border border-gray-200 dark:border-gray-600">
-                          <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
-                            Auditor Name
-                          </p>
-                          <p className="text-lg font-semibold text-gray-900 dark:text-white break-words">
-                            {String(response.answers.auditorName)}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Section - Yes/No/N/A Analysis for ALL Sections */}
-              {form?.sections?.map((section: any) => {
-                if (!section) return null;
-
-                const questionStats = getSectionYesNoQuestionStats(section.id);
-                if (questionStats.length === 0) return null;
-
-                const sectionTotals = questionStats.reduce(
-                  (totals, stat) => ({
-                    yes: totals.yes + stat.yes,
-                    no: totals.no + stat.no,
-                    na: totals.na + stat.na,
-                    total: totals.total + stat.total,
-                  }),
-                  { yes: 0, no: 0, na: 0, total: 0 }
-                );
-
-                const sectionPercentages = {
-                  yes:
-                    sectionTotals.total > 0
-                      ? ((sectionTotals.yes / sectionTotals.total) * 100).toFixed(1)
-                      : "0.0",
-                  no:
-                    sectionTotals.total > 0
-                      ? ((sectionTotals.no / sectionTotals.total) * 100).toFixed(1)
-                      : "0.0",
-                  na:
-                    sectionTotals.total > 0
-                      ? ((sectionTotals.na / sectionTotals.total) * 100).toFixed(1)
-                      : "0.0",
-                };
-
-                const chartData = {
-                  labels: ["Yes", "No", "N/A"],
-                  datasets: [
-                    {
-                      data: [sectionTotals.yes, sectionTotals.no, sectionTotals.na],
-                      backgroundColor: ["#10b981", "#ef4444", "#f59e0b"],
-                      borderColor: ["#059669", "#dc2626", "#d97706"],
-                      borderWidth: 2,
-                    },
-                  ],
-                };
-
-                const chartOptions = {
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  plugins: {
-                    legend: {
-                      position: "bottom" as const,
-                      labels: {
-                        color: document.documentElement.classList.contains("dark")
-                          ? "#d1d5db"
-                          : "#374151",
-                      },
-                    },
-                    tooltip: {
-                      callbacks: {
-                        label: (context: any) => {
-                          const total = sectionTotals.yes + sectionTotals.no + sectionTotals.na;
-                          const value =
-                            typeof context.parsed === "number"
-                              ? context.parsed
-                              : context.parsed?.y || 0;
-                          const percentage =
-                            total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                          return `${context.label}: ${value} (${percentage}%)`;
-                        },
-                      },
-                    },
-                  },
-                };
-
-                return (
-                  <div key={section.id} className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-8 rounded-3xl shadow-xl border border-blue-200 dark:border-blue-800">
-                    <div className="mb-6">
-                      <h3 className="text-2xl font-bold text-blue-900 dark:text-blue-100 flex items-center gap-3">
-                        <div className="w-1 h-8 bg-blue-600 rounded-full"></div>
-                        {section.title || "Section"} - Yes/No/N/A Analysis
-                      </h3>
-                      <p className="text-blue-700 dark:text-blue-300 mt-2">
-                        Question-wise breakdown of yes/no/n/a responses with overall section summary
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                      {/* Chart */}
-                      <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700">
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="text-lg font-semibold text-blue-900 dark:text-blue-100 flex items-center">
-                            <PieChart className="w-5 h-5 mr-2" />
-                            Response Distribution
+                
+                {form?.sections && form.sections.length > 0 ? (
+                  (() => {
+                    const section = form.sections[0];
+                    return (
+                      <div key={section.id || 0}>
+                        <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+                          <h4 className="text-sm font-semibold text-indigo-900 dark:text-indigo-100 mb-1">
+                            {section.title || "Section 1"}
                           </h4>
-                          <select
-                            value={sectionChartTypes[section.id] || "pie"}
-                            onChange={(e) =>
-                              setSectionChartTypes((prev) => ({
-                                ...prev,
-                                [section.id]: e.target.value as "pie" | "bar",
-                              }))
-                            }
-                            className="px-3 py-1.5 text-sm bg-blue-50 dark:bg-gray-700 border border-blue-200 dark:border-blue-600 rounded-lg text-blue-900 dark:text-blue-100 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="pie">Pie Chart</option>
-                            <option value="bar">Bar Chart</option>
-                          </select>
-                        </div>
-                        <div className="w-full h-64">
-                          {sectionChartTypes[section.id] === "bar" ? (
-                            <Bar
-                              data={{
-                                labels: questionStats.map(
-                                  (stat) => stat.subParam1 || "No parameter"
-                                ),
-                                datasets: [
-                                  {
-                                    label: "Yes",
-                                    data: questionStats.map((stat) => stat.yes),
-                                    backgroundColor: "#10b981",
-                                    borderColor: "#059669",
-                                    borderWidth: 1,
-                                  },
-                                  {
-                                    label: "No",
-                                    data: questionStats.map((stat) => stat.no),
-                                    backgroundColor: "#ef4444",
-                                    borderColor: "#dc2626",
-                                    borderWidth: 1,
-                                  },
-                                  {
-                                    label: "N/A",
-                                    data: questionStats.map((stat) => stat.na),
-                                    backgroundColor: "#f59e0b",
-                                    borderColor: "#d97706",
-                                    borderWidth: 1,
-                                  },
-                                ],
-                              }}
-                              options={{
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                  legend: {
-                                    position: "top" as const,
-                                    labels: {
-                                      color: document.documentElement.classList.contains(
-                                        "dark"
-                                      )
-                                        ? "#d1d5db"
-                                        : "#374151",
-                                    },
-                                  },
-                                },
-                              }}
-                            />
-                          ) : (
-                            <Pie data={chartData} options={chartOptions} />
+                          {section.description && (
+                            <p className="text-xs text-indigo-700 dark:text-indigo-400">
+                              {section.description}
+                            </p>
                           )}
                         </div>
-                      </div>
-
-                      {/* Question Breakdown Table */}
-                      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-blue-200 dark:border-blue-700 overflow-hidden">
-                        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-4">
-                          <h4 className="text-lg font-bold text-white flex items-center">
-                            <BarChart3 className="w-5 h-5 mr-2" />
-                            Question Breakdown
-                          </h4>
-                        </div>
-                        <div className="overflow-x-auto max-h-80">
-                          <table className="w-full divide-y divide-blue-200 dark:divide-blue-700 text-sm">
-                            <thead className="bg-blue-50 dark:bg-blue-900/50 sticky top-0">
-                              <tr>
-                                <th className="px-4 py-3 text-left font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-48">
-                                  Question
-                                </th>
-                                <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
-                                  Yes
-                                </th>
-                                <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
-                                  No
-                                </th>
-                                <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
-                                  N/A
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-blue-200 dark:divide-blue-700 bg-white dark:bg-gray-900">
-                              {questionStats.map((stat, index) => {
-                                const total = stat.yes + stat.no + stat.na;
-                                const yesPercent =
-                                  total > 0 ? ((stat.yes / total) * 100).toFixed(1) : 0;
-                                const noPercent =
-                                  total > 0 ? ((stat.no / total) * 100).toFixed(1) : 0;
-                                const naPercent =
-                                  total > 0 ? ((stat.na / total) * 100).toFixed(1) : 0;
-                                return (
-                                  <tr
-                                    key={stat.id}
-                                    className={`group hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all duration-200 ${
-                                      index % 2 === 0
-                                        ? "bg-white dark:bg-gray-900"
-                                        : "bg-blue-25 dark:bg-blue-900/5"
-                                    }`}
-                                  >
-                                    <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
-                                      <div className="font-semibold">
-                                        {stat.subParam1 || "No parameter"}
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
-                                      <div className="flex flex-col items-center gap-1">
-                                        <span
-                                          className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                                            stat.yes > 0
-                                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                                          }`}
-                                        >
-                                          {stat.yes}
-                                        </span>
-                                        <span className="text-xs font-semibold text-green-700 dark:text-green-300">
-                                          {yesPercent}%
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
-                                      <div className="flex flex-col items-center gap-1">
-                                        <span
-                                          className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                                            stat.no > 0
-                                              ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
-                                              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                                          }`}
-                                        >
-                                          {stat.no}
-                                        </span>
-                                        <span className="text-xs font-semibold text-red-700 dark:text-red-300">
-                                          {noPercent}%
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
-                                      <div className="flex flex-col items-center gap-1">
-                                        <span
-                                          className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
-                                            stat.na > 0
-                                              ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                                          }`}
-                                        >
-                                          {stat.na}
-                                        </span>
-                                        <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-300">
-                                          {naPercent}%
-                                        </span>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                              {/* Section Totals Row */}
-                              <tr className="bg-blue-100 dark:bg-blue-900/50 border-t-2 border-blue-300 dark:border-blue-600">
-                                <td className="px-4 py-3 font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">
-                                  Section Total
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className="text-base font-bold text-green-900 dark:text-green-200">
-                                      {sectionTotals.yes}
-                                    </span>
-                                    <span className="text-xs font-semibold text-green-700 dark:text-green-300">
-                                      {sectionPercentages.yes}%
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className="text-base font-bold text-red-900 dark:text-red-200">
-                                      {sectionTotals.no}
-                                    </span>
-                                    <span className="text-xs font-semibold text-red-700 dark:text-red-300">
-                                      {sectionPercentages.no}%
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-3 text-center">
-                                  <div className="flex flex-col items-center gap-1">
-                                    <span className="text-base font-bold text-yellow-900 dark:text-yellow-200">
-                                      {sectionTotals.na}
-                                    </span>
-                                    <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-300">
-                                      {sectionPercentages.na}%
-                                    </span>
-                                  </div>
-                                </td>
-                              </tr>
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Main Parameters Table */}
-                    {(() => {
-                    const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
-
-                    if (sectionQuestions.length === 0) {
-                      return null;
-                    }
-
-                    const allFollowUpIds = new Set<string>();
-                    const followUpIdAnswerStatus = new Map<string, boolean>();
-
-                    sectionQuestions.forEach((q: any) => {
-                      q.followUpQuestions.forEach((fq: any) => {
-                        allFollowUpIds.add(fq.id);
-                        if (fq.answer && fq.answer !== "N/A" && fq.answer !== "n/a") {
-                          followUpIdAnswerStatus.set(fq.id, true);
-                        }
-                      });
-                    });
-
-                    const followUpIdsWithAnswers = Array.from(allFollowUpIds).filter(
-                      (id) => followUpIdAnswerStatus.get(id) === true
-                    );
-
-                    const followUpsBySubParam: Map<
-                      string,
-                      Array<{ id: string; subParam1?: string; answer?: any }>
-                    > = new Map();
-
-                    followUpIdsWithAnswers.forEach((followUpId) => {
-                      const followUpObj = sectionQuestions
-                        .flatMap((q: any) => q.followUpQuestions)
-                        .find((fq: any) => fq.id === followUpId);
-
-                      const subParamKey = followUpObj?.subParam1 || followUpId;
-                      if (!followUpsBySubParam.has(subParamKey)) {
-                        followUpsBySubParam.set(subParamKey, []);
-                      }
-                      followUpsBySubParam.get(subParamKey)!.push({
-                        id: followUpId,
-                        subParam1: followUpObj?.subParam1,
-                        answer: followUpObj?.answer,
-                      });
-                    });
-
-                    const uniqueSubParams = Array.from(followUpsBySubParam.keys());
-
-                    return (
-                      <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-8 rounded-3xl shadow-xl border border-emerald-200 dark:border-emerald-800">
-                        <div className="mb-6">
-                          <h3 className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
-                            <div className="w-1 h-8 bg-emerald-600 rounded-full"></div>
-                            {section.title || "Section"} - Main Parameters
-                          </h3>
-                        </div>
-
-                        {allFollowUpIds.size === 0 && sectionQuestions.length > 0 && (
-                          <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 rounded text-sm text-yellow-800 dark:text-yellow-200">
-                            <strong>⚠️ No follow-up questions found</strong> for{" "}
-                            {sectionQuestions.length} main question(s)
+                        
+                        {section.questions && section.questions.length > 0 ? (
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {section.questions.map((question: any) => {
+                              const answer = response.answers?.[question.id];
+                              return (
+                                <div key={question.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                                  <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                                    {question.text || question.label || question.id}
+                                  </p>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {answer !== undefined && answer !== null && answer !== '' 
+                                      ? (Array.isArray(answer) ? answer.join(', ') : String(answer))
+                                      : <span className="text-gray-400 italic text-xs">No answer</span>
+                                    }
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-center py-4 text-xs text-gray-500 dark:text-gray-400">
+                            No questions in this section
                           </div>
                         )}
-
-                        <div className="overflow-x-auto">
-                          <table className="w-full border-collapse">
-                            <thead>
-                              <tr className="bg-emerald-200 dark:bg-emerald-800/50">
-                                <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-64">
-                                  Main Parameters
-                                </th>
-                                {uniqueSubParams.map((subParam) => (
-                                  <th
-                                    key={subParam}
-                                    className="px-4 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-48 bg-emerald-50 dark:bg-emerald-900/30"
-                                  >
-                                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
-                                      {subParam}
-                                    </span>
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {sectionQuestions.map((mainQuestion, index) => (
-                                <tr
-                                  key={mainQuestion.id}
-                                  className={`border-b border-emerald-200 dark:border-emerald-800 ${
-                                    index % 2 === 0
-                                      ? "bg-white dark:bg-gray-800/50"
-                                      : "bg-emerald-100/30 dark:bg-emerald-900/10"
-                                  }`}
-                                >
-                                  <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-emerald-200 dark:border-emerald-800">
-                                    <div className="font-bold text-base">
-                                      {mainQuestion.subParam1 || "No parameter set"}
-                                    </div>
-                                    <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                      {mainQuestion.title}
-                                    </div>
-                                  </td>
-                                  {uniqueSubParams.map((subParam) => {
-                                    const followUpsForParam =
-                                      followUpsBySubParam.get(subParam) || [];
-                                    const answersForParam = followUpsForParam
-                                      .map((followUp) => {
-                                        const followUpFromMain =
-                                          mainQuestion.followUpQuestions.find(
-                                            (fq: any) => fq.id === followUp.id
-                                          );
-                                        return followUpFromMain?.answer;
-                                      })
-                                      .filter(
-                                        (answer) =>
-                                          answer !== undefined &&
-                                          answer !== null &&
-                                          answer !== ""
-                                      );
-
-                                    return (
-                                      <td
-                                        key={subParam}
-                                        className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20"
-                                      >
-                                        {answersForParam.length > 0 ? (
-                                          <div className="space-y-1">
-                                            {answersForParam.map((answer, idx) => (
-                                              <p key={idx} className="font-medium">
-                                                {answer}
-                                              </p>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          <span className="text-gray-400 italic">
-                                            N/A
-                                          </span>
-                                        )}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
                       </div>
                     );
-                  })()}
+                  })()
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {response.dealerName && (
+                      <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                          Dealer Name
+                        </p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
+                          {response.dealerName}
+                        </p>
+                      </div>
+                    )}
+                    {response.answers?.dealerCode && (
+                      <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                          Dealer Code
+                        </p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
+                          {String(response.answers.dealerCode)}
+                        </p>
+                      </div>
+                    )}
+                    {response.answers?.location && (
+                      <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                          Location
+                        </p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
+                          {String(response.answers.location)}
+                        </p>
+                      </div>
+                    )}
+                    {response.answers?.auditorDate && (
+                      <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                          Auditor Date
+                        </p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
+                          {String(response.answers.auditorDate)}
+                        </p>
+                      </div>
+                    )}
+                    {response.answers?.auditorName && (
+                      <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+                        <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
+                          Auditor Name
+                        </p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
+                          {String(response.answers.auditorName)}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                );
-              })}
+                )}
+              </div>
+
 
               {/* Charts Section */}
               <div className={`grid gap-8 ${showWeightageColumns ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
@@ -2551,6 +2312,496 @@ export default function ResponseDetailsPage() {
                 </div>
               </div>
 
+
+
+
+
+
+
+            
+
+
+              {/* Section - Yes/No/N/A Analysis for ALL Sections */}
+              {form?.sections?.map((section: any) => {
+                if (!section) return null;
+
+                const questionStats = getSectionYesNoQuestionStats(section.id);
+                if (questionStats.length === 0) return null;
+
+                const sectionTotals = questionStats.reduce(
+                  (totals, stat) => ({
+                    yes: totals.yes + stat.yes,
+                    no: totals.no + stat.no,
+                    na: totals.na + stat.na,
+                    total: totals.total + stat.total,
+                  }),
+                  { yes: 0, no: 0, na: 0, total: 0 }
+                );
+
+                const sectionPercentages = {
+                  yes:
+                    sectionTotals.total > 0
+                      ? ((sectionTotals.yes / sectionTotals.total) * 100).toFixed(1)
+                      : "0.0",
+                  no:
+                    sectionTotals.total > 0
+                      ? ((sectionTotals.no / sectionTotals.total) * 100).toFixed(1)
+                      : "0.0",
+                  na:
+                    sectionTotals.total > 0
+                      ? ((sectionTotals.na / sectionTotals.total) * 100).toFixed(1)
+                      : "0.0",
+                };
+
+                const chartData = {
+                  labels: ["Yes", "No", "N/A"],
+                  datasets: [
+                    {
+                      data: [sectionTotals.yes, sectionTotals.no, sectionTotals.na],
+                      backgroundColor: ["#1e40af", "#3b82f6", "#93c5fd"],
+                      borderColor: ["#1e40af", "#3b82f6", "#93c5fd"],
+                      borderWidth: 2,
+                    },
+                  ],
+                };
+
+                const chartOptions = {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: "bottom" as const,
+                      labels: {
+                        color: document.documentElement.classList.contains("dark")
+                          ? "#d1d5db"
+                          : "#374151",
+                      },
+                    },
+                    tooltip: {
+                      callbacks: {
+                        label: (context: any) => {
+                          const total = sectionTotals.yes + sectionTotals.no + sectionTotals.na;
+                          const value =
+                            typeof context.parsed === "number"
+                              ? context.parsed
+                              : context.parsed?.y || 0;
+                          const percentage =
+                            total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                          return `${context.label}: ${value} (${percentage}%)`;
+                        },
+                      },
+                    },
+                  },
+                };
+
+                return (
+                  <div key={section.id} className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow border border-gray-200 dark:border-gray-800">
+                    <div className="mb-4">
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        {section.title || "Section"} - Yes/No/N/A Analysis
+                      </h3>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                        Question-wise breakdown of yes/no/n/a responses with overall section summary
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* Chart */}
+                      <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-800">
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
+                            <PieChart className="w-4 h-4 mr-2" />
+                            Response Distribution
+                          </h4>
+                          <select
+                            value={sectionChartTypes[section.id] || "pie"}
+                            onChange={(e) =>
+                              setSectionChartTypes((prev) => ({
+                                ...prev,
+                                [section.id]: e.target.value as "pie" | "bar",
+                              }))
+                            }
+                            className="px-2.5 py-1 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-900 dark:text-white font-medium focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          >
+                            <option value="pie">Pie Chart</option>
+                            <option value="bar">Bar Chart</option>
+                          </select>
+                        </div>
+                        <div className="w-full h-56">
+                          {sectionChartTypes[section.id] === "bar" ? (
+                            <Bar
+                              data={{
+                                labels: questionStats.map(
+                                  (stat) => stat.subParam1 || "No parameter"
+                                ),
+                                datasets: [
+                                  {
+                                    label: "Yes",
+                                    data: questionStats.map((stat) => stat.yes),
+                                    backgroundColor: "#1e40af",
+                                    borderColor: "#1e40af",
+                                    borderWidth: 1,
+                                  },
+                                  {
+                                    label: "No",
+                                    data: questionStats.map((stat) => stat.no),
+                                    backgroundColor: "#3b82f6",
+                                    borderColor: "#3b82f6",
+                                    borderWidth: 1,
+                                  },
+                                  {
+                                    label: "N/A",
+                                    data: questionStats.map((stat) => stat.na),
+                                    backgroundColor: "#93c5fd",
+                                    borderColor: "#93c5fd",
+                                    borderWidth: 1,
+                                  },
+                                ],
+                              }}
+                              options={{
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                  legend: {
+                                    position: "top" as const,
+                                    labels: {
+                                      color: document.documentElement.classList.contains(
+                                        "dark"
+                                      )
+                                        ? "#d1d5db"
+                                        : "#374151",
+                                    },
+                                  },
+                                },
+                              }}
+                            />
+                          ) : (
+                            <Pie data={chartData} options={chartOptions} />
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Question Breakdown Table */}
+                      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+                        <div className="bg-gray-100 dark:bg-gray-700 px-4 py-2.5">
+                          <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
+                            <BarChart3 className="w-4 h-4 mr-2" />
+                            Question Breakdown
+                          </h4>
+                        </div>
+                        <div className="overflow-auto max-h-80">
+                          <table className="w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
+                            <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider min-w-40">
+                                  Question
+                                </th>
+                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider min-w-12">
+                                  Yes
+                                </th>
+                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider min-w-12">
+                                  No
+                                </th>
+                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider min-w-12">
+                                  N/A
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                              {questionStats.map((stat, index) => {
+                                const total = stat.yes + stat.no + stat.na;
+                                const yesPercent =
+                                  total > 0 ? ((stat.yes / total) * 100).toFixed(1) : 0;
+                                const noPercent =
+                                  total > 0 ? ((stat.no / total) * 100).toFixed(1) : 0;
+                                const naPercent =
+                                  total > 0 ? ((stat.na / total) * 100).toFixed(1) : 0;
+                                return (
+                                  <tr
+                                    key={stat.id}
+                                    className={`group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all duration-200 ${
+                                      index % 2 === 0
+                                        ? "bg-white dark:bg-gray-900"
+                                        : "bg-gray-50 dark:bg-gray-800/30"
+                                    }`}
+                                  >
+                                    <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
+                                      <div className="font-semibold text-xs">
+                                        {stat.subParam1 || "No parameter"}
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-gray-700 dark:text-gray-300 font-medium">
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        <span
+                                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+                                            stat.yes > 0
+                                              ? "bg-blue-700 text-white dark:bg-blue-900/40 dark:text-blue-300"
+                                              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
+                                          }`}
+                                        >
+                                          {stat.yes}
+                                        </span>
+                                        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
+                                          {yesPercent}%
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-gray-700 dark:text-gray-300 font-medium">
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        <span
+                                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+                                            stat.no > 0
+                                              ? "bg-blue-300 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
+                                              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
+                                          }`}
+                                        >
+                                          {stat.no}
+                                        </span>
+                                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-300">
+                                          {noPercent}%
+                                        </span>
+                                      </div>
+                                    </td>
+                                    <td className="px-3 py-2 text-center text-gray-700 dark:text-gray-300 font-medium">
+                                      <div className="flex flex-col items-center gap-0.5">
+                                        <span
+                                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
+                                            stat.na > 0
+                                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-100"
+                                              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
+                                          }`}
+                                        >
+                                          {stat.na}
+                                        </span>
+                                        <span className="text-xs font-semibold text-blue-500 dark:text-blue-200">
+                                          {naPercent}%
+                                        </span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot className="sticky bottom-0 z-10 bg-blue-50 dark:bg-blue-900/15 border-t-2 border-blue-200 dark:border-blue-800 shadow-[0_-2px_4px_rgba(0,0,0,0.05)] dark:shadow-[0_-2px_4px_rgba(0,0,0,0.2)]">
+                              <tr className="border-t border-blue-200 dark:border-blue-800">
+                                <td className="px-3 py-3 font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider text-xs">
+                                  Section Total
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                                      {sectionTotals.yes}
+                                    </span>
+                                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                      {sectionPercentages.yes}%
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <span className="text-sm font-bold text-blue-600 dark:text-blue-300">
+                                      {sectionTotals.no}
+                                    </span>
+                                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                                      {sectionPercentages.no}%
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <span className="text-sm font-bold text-blue-500 dark:text-blue-200">
+                                      {sectionTotals.na}
+                                    </span>
+                                    <span className="text-xs font-semibold text-blue-500 dark:text-blue-300">
+                                      {sectionPercentages.na}%
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Main Parameters Table */}
+                    {(() => {
+                    const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
+
+                    if (sectionQuestions.length === 0) {
+                      return null;
+                    }
+
+                    const allFollowUpIds = new Set<string>();
+                    const followUpIdAnswerStatus = new Map<string, boolean>();
+
+                    sectionQuestions.forEach((q: any) => {
+                      q.followUpQuestions.forEach((fq: any) => {
+                        allFollowUpIds.add(fq.id);
+                        if (fq.answer && fq.answer !== "N/A" && fq.answer !== "n/a") {
+                          followUpIdAnswerStatus.set(fq.id, true);
+                        }
+                      });
+                    });
+
+                    const followUpIdsWithAnswers = Array.from(allFollowUpIds).filter(
+                      (id) => followUpIdAnswerStatus.get(id) === true
+                    );
+
+                    const followUpsBySubParam: Map<
+                      string,
+                      Array<{ id: string; subParam1?: string; answer?: any }>
+                    > = new Map();
+
+                    followUpIdsWithAnswers.forEach((followUpId) => {
+                      const followUpObj = sectionQuestions
+                        .flatMap((q: any) => q.followUpQuestions)
+                        .find((fq: any) => fq.id === followUpId);
+
+                      const subParamKey = followUpObj?.subParam1 || followUpId;
+                      if (!followUpsBySubParam.has(subParamKey)) {
+                        followUpsBySubParam.set(subParamKey, []);
+                      }
+                      followUpsBySubParam.get(subParamKey)!.push({
+                        id: followUpId,
+                        subParam1: followUpObj?.subParam1,
+                        answer: followUpObj?.answer,
+                      });
+                    });
+
+                    const uniqueSubParams = Array.from(followUpsBySubParam.keys());
+
+                    const hasImages = Array.from(followUpsBySubParam.values()).some(
+                      (items) => items.some((item) => isImageUrl(String(item.answer)))
+                    );
+
+                    return (
+                      <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-8 rounded-3xl shadow-xl border border-emerald-200 dark:border-emerald-800">
+                        <div className="mb-6 flex items-center justify-between">
+                          <h3 className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
+                            <div className="w-1 h-8 bg-emerald-600 rounded-full"></div>
+                            {section.title || "Section"} - Main Parameters
+                          </h3>
+                          {hasImages && (
+                            <button
+                              onClick={() =>
+                                setShowMainParamsImages((prev) => ({
+                                  ...prev,
+                                  [section.id]: !prev[section.id],
+                                }))
+                              }
+                              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                                showMainParamsImages[section.id]
+                                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                  : "bg-gray-300 text-gray-700 hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200"
+                              }`}
+                            >
+                              {showMainParamsImages[section.id] ? "Hide Images" : "View Images"}
+                            </button>
+                          )}
+                        </div>
+
+                        {allFollowUpIds.size === 0 && sectionQuestions.length > 0 && (
+                          <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 rounded text-sm text-yellow-800 dark:text-yellow-200">
+                            <strong>⚠️ No follow-up questions found</strong> for{" "}
+                            {sectionQuestions.length} main question(s)
+                          </div>
+                        )}
+
+                        <div className="overflow-x-auto">
+                          <table className="w-full border-collapse">
+                            <thead>
+                              <tr className="bg-emerald-200 dark:bg-emerald-800/50">
+                                <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-64">
+                                  Main Parameters
+                                </th>
+                                {uniqueSubParams.map((subParam) => (
+                                  <th
+                                    key={subParam}
+                                    className="px-4 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-48 bg-emerald-50 dark:bg-emerald-900/30"
+                                  >
+                                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                                      {subParam}
+                                    </span>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {sectionQuestions.map((mainQuestion, index) => (
+                                <tr
+                                  key={mainQuestion.id}
+                                  className={`border-b border-emerald-200 dark:border-emerald-800 ${
+                                    index % 2 === 0
+                                      ? "bg-white dark:bg-gray-800/50"
+                                      : "bg-emerald-100/30 dark:bg-emerald-900/10"
+                                  }`}
+                                >
+                                  <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-emerald-200 dark:border-emerald-800">
+                                    <div className="font-bold text-base">
+                                      {mainQuestion.subParam1 || "No parameter set"}
+                                    </div>
+                                    <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                      {mainQuestion.title}
+                                    </div>
+                                  </td>
+                                  {uniqueSubParams.map((subParam) => {
+                                    const followUpsForParam =
+                                      followUpsBySubParam.get(subParam) || [];
+                                    const answersForParam = followUpsForParam
+                                      .map((followUp) => {
+                                        const followUpFromMain =
+                                          mainQuestion.followUpQuestions.find(
+                                            (fq: any) => fq.id === followUp.id
+                                          );
+                                        return followUpFromMain?.answer;
+                                      })
+                                      .filter(
+                                        (answer) =>
+                                          answer !== undefined &&
+                                          answer !== null &&
+                                          answer !== ""
+                                      );
+
+                                    return (
+                                      <td
+                                        key={subParam}
+                                        className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20"
+                                      >
+                                        {answersForParam.length > 0 ? (
+                                          <div className="flex flex-wrap gap-2">
+                                            {answersForParam.map((answer, idx) => (
+                                              <div key={idx} className="font-medium">
+                                                {isImageUrl(String(answer)) ? (
+                                                  <ImageLink text={String(answer)} showImage={showMainParamsImages[section.id] ?? true} />
+                                                ) : (
+                                                  <p>{answer}</p>
+                                                )}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <span className="text-gray-400 italic">
+                                            N/A
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  </div>
+                );
+              })}
+
+
+
               {/* Response Summary Card */}
               <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
@@ -2615,54 +2866,75 @@ export default function ResponseDetailsPage() {
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
               Form Responses
             </h3>
-            <div className="space-y-6">
-              {Object.entries(response.answers).map(([key, value]) => {
-                const question = questions[key];
+            <div className="space-y-8">
+              {form.sections?.map((section: any) => {
+                const sectionAnswers = Object.entries(response.answers).filter(([key]) => {
+                  const question = questions[key];
+                  return section.questions?.some((q: any) => q.id === key || q.followUpQuestions?.some((fq: any) => fq.id === key));
+                });
+
+                if (sectionAnswers.length === 0) return null;
+
                 return (
-                  <div
-                    key={key}
-                    className="border-b border-gray-200 dark:border-gray-700 pb-6 last:border-b-0"
-                  >
-                    <div className="mb-3">
-                      <h4 className="font-semibold text-gray-900 dark:text-white text-lg">
-                        {question?.text || key}
-                      </h4>
-                      {question?.description && (
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {question.description}
-                        </p>
-                      )}
-                    </div>
-                    <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                      {Array.isArray(value) ? (
-                        <div className="space-y-2">
-                          {value.map((v, idx) => (
-                            <div
-                              key={idx}
-                              className="text-gray-900 dark:text-gray-100 flex items-center gap-2"
-                            >
-                              <div className="w-1.5 h-1.5 bg-indigo-600 dark:bg-indigo-400 rounded-full" />
-                              {isImageUrl(String(v)) ? (
-                                <ImageLink url={String(v)} />
-                              ) : (
-                                String(v)
+                  <div key={section.id} className="border-t border-gray-200 dark:border-gray-700 pt-6 first:border-t-0 first:pt-0">
+                    <h4 className="text-lg font-bold text-blue-700 dark:text-blue-400 mb-4 pb-3 border-b-2 border-blue-300 dark:border-blue-600 flex items-center gap-2">
+                      <div className="w-1 h-6 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
+                      {section.title}
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {sectionAnswers.map(([key, value]) => {
+                        const question = questions[key];
+                        return (
+                          <div
+                            key={key}
+                            className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
+                          >
+                            <div className="mb-3">
+                              <h5 className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2">
+                                {question?.text || key}
+                              </h5>
+                              {question?.description && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-1">
+                                  {question.description}
+                                </p>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      ) : typeof value === "object" ? (
-                        <pre className="text-gray-900 dark:text-gray-100 overflow-auto text-sm bg-gray-200 dark:bg-gray-950 p-3 rounded">
-                          {JSON.stringify(value, null, 2)}
-                        </pre>
-                      ) : (
-                        <div className="text-gray-900 dark:text-gray-100">
-                          {isImageUrl(String(value)) ? (
-                            <ImageLink url={String(value)} />
-                          ) : (
-                            String(value)
-                          )}
-                        </div>
-                      )}
+                            <div className="bg-white dark:bg-gray-700 rounded p-3 border border-gray-200 dark:border-gray-600">
+                              {Array.isArray(value) ? (
+                                <div className="space-y-1 text-sm">
+                                  {value.map((v, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="text-gray-900 dark:text-gray-100 flex items-start gap-2"
+                                    >
+                                      <div className="w-1.5 h-1.5 bg-indigo-600 dark:bg-indigo-400 rounded-full mt-1 flex-shrink-0" />
+                                      <div className="break-words">
+                                        {isImageUrl(String(v)) ? (
+                                          <ImageLink text={String(v)} />
+                                        ) : (
+                                          String(v)
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : typeof value === "object" ? (
+                                <pre className="text-gray-900 dark:text-gray-100 overflow-auto text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded max-h-24">
+                                  {JSON.stringify(value, null, 2)}
+                                </pre>
+                              ) : (
+                                <div className="text-gray-900 dark:text-gray-100 text-sm break-words">
+                                  {isImageUrl(String(value)) ? (
+                                    <ImageLink text={String(value)} />
+                                  ) : (
+                                    String(value)
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );

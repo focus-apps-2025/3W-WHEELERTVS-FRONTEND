@@ -6,9 +6,10 @@ import { apiClient } from '../api/client';
 
 interface ImageLinkProps {
   text: string;
+  showImage?: boolean;
 }
 
-export default function ImageLink({ text }: ImageLinkProps) {
+export default function ImageLink({ text, showImage = true }: ImageLinkProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isConverting, setIsConverting] = useState(false);
@@ -47,16 +48,26 @@ export default function ImageLink({ text }: ImageLinkProps) {
     return <span>{trimmedText}</span>;
   }
 
+  if (!showImage) {
+    return <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-sm">📷 Image</span>;
+  }
+
   return (
     <>
-      <button
-        onClick={() => setIsModalOpen(true)}
-        disabled={isConverting}
-        className="inline-flex items-center gap-2 px-3 py-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50"
-      >
-        <Eye className="w-4 h-4" />
-        {isConverting ? 'Converting...' : 'View Image'}
-      </button>
+      <div className="relative group inline-block">
+        <img
+          src={imageUrl}
+          alt="Response image"
+          onClick={() => setIsModalOpen(true)}
+          className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:shadow-md transition-shadow duration-200"
+        />
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="absolute inset-0 w-full h-full bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100"
+        >
+          <Eye className="w-4 h-4 text-white" />
+        </button>
+      </div>
       <ImageModal 
         isOpen={isModalOpen}
         imageUrl={imageUrl}

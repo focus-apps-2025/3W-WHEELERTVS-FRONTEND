@@ -228,6 +228,8 @@ export default function AllResponses() {
 
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [showResponseDropdown, setShowResponseDropdown] = useState(false);
+  const [showExcelDownloadOptions, setShowExcelDownloadOptions] = useState(false);
+  const [showExcelResponseDropdown, setShowExcelResponseDropdown] = useState(false);
   const [openViewDropdown, setOpenViewDropdown] = useState<string | null>(null);
 
   const handlePDFTypeSelect = (type: 'no-only' | 'yes-only' | 'both') => {
@@ -456,8 +458,14 @@ export default function AllResponses() {
     }
   };
 
-  const handleExportExcel = () => {
+  const handleExportExcel = (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'default' | React.MouseEvent) => {
     if (exportingExcel) {
+      return;
+    }
+
+    // If type is not a string (e.g. event object) or undefined, toggle options
+    if (!type || typeof type !== 'string') {
+      setShowExcelDownloadOptions(!showExcelDownloadOptions);
       return;
     }
 
@@ -468,12 +476,18 @@ export default function AllResponses() {
 
     setExportingExcel(true);
     try {
+      // Generate filename
+      const fileName = `${selectedForm.title}_${formatTimestamp(selectedResponse.createdAt)}_${type}.xlsx`;
+      
       generateResponseExcelReport(
         selectedResponse,
         selectedForm,
-        sectionSummaryRows
+        fileName,
+        type
       );
       showSuccess("Excel exported successfully.");
+      setShowExcelDownloadOptions(false);
+      setShowExcelResponseDropdown(false);
     } catch (error) {
       console.error("Failed to export Excel:", error);
       showError("Failed to export Excel. Please try again.");
@@ -666,6 +680,10 @@ useEffect(() => {
       setShowDownloadOptions(false);
       setShowResponseDropdown(false);
     }
+    if (!target.closest('.download-excel-container') && !target.closest('.excel-responses-dropdown')) {
+      setShowExcelDownloadOptions(false);
+      setShowExcelResponseDropdown(false);
+    }
   };
 
   document.addEventListener('click', handleClickOutside);
@@ -810,35 +828,61 @@ const handleCancelWeightageEdit = () => {
         {}
       );
 
-      // Helper function to extract dealer name from answers using form structure
-      const extractDealerName = (response: Response, form: Form | undefined): string | null => {
-        if (!form || !response.answers) return null;
+      // Pre-calculate dealer question IDs for each form
+      const dealerQuestionMap = new Map<string, string>();
+      
+      Object.values(formsMap).forEach((form: Form) => {
+        const formId = form._id || form.id;
+        if (!formId) return;
 
-        // Look for dealer name in the first section
         if (form.sections && form.sections.length > 0) {
           const firstSection = form.sections[0];
           if (firstSection.questions && firstSection.questions.length > 0) {
-            // Check each question in first section
             for (const question of firstSection.questions) {
-              const answer = response.answers[question.id];
-              if (answer && hasAnswerValue(answer)) {
-                // Check if this question likely contains dealer name
-                const questionText = (question.text || question.label || '').toLowerCase();
-                const isDealerField = questionText.includes('dealer') ||
-                  questionText.includes('distributor') ||
-                  questionText.includes('agent') ||
-                  questionText.includes('store') ||
-                  questionText.includes('business');
+              const questionText = (question.text || question.label || '').toLowerCase();
+              const isDealerField = questionText.includes('dealer') ||
+                questionText.includes('distributor') ||
+                questionText.includes('agent') ||
+                questionText.includes('store') ||
+                questionText.includes('business');
 
-                if (isDealerField) {
-                  return renderAnswerDisplay(answer, question) as string;
-                }
-
-                // If no specific dealer field found, return first answer as dealer name
-                return renderAnswerDisplay(answer, question) as string;
+              if (isDealerField) {
+                dealerQuestionMap.set(formId, question.id);
+                break; // Found the dealer question for this form
               }
             }
           }
+        }
+      });
+
+      // Helper function to extract dealer name from answers using form structure
+      const extractDealerName = (response: Response, form: Form | undefined): string | null => {
+        if (!form || !response.answers) return null;
+        
+        const formId = form._id || form.id;
+        if (!formId) return null;
+
+        // Try to get from pre-calculated map first
+        const dealerQuestionId = dealerQuestionMap.get(formId);
+        if (dealerQuestionId) {
+          const answer = response.answers[dealerQuestionId];
+          if (answer && hasAnswerValue(answer)) {
+            return renderAnswerDisplay(answer) as string;
+          }
+        }
+
+        // Fallback: if no specific dealer field found or no answer, check first section's first answer
+        // This mimics the original behavior's fallback
+        if (form.sections && form.sections.length > 0) {
+           const firstSection = form.sections[0];
+           if (firstSection.questions && firstSection.questions.length > 0) {
+             for (const question of firstSection.questions) {
+               const answer = response.answers[question.id];
+               if (answer && hasAnswerValue(answer)) {
+                 return renderAnswerDisplay(answer, question) as string;
+               }
+             }
+           }
         }
 
         return null;
@@ -921,23 +965,28 @@ const handleCancelWeightageEdit = () => {
     if (!selectedForm?.sections) return {};
 
     const map: Record<string, (Response & { formTitle: string })[]> = {};
+    const questionToSectionMap = new Map<string, string>();
+
+    // Pre-calculate question -> section mapping
     selectedForm.sections.forEach((section: any) => {
       map[section.id] = [];
+      section.questions?.forEach((q: any) => {
+        if (q.id) {
+          questionToSectionMap.set(q.id, section.id);
+        }
+      });
     });
 
     responses.forEach((response) => {
       const answerKeys = Object.keys(response.answers || {});
+      // Track which sections we've already added this response to
+      const addedToSections = new Set<string>();
+
       answerKeys.forEach((key) => {
-        const question = selectedForm?.sections
-          ?.flatMap((s: any) => s.questions || [])
-          .find((q: any) => q.id === key);
-        if (question) {
-          const sectionId = selectedForm.sections?.find((s: any) =>
-            s.questions?.some((q: any) => q.id === key)
-          )?.id;
-          if (sectionId && !map[sectionId].find((r) => r.id === response.id)) {
-            map[sectionId].push(response);
-          }
+        const sectionId = questionToSectionMap.get(key);
+        if (sectionId && !addedToSections.has(sectionId)) {
+          map[sectionId].push(response);
+          addedToSections.add(sectionId);
         }
       });
     });
@@ -1706,12 +1755,12 @@ const handleCancelWeightageEdit = () => {
             const itemStr = String(item);
             if (isImageUrl(itemStr)) {
               return (
-                <div key={index}>
+                <div key={index} className="inline-block">
                   <ImageLink text={itemStr} />
                 </div>
               );
             }
-            return <span key={index}>{itemStr}</span>;
+            return <span key={index} className="text-sm">{itemStr}</span>;
           })}
         </div>
       );
@@ -2833,54 +2882,57 @@ const handleCancelWeightageEdit = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-blue-100/50 dark:from-gray-900 dark:to-gray-800 p-6 md:p-8">
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-3">
-          <FileText className="w-8 h-8 text-indigo-600" />
-          Customer Requests
-        </h1>
-        <p className="text-gray-600 dark:text-gray-300">
-          View all customer service requests and responses
-        </p>
-      </div>
-
-      {/* Search and Filter Controls */}
-      <div className="card p-6 mb-8">
-        <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-          <div className="flex-1 min-w-0">
-            <div className="relative">
-              <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search by form name or dealer name..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              />
-            </div>
+      <div className="mb-8 flex items-center justify-between gap-4 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/10 dark:to-indigo-900/10 p-4 rounded-xl">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
+            <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
           </div>
-          
-          <div className="flex items-center gap-3 relative">
-            <button
-              onClick={() => setShowFormFilter(!showFormFilter)}
-              className={`px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap ${showFormFilter ? 'ring-2 ring-indigo-400 ring-offset-2 dark:ring-offset-gray-900' : ''}`}
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-              </svg>
-              Forms ({selectedFormIds.length}/{uniqueForms.length})
-            </button>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white whitespace-nowrap">
+              Customer Requests
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 text-xs whitespace-nowrap">
+              View all requests and responses
+            </p>
+          </div>
+        </div>
+        
+        <div className="flex-1 max-w-sm">
+          <div className="relative">
+            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 border border-blue-200 dark:border-blue-700 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-gray-900 dark:text-white placeholder-blue-400 dark:placeholder-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-sm text-sm"
+            />
+          </div>
+        </div>
+        
+        <div className="flex-shrink-0 relative">
+          <button
+            onClick={() => setShowFormFilter(!showFormFilter)}
+            style={{ backgroundColor: "#1e3a8a" }}
+            className={`px-4 py-2.5 text-white rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap hover:opacity-90 shadow-md hover:shadow-lg text-sm ${showFormFilter ? 'ring-2 ring-blue-400 ring-offset-2 dark:ring-offset-gray-700' : ''}`}
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+              <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+            </svg>
+            Forms ({selectedFormIds.length}/{uniqueForms.length})
+          </button>
 
-            {showFormFilter && (
-              <div className="absolute top-full right-0 mt-2 p-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 min-w-80 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="sticky top-0 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          {showFormFilter && (
+              <div className="absolute top-full right-0 mt-2 p-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 min-w-80 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                      <svg className="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" style={{ color: "#1e3a8a" }}>
                         <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                         <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                       </svg>
@@ -2896,7 +2948,8 @@ const handleCancelWeightageEdit = () => {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSelectedFormIds(uniqueForms.map(f => f.id))}
-                      className="flex-1 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 rounded transition-colors"
+                      className="flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded transition-colors"
+                      style={{ backgroundColor: "#1e3a8a" }}
                     >
                       Select All
                     </button>
@@ -2924,7 +2977,8 @@ const handleCancelWeightageEdit = () => {
                                 setSelectedFormIds(selectedFormIds.filter(id => id !== form.id));
                               }
                             }}
-                            className="w-5 h-5 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
+                            className="w-5 h-5 border-gray-300 dark:border-gray-600 rounded cursor-pointer"
+                            style={{ accentColor: "#1e3a8a" }}
                           />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -2950,7 +3004,6 @@ const handleCancelWeightageEdit = () => {
                 </div>
               </div>
             )}
-          </div>
         </div>
       </div>
 
@@ -2959,12 +3012,12 @@ const handleCancelWeightageEdit = () => {
         {Object.keys(groupedResponses)
           .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())
           .map((date) => (
-            <div key={date} className="card p-6 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
+            <div key={date} className="bg-gradient-to-br from-white to-blue-50/50 dark:from-gray-700 dark:to-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-800/30 p-6 shadow-sm hover:shadow-lg transition-all duration-300">
               {/* Date Header */}
-              <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-gray-200 dark:border-gray-700">
+              <div className="flex items-center justify-between mb-6 pb-4 border-b-2 border-blue-200 dark:border-blue-800/50">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-gradient-to-br from-indigo-100 to-blue-100 dark:from-indigo-900/30 dark:to-blue-900/30 rounded-lg">
-                    <Calendar className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <Calendar className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">{date}</h3>
@@ -2979,60 +3032,47 @@ const handleCancelWeightageEdit = () => {
               <div className="space-y-3">
                 {groupedResponses[date].map((response, idx) => {
                   const isFollowUp = !!response.parentResponseId;
-                  const dealerName = response.dealerName; // Use stored dealer name
+                  const dealerName = response.dealerName;
 
                   return (
                     <div
                       key={response._id}
-                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-5 rounded-xl border-2 transition-all duration-200 ${isFollowUp
-                          ? "ml-0 sm:ml-8 bg-gradient-to-r from-blue-50 to-blue-50/50 dark:from-blue-900/20 dark:to-blue-900/10 border-blue-200 dark:border-blue-700/50 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm"
-                          : "bg-gradient-to-r from-white to-gray-50/50 dark:from-gray-800/50 dark:to-gray-800/30 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm"
+                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-5 rounded-xl border transition-all duration-200 ${isFollowUp
+                          ? "ml-0 sm:ml-8 bg-gradient-to-r from-blue-100/60 to-indigo-100/60 dark:from-blue-900/20 dark:to-indigo-900/20 border-blue-300 dark:border-blue-800/50 hover:shadow-md"
+                          : "bg-gradient-to-br from-blue-50/70 to-indigo-50/50 dark:from-blue-900/15 dark:to-indigo-900/10 border-blue-100 dark:border-blue-800/30 hover:shadow-md"
                         }`}
                     >
                       <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
-                        <div
-                          className={`p-2.5 rounded-lg flex-shrink-0 ${isFollowUp
-                              ? "bg-blue-200 dark:bg-blue-900/50"
-                              : "bg-indigo-100 dark:bg-indigo-900/40"
-                            }`}
-                        >
+                        <div className="p-2.5 rounded-lg flex-shrink-0 bg-blue-50 dark:bg-blue-900/20">
                           {isFollowUp ? (
                             <div className="w-5 h-5 flex items-center justify-center">
-                              <span className="text-blue-700 dark:text-blue-300 text-sm font-bold">
+                              <span className="text-blue-600 dark:text-blue-400 text-xs font-bold">
                                 ↳
                               </span>
                             </div>
                           ) : (
-                            <FileText className="w-5 h-5 text-indigo-700 dark:text-indigo-300" />
+                            <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                           )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2 mb-2">
                             <h4
-                              className={`font-semibold truncate ${isFollowUp
-                                  ? "text-blue-900 dark:text-blue-200"
-                                  : "text-gray-900 dark:text-white"
-                                }`}
+                              className="font-semibold truncate text-gray-900 dark:text-white text-sm"
                               title={response.formTitle}
                             >
                               {response.formTitle}
                             </h4>
                             {isFollowUp && (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold text-blue-700 bg-blue-200 dark:text-blue-300 dark:bg-blue-900/40 whitespace-nowrap">
+                              <span className="text-xs text-blue-600 dark:text-blue-400 font-medium">
                                 Follow-up
-                              </span>
-                            )}
-                            {response.yesNoScore && response.yesNoScore.total > 0 && (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold text-green-700 bg-green-100 dark:text-green-300 dark:bg-green-900/40 whitespace-nowrap">
-                                {response.yesNoScore.yes}/{response.yesNoScore.total}
                               </span>
                             )}
                           </div>
 
                           {/* Dealer Name and Submission Time */}
-                          <div className="flex flex-col sm:flex-row sm:items-center text-xs sm:text-sm gap-2 sm:gap-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center text-xs gap-2 sm:gap-3">
                             {dealerName && dealerName !== "Unknown" && (
-                              <div className={`inline-flex items-center ${isFollowUp ? "text-blue-700 dark:text-blue-300" : "text-gray-700 dark:text-gray-300"}`}>
+                              <div className="inline-flex items-center text-gray-600 dark:text-gray-400">
                                 <User className="w-4 h-4 mr-1.5 flex-shrink-0" />
                                 <span className="font-medium truncate" title={dealerName}>
                                   {dealerName}
@@ -3040,7 +3080,7 @@ const handleCancelWeightageEdit = () => {
                               </div>
                             )}
 
-                            <div className={`inline-flex items-center ${isFollowUp ? "text-blue-600 dark:text-blue-400" : "text-gray-600 dark:text-gray-400"}`}>
+                            <div className="inline-flex items-center text-gray-600 dark:text-gray-400">
                               <Calendar className="w-4 h-4 mr-1.5 flex-shrink-0" />
                               <span>
                                 {formatTimestamp(response.createdAt)}
@@ -3049,18 +3089,14 @@ const handleCancelWeightageEdit = () => {
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0 mt-4 sm:mt-0 sm:ml-4">
+                      <div className="flex items-center gap-3 flex-shrink-0 mt-4 sm:mt-0 sm:ml-4">
                         <div className="relative">
                           <button
                             onClick={() => setOpenViewDropdown(openViewDropdown === response.id ? null : response.id)}
-                            className={`flex items-center px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200 whitespace-nowrap gap-2 ${isFollowUp
-                                ? "bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg"
-                                : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-lg"
-                              }`}
+                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
+                            title="View options"
                           >
-                            <Eye className="w-4 h-4" />
-                            View
-                            <ChevronDown className={`w-4 h-4 transition-transform ${openViewDropdown === response.id ? 'rotate-180' : ''}`} />
+                            <Eye className="w-5 h-5" />
                           </button>
                           {openViewDropdown === response.id && (
                             <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
@@ -3069,9 +3105,9 @@ const handleCancelWeightageEdit = () => {
                                   handleOpenModal(response);
                                   setOpenViewDropdown(null);
                                 }}
-                                className="flex items-center w-full px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors duration-150 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
+                                className="flex items-center w-full px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150 border-b border-gray-200 dark:border-gray-700 last:border-b-0"
                               >
-                                <Eye className="w-4 h-4 text-indigo-600 dark:text-indigo-400 mr-3 flex-shrink-0" />
+                                <Eye className="w-4 h-4 mr-3 flex-shrink-0" style={{ color: "#1e3a8a" }} />
                                 <span>View Details (Modal)</span>
                               </button>
                               <button
@@ -3081,7 +3117,7 @@ const handleCancelWeightageEdit = () => {
                                 }}
                                 className="flex items-center w-full px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
                               >
-                                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-3 flex-shrink-0" />
+                                <FileText className="w-4 h-4 mr-3 flex-shrink-0" style={{ color: "#2563eb" }} />
                                 <span>View as Page</span>
                               </button>
                             </div>
@@ -3094,18 +3130,18 @@ const handleCancelWeightageEdit = () => {
                             editingResponse.id === response.id &&
                             (editingFormLoading || savingEdit)
                           }
-                          className="flex items-center px-4 py-2 text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Edit response"
                         >
-                          <Edit2 className="w-4 h-4 mr-2" />
-                          Edit
+                          <Edit2 className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleDeleteResponse(response)}
                           disabled={deletingResponseId === response.id}
-                          className="flex items-center px-4 py-2 text-sm font-semibold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Delete response"
                         >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          {deletingResponseId === response.id ? "..." : "Delete"}
+                          <Trash2 className="w-5 h-5" />
                         </button>
                       </div>
                     </div>
@@ -3116,14 +3152,14 @@ const handleCancelWeightageEdit = () => {
           ))}
 
         {groupedResponses && Object.keys(groupedResponses).length === 0 && (
-          <div className="text-center py-16 card border border-gray-200 dark:border-gray-700">
-            <div className="p-5 bg-gradient-to-br from-indigo-100 to-blue-100 dark:from-indigo-900/20 dark:to-blue-900/20 rounded-full w-24 h-24 mx-auto mb-6 flex items-center justify-center">
-              <FileText className="w-12 h-12 text-indigo-600 dark:text-indigo-300" />
+          <div className="text-center py-16 bg-gradient-to-br from-blue-50 to-indigo-50/50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-2xl border border-blue-100 dark:border-blue-800/30">
+            <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 rounded-full mx-auto mb-4 flex items-center justify-center">
+              <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400" />
             </div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
               No Customer Requests
             </h3>
-            <p className="text-gray-600 dark:text-gray-300 max-w-md mx-auto">
+            <p className="text-sm text-gray-600 dark:text-gray-400 max-w-md mx-auto">
               {selectedFormIds.length === 0 
                 ? "There are currently no customer service requests. Requests will appear here once customers submit forms."
                 : "No requests match your current filters. Try adjusting your search or form selection."}
@@ -3134,10 +3170,10 @@ const handleCancelWeightageEdit = () => {
       {/* Response Preview Modal */}
       {selectedResponse && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] overflow-y-auto p-2 animate-in fade-in duration-300">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-7xl w-full my-auto max-h-[95vh] flex flex-col border border-gray-200 dark:border-gray-700 animate-in slide-in-from-bottom duration-300">
-            <div className="sticky top-0 z-50 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 px-6 py-3 border-b border-indigo-200 dark:border-indigo-700/50 flex justify-between items-center">
+          <div className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800 dark:to-blue-900/10 rounded-2xl shadow-2xl max-w-7xl w-full my-auto max-h-[95vh] flex flex-col border border-blue-200 dark:border-blue-800/50 animate-in slide-in-from-bottom duration-300">
+            <div className="sticky top-0 z-50 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 px-6 py-3 border-b border-blue-200 dark:border-blue-700/50 flex justify-between items-center">
               <div>
-                <h3 className="text-lg font-bold bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-400 dark:to-blue-400 bg-clip-text text-transparent">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                   {selectedResponse.formTitle}
                 </h3>
                 <div className="flex items-center gap-2 mt-1">
@@ -3160,7 +3196,8 @@ const handleCancelWeightageEdit = () => {
                     editingResponse.id === selectedResponse?.id &&
                     (editingFormLoading || savingEdit)
                   }
-                  className="flex items-center px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+                  style={{ backgroundColor: "#2563eb" }}
                   title="Edit response"
                 >
                   <Edit2 className="w-3 h-3 mr-1.5" />
@@ -3175,7 +3212,8 @@ const handleCancelWeightageEdit = () => {
                     }
                   }}
                   disabled={deletingResponseId === selectedResponse?.id}
-                  className="flex items-center px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90"
+                  style={{ backgroundColor: "#dc2626" }}
                   title="Delete response"
                 >
                   <Trash2 className="w-3 h-3 mr-1.5" />
@@ -3201,7 +3239,7 @@ const handleCancelWeightageEdit = () => {
         
         {/* Dropdown Menu */}
         {showResponseDropdown && (
-  <div className="absolute left-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+  <div className="absolute left-0 top-full mt-2 w-48 bg-gradient-to-b from-white to-blue-50/50 dark:from-gray-800 dark:to-blue-900/20 rounded-lg shadow-xl border border-blue-200 dark:border-blue-800/50 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
     <div className="py-1">
       <button
         onClick={(e) => handleDropdownClick('yes-only', e)}
@@ -3240,7 +3278,8 @@ const handleCancelWeightageEdit = () => {
       {/* Sections Button */}
       <button
         onClick={() => handleDownloadPDF('section')}
-        className="flex items-center mr-1.5 gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-all duration-200 shadow-sm hover:shadow-md"
+        className="flex items-center mr-1.5 gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md hover:opacity-90"
+        style={{ backgroundColor: "#16a34a" }}
       >
         Sections
       </button>
@@ -3256,7 +3295,8 @@ const handleCancelWeightageEdit = () => {
         setShowResponseDropdown(false);
       }}
       disabled={generatingPDF}
-      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed ${showDownloadOptions ? 'rounded-r-xl' : 'rounded-lg'}`}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 ${showDownloadOptions ? 'rounded-r-xl' : 'rounded-lg'}`}
+      style={{ backgroundColor: "#16a34a" }}
     >
       {generatingPDF ? (
         <div className="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
@@ -3273,19 +3313,80 @@ const handleCancelWeightageEdit = () => {
   </div>
 </div>
                 ) : (
-                  <button
-                    onClick={handleExportExcel}
-                    disabled={exportingExcel}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/50 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
-                    title="Export Excel"
-                  >
-                    {exportingExcel ? (
-                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
-                    ) : (
-                      <Download className="w-3 h-3" />
+                  <div className="flex items-center download-excel-container relative">
+                    {showExcelDownloadOptions && (
+                      <div className="flex items-center gap-2 absolute right-full mr-2 top-0 bottom-0 my-auto">
+                        {/* Responses Dropdown */}
+                        <div className="relative excel-responses-dropdown">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowExcelResponseDropdown(!showExcelResponseDropdown);
+                            }}
+                            className="flex items-center px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all duration-200 shadow-sm hover:shadow-md"
+                          >
+                            <span>Responses</span>
+                            <ChevronDown className={`w-3 h-3 ml-1.5 transition-transform duration-200 ${showExcelResponseDropdown ? 'rotate-180' : ''}`} />
+                          </button>
+                          
+                          {/* Dropdown Menu */}
+                          {showExcelResponseDropdown && (
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-gradient-to-b from-white to-blue-50/50 dark:from-gray-800 dark:to-blue-900/20 rounded-lg shadow-xl border border-blue-200 dark:border-blue-800/50 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                              <div className="py-1">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleExportExcel('yes-only'); }}
+                                  className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors duration-150"
+                                >
+                                  <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
+                                  <span>Yes Responses (Type 1)</span>
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleExportExcel('no-only'); }}
+                                  className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
+                                >
+                                  <XCircle className="w-3 h-3 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
+                                  <span>No Responses (Type 2)</span>
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleExportExcel('na-only'); }}
+                                  className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors duration-150"
+                                >
+                                  <AlertTriangle className="w-3 h-3 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
+                                  <span>N/A Responses (Type 3)</span>
+                                </button>
+                                <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleExportExcel('both'); }}
+                                  className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
+                                >
+                                  <FileText className="w-3 h-3 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
+                                  <span>All Response Types</span>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     )}
-                    Export Excel
-                  </button>
+
+                    <button
+                      onClick={handleExportExcel}
+                      disabled={exportingExcel}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 ${showExcelDownloadOptions ? 'rounded-r-xl' : 'rounded-lg'}`}
+                      style={{ backgroundColor: "#16a34a" }}
+                      title="Export Excel"
+                    >
+                      {exportingExcel ? (
+                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+                      ) : (
+                        <Download className="w-3 h-3" />
+                      )}
+                      Export Excel
+                      {showExcelDownloadOptions && (
+                        <ChevronDown className="w-3 h-3 ml-0.5 transition-transform" />
+                      )}
+                    </button>
+                  </div>
                 )}
 
                 <button
@@ -3296,14 +3397,14 @@ const handleCancelWeightageEdit = () => {
                     setPendingSectionId(null);
                     sectionRefs.current = {};
                   }}
-                  className="p-1.5 hover:bg-red-100 dark:hover:bg-red-900/30 text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition-all duration-200"
+                  className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-lg transition-all duration-200"
                   title="Close modal"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
-            <div className="overflow-y-auto flex-1 bg-white dark:bg-gray-900">
+            <div className="overflow-y-auto flex-1 bg-gradient-to-b from-blue-50/30 to-white dark:from-blue-900/10 dark:to-gray-800">
               <div className="p-4">
                 {formLoading ? (
                   <div className="flex items-center justify-center py-4">
@@ -3311,13 +3412,14 @@ const handleCancelWeightageEdit = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="sticky top-0 z-40 bg-white dark:bg-gray-900 flex items-center gap-2 bg-gradient-to-r from-indigo-50/50 to-blue-50/50 dark:from-indigo-900/10 dark:to-blue-900/10 rounded-xl p-1.5 mb-4 shadow-md border border-indigo-100 dark:border-indigo-900/30">
+                    <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 flex items-center gap-2 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-xl p-1.5 mb-4 shadow-md border border-blue-100 dark:border-blue-900/30">
                       <button
                         onClick={() => setViewMode("dashboard")}
                         className={`flex-1 px-4 py-2 text-xs font-semibold rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${viewMode === "dashboard"
-                          ? "bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-500 dark:to-blue-500 text-white shadow-lg"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/60 dark:hover:bg-gray-800/60"
+                          ? "text-white shadow-lg"
+                          : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white hover:bg-white/60 dark:hover:bg-gray-700/60"
                           }`}
+                        style={{ backgroundColor: viewMode === "dashboard" ? "#1e3a8a" : "transparent" }}
                       >
                         <BarChart3 className="w-3 h-3" />
                         Dashboard
@@ -3325,9 +3427,10 @@ const handleCancelWeightageEdit = () => {
                       <button
                         onClick={() => setViewMode("responses")}
                         className={`flex-1 px-4 py-2 text-xs font-semibold rounded-lg transition-all duration-300 flex items-center justify-center gap-2 ${viewMode === "responses"
-                          ? "bg-gradient-to-r from-indigo-600 to-blue-600 dark:from-indigo-500 dark:to-blue-500 text-white shadow-lg"
-                          : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-white/60 dark:hover:bg-gray-800/60"
+                          ? "text-white shadow-lg"
+                          : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white hover:bg-white/60 dark:hover:bg-gray-700/60"
                           }`}
+                        style={{ backgroundColor: viewMode === "responses" ? "#1e3a8a" : "transparent" }}
                       >
                         <FileText className="w-3 h-3" />
                         Responses
@@ -3892,8 +3995,8 @@ const handleCancelWeightageEdit = () => {
   </div>
   
   <div className="overflow-x-auto">
-    <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
-      <thead className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 sticky top-0">
+    <table className="w-full divide-y divide-blue-200 dark:divide-blue-800/50 text-sm">
+      <thead className="bg-gradient-to-r from-blue-100/70 to-indigo-100/70 dark:from-blue-900/30 dark:to-indigo-900/20 sticky top-0">
         <tr>
           <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-48">
             Section
@@ -3928,7 +4031,7 @@ const handleCancelWeightageEdit = () => {
         </tr>
       </thead>
       
-    <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
+    <tbody className="divide-y divide-blue-100 dark:divide-blue-900/30 bg-blue-50/50 dark:bg-blue-900/10">
   {(() => {
     const totalWeightage = sectionSummaryRows.reduce((sum, r) => sum + r.weightage, 0);
     
@@ -4330,7 +4433,7 @@ const handleCancelWeightageEdit = () => {
                           </div>
 
                           {/* Quick Actions */}
-                          <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700">
+                          <div className="bg-gradient-to-br from-blue-50 via-white to-indigo-50/50 dark:from-blue-900/20 dark:via-gray-800 dark:to-indigo-900/15 p-6 rounded-2xl shadow-2xl border border-blue-200 dark:border-blue-800/50">
                             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6 flex items-center">
                               <Zap className="w-6 h-6 mr-3 text-yellow-500" />
                               Quick Actions
@@ -4355,7 +4458,8 @@ const handleCancelWeightageEdit = () => {
                                 onClick={() => {
                                   setViewMode("responses");
                                 }}
-                                className="flex items-center justify-center p-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+                                className="flex items-center justify-center p-4 text-white rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:opacity-90"
+                                style={{ backgroundColor: "#1e3a8a" }}
                               >
                                 <Eye className="w-5 h-5 mr-3" />
                                 View Details
@@ -4364,7 +4468,8 @@ const handleCancelWeightageEdit = () => {
                               <button
                                 onClick={handleDownloadPDF}
                                 disabled={generatingPDF}
-                                className="flex items-center justify-center p-4 bg-gradient-to-r from-cyan-500 to-teal-600 text-white rounded-xl hover:from-cyan-600 hover:to-teal-700 transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group"
+                                className="flex items-center justify-center p-4 text-white rounded-xl transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed group hover:opacity-90"
+                                style={{ backgroundColor: "#0891b2" }}
                               >
                                 {generatingPDF ? (
                                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-3" />
@@ -4391,9 +4496,9 @@ const handleCancelWeightageEdit = () => {
 
       {editingResponse && editingFormLoading && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl px-6 py-4 flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary-600"></div>
-            <div className="text-primary-600 font-medium">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50/60 dark:from-blue-900/30 dark:to-indigo-900/20 rounded-lg shadow-xl px-6 py-4 flex items-center gap-3 border border-blue-200 dark:border-blue-800">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <div className="text-blue-600 dark:text-blue-400 font-medium">
               Loading form details...
             </div>
           </div>

@@ -74,7 +74,7 @@ export function useApi<T>(
 
 // Specific hooks for common operations
 export function useForms(enabled: boolean = true) {
-  return useApi(apiClient.getForms.bind(apiClient), true, 30000, enabled); // Poll every 30 seconds
+  return useApi(apiClient.getForms.bind(apiClient), true, 0, enabled);
 }
 
 export function useResponses() {

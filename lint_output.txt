@@ -4,7 +4,7 @@
 
 
 d:\FOCUSPRJ\frontend\src\App.tsx
-  29:8  error  'CustomerViewCarousel' is defined but never used  @typescript-eslint/no-unused-vars
+  28:8  error  'CustomerViewCarousel' is defined but never used  @typescript-eslint/no-unused-vars
 
 d:\FOCUSPRJ\frontend\src\api\client.test.ts
   2:36  error  'ApiResponse' is defined but never used   @typescript-eslint/no-unused-vars
@@ -137,115 +137,120 @@ d:\FOCUSPRJ\frontend\src\components\AllResponses.tsx
    201:10  error    'editingWeightage' is assigned a value but never used                                                                                                                                                                 @typescript-eslint/no-unused-vars
    207:10  error    'sectionResponsesMap' is assigned a value but never used                                                                                                                                                              @typescript-eslint/no-unused-vars
    207:31  error    'setSectionResponsesMap' is assigned a value but never used                                                                                                                                                           @typescript-eslint/no-unused-vars
-   232:9   error    'handlePDFTypeSelect' is assigned a value but never used                                                                                                                                                              @typescript-eslint/no-unused-vars
-   241:6   warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array                                                                                                          react-hooks/exhaustive-deps
-   260:9   error    'handleStatusUpdate' is assigned a value but never used                                                                                                                                                               @typescript-eslint/no-unused-vars
-   324:41  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   326:50  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   358:52  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   480:9   error    'sectionQuestionStats' is never reassigned. Use 'const' instead                                                                                                                                                       prefer-const
-   480:46  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   481:9   error    'sectionMainParameters' is never reassigned. Use 'const' instead                                                                                                                                                      prefer-const
-   481:47  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   484:47  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   489:31  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   492:49  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   494:81  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   508:50  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   556:21  error    'weightage' is assigned to itself                                                                                                                                                                                     no-self-assign
-   658:7   error    'handleEditWeightage' is assigned a value but never used                                                                                                                                                              @typescript-eslint/no-unused-vars
-   663:7   error    'handleSaveWeightage' is assigned a value but never used                                                                                                                                                              @typescript-eslint/no-unused-vars
-   696:66  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   770:7   error    'handleCancelWeightageEdit' is assigned a value but never used                                                                                                                                                        @typescript-eslint/no-unused-vars
-   784:43  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   903:45  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   911:25  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   912:21  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   914:61  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   915:35  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-   927:9   warning  The 'availableSections' logical expression could make the dependencies of useEffect Hook (at line 933) change on every render. To fix this, wrap the initialization of 'availableSections' in its own useMemo() Hook  react-hooks/exhaustive-deps
-   940:6   warning  React Hook useMemo has a missing dependency: 'getSectionYesNoStats'. Either include it or remove the dependency array                                                                                                 react-hooks/exhaustive-deps
-  1018:37  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1021:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1034:28  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1041:30  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1053:31  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1082:9   error    'formatPercentageValue' is assigned a value but never used                                                                                                                                                            @typescript-eslint/no-unused-vars
-  1094:23  error    'weightage' is assigned to itself                                                                                                                                                                                     no-self-assign
-  1178:11  error    'allZero' is assigned a value but never used                                                                                                                                                                          @typescript-eslint/no-unused-vars
-  1207:37  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1210:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1223:30  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1234:31  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1270:53  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1273:39  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1279:26  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1280:41  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1282:43  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1294:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1301:18  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1313:66  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1332:40  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1351:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1372:29  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1397:29  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1400:36  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1407:44  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1463:34  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1479:39  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1479:55  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1517:37  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1654:24  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1684:29  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1722:9   error    'renderSectionTabs' is assigned a value but never used                                                                                                                                                                @typescript-eslint/no-unused-vars
-  1728:44  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1766:53  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1779:40  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1850:11  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1910:30  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1930:47  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  1934:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2030:44  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2034:54  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2071:61  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2075:52  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2308:42  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2318:40  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2319:46  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2334:62  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2339:28  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2340:26  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2427:42  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2526:46  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2548:63  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2622:60  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  2959:56  error    'idx' is defined but never used                                                                                                                                                                                       @typescript-eslint/no-unused-vars
-  3550:85  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  3550:90  error    'index' is defined but never used                                                                                                                                                                                     @typescript-eslint/no-unused-vars
-  3560:83  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  3851:11  error    'totalWeightage' is assigned a value but never used                                                                                                                                                                   @typescript-eslint/no-unused-vars
-  4017:72  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  4180:81  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  4326:49  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
-  4327:49  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   233:9   error    'handlePDFTypeSelect' is assigned a value but never used                                                                                                                                                              @typescript-eslint/no-unused-vars
+   242:6   warning  React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array                                                                                                          react-hooks/exhaustive-deps
+   281:9   error    'handleStatusUpdate' is assigned a value but never used                                                                                                                                                               @typescript-eslint/no-unused-vars
+   345:41  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   347:50  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   379:52  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   501:9   error    'sectionQuestionStats' is never reassigned. Use 'const' instead                                                                                                                                                       prefer-const
+   501:46  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   502:9   error    'sectionMainParameters' is never reassigned. Use 'const' instead                                                                                                                                                      prefer-const
+   502:47  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   505:47  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   510:31  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   513:49  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   515:81  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   529:50  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   577:21  error    'weightage' is assigned to itself                                                                                                                                                                                     no-self-assign
+   679:7   error    'handleEditWeightage' is assigned a value but never used                                                                                                                                                              @typescript-eslint/no-unused-vars
+   684:7   error    'handleSaveWeightage' is assigned a value but never used                                                                                                                                                              @typescript-eslint/no-unused-vars
+   717:66  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   791:7   error    'handleCancelWeightageEdit' is assigned a value but never used                                                                                                                                                        @typescript-eslint/no-unused-vars
+   805:43  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   953:45  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   955:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+   979:9   warning  The 'availableSections' logical expression could make the dependencies of useEffect Hook (at line 985) change on every render. To fix this, wrap the initialization of 'availableSections' in its own useMemo() Hook  react-hooks/exhaustive-deps
+   992:6   warning  React Hook useMemo has a missing dependency: 'getSectionYesNoStats'. Either include it or remove the dependency array                                                                                                 react-hooks/exhaustive-deps
+  1070:37  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1073:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1086:28  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1093:30  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1105:31  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1134:9   error    'formatPercentageValue' is assigned a value but never used                                                                                                                                                            @typescript-eslint/no-unused-vars
+  1146:23  error    'weightage' is assigned to itself                                                                                                                                                                                     no-self-assign
+  1230:11  error    'allZero' is assigned a value but never used                                                                                                                                                                          @typescript-eslint/no-unused-vars
+  1259:37  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1262:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1275:30  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1286:31  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1322:53  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1325:39  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1331:26  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1332:41  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1334:43  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1346:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1353:18  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1365:66  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1384:40  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1403:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1424:29  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1449:29  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1452:36  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1459:44  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1515:34  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1531:39  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1531:55  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1569:37  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1706:24  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1736:29  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1774:9   error    'renderSectionTabs' is assigned a value but never used                                                                                                                                                                @typescript-eslint/no-unused-vars
+  1780:44  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1818:53  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1831:40  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1902:11  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1962:30  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1982:47  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  1986:38  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2082:44  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2086:54  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2123:61  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2127:52  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2360:42  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2370:40  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2371:46  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2386:62  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2391:28  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2392:26  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2479:42  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2578:46  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2600:63  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  2674:60  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  3015:56  error    'idx' is defined but never used                                                                                                                                                                                       @typescript-eslint/no-unused-vars
+  3657:85  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  3657:90  error    'index' is defined but never used                                                                                                                                                                                     @typescript-eslint/no-unused-vars
+  3667:83  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  3958:11  error    'totalWeightage' is assigned a value but never used                                                                                                                                                                   @typescript-eslint/no-unused-vars
+  4124:72  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  4287:81  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  4435:49  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
+  4436:49  error    Unexpected any. Specify a different type                                                                                                                                                                              @typescript-eslint/no-explicit-any
 
 d:\FOCUSPRJ\frontend\src\components\AnswerTemplateImport.tsx
    11:3   error    'AlertTriangle' is defined but never used                                                                        @typescript-eslint/no-unused-vars
    12:12  error    'ImageIcon' is defined but never used                                                                            @typescript-eslint/no-unused-vars
    23:3   error    'isGoogleDriveUrl' is defined but never used                                                                     @typescript-eslint/no-unused-vars
    60:28  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
-   92:40  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
-   96:40  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
-  109:6   warning  React Hook useEffect has a missing dependency: 'submissionId'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  109:40  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
+  117:40  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
+  128:70  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
+  144:6   warning  React Hook useEffect has a missing dependency: 'submissionId'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  218:62  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
+  343:16  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
+  361:31  error    Unexpected any. Specify a different type                                                                         @typescript-eslint/no-explicit-any
+  370:61  error    Do not access Object.prototype method 'hasOwnProperty' from target object                                        no-prototype-builtins
 
 d:\FOCUSPRJ\frontend\src\components\DashboardNew.tsx
     8:10  error  'LAYOUT_CONFIG' is defined but never used              @typescript-eslint/no-unused-vars
    16:41  error  'responsesLoading' is assigned a value but never used  @typescript-eslint/no-unused-vars
-   20:57  error  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
-   35:50  error  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
-   37:60  error  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
-  165:41  error  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
-  253:36  error  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+   22:39  error  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+   37:50  error  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+   44:60  error  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  177:41  error  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+  266:36  error  Unexpected any. Specify a different type               @typescript-eslint/no-explicit-any
+
+d:\FOCUSPRJ\frontend\src\components\FilePreview.tsx
+  2:52  error  'MapPin' is defined but never used  @typescript-eslint/no-unused-vars
 
 d:\FOCUSPRJ\frontend\src\components\FormCreator.tsx
      8:3   error    'Eye' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
@@ -302,37 +307,39 @@ d:\FOCUSPRJ\frontend\src\components\FormResponses.tsx
   298:10  error    Unexpected any. Specify a different type                                                                      @typescript-eslint/no-explicit-any
 
 d:\FOCUSPRJ\frontend\src\components\FormsManagementNew.tsx
-    8:3   error  'Eye' is defined but never used                              @typescript-eslint/no-unused-vars
-   10:3   error  'MessageSquarePlus' is defined but never used                @typescript-eslint/no-unused-vars
-   12:3   error  'BarChart3' is defined but never used                        @typescript-eslint/no-unused-vars
-   13:3   error  'TrendingUp' is defined but never used                       @typescript-eslint/no-unused-vars
-   50:13  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-   51:14  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-   53:14  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-   80:62  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-   81:60  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-   89:22  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  101:24  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  118:24  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  135:24  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  154:24  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  173:24  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  430:9   error  'handleToggleVisibility' is assigned a value but never used  @typescript-eslint/no-unused-vars
-  496:21  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  528:69  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  532:46  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  551:21  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  572:31  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  573:42  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  574:47  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  576:52  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  595:12  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  629:21  error  Unexpected any. Specify a different type                     @typescript-eslint/no-explicit-any
-  655:9   error  'handleViewAnalytics' is assigned a value but never used     @typescript-eslint/no-unused-vars
-  744:14  error  'error' is defined but never used                            @typescript-eslint/no-unused-vars
+    8:3   error    'Eye' is defined but never used                                                                                                                                                             @typescript-eslint/no-unused-vars
+   10:3   error    'MessageSquarePlus' is defined but never used                                                                                                                                               @typescript-eslint/no-unused-vars
+   12:3   error    'BarChart3' is defined but never used                                                                                                                                                       @typescript-eslint/no-unused-vars
+   13:3   error    'TrendingUp' is defined but never used                                                                                                                                                      @typescript-eslint/no-unused-vars
+   50:13  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   51:14  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   53:14  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   80:62  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   81:60  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+   89:22  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  101:24  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  118:24  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  135:24  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  154:24  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  173:24  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  199:9   warning  The 'forms' logical expression could make the dependencies of useMemo Hook (at line 204) change on every render. To fix this, wrap the initialization of 'forms' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  449:9   error    'handleToggleVisibility' is assigned a value but never used                                                                                                                                 @typescript-eslint/no-unused-vars
+  515:21  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  547:69  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  551:46  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  570:21  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  591:31  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  592:42  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  593:47  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  595:52  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  614:12  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  648:21  error    Unexpected any. Specify a different type                                                                                                                                                    @typescript-eslint/no-explicit-any
+  674:9   error    'handleViewAnalytics' is assigned a value but never used                                                                                                                                    @typescript-eslint/no-unused-vars
+  763:14  error    'error' is defined but never used                                                                                                                                                           @typescript-eslint/no-unused-vars
 
 d:\FOCUSPRJ\frontend\src\components\ImageLink.tsx
-  4:10  error  'convertGoogleDriveLink' is defined but never used  @typescript-eslint/no-unused-vars
+   4:10  error  'convertGoogleDriveLink' is defined but never used  @typescript-eslint/no-unused-vars
+  15:10  error  'isConverting' is assigned a value but never used   @typescript-eslint/no-unused-vars
 
 d:\FOCUSPRJ\frontend\src\components\MailTest.tsx
     4:11  error  An empty interface declaration allows any non-nullish value, including literals like `0` and `""`.
@@ -410,78 +417,92 @@ d:\FOCUSPRJ\frontend\src\components\ResponseDetails.tsx
   28:55  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
 d:\FOCUSPRJ\frontend\src\components\ResponseDetailsPage.tsx
-    1:38  error    'useMemo' is defined but never used                                                                                      @typescript-eslint/no-unused-vars
-    4:3   error    'Eye' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
-    5:3   error    'Calendar' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
-    7:3   error    'User' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
-    8:3   error    'X' is defined but never used                                                                                            @typescript-eslint/no-unused-vars
-   13:3   error    'Trash2' is defined but never used                                                                                       @typescript-eslint/no-unused-vars
-   16:3   error    'PieChart' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
-   17:3   error    'Activity' is defined but never used                                                                                     @typescript-eslint/no-unused-vars
-   18:3   error    'Zap' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
-   19:3   error    'Target' is defined but never used                                                                                       @typescript-eslint/no-unused-vars
-   20:3   error    'Award' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
-   21:3   error    'Users' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
-   22:3   error    'FileCheck' is defined but never used                                                                                    @typescript-eslint/no-unused-vars
-   23:3   error    'AlertTriangle' is defined but never used                                                                                @typescript-eslint/no-unused-vars
-   24:3   error    'Save' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
-   25:3   error    'ChevronDown' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
-   26:3   error    'MapPin' is defined but never used                                                                                       @typescript-eslint/no-unused-vars
-   29:10  error    'Bar' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
-   29:15  error    'Line' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
-   29:21  error    'Pie' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
-   29:26  error    'Radar' is defined but never used                                                                                        @typescript-eslint/no-unused-vars
-   44:15  error    'ActiveElement' is defined but never used                                                                                @typescript-eslint/no-unused-vars
-   51:8   error    'FilePreview' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
-   53:8   error    'DashboardSummaryCard' is defined but never used                                                                         @typescript-eslint/no-unused-vars
-   71:10  error    'formatSectionLabel' is defined but never used                                                                           @typescript-eslint/no-unused-vars
-  103:14  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  104:23  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  134:27  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  147:6   error    'SectionStat' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
-  160:35  error    'showConfirm' is assigned a value but never used                                                                         @typescript-eslint/no-unused-vars
-  161:11  error    'logo' is assigned a value but never used                                                                                @typescript-eslint/no-unused-vars
-  173:10  error    'generatingPDF' is assigned a value but never used                                                                       @typescript-eslint/no-unused-vars
-  174:10  error    'selectedPDFType' is assigned a value but never used                                                                     @typescript-eslint/no-unused-vars
-  174:27  error    'setSelectedPDFType' is assigned a value but never used                                                                  @typescript-eslint/no-unused-vars
-  181:10  error    'expandResponseRateBreakdown' is assigned a value but never used                                                         @typescript-eslint/no-unused-vars
-  181:39  error    'setExpandResponseRateBreakdown' is assigned a value but never used                                                      @typescript-eslint/no-unused-vars
-  183:10  error    'showWeightageColumns' is assigned a value but never used                                                                @typescript-eslint/no-unused-vars
-  183:32  error    'setShowWeightageColumns' is assigned a value but never used                                                             @typescript-eslint/no-unused-vars
-  184:10  error    'addWeightMode' is assigned a value but never used                                                                       @typescript-eslint/no-unused-vars
-  184:25  error    'setAddWeightMode' is assigned a value but never used                                                                    @typescript-eslint/no-unused-vars
-  185:10  error    'showWeightageCheckbox' is assigned a value but never used                                                               @typescript-eslint/no-unused-vars
-  185:33  error    'setShowWeightageCheckbox' is assigned a value but never used                                                            @typescript-eslint/no-unused-vars
-  186:10  error    'editingAllWeightages' is assigned a value but never used                                                                @typescript-eslint/no-unused-vars
-  186:32  error    'setEditingAllWeightages' is assigned a value but never used                                                             @typescript-eslint/no-unused-vars
-  187:10  error    'weightageValues' is assigned a value but never used                                                                     @typescript-eslint/no-unused-vars
-  187:27  error    'setWeightageValues' is assigned a value but never used                                                                  @typescript-eslint/no-unused-vars
-  188:10  error    'showDownloadOptions' is assigned a value but never used                                                                 @typescript-eslint/no-unused-vars
-  188:31  error    'setShowDownloadOptions' is assigned a value but never used                                                              @typescript-eslint/no-unused-vars
-  189:10  error    'showResponseDropdown' is assigned a value but never used                                                                @typescript-eslint/no-unused-vars
-  189:32  error    'setShowResponseDropdown' is assigned a value but never used                                                             @typescript-eslint/no-unused-vars
-  190:9   error    'sectionRefs' is assigned a value but never used                                                                         @typescript-eslint/no-unused-vars
-  191:10  error    'pendingSectionId' is assigned a value but never used                                                                    @typescript-eslint/no-unused-vars
-  191:28  error    'setPendingSectionId' is assigned a value but never used                                                                 @typescript-eslint/no-unused-vars
-  195:6   warning  React Hook useEffect has a missing dependency: 'fetchResponseDetails'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
-  205:13  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  213:67  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  213:76  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  223:49  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  225:50  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  280:47  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  282:50  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  312:52  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  349:9   error    'handleDownloadPDF' is assigned a value but never used                                                                   @typescript-eslint/no-unused-vars
-  355:21  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  356:17  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  357:17  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  409:37  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  412:45  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  414:56  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  420:48  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  764:40  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
-  765:36  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+     4:3    error    'Eye' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
+     7:3    error    'User' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
+     8:3    error    'X' is defined but never used                                                                                            @typescript-eslint/no-unused-vars
+    18:3    error    'Zap' is defined but never used                                                                                          @typescript-eslint/no-unused-vars
+    24:3    error    'Save' is defined but never used                                                                                         @typescript-eslint/no-unused-vars
+    45:15   error    'ActiveElement' is defined but never used                                                                                @typescript-eslint/no-unused-vars
+    52:8    error    'FilePreview' is defined but never used                                                                                  @typescript-eslint/no-unused-vars
+    54:8    error    'DashboardSummaryCard' is defined but never used                                                                         @typescript-eslint/no-unused-vars
+   104:14   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   105:23   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   135:27   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   161:35   error    'showConfirm' is assigned a value but never used                                                                         @typescript-eslint/no-unused-vars
+   171:10   error    'updatingStatus' is assigned a value but never used                                                                      @typescript-eslint/no-unused-vars
+   172:10   error    'showStatusUpdate' is assigned a value but never used                                                                    @typescript-eslint/no-unused-vars
+   175:10   error    'selectedPDFType' is assigned a value but never used                                                                     @typescript-eslint/no-unused-vars
+   175:27   error    'setSelectedPDFType' is assigned a value but never used                                                                  @typescript-eslint/no-unused-vars
+   189:10   error    'showDownloadOptions' is assigned a value but never used                                                                 @typescript-eslint/no-unused-vars
+   189:31   error    'setShowDownloadOptions' is assigned a value but never used                                                              @typescript-eslint/no-unused-vars
+   190:10   error    'showResponseDropdown' is assigned a value but never used                                                                @typescript-eslint/no-unused-vars
+   190:32   error    'setShowResponseDropdown' is assigned a value but never used                                                             @typescript-eslint/no-unused-vars
+   197:9    error    'sectionRefs' is assigned a value but never used                                                                         @typescript-eslint/no-unused-vars
+   198:10   error    'pendingSectionId' is assigned a value but never used                                                                    @typescript-eslint/no-unused-vars
+   198:28   error    'setPendingSectionId' is assigned a value but never used                                                                 @typescript-eslint/no-unused-vars
+   204:6    warning  React Hook useEffect has a missing dependency: 'fetchResponseDetails'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   231:13   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   236:82   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   241:67   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   241:76   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   251:49   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   253:50   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   276:9    error    'handleStatusUpdate' is assigned a value but never used                                                                  @typescript-eslint/no-unused-vars
+   308:47   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   310:50   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   340:52   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   404:21   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   405:17   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   406:17   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   458:37   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   461:45   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   463:56   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   469:48   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   479:40   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   498:38   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   520:29   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   523:36   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   530:44   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   589:45   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   602:40   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   672:45   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   675:39   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   681:26   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   682:41   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   684:43   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   696:38   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   703:18   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   715:66   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   736:6    warning  React Hook useMemo has a missing dependency: 'getSectionYesNoStats'. Either include it or remove the dependency array    react-hooks/exhaustive-deps
+   814:37   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   817:38   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   830:28   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   837:30   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   849:31   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   887:23   error    'weightage' is assigned to itself                                                                                        no-self-assign
+   994:37   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+   997:38   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  1010:30   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  1021:31   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  1054:9    error    'renderFormContent' is assigned a value but never used                                                                   @typescript-eslint/no-unused-vars
+  1155:9    error    'StatusIcon' is assigned a value but never used                                                                          @typescript-eslint/no-unused-vars
+  1584:63   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  1989:90   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2138:94   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2208:46   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2265:42   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2521:50   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2522:56   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2536:72   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2541:38   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2542:36   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2638:50   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2753:45   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2755:25   error    'question' is assigned a value but never used                                                                            @typescript-eslint/no-unused-vars
+  2756:54   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2756:109  error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2843:40   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
+  2844:36   error    Unexpected any. Specify a different type                                                                                 @typescript-eslint/no-explicit-any
 
 d:\FOCUSPRJ\frontend\src\components\ResponseForm.tsx
    20:58  error    Unexpected any. Specify a different type                                                                                                                                                     @typescript-eslint/no-explicit-any
@@ -1016,7 +1037,7 @@ d:\FOCUSPRJ\frontend\src\context\ThemeContext.tsx
 d:\FOCUSPRJ\frontend\src\hooks\useApi.ts
   11:22  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
   16:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
-  31:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  32:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
 d:\FOCUSPRJ\frontend\src\hooks\useQuestionLogic.test.ts
   55:27  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
@@ -1038,8 +1059,10 @@ d:\FOCUSPRJ\frontend\src\types\forms.ts
   79:27  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
 
 d:\FOCUSPRJ\frontend\src\utils\answerTemplateUtils.ts
-  611:9  error  'globalQuestionCounter' is never reassigned. Use 'const' instead  prefer-const
-  611:9  error  'globalQuestionCounter' is assigned a value but never used        @typescript-eslint/no-unused-vars
+  777:44  error  'sectionIndex' is defined but never used              @typescript-eslint/no-unused-vars
+  823:11  error  'sectionTitle' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  857:13  error  'followUpType' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  858:13  error  'followUpOptions' is assigned a value but never used  @typescript-eslint/no-unused-vars
 
 d:\FOCUSPRJ\frontend\src\utils\exportUtils.ts
     13:10  error  'parseBoolean' is defined but never used                   @typescript-eslint/no-unused-vars
@@ -1233,6 +1256,6 @@ d:\FOCUSPRJ\frontend\src\utils\responseExportUtils.ts
 d:\FOCUSPRJ\frontend\src\utils\staffUtils.ts
   20:12  error  'error' is defined but never used  @typescript-eslint/no-unused-vars
 
-✖ 993 problems (955 errors, 38 warnings)
-  6 errors and 0 warnings potentially fixable with the `--fix` option.
+✖ 1014 problems (974 errors, 40 warnings)
+  5 errors and 0 warnings potentially fixable with the `--fix` option.
 

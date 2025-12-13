@@ -17,38 +17,50 @@ export default function DashboardNew() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredForms = formsData?.forms?.filter((form: any) =>
-    form.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (form.description && form.description.toLowerCase().includes(searchQuery.toLowerCase()))
-  ) || [];
+  const filteredForms = React.useMemo(
+    () =>
+      formsData?.forms?.filter((form: any) =>
+        form.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (form.description && form.description.toLowerCase().includes(searchQuery.toLowerCase()))
+      ) || [],
+    [formsData?.forms, searchQuery]
+  );
 
   const customerPortalUrl = tenant
     ? `https://forms.focusengineeringapp.com/${tenant.slug}`
     : null;
 
-  const getFormResponseStats = (formId: string) => {
-    let yesCount = 0;
-    let noCount = 0;
-    let naCount = 0;
+  const statsCache = React.useMemo(() => {
+    const cache = new Map<string, { yesCount: number; noCount: number; naCount: number; total: number }>();
 
     if (responsesData?.responses) {
       responsesData.responses.forEach((response: any) => {
-        if (response.questionId === formId && response.answers) {
+        if (response.answers) {
+          const formId = response.questionId;
+          if (!cache.has(formId)) {
+            cache.set(formId, { yesCount: 0, noCount: 0, naCount: 0, total: 0 });
+          }
+          const stats = cache.get(formId)!;
           Object.values(response.answers).forEach((answer: any) => {
             const answerStr = String(answer).toLowerCase();
             if (answerStr === "yes") {
-              yesCount++;
+              stats.yesCount++;
             } else if (answerStr === "no") {
-              noCount++;
+              stats.noCount++;
             } else if (answerStr === "n/a" || answerStr === "na") {
-              naCount++;
+              stats.naCount++;
             }
           });
+          stats.total = stats.yesCount + stats.noCount + stats.naCount;
         }
       });
     }
 
-    return { yesCount, noCount, naCount, total: yesCount + noCount + naCount };
+    return cache;
+  }, [responsesData?.responses]);
+
+  const getFormResponseStats = (formId: string) => {
+    return statsCache.get(formId) || { yesCount: 0, noCount: 0, naCount: 0, total: 0 };
   };
 
   const scroll = (direction: "left" | "right") => {
@@ -164,6 +176,7 @@ export default function DashboardNew() {
             >
               {filteredForms.map((form: any) => {
                 const stats = getFormResponseStats(form.id);
+                const promoterPercentage = stats.total > 0 ? ((stats.yesCount / stats.total) * 100).toFixed(1) : '0';
                 return (
                   <div
                     key={form._id}
@@ -206,7 +219,7 @@ export default function DashboardNew() {
                           Promoters
                         </p>
                         <p className="text-lg font-bold" style={{ color: "#1e3a8a" }}>
-                          {getFormResponseStats(form.id).total > 0 ? ((getFormResponseStats(form.id).yesCount / getFormResponseStats(form.id).total) * 100).toFixed(1) : 0}%
+                          {promoterPercentage}%
                         </p>
                       </div>
                     </div>
@@ -258,19 +271,19 @@ export default function DashboardNew() {
                               <p className="text-xs font-bold text-gray-900 dark:text-white">{stats.yesCount}</p>
                               <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Promoters</p>
                               <Smile className="w-4 h-4 mt-0.5" style={{ color: "#1e3a8a" }} />
-                              <p className="text-xs font-semibold mt-0.5" style={{ color: "#1e3a8a" }}>{stats.total > 0 ? ((stats.yesCount / stats.total) * 100).toFixed(1) : 0}%</p>
+                              <p className="text-xs font-semibold mt-0.5" style={{ color: "#1e3a8a" }}>{stats.total > 0 ? ((stats.yesCount / stats.total) * 100).toFixed(1) : '0'}%</p>
                             </div>
                             <div className="flex flex-col items-center">
                               <p className="text-xs font-bold text-gray-900 dark:text-white">{stats.noCount}</p>
                               <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Detractors</p>
                               <Frown className="w-4 h-4 mt-0.5" style={{ color: "#93c5fd" }} />
-                              <p className="text-xs font-semibold mt-0.5" style={{ color: "#93c5fd" }}>{stats.total > 0 ? ((stats.noCount / stats.total) * 100).toFixed(1) : 0}%</p>
+                              <p className="text-xs font-semibold mt-0.5" style={{ color: "#93c5fd" }}>{stats.total > 0 ? ((stats.noCount / stats.total) * 100).toFixed(1) : '0'}%</p>
                             </div>
                             <div className="flex flex-col items-center">
                               <p className="text-xs font-bold text-gray-900 dark:text-white">{stats.naCount}</p>
                               <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Neutral</p>
                               <Meh className="w-4 h-4 mt-0.5" style={{ color: "#2563eb" }} />
-                              <p className="text-xs font-semibold mt-0.5" style={{ color: "#2563eb" }}>{stats.total > 0 ? ((stats.naCount / stats.total) * 100).toFixed(1) : 0}%</p>
+                              <p className="text-xs font-semibold mt-0.5" style={{ color: "#2563eb" }}>{stats.total > 0 ? ((stats.naCount / stats.total) * 100).toFixed(1) : '0'}%</p>
                             </div>
                           </div>
                         </>

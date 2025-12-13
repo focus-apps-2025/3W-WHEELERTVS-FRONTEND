@@ -1,5 +1,6 @@
 import React from "react";
 import { Download, Eye, FileSpreadsheet, FileText, MapPin } from "lucide-react";
+import ImageModal from "./ImageModal";
 
 interface FilePreviewProps {
   data?: string;
@@ -63,6 +64,7 @@ const isExcelSource = (source: string) => {
 };
 
 export default function FilePreview({ data, url, fileName }: FilePreviewProps) {
+  const [isModalOpen, setIsModalOpen] = React.useState(false);
   const rawSource = data || url || "";
   const fileData = parseFileValue(rawSource);
   const source = fileData.type === "camera" ? fileData.url : rawSource;
@@ -102,53 +104,25 @@ export default function FilePreview({ data, url, fileName }: FilePreviewProps) {
   };
 
   return (
-    <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-800 space-y-4">
-      {isImage ? (
-        <div className="space-y-4">
-          <img src={source} alt={resolvedFileName} className="max-w-full h-auto rounded-lg" />
-          
-          {fileData.type === "camera" && fileData.location && (
-            <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-              <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
-                  Location Metadata
-                </p>
-                <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                  <strong>Latitude:</strong> {fileData.location.latitude.toFixed(6)}
-                </p>
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  <strong>Longitude:</strong> {fileData.location.longitude.toFixed(6)}
-                </p>
-                <p className="text-xs text-blue-700 dark:text-blue-300">
-                  <strong>Accuracy:</strong> ±{fileData.location.accuracy.toFixed(1)}m
-                </p>
-                {fileData.timestamp && (
-                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                    <strong>Captured:</strong> {new Date(fileData.timestamp).toLocaleString()}
-                  </p>
-                )}
-              </div>
+    <>
+      <div>
+        {isImage ? (
+          <div className="inline-block">
+            <div className="relative group inline-block">
+              <img 
+                src={source} 
+                alt={resolvedFileName} 
+                onClick={() => setIsModalOpen(true)}
+                className="w-20 h-20 object-cover rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:shadow-md transition-shadow duration-200" 
+              />
+              <button
+                onClick={() => setIsModalOpen(true)}
+                className="absolute inset-0 w-full h-full bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100"
+              >
+                <Eye className="w-4 h-4 text-white" />
+              </button>
             </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={handleView}
-              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              <Eye className="w-4 h-4" />
-              View
-            </button>
-            <button
-              onClick={handleDownload}
-              className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              <Download className="w-4 h-4" />
-              Download
-            </button>
           </div>
-        </div>
       ) : (
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center text-gray-600 dark:text-gray-400">
@@ -179,6 +153,14 @@ export default function FilePreview({ data, url, fileName }: FilePreviewProps) {
           </div>
         </div>
       )}
-    </div>
+      </div>
+      {isImage && (
+        <ImageModal 
+          isOpen={isModalOpen}
+          imageUrl={source}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
+    </>
   );
 }
