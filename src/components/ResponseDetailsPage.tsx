@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import {
   Eye,
   Calendar,
@@ -198,6 +198,8 @@ export default function ResponseDetailsPage() {
   const [pendingSectionId, setPendingSectionId] = useState<string | null>(null);
   const [sectionChartTypes, setSectionChartTypes] = useState<Record<string, "pie" | "bar">>({});
   const [showMainParamsImages, setShowMainParamsImages] = useState<Record<string, boolean>>({});
+  const [showSectionsPDFModal, setShowSectionsPDFModal] = useState(false);
+  const [downloadingSectionsPDF, setDownloadingSectionsPDF] = useState(false);
 
   useEffect(() => {
     fetchResponseDetails();
@@ -219,6 +221,12 @@ export default function ResponseDetailsPage() {
       document.removeEventListener('click', handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+    if (location.state?.viewMode) {
+      setViewMode(location.state.viewMode);
+    }
+  }, [location.state]);
 
   const fetchResponseDetails = async () => {
     try {
@@ -401,8 +409,35 @@ export default function ResponseDetailsPage() {
   const handleDownloadPDF = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default') => {
     if (!response || !form) return;
 
-    setGeneratingPDF(true);
     setShowPDFTypeSelector(false);
+    
+    if (type === 'section') {
+      setShowSectionsPDFModal(true);
+      return;
+    }
+    
+    await handleDownloadPDFNow(type);
+  };
+
+  const handleDownloadSectionsPDF = async () => {
+    if (!response || !form) return;
+
+    setDownloadingSectionsPDF(true);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    try {
+      await handleDownloadPDFNow('section');
+      setShowSectionsPDFModal(false);
+    } finally {
+      setDownloadingSectionsPDF(false);
+    }
+  };
+
+  const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default') => {
+    if (!response || !form) return;
+
+    setGeneratingPDF(true);
+    
     try {
       // For 'section' type, we need section data
       let sectionQuestionStats: Record<string, any[]> = {};
@@ -523,9 +558,9 @@ export default function ResponseDetailsPage() {
       });
 
       showSuccess("PDF downloaded successfully.");
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to generate PDF:", err);
-      showError("Failed to generate PDF. Please try again.");
+      showError(err.message || "Failed to generate PDF. Please try again.");
     } finally {
       setGeneratingPDF(false);
     }
@@ -1306,6 +1341,26 @@ export default function ResponseDetailsPage() {
             </button>
           </div>
 
+          <div className="flex items-center gap-6 mx-4">
+            <div className="text-center">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                {form.title}
+              </h2>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Comprehensive analysis and insights
+              </p>
+            </div>
+            <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 hidden sm:block"></div>
+            <div className="text-center hidden sm:block">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Submitted
+              </p>
+              <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                {formatTimestamp(response.createdAt)}
+              </p>
+            </div>
+          </div>
+
           <div className="flex items-center gap-2">
             <button
               onClick={handleEditResponse}
@@ -1485,6 +1540,18 @@ export default function ResponseDetailsPage() {
                       <FileCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
                       <span>All Response Types (Type 4)</span>
                     </button>
+                    <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowPDFTypeSelector(false);
+                        handleDownloadPDF('section');
+                      }}
+                      className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-150"
+                    >
+                      <BarChart3 className="w-4 h-4 text-purple-600 dark:text-purple-400 mr-2 flex-shrink-0" />
+                      <span>View Sections</span>
+                    </button>
                   </div>
                 </div>
               )}
@@ -1507,48 +1574,10 @@ export default function ResponseDetailsPage() {
         {viewMode === "dashboard" ? (
           filteredSectionStats.length > 0 ? (
             <div className="space-y-5 flex flex-col" style={{ gap: "1.25rem" }}>
-              {/* Dashboard Header with Logo */}
-              <div className="bg-white dark:bg-gray-700 p-5 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-600 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    {logo && (
-                      <div className="w-14 h-10 rounded-lg overflow-hidden shadow border border-gray-200 dark:border-gray-700 flex-shrink-0">
-                        <img
-                          src={logo}
-                          alt="Company Logo"
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                      </div>
-                    )}
-                    <div>
-                      <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                        {form.title}
-                      </h2>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                        Comprehensive analysis and insights
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Submitted
-                      </p>
-                      <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                        {formatTimestamp(response.createdAt)}
-                      </p>
-                    </div>
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center shadow flex-shrink-0" style={{ backgroundColor: "#1e3a8a" }}>
-                      <FileCheck className="w-4 h-4 text-white" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Stats Row */}
-                <div className="grid grid-cols-4 gap-2 mt-3">
+              {/* Two-Column Layout: Stats (25%) and Basic Information (75%) */}
+              <div className="flex gap-5 items-stretch">
+                {/* Stats Cards - 25% */}
+                <div className="w-1/4 flex flex-col gap-2">
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-2.5 rounded-lg border border-blue-200 dark:border-blue-700 hover:shadow-md transition-shadow duration-300">
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -1569,7 +1598,7 @@ export default function ResponseDetailsPage() {
                     </div>
                   </div>
 
-                  <div className="bg-indigo-50 dark:bg-indigo-900/20 p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-700 hover:shadow-md transition-shadow duration-300">
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-700 hover:shadow-md transition-shadow duration-300 cursor-pointer" onClick={() => setViewMode("responses")}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-0.5">
@@ -1667,19 +1696,9 @@ export default function ResponseDetailsPage() {
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Basic Information Section */}
-              <div className="bg-white dark:bg-gray-900 rounded-xl shadow border border-gray-200 dark:border-gray-800 p-5">
-                <div className="flex items-center gap-2 mb-5">
-                  <div className="p-1.5 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
-                    <FileText className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                    Basic Information
-                  </h3>
-                </div>
-                
+                {/* Basic Information - 75% */}
+                <div className="w-3/4 bg-white dark:bg-gray-900 rounded-xl shadow border border-gray-200 dark:border-gray-800 p-5">
                 {form?.sections && form.sections.length > 0 ? (
                   (() => {
                     const section = form.sections[0];
@@ -1689,11 +1708,6 @@ export default function ResponseDetailsPage() {
                           <h4 className="text-sm font-semibold text-indigo-900 dark:text-indigo-100 mb-1">
                             {section.title || "Section 1"}
                           </h4>
-                          {section.description && (
-                            <p className="text-xs text-indigo-700 dark:text-indigo-400">
-                              {section.description}
-                            </p>
-                          )}
                         </div>
                         
                         {section.questions && section.questions.length > 0 ? (
@@ -1777,8 +1791,8 @@ export default function ResponseDetailsPage() {
                     )}
                   </div>
                 )}
+                </div>
               </div>
-
 
               {/* Charts Section */}
               <div className={`grid gap-8 ${showWeightageColumns ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
@@ -1805,7 +1819,7 @@ export default function ResponseDetailsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="w-full flex items-center justify-center" style={{ height: sectionChartHeight, minHeight: "400px" }}>
+                  <div id="section-performance-chart" className="w-full flex items-center justify-center" style={{ height: sectionChartHeight, minHeight: "400px" }}>
                     <Radar data={sectionChartData} options={sectionChartOptions} />
                   </div>
                 </div>
@@ -2427,7 +2441,7 @@ export default function ResponseDetailsPage() {
                             <option value="bar">Bar Chart</option>
                           </select>
                         </div>
-                        <div className="w-full h-56">
+                        <div id={`section-chart-${section.id}`} className="w-full h-56">
                           {sectionChartTypes[section.id] === "bar" ? (
                             <Bar
                               data={{
@@ -2962,6 +2976,239 @@ export default function ResponseDetailsPage() {
           onSave={handleSaveEditedResponse}
           onCancel={handleCloseEdit}
         />
+      )}
+
+      {showSectionsPDFModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-auto border border-gray-200 dark:border-gray-700">
+            <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                View Sections - PDF Preview
+              </h2>
+              <button
+                onClick={() => setShowSectionsPDFModal(false)}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {(() => {
+                const totalYes = filteredSectionStats.reduce((sum, stat) => sum + stat.yes, 0);
+                const totalNo = filteredSectionStats.reduce((sum, stat) => sum + stat.no, 0);
+                const totalNA = filteredSectionStats.reduce((sum, stat) => sum + stat.na, 0);
+                const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
+
+                const yesPercent = totalQuestions > 0 ? ((totalYes / totalQuestions) * 100).toFixed(1) : "0.0";
+                const noPercent = totalQuestions > 0 ? ((totalNo / totalQuestions) * 100).toFixed(1) : "0.0";
+                const naPercent = totalQuestions > 0 ? ((totalNA / totalQuestions) * 100).toFixed(1) : "0.0";
+
+                const radarData = {
+                  labels: filteredSectionStats.map((stat) => stat.title),
+                  datasets: [
+                    {
+                      label: `Yes ${yesPercent}% (${totalYes})`,
+                      data: filteredSectionStats.map((stat) =>
+                        stat.total ? ((stat.yes / stat.total) * 100).toFixed(1) : 0
+                      ),
+                      borderColor: "#10b981",
+                      backgroundColor: "rgba(16, 185, 129, 0.1)",
+                      borderWidth: 2,
+                    },
+                    {
+                      label: `No ${noPercent}% (${totalNo})`,
+                      data: filteredSectionStats.map((stat) =>
+                        stat.total ? ((stat.no / stat.total) * 100).toFixed(1) : 0
+                      ),
+                      borderColor: "#ef4444",
+                      backgroundColor: "rgba(239, 68, 68, 0.1)",
+                      borderWidth: 2,
+                    },
+                    {
+                      label: `N/A ${naPercent}% (${totalNA})`,
+                      data: filteredSectionStats.map((stat) =>
+                        stat.total ? ((stat.na / stat.total) * 100).toFixed(1) : 0
+                      ),
+                      borderColor: "#f59e0b",
+                      backgroundColor: "rgba(245, 158, 11, 0.1)",
+                      borderWidth: 2,
+                    },
+                  ],
+                };
+
+                const radarOptions = {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: "top" as const,
+                      labels: {
+                        color: document.documentElement.classList.contains("dark")
+                          ? "#d1d5db"
+                          : "#374151",
+                      },
+                    },
+                  },
+                  scales: {
+                    r: {
+                      beginAtZero: true,
+                      max: 100,
+                      ticks: {
+                        color: document.documentElement.classList.contains("dark")
+                          ? "#d1d5db"
+                          : "#6b7280",
+                      },
+                      grid: {
+                        color: document.documentElement.classList.contains("dark")
+                          ? "rgba(107, 114, 128, 0.2)"
+                          : "rgba(107, 114, 128, 0.1)",
+                      },
+                    },
+                  },
+                };
+
+                return (
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 p-6 rounded-lg border border-blue-200 dark:border-blue-700">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+                      Section Performance Overview
+                    </h3>
+                    <div id="section-performance-chart" className="w-full" style={{ height: "400px" }}>
+                      <Radar data={radarData} options={radarOptions} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {filteredSectionStats.map((sectionStat) => {
+                const section = form?.sections?.find((s: any) => s.id === sectionStat.id);
+                if (!section) return null;
+
+                const questionStats = getSectionYesNoQuestionStats(sectionStat.id);
+                const sectionTotals = {
+                  yes: questionStats.reduce((sum, q) => sum + q.yes, 0),
+                  no: questionStats.reduce((sum, q) => sum + q.no, 0),
+                  na: questionStats.reduce((sum, q) => sum + q.na, 0),
+                  total: questionStats.reduce((sum, q) => sum + q.total, 0),
+                };
+
+                const chartData = {
+                  labels: ["Yes", "No", "N/A"],
+                  datasets: [
+                    {
+                      data: [sectionTotals.yes, sectionTotals.no, sectionTotals.na],
+                      backgroundColor: ["#1e40af", "#3b82f6", "#93c5fd"],
+                      borderColor: ["#1e40af", "#3b82f6", "#93c5fd"],
+                      borderWidth: 2,
+                    },
+                  ],
+                };
+
+                const chartOptions = {
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: "bottom" as const,
+                      labels: {
+                        color: document.documentElement.classList.contains("dark")
+                          ? "#d1d5db"
+                          : "#374151",
+                      },
+                    },
+                  },
+                };
+
+                return (
+                  <div key={sectionStat.id} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-4">
+                      {section.title || "Section"} - Response Analysis
+                    </h3>
+                    <div className="w-full h-64" id={`section-chart-${section.id}`}>
+                      {sectionChartTypes[section.id] === "bar" ? (
+                        <Bar
+                          data={{
+                            labels: questionStats.map(
+                              (stat) => stat.subParam1 || "No parameter"
+                            ),
+                            datasets: [
+                              {
+                                label: "Yes",
+                                data: questionStats.map((stat) => stat.yes),
+                                backgroundColor: "#1e40af",
+                                borderColor: "#1e40af",
+                                borderWidth: 1,
+                              },
+                              {
+                                label: "No",
+                                data: questionStats.map((stat) => stat.no),
+                                backgroundColor: "#3b82f6",
+                                borderColor: "#3b82f6",
+                                borderWidth: 1,
+                              },
+                              {
+                                label: "N/A",
+                                data: questionStats.map((stat) => stat.na),
+                                backgroundColor: "#93c5fd",
+                                borderColor: "#93c5fd",
+                                borderWidth: 1,
+                              },
+                            ],
+                          }}
+                          options={{
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                              legend: {
+                                position: "top" as const,
+                                labels: {
+                                  color: document.documentElement.classList.contains(
+                                    "dark"
+                                  )
+                                    ? "#d1d5db"
+                                    : "#374151",
+                                },
+                              },
+                            },
+                          }}
+                        />
+                      ) : (
+                        <Pie data={chartData} options={chartOptions} />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="sticky bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4 flex items-center justify-between">
+              <button
+                onClick={() => setShowSectionsPDFModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDownloadSectionsPDF}
+                disabled={downloadingSectionsPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-medium rounded-lg transition-colors"
+              >
+                {downloadingSectionsPDF ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Generating PDF...
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4" />
+                    Download PDF
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

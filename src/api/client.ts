@@ -352,8 +352,11 @@ class ApiClient {
     );
   }
 
-  async getFormResponses(formId: string) {
-    return this.request<{ responses: any[] }>(`/responses/form/${formId}`);
+  async getFormResponses(formId: string, options?: { analytics?: boolean }) {
+    const query = options?.analytics ? "?analytics=true" : "";
+    return this.request<{ responses: any[] }>(
+      `/responses/form/${formId}${query}`
+    );
   }
 
   async getResponse(id: string) {
@@ -382,13 +385,10 @@ class ApiClient {
   }
 
   async convertImageUrl(imageUrl: string) {
-    return this.request<{ cloudinaryUrl: string }>(
-      "/responses/convert-image",
-      {
-        method: "POST",
-        body: JSON.stringify({ imageUrl }),
-      }
-    );
+    return this.request<{ cloudinaryUrl: string }>("/responses/convert-image", {
+      method: "POST",
+      body: JSON.stringify({ imageUrl }),
+    });
   }
 
   async submitResponse(formId: string, responseData: any) {
@@ -827,6 +827,13 @@ class ApiClient {
   async deleteParameter(id: string) {
     return this.request(`/parameters/${id}`, {
       method: "DELETE",
+    });
+  }
+  async processBulkImages(answers: any, batchId?: string) {
+    return this.request<any>("/responses/process-bulk-images", {
+      method: "POST",
+
+      body: JSON.stringify({ answers, batchId }),
     });
   }
 }

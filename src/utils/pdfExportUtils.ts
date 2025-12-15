@@ -256,7 +256,7 @@ const checkIfRealAnswer = (answer: any, questionText: string): boolean => {
   return true;
 };
 
-// Generic response analysis generator
+// Generic response analysis generator with size optimization
 function generateResponseAnalysis(
   form: any,
   response: any,
@@ -817,29 +817,66 @@ function generateResponseAnalysis(
   return html;
 }
 
+// Helper function to limit response analysis size
+function limitResponseAnalysisSize(html: string, maxSizeInChars: number = 300000): string {
+  if (html.length <= maxSizeInChars) {
+    return html;
+  }
+  
+  console.warn(`⚠️ Response analysis exceeds size limit (${html.length} chars). Truncating...`);
+  
+  const truncated = html.substring(0, maxSizeInChars);
+  const lastTableEnd = truncated.lastIndexOf('</table>');
+  
+  if (lastTableEnd > 0) {
+    return truncated.substring(0, lastTableEnd + 8) + `
+<table style="width: 100%; border-collapse: collapse; border: 1px solid #666; margin: 20px 0;">
+  <tr style="background: #ffffffff;">
+    <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 12px; font-weight: 700; color: #f59e0b;">
+      ⚠️ Response analysis truncated for performance
+    </td>
+  </tr>
+  <tr style="background: #ffffff;">
+    <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 11px; color: #4b5563; line-height: 1.6;">
+      The complete response analysis is very large. For the full analysis, please export individual response types (Yes/No/N/A) separately.
+    </td>
+  </tr>
+</table>
+    `;
+  }
+  
+  return truncated + `<p style="color: #f59e0b; font-weight: 700; margin-top: 20px;">⚠️ Response analysis was truncated due to size.</p>`;
+}
+
 // Individual response analysis functions (kept for backward compatibility)
 function generateNoResponseAnalysis(
   form: any,
   response: any,
-  availableSections: any[]
+  availableSections: any[],
+  maxSize: number = 300000
 ): string {
-  return generateResponseAnalysis(form, response, availableSections, "no");
+  const html = generateResponseAnalysis(form, response, availableSections, "no");
+  return limitResponseAnalysisSize(html, maxSize);
 }
 
 function generateYesResponseAnalysis(
   form: any,
   response: any,
-  availableSections: any[]
+  availableSections: any[],
+  maxSize: number = 300000
 ): string {
-  return generateResponseAnalysis(form, response, availableSections, "yes");
+  const html = generateResponseAnalysis(form, response, availableSections, "yes");
+  return limitResponseAnalysisSize(html, maxSize);
 }
 
 function generateNAResponseAnalysis(
   form: any,
   response: any,
-  availableSections: any[]
+  availableSections: any[],
+  maxSize: number = 300000
 ): string {
-  return generateResponseAnalysis(form, response, availableSections, "na");
+  const html = generateResponseAnalysis(form, response, availableSections, "na");
+  return limitResponseAnalysisSize(html, maxSize);
 }
 
 function generatePieChartSVG(
@@ -2131,7 +2168,8 @@ export async function generateAndDownloadPDF(
       responseAnalysisHTML = generateNoResponseAnalysis(
         form,
         response,
-        form.sections || []
+        form.sections || [],
+        1000000
       );
       responseAnalysisTitle = "NO Response Analysis Only";
       break;
@@ -2139,7 +2177,8 @@ export async function generateAndDownloadPDF(
       responseAnalysisHTML = generateYesResponseAnalysis(
         form,
         response,
-        form.sections || []
+        form.sections || [],
+        1000000
       );
       responseAnalysisTitle = "YES Response Analysis Only";
       break;
@@ -2147,15 +2186,16 @@ export async function generateAndDownloadPDF(
       responseAnalysisHTML = generateNAResponseAnalysis(
         form,
         response,
-        form.sections || []
+        form.sections || [],
+        1000000
       );
       responseAnalysisTitle = "N/A Response Analysis Only";
       break;
     case "both":
       responseAnalysisHTML =
-        generateNoResponseAnalysis(form, response, form.sections || []) +
-        generateYesResponseAnalysis(form, response, form.sections || []) +
-        generateNAResponseAnalysis(form, response, form.sections || []);
+        generateNoResponseAnalysis(form, response, form.sections || [], 300000) +
+        generateYesResponseAnalysis(form, response, form.sections || [], 300000) +
+        generateNAResponseAnalysis(form, response, form.sections || [], 300000);
       responseAnalysisTitle = "BOTH NO, YES & N/A Response Analysis";
       break;
     case "section":
@@ -2167,7 +2207,8 @@ export async function generateAndDownloadPDF(
       responseAnalysisHTML = generateNoResponseAnalysis(
         form,
         response,
-        form.sections || []
+        form.sections || [],
+        1000000
       );
       responseAnalysisTitle = "Response Analysis";
   }
@@ -2631,15 +2672,30 @@ export async function generateAndDownloadPDF(
   const element = document.createElement("div");
   element.innerHTML = htmlContent;
 
+  const contentSize = htmlContent.length;
+  const isLargeDocument = contentSize > 500000;
+  
+  let scale = 2;
+  let quality = 0.98;
+  
+  if (isLargeDocument) {
+    console.warn(`⚠️ Large PDF document detected (${(contentSize / 1024 / 1024).toFixed(2)} MB). Optimizing rendering...`);
+    scale = 1;
+    quality = 0.85;
+  } else if (contentSize > 250000) {
+    scale = 1.5;
+    quality = 0.90;
+  }
+
   const opt = {
     margin: 10,
     filename: `${filename.replace(".pdf", "")}_${getPDFTypeSuffix(type)}.pdf`,
     image: {
       type: "jpeg",
-      quality: 0.98,
+      quality: quality,
     },
     html2canvas: {
-      scale: 2,
+      scale: scale,
       logging: false,
       useCORS: true,
       allowTaint: true,
@@ -2658,16 +2714,34 @@ export async function generateAndDownloadPDF(
   };
 
   return new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      console.error("❌ PDF generation timed out after 120 seconds");
+      reject(new Error("PDF generation timed out. The response may be too large. Please try exporting a smaller subset of responses or reducing the number of response types."));
+    }, 120000);
+
     html2pdf()
       .set(opt)
       .from(element)
       .save()
       .then(() => {
+        clearTimeout(timeout);
+        console.log("✅ PDF generated successfully");
         resolve();
       })
       .catch((error: Error) => {
-        console.error("PDF generation error:", error);
-        reject(error);
+        clearTimeout(timeout);
+        console.error("❌ PDF generation error:", error);
+        
+        let userMessage = "Failed to generate PDF. ";
+        if (error.message?.includes("memory") || error.message?.includes("OutOfMemory")) {
+          userMessage += "The response is too large. Please try exporting with individual response types (Yes/No/N/A) instead of 'All'.";
+        } else if (error.message?.includes("Canvas")) {
+          userMessage += "Canvas rendering failed. Try reducing the number of responses or exporting in smaller batches.";
+        } else {
+          userMessage += "Please try again or contact support if the problem persists.";
+        }
+        
+        reject(new Error(userMessage));
       });
   });
 }

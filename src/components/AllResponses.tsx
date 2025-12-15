@@ -25,6 +25,7 @@ import {
   Save,
   ChevronDown,
   MapPin,
+  List,
 } from "lucide-react";
 import { Bar, Line, Pie, Radar } from "react-chartjs-2";
 import {
@@ -3120,6 +3121,17 @@ const handleCancelWeightageEdit = () => {
                                 <FileText className="w-4 h-4 mr-3 flex-shrink-0" style={{ color: "#2563eb" }} />
                                 <span>View as Page</span>
                               </button>
+                              {/* <button
+                                onClick={() => {
+                                  const responseId = response._id || response.id;
+                                  navigate(`/responses/${responseId}`, { state: { viewMode: 'responses' } });
+                                  setOpenViewDropdown(null);
+                                }}
+                                className="flex items-center w-full px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
+                              >
+                                <List className="w-4 h-4 mr-3 flex-shrink-0" style={{ color: "#7c3aed" }} />
+                                <span>View Sections</span>
+                              </button> */}
                             </div>
                           )}
                         </div>
@@ -3483,8 +3495,9 @@ const handleCancelWeightageEdit = () => {
                               </div>
                             </div>
 
-                            {/* Quick Stats Row */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                            {/* Two-Column Layout: Stats (25%) and Basic Info (75%) */}
+                            <div className="flex gap-4 items-stretch">
+                              <div className="w-1/4 flex flex-col gap-3">
                               <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 backdrop-blur-sm p-3 rounded-xl border border-yellow-200/50 dark:border-yellow-700/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
                                 <div className="flex items-center justify-between">
                                   <div>
@@ -3711,60 +3724,58 @@ const handleCancelWeightageEdit = () => {
                                 </div>
                               </div>
                             </div>
+
+                              {/* Basic Information - 75% */}
+                              <div className="w-3/4">
+                                {selectedForm?.sections?.[0] && (
+                                  <div className="border border-primary-100 rounded-lg overflow-hidden">
+                                    <div className="px-4 py-3 bg-primary-50">
+                                      <div className="text-base font-semibold text-primary-700">
+                                        {selectedForm.sections[0].title || "First Section"}
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-primary-100">
+                                      {selectedForm.sections[0].questions?.map((question: any, index: number) => {
+                                        const answer = selectedResponse?.answers[question.id];
+                                        return (
+                                          <div key={question.id} className="p-4">
+                                            <div className="font-medium text-primary-700 mb-1">
+                                              {question.text || question.id}
+                                            </div>
+                                            <div className="text-primary-600 mb-3">
+                                              {renderAnswerDisplay(answer, question)}
+                                            </div>
+                                            {question.followUpQuestions?.map((followUp: any) => {
+                                              const followAnswer = selectedResponse?.answers[followUp.id];
+                                              if (!hasAnswerValue(followAnswer)) return null;
+                                              return (
+                                                <div
+                                                  key={followUp.id}
+                                                  className="mt-3 pl-4 border-l border-primary-100 text-sm"
+                                                >
+                                                  <div className="font-medium text-primary-600 mb-1">
+                                                    {followUp.text || followUp.id}
+                                                  </div>
+                                                  <div className="text-primary-600">
+                                                    {renderAnswerDisplay(followAnswer, followUp)}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           </div>
 
                           {/* Location Heatmap Section */}
                           {/*responses && responses.length > 0 && (
                             <LocationHeatmap responses={responses} />
                           )*/}
-                          {selectedForm?.sections?.[0] && (
-                            <div className="border border-primary-100 rounded-lg overflow-hidden">
-                              <div className="px-4 py-3 bg-primary-50">
-                                <div className="text-base font-semibold text-primary-700">
-                                  {selectedForm.sections[0].title || "First Section"}
-                                </div>
-                                {selectedForm.sections[0].description && (
-                                  <div className="text-sm text-primary-500 mt-1">
-                                    {selectedForm.sections[0].description}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Two-column container */}
-                              <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-primary-100">
-                                {selectedForm.sections[0].questions?.map((question: any, index: number) => {
-                                  const answer = selectedResponse?.answers[question.id];
-                                  return (
-                                    <div key={question.id} className="p-4">
-                                      <div className="font-medium text-primary-700 mb-1">
-                                        {question.text || question.id}
-                                      </div>
-                                      <div className="text-primary-600 mb-3">
-                                        {renderAnswerDisplay(answer, question)}
-                                      </div>
-                                      {question.followUpQuestions?.map((followUp: any) => {
-                                        const followAnswer = selectedResponse?.answers[followUp.id];
-                                        if (!hasAnswerValue(followAnswer)) return null;
-                                        return (
-                                          <div
-                                            key={followUp.id}
-                                            className="mt-3 pl-4 border-l border-primary-100 text-sm"
-                                          >
-                                            <div className="font-medium text-primary-600 mb-1">
-                                              {followUp.text || followUp.id}
-                                            </div>
-                                            <div className="text-primary-600">
-                                              {renderAnswerDisplay(followAnswer, followUp)}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
 
 
 

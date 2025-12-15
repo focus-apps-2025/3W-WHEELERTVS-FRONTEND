@@ -68,6 +68,19 @@ interface Response {
   verifiedAt?: string;
   status?: "pending" | "verified" | "rejected";
   notes?: string;
+  submissionMetadata?: {
+    location?: {
+      city?: string;
+      country?: string;
+      region?: string;
+      latitude?: number;
+      longitude?: number;
+    };
+    capturedLocation?: {
+      latitude?: number;
+      longitude?: number;
+    };
+  };
 }
 
 // Helper function to get the timestamp from response (handles both timestamp and createdAt)
@@ -511,7 +524,7 @@ export default function FormAnalyticsDashboard() {
   const [selectedQuestionId, setSelectedQuestionId] = useState<string>("");
   const [selectedQuestion, setSelectedQuestion] = useState<any>(null);
   const [filterValues, setFilterValues] = useState<string[]>([]);
-  const [selectedAnswer, setSelectedAnswer] = useState<string>("");
+  const [selectedAnswers, setSelectedAnswers] = useState<string[]>([]);
 
 
   const [showWeightageColumns, setShowWeightageColumns] = useState(false);
@@ -530,9 +543,21 @@ export default function FormAnalyticsDashboard() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState<Array<{ id: string; label: string; value: string }>>([]);
   const [showSectionDropdown, setShowSectionDropdown] = useState(false);
+  const [showAnswerDropdown, setShowAnswerDropdown] = useState(false);
+  const [showDateDropdown, setShowDateDropdown] = useState(false);
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
+  const [showAppliedFiltersDropdown, setShowAppliedFiltersDropdown] = useState(false);
   const [showSectionSelector, setShowSectionSelector] = useState(false);
   const [selectedFilterQuestion, setSelectedFilterQuestion] = useState<any>(null);
   const [selectedFilterQuestionIdx, setSelectedFilterQuestionIdx] = useState<number | null>(null);
+  const [selectedFilterSection, setSelectedFilterSection] = useState<string>("");
+  const [activeFilters, setActiveFilters] = useState<Array<{ questionId: string; answers: string[]; questionText: string }>>([]);
+  const [dateFilter, setDateFilter] = useState<{
+    type: 'all' | 'single' | 'range';
+    startDate: string;
+    endDate: string;
+  }>({ type: 'all', startDate: '', endDate: '' });
+  const [locationFilter, setLocationFilter] = useState<string[]>([]);
   const [selectedResponsesSectionIds, setSelectedResponsesSectionIds] = useState<string[]>([]);
   const [showResponsesFilter, setShowResponsesFilter] = useState(false);
   const [editingResponseId, setEditingResponseId] = useState<string | null>(null);
@@ -558,6 +583,7 @@ export default function FormAnalyticsDashboard() {
         // Initialize selected sections for responses view - select all by default
         if (formData.form?.sections && formData.form.sections.length > 0) {
           setSelectedResponsesSectionIds(formData.form.sections.map((s: Section) => s.id));
+          setSelectedFilterSection(formData.form.sections[0].id);
         }
 
         // Fetch responses for this form
@@ -598,15 +624,89 @@ export default function FormAnalyticsDashboard() {
 
 
 
+  const availableLocations = useMemo(() => {
+    const locations = new Set<string>();
+    responses.forEach(r => {
+      const meta = r.submissionMetadata?.location;
+      if (meta) {
+        const city = meta.city || '';
+        const country = meta.country || '';
+        const locationStr = city && country ? `${city}, ${country}` : country || 'Unknown';
+        if (locationStr !== 'Unknown') {
+          locations.add(locationStr);
+        }
+      }
+    });
+    return Array.from(locations).sort();
+  }, [responses]);
+
+  const filteredResponses = useMemo(() => {
+    let result = responses;
+
+    // 1. Date Filter
+    if (dateFilter.type !== 'all') {
+      result = result.filter((response) => {
+        const timestamp = getResponseTimestamp(response);
+        if (!timestamp) return false;
+        const responseDate = new Date(timestamp).toISOString().split('T')[0];
+
+        if (dateFilter.type === 'single' && dateFilter.startDate) {
+          return responseDate === dateFilter.startDate;
+        } else if (dateFilter.type === 'range' && dateFilter.startDate && dateFilter.endDate) {
+          return responseDate >= dateFilter.startDate && responseDate <= dateFilter.endDate;
+        }
+        return true;
+      });
+    }
+
+    // 2. Location Filter
+    if (locationFilter.length > 0) {
+      result = result.filter((response) => {
+        const meta = response.submissionMetadata?.location;
+        if (!meta) return false;
+        
+        const city = meta.city || '';
+        const country = meta.country || '';
+        const locationStr = city && country ? `${city}, ${country}` : country || 'Unknown';
+        
+        return locationFilter.includes(locationStr);
+      });
+    }
+
+    // 3. Question Filters (Active Filters)
+    if (activeFilters.length === 0) {
+      return result;
+    }
+
+    return result.filter((response) => {
+      return activeFilters.every((filter) => {
+        const answer = response.answers[filter.questionId];
+        if (!answer) return false;
+
+        // Handle different answer types
+        if (Array.isArray(answer)) {
+          return answer.some((item) => 
+            filter.answers.some((selectedAnswer) => 
+              String(item).toLowerCase() === selectedAnswer.toLowerCase()
+            )
+          );
+        }
+        return filter.answers.some((selectedAnswer) => 
+          String(answer).toLowerCase() === selectedAnswer.toLowerCase()
+        );
+      });
+    });
+  }, [responses, activeFilters, dateFilter, locationFilter]);
+
   const analytics = useMemo(() => {
-    const total = responses.length;
-    const pending = responses.filter(
+    const total = filteredResponses.length;
+    const pending = filteredResponses.filter(
       (r) => r.status === "pending" || !r.status
     ).length;
-    const verified = responses.filter((r) => r.status === "verified").length;
-    const rejected = responses.filter((r) => r.status === "rejected").length;
+    const verified = filteredResponses.filter((r) => r.status === "verified").length;
+    const rejected = filteredResponses.filter((r) => r.status === "rejected").length;
 
-    const recentResponses = responses
+    const recentResponses = filteredResponses
       .filter((r) => getResponseTimestamp(r))
       .sort((a, b) => {
         const timestampA = getResponseTimestamp(a);
@@ -620,7 +720,7 @@ export default function FormAnalyticsDashboard() {
       })
       .slice(0, 5);
 
-    const responseTrend = responses.reduce(
+    const responseTrend = filteredResponses.reduce(
       (acc: Record<string, number>, response) => {
         const timestamp = getResponseTimestamp(response);
         if (timestamp) {
@@ -659,11 +759,11 @@ export default function FormAnalyticsDashboard() {
       last7Days,
       percentageData,
     };
-  }, [responses]);
+  }, [filteredResponses]);
 
   const sectionPerformanceStats = useMemo(
-    () => computeSectionPerformanceStats(form, responses),
-    [form, responses]
+    () => computeSectionPerformanceStats(form, filteredResponses),
+    [form, filteredResponses]
   );
 
   const filteredSectionStats = useMemo(
@@ -688,22 +788,6 @@ export default function FormAnalyticsDashboard() {
       return next.length ? next : availableIds;
     });
   }, [filteredSectionStats]);
-  const filteredResponses = useMemo(() => {
-    if (!selectedQuestionId || !selectedAnswer) {
-      return responses;
-    }
-
-    return responses.filter((response) => {
-      const answer = response.answers[selectedQuestionId];
-      if (!answer) return false;
-
-      // Handle different answer types
-      if (Array.isArray(answer)) {
-        return answer.some((item) => String(item).toLowerCase() === selectedAnswer.toLowerCase());
-      }
-      return String(answer).toLowerCase() === selectedAnswer.toLowerCase();
-    });
-  }, [responses, selectedQuestionId, selectedAnswer]);
 
   const visibleSectionStats = useMemo(
     () =>
@@ -1826,7 +1910,7 @@ export default function FormAnalyticsDashboard() {
 
           {/* Location Heatmap - Self-contained component */}
           <LocationHeatmap
-            responses={responses}
+            responses={filteredResponses}
             title="Response Locations Heatmap" id="location-heatmap"
           />
 
@@ -1875,7 +1959,7 @@ export default function FormAnalyticsDashboard() {
                       onClick={() => {
                         setAppliedFilters([]);
                         setSelectedQuestionId("");
-                        setSelectedAnswer("");
+                        setSelectedAnswers([]);
                       }}
                       className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 font-medium"
                     >
@@ -1886,7 +1970,7 @@ export default function FormAnalyticsDashboard() {
               </div>
 
               <div className="card p-6">
-                <ResponseQuestion question={form} responses={responses} />
+                <ResponseQuestion question={form} responses={filteredResponses} />
               </div>
             </div>
           )}
@@ -1978,7 +2062,7 @@ export default function FormAnalyticsDashboard() {
                           onClick={() => {
                             setAppliedFilters([]);
                             setSelectedQuestionId("");
-                            setSelectedAnswer("");
+                            setSelectedAnswers([]);
                           }}
                           className="ml-auto text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 font-medium"
                         >
@@ -2691,7 +2775,7 @@ export default function FormAnalyticsDashboard() {
                                 </td>
                               </tr>
                               {allQuestionsInSection.map((question: any, qIdx: number) => {
-                                const questionResponses = responses.filter((r) => r.answers && r.answers[question.id]);
+                                const questionResponses = filteredResponses.filter((r) => r.answers && r.answers[question.id]);
                                 const yesCount = questionResponses.filter((r) => {
                                   const answer = String(r.answers[question.id]).toLowerCase().trim();
                                   return answer.includes("yes") || answer === "y";
@@ -2814,7 +2898,7 @@ export default function FormAnalyticsDashboard() {
                       <Table className="w-5 h-5 text-indigo-600" />
                       All Responses - Table View
                     </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Viewing all {responses.length} responses</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Viewing {filteredResponses.length} responses</p>
                   </div>
                   <div className="flex gap-2 items-center relative">
                     <button
@@ -2951,8 +3035,8 @@ export default function FormAnalyticsDashboard() {
                       </thead>
                       
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {responses.length > 0 ? (
-                          responses.map((response: Response, idx: number) => (
+                        {filteredResponses.length > 0 ? (
+                          filteredResponses.map((response: Response, idx: number) => (
                             <tr key={response.id} className={`${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
                               <td className={`px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 z-20 ${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
                                 <div className="flex items-center gap-2">
@@ -3072,16 +3156,19 @@ export default function FormAnalyticsDashboard() {
       {/* Advanced Filter Modal */}
       {showFilterModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-6xl h-[75vh] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="bg-white dark:bg-gray-800 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Advanced Filters</h2>
+          <div className="bg-white rounded-lg w-full max-w-6xl h-[75vh] overflow-hidden flex flex-col">
+            <div className="px-6 py-4 border-b border-gray-300 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Filters</h2>
               <button
                 onClick={() => {
                   setShowFilterModal(false);
                   setShowSectionDropdown(false);
+                  setShowAnswerDropdown(false);
+                  setShowDateDropdown(false);
+                  setShowLocationDropdown(false);
+                  setShowAppliedFiltersDropdown(false);
                 }}
-                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors"
+                className="text-gray-600 hover:text-gray-900"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -3089,177 +3176,386 @@ export default function FormAnalyticsDashboard() {
               </button>
             </div>
 
-            {/* Body */}
             <div className="flex flex-1 overflow-hidden gap-0">
-              {/* Left Side - Questions */}
-              <div className="flex-1 border-r border-gray-200 dark:border-gray-700 overflow-y-auto p-4 min-w-0">
-                <label className="block text-xs font-semibold text-gray-900 dark:text-white mb-3 uppercase">
-                  Step 1: Select Question
-                </label>
-                <div className="space-y-1.5">
-                  {form?.sections?.flatMap((section: any) => 
-                    section.questions?.filter((q: any) => !q.parentId && !q.showWhen?.questionId) || []
-                  )
-                    .map((q: any, idx: number) => (
-                      <div
-                        key={q.id}
-                        onClick={() => {
-                          setSelectedFilterQuestion(q);
-                          setSelectedFilterQuestionIdx(idx);
-                        }}
-                        className={`p-2 rounded-lg cursor-pointer border-2 transition-all ${
-                          selectedFilterQuestion?.id === q.id
-                            ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30'
-                            : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 hover:border-indigo-400'
-                        }`}
-                      >
-                        <p className="text-xs font-semibold text-gray-900 dark:text-white line-clamp-2">{q.text || 'Q'}</p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">({Array.from(new Set(responses.map(r => r.answers?.[q.id]).filter(a => a !== null && a !== undefined && a !== ''))).length})</p>
-                      </div>
-                    ))}
+              {/* Left - Questions Dropdown */}
+              <div className="w-72 border-r border-gray-300 p-4 flex flex-col">
+                <div className="relative flex-1 flex flex-col">
+                  <button
+                    onClick={() => setShowSectionDropdown(!showSectionDropdown)}
+                    className="w-full p-2.5 border-2 border-gray-400 bg-white text-gray-900 text-xs font-medium rounded flex items-center justify-between hover:bg-gray-50"
+                  >
+                    <span className="truncate">
+                      {selectedFilterQuestion ? selectedFilterQuestion.text?.substring(0, 30) + (selectedFilterQuestion.text?.length > 30 ? '...' : '') : 'Select Question'}
+                    </span>
+                    <svg className={`w-4 h-4 transition-transform ${showSectionDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                    </svg>
+                  </button>
+
+                  {showSectionDropdown && (
+                    <div className="absolute top-12 left-0 right-0 bg-white border-2 border-gray-400 rounded shadow-lg z-10 max-h-64 overflow-y-auto">
+                      {form?.sections?.[0]?.questions
+                        ?.filter((q: any) => !q.parentId && !q.showWhen?.questionId)
+                        .map((q: any) => (
+                          <label
+                            key={q.id}
+                            className="flex items-start gap-2 cursor-pointer hover:bg-blue-50 p-2.5 border-b border-gray-200 last:border-b-0 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedFilterQuestion?.id === q.id}
+                              onChange={() => {
+                                setSelectedFilterQuestion(q);
+                                const existingFilter = activeFilters.find(f => f.questionId === q.id);
+                                if (existingFilter) {
+                                  setSelectedAnswers(existingFilter.answers);
+                                } else {
+                                  setSelectedAnswers([]);
+                                }
+                                setShowSectionDropdown(false);
+                              }}
+                              className="w-4 h-4 rounded border-gray-400 cursor-pointer mt-0.5 flex-shrink-0"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-gray-900 line-clamp-2">{q.text || 'Unnamed'}</p>
+                            </div>
+                          </label>
+                        ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Middle - Question Answers */}
-              <div className="w-64 bg-gray-50 dark:bg-gray-700 overflow-y-auto p-4 flex flex-col border-r border-gray-200 dark:border-gray-700 min-w-0">
+              {/* Middle - Answer Dropdown */}
+              <div className="w-72 border-r border-gray-300 p-4 flex flex-col">
                 {selectedFilterQuestion ? (
                   <>
-                    <label className="block text-xs font-semibold text-gray-900 dark:text-white mb-2 uppercase">
-                      Step 2: Answer
-                    </label>
-                    <div className="mb-2 p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg border border-indigo-200 dark:border-indigo-800 min-w-0">
-                      <p className="text-xs text-indigo-900 dark:text-indigo-300 line-clamp-2 break-words">{selectedFilterQuestion.text}</p>
-                    </div>
+                    <div className="relative flex-1 flex flex-col">
+                      <button
+                        onClick={() => setShowAnswerDropdown(!showAnswerDropdown)}
+                        className="w-full p-2.5 border-2 border-gray-400 bg-white text-gray-900 text-xs font-medium rounded flex items-center justify-between hover:bg-gray-50"
+                      >
+                        <span className="truncate">
+                          {selectedAnswers.length > 0 ? `${selectedAnswers.length} selected` : 'Select Answers'}
+                        </span>
+                        <svg className={`w-4 h-4 transition-transform ${showAnswerDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                        </svg>
+                      </button>
 
-                    <div className="space-y-1 overflow-y-auto flex-1">
-                      {Array.from(
-                        new Set(
-                          responses
-                            .map(r => r.answers?.[selectedFilterQuestion.id])
-                            .filter(a => a !== null && a !== undefined && a !== '')
-                            .map(a => String(a).trim())
-                        )
-                      )
-                        .sort()
-                        .map((answer) => {
-                          const answerCount = responses.filter(r => {
-                            const ans = r.answers?.[selectedFilterQuestion.id];
-                            if (Array.isArray(ans)) {
-                              return ans.some(item => String(item).toLowerCase() === answer.toLowerCase());
-                            }
-                            return String(ans).toLowerCase() === answer.toLowerCase();
-                          }).length;
-                          
-                          return (
-                            <label key={answer} className="flex items-start gap-1.5 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 p-1.5 rounded transition-colors border border-transparent hover:border-indigo-300 min-w-0">
-                              <input
-                                type="radio"
-                                name="answer-filter"
-                                checked={selectedAnswer === answer}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedAnswer(answer);
-                                    setSelectedQuestionId(selectedFilterQuestion.id);
-                                  } else {
-                                    setSelectedAnswer('');
-                                    setSelectedQuestionId('');
+                      {showAnswerDropdown && (
+                        <div className="absolute top-12 left-0 right-0 bg-white border-2 border-gray-400 rounded shadow-lg z-10 max-h-64 overflow-y-auto">
+                          {(() => {
+                            const otherFilters = activeFilters.filter(f => f.questionId !== selectedFilterQuestion.id);
+                            const relevantResponses = otherFilters.length === 0 ? responses : responses.filter(r => 
+                              otherFilters.every(f => {
+                                const answer = r.answers[f.questionId];
+                                if (!answer) return false;
+                                if (Array.isArray(answer)) {
+                                  return answer.some(item => f.answers.some(selectedAnswer => String(item).toLowerCase() === selectedAnswer.toLowerCase()));
+                                }
+                                return f.answers.some(selectedAnswer => String(answer).toLowerCase() === selectedAnswer.toLowerCase());
+                              })
+                            );
+
+                            return Array.from(
+                              new Set(
+                                relevantResponses
+                                  .map(r => r.answers?.[selectedFilterQuestion.id])
+                                  .filter(a => a !== null && a !== undefined && a !== '')
+                                  .map(a => String(a).trim())
+                              )
+                            )
+                              .sort()
+                              .map((answer) => {
+                                const answerCount = relevantResponses.filter(r => {
+                                  const ans = r.answers?.[selectedFilterQuestion.id];
+                                  if (Array.isArray(ans)) {
+                                    return ans.some(item => String(item).toLowerCase() === answer.toLowerCase());
                                   }
-                                }}
-                                className="w-3.5 h-3.5 rounded border-gray-300 text-indigo-600 cursor-pointer mt-0.5 flex-shrink-0"
-                              />
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs text-gray-700 dark:text-gray-300 truncate">{answer}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">{answerCount}</p>
-                              </div>
-                            </label>
-                          );
-                        })}
+                                  return String(ans).toLowerCase() === answer.toLowerCase();
+                                }).length;
+                                
+                                const isSelected = selectedAnswers.includes(answer);
+                                
+                                return (
+                                  <label key={answer} className="flex items-start gap-2 cursor-pointer hover:bg-blue-50 p-2.5 border-b border-gray-200 last:border-b-0 transition-colors">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        let updatedAnswers;
+                                        if (e.target.checked) {
+                                          updatedAnswers = [...selectedAnswers, answer];
+                                        } else {
+                                          updatedAnswers = selectedAnswers.filter(a => a !== answer);
+                                        }
+                                        setSelectedAnswers(updatedAnswers);
+                                        
+                                        setActiveFilters(prev => {
+                                          if (updatedAnswers.length === 0) {
+                                            return prev.filter(f => f.questionId !== selectedFilterQuestion.id);
+                                          }
+                                          const newFilters = prev.filter(f => f.questionId !== selectedFilterQuestion.id);
+                                          return [...newFilters, {
+                                            questionId: selectedFilterQuestion.id,
+                                            answers: updatedAnswers,
+                                            questionText: selectedFilterQuestion.text
+                                          }];
+                                        });
+                                      }}
+                                      className="w-4 h-4 rounded border-gray-400 cursor-pointer mt-0.5 flex-shrink-0"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs text-gray-900 truncate">{answer}</p>
+                                      <p className="text-xs text-gray-500">{answerCount}</p>
+                                    </div>
+                                  </label>
+                                );
+                              });
+                          })()}
+                        </div>
+                      )}
                     </div>
                   </>
                 ) : (
                   <div className="flex items-center justify-center h-full">
-                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center">Select a question first</p>
+                    <p className="text-sm text-gray-600 text-center">Not Selected</p>
                   </div>
                 )}
               </div>
 
-              {/* Right Side - Filter Summary & Sections */}
-              <div className="w-72 bg-white dark:bg-gray-800 overflow-y-auto p-4 flex flex-col border-l border-gray-200 dark:border-gray-700 min-w-0">
-                <label className="block text-xs font-semibold text-gray-900 dark:text-white mb-2 uppercase">
-                  Step 3: Filter
-                </label>
+              {/* Right - Common Filters & Summary */}
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col bg-gray-50">
+                <p className="text-sm font-bold text-gray-900 mb-3">Common Filters</p>
                 
-                {selectedAnswer && selectedFilterQuestion ? (
-                  <div className="mb-3 p-2 bg-green-100 dark:bg-green-900/30 rounded-lg border-2 border-green-500 dark:border-green-700 min-w-0">
-                    <p className="text-xs font-semibold text-green-900 dark:text-green-300 mb-1">ACTIVE</p>
-                    <div className="space-y-0.5 min-w-0">
-                      <p className="text-xs font-medium text-green-900 dark:text-green-300 line-clamp-2 break-words">{selectedFilterQuestion.text}</p>
-                      <p className="text-xs font-bold text-green-700 dark:text-green-400 truncate">{selectedAnswer}</p>
-                      <p className="text-xs text-green-800 dark:text-green-500">📊 {filteredResponses.length}/{responses.length}</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="mb-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-lg border border-gray-300 dark:border-gray-600">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 text-center">Select Q & A</p>
-                  </div>
-                )}
+                {/* Date Range Dropdown */}
+                <div className="mb-4 relative">
+                  <button
+                    onClick={() => setShowDateDropdown(!showDateDropdown)}
+                    className="w-full p-2.5 border-2 border-gray-400 bg-white text-gray-900 text-xs font-medium rounded flex items-center justify-between hover:bg-gray-50"
+                  >
+                    <span className="truncate">
+                      {dateFilter.type === 'all' ? 'All Time' : 
+                       dateFilter.type === 'single' ? (dateFilter.startDate || 'Select Date') : 
+                       (dateFilter.startDate && dateFilter.endDate ? `${dateFilter.startDate} - ${dateFilter.endDate}` : 'Select Range')}
+                    </span>
+                    <svg className={`w-4 h-4 transition-transform ${showDateDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                    </svg>
+                  </button>
 
-                <div className="flex-1 flex flex-col min-w-0">
-                  <label className="text-xs font-semibold text-gray-900 dark:text-white mb-2 uppercase">Sections</label>
-                  <div className="space-y-1 overflow-y-auto">
-                    {form?.sections?.map((s: any) => {
-                      const sectionResponses = filteredResponses.filter(r => 
-                        s.questions?.some((q: any) => r.answers?.[q.id] !== undefined && r.answers?.[q.id] !== null && r.answers?.[q.id] !== '')
-                      );
-                      const count = sectionResponses.length;
-                      const total = responses.filter(r => 
-                        s.questions?.some((q: any) => r.answers?.[q.id] !== undefined && r.answers?.[q.id] !== null && r.answers?.[q.id] !== '')
-                      ).length;
-                      
-                      return (
-                        <div key={s.id} className={`p-2 rounded-lg text-xs border min-w-0 ${count > 0 ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-700' : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600'}`}>
-                          <p className="font-medium text-gray-900 dark:text-white truncate text-xs">{s.title}</p>
-                          <p className={`text-xs mt-0.5 ${count > 0 ? 'text-indigo-600 dark:text-indigo-400 font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
-                            {count}/{total}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  {showDateDropdown && (
+                    <div className="absolute top-12 left-0 right-0 bg-white border-2 border-gray-400 rounded shadow-lg z-10 overflow-hidden">
+                      {/* All Time Option */}
+                      <label className="flex items-center gap-2 cursor-pointer hover:bg-blue-50 p-2.5 border-b border-gray-200 transition-colors">
+                        <input
+                          type="radio"
+                          name="dateFilterType"
+                          checked={dateFilter.type === 'all'}
+                          onChange={() => setDateFilter({ ...dateFilter, type: 'all' })}
+                          className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                        />
+                        <span className="text-xs font-medium text-gray-900">All Time</span>
+                      </label>
+
+                      {/* Specific Date Option */}
+                      <div className="border-b border-gray-200 last:border-b-0">
+                        <label className="flex items-center gap-2 cursor-pointer hover:bg-blue-50 p-2.5 transition-colors">
+                          <input
+                            type="radio"
+                            name="dateFilterType"
+                            checked={dateFilter.type === 'single'}
+                            onChange={() => setDateFilter({ ...dateFilter, type: 'single' })}
+                            className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="text-xs font-medium text-gray-900">Specific Date</span>
+                        </label>
+                        {dateFilter.type === 'single' && (
+                          <div className="px-2.5 pb-2.5 pl-8">
+                            <input
+                              type="date"
+                              value={dateFilter.startDate}
+                              onChange={(e) => setDateFilter({ ...dateFilter, startDate: e.target.value })}
+                              className="w-full p-2 border border-gray-400 bg-white text-gray-900 text-xs rounded"
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Date Range Option */}
+                      <div className="border-b border-gray-200 last:border-b-0">
+                        <label className="flex items-center gap-2 cursor-pointer hover:bg-blue-50 p-2.5 transition-colors">
+                          <input
+                            type="radio"
+                            name="dateFilterType"
+                            checked={dateFilter.type === 'range'}
+                            onChange={() => setDateFilter({ ...dateFilter, type: 'range' })}
+                            className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 cursor-pointer"
+                          />
+                          <span className="text-xs font-medium text-gray-900">Date Range</span>
+                        </label>
+                        {dateFilter.type === 'range' && (
+                          <div className="px-2.5 pb-2.5 pl-8 space-y-2">
+                            <input
+                              type="date"
+                              value={dateFilter.startDate}
+                              onChange={(e) => setDateFilter({ ...dateFilter, startDate: e.target.value })}
+                              className="w-full p-2 border border-gray-400 bg-white text-gray-900 text-xs rounded"
+                              placeholder="Start Date"
+                            />
+                            <input
+                              type="date"
+                              value={dateFilter.endDate}
+                              onChange={(e) => setDateFilter({ ...dateFilter, endDate: e.target.value })}
+                              className="w-full p-2 border border-gray-400 bg-white text-gray-900 text-xs rounded"
+                              placeholder="End Date"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Locations Dropdown */}
+                <div className="mb-4 relative">
+                  <button
+                    onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                    className="w-full p-2.5 border-2 border-gray-400 bg-white text-gray-900 text-xs font-medium rounded flex items-center justify-between hover:bg-gray-50"
+                  >
+                    <span className="truncate">
+                      {locationFilter.length > 0 ? `${locationFilter.length} selected` : 'Select Locations'}
+                    </span>
+                    <svg className={`w-4 h-4 transition-transform ${showLocationDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                    </svg>
+                  </button>
+
+                  {showLocationDropdown && (
+                    <div className="absolute top-12 left-0 right-0 bg-white border-2 border-gray-400 rounded shadow-lg z-10 max-h-64 overflow-y-auto p-2">
+                      {availableLocations.length > 0 ? (
+                        availableLocations.map(loc => (
+                          <label key={loc} className="flex items-center gap-2 cursor-pointer hover:bg-gray-100 p-2 rounded text-xs border-b border-gray-100 last:border-0">
+                            <input
+                              type="checkbox"
+                              checked={locationFilter.includes(loc)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setLocationFilter([...locationFilter, loc]);
+                                } else {
+                                  setLocationFilter(locationFilter.filter(l => l !== loc));
+                                }
+                              }}
+                              className="w-3.5 h-3.5 rounded border-gray-400 cursor-pointer"
+                            />
+                            <span className="text-gray-900 truncate" title={loc}>{loc}</span>
+                          </label>
+                        ))
+                      ) : (
+                        <p className="text-xs text-gray-500 italic p-2">No location data</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Applied Filters Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowAppliedFiltersDropdown(!showAppliedFiltersDropdown)}
+                    className="w-full p-2.5 border-2 border-gray-400 bg-white text-gray-900 text-xs font-medium rounded flex items-center justify-between hover:bg-gray-50"
+                  >
+                    <span className="truncate">
+                      Applied Filters ({activeFilters.length + (dateFilter.type !== 'all' ? 1 : 0) + (locationFilter.length > 0 ? 1 : 0)})
+                    </span>
+                    <svg className={`w-4 h-4 transition-transform ${showAppliedFiltersDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                    </svg>
+                  </button>
+
+                  {showAppliedFiltersDropdown && (
+                    <div className="absolute top-12 left-0 right-0 bg-white border-2 border-gray-400 rounded shadow-lg z-10 max-h-64 overflow-y-auto p-2">
+                      <div className="space-y-1.5">
+                        {activeFilters.map((filter, idx) => (
+                          <div key={`${filter.questionId}-${idx}`} className="p-2 bg-white border border-gray-300 rounded text-xs">
+                            <div className="flex justify-between items-start gap-1">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-gray-900 line-clamp-2 text-[11px]">{filter.questionText}</p>
+                                <p className="text-gray-600 mt-0.5 text-[11px]">{filter.answers.join(', ')}</p>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setActiveFilters(prev => prev.filter(f => f.questionId !== filter.questionId));
+                                  if (selectedFilterQuestion?.id === filter.questionId) {
+                                    setSelectedAnswers([]);
+                                  }
+                                }}
+                                className="text-gray-600 hover:text-gray-900 flex-shrink-0"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {dateFilter.type !== 'all' && (
+                          <div className="p-2 bg-white border border-gray-300 rounded text-xs">
+                            <p className="font-bold text-gray-900 text-[11px]">Date</p>
+                            <p className="text-gray-600 mt-0.5 text-[11px]">
+                              {dateFilter.type === 'single' ? dateFilter.startDate : `${dateFilter.startDate} to ${dateFilter.endDate}`}
+                            </p>
+                          </div>
+                        )}
+
+                        {locationFilter.length > 0 && (
+                          <div className="p-2 bg-white border border-gray-300 rounded text-xs">
+                            <p className="font-bold text-gray-900 text-[11px]">Locations</p>
+                            <p className="text-gray-600 mt-0.5 text-[11px]">{locationFilter.join(', ')}</p>
+                          </div>
+                        )}
+                        
+                        {activeFilters.length === 0 && dateFilter.type === 'all' && locationFilter.length === 0 && (
+                          <p className="text-gray-500 italic text-[11px] text-center py-2">No filters applied</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Footer */}
-            <div className="bg-gray-50 dark:bg-gray-700 px-6 py-3 border-t border-gray-200 dark:border-gray-600 flex items-center justify-between gap-3 min-w-0">
-              <div className="text-xs text-gray-600 dark:text-gray-400 min-w-0 truncate">
-                {selectedAnswer ? (
-                  <span>✓ Active: <strong className="truncate">{selectedAnswer}</strong></span>
-                ) : (
-                  <span>Select Q & answer</span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setShowFilterModal(false);
-                    setSelectedFilterQuestion(null);
-                    setSelectedAnswer('');
-                    setSelectedQuestionId('');
-                  }}
-                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
-                >
-                  Clear Filter
-                </button>
-                <button
-                  onClick={() => {
-                    setShowFilterModal(false);
-                  }}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-                >
-                  Close
-                </button>
-              </div>
+            <div className="bg-gray-100 px-6 py-3 border-t border-gray-300 flex items-center justify-between gap-3">
+              <button
+                onClick={() => {
+                  setActiveFilters([]);
+                  setSelectedFilterQuestion(null);
+                  setSelectedAnswers([]);
+                  setSelectedQuestionId('');
+                  setDateFilter({ type: 'all', startDate: '', endDate: '' });
+                  setLocationFilter([]);
+                  setShowSectionDropdown(false);
+                  setShowAnswerDropdown(false);
+                  setShowDateDropdown(false);
+                  setShowLocationDropdown(false);
+                  setShowAppliedFiltersDropdown(false);
+                }}
+                className="px-4 py-2 text-gray-900 bg-white border border-gray-400 hover:bg-gray-50 text-sm"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={() => {
+                  setShowFilterModal(false);
+                  setShowSectionDropdown(false);
+                  setShowAnswerDropdown(false);
+                  setShowDateDropdown(false);
+                  setShowLocationDropdown(false);
+                  setShowAppliedFiltersDropdown(false);
+                }}
+                className="px-4 py-2 bg-gray-900 text-white hover:bg-gray-800 text-sm"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>
