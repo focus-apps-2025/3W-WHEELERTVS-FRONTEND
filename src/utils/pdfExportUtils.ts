@@ -3050,7 +3050,7 @@ async function generatePDFOnServer(
     
     const controller = new AbortController();
     
-    const response = await fetch('https://formsapi.focusengineeringapp.com/api/pdf/generate', {
+    const response = await fetch('https://formsuperadmin.focusengineeringapp.com/api/pdf/generate', {
       method: 'POST',
       headers: {
         'Accept': 'application/json, application/pdf',
