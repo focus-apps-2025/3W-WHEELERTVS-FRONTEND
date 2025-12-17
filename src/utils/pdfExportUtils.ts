@@ -3035,10 +3035,14 @@ async function generatePDFOnServer(
   
   // Initial progress
   updateProgress('uploading', 5, 'Initializing...');
+   const baseUrl = (apiClient as any).baseUrl || 
+                  window.location.origin.includes('localhost') 
+                  ? 'http://localhost:5000' 
+                  : 'https://formsapi.focusengineeringapp.com';
+    const API_BASE = baseUrl;
   
-  try {
+    try {
     // Stage 1: Uploading (0-30%)
-    // Use promises to ensure sequential updates
     await new Promise(resolve => setTimeout(resolve, 200));
     updateProgress('uploading', 10, 'Preparing HTML content...');
     
@@ -3050,7 +3054,8 @@ async function generatePDFOnServer(
     
     const controller = new AbortController();
     
-    const response = await fetch('https://formsuperadmin.focusengineeringapp.com/api/pdf/generate', {
+    // Use the dynamic base URL instead of hardcoded localhost
+    const response = await fetch(`${API_BASE}/api/pdf/generate`, {  // <-- CHANGED HERE
       method: 'POST',
       headers: {
         'Accept': 'application/json, application/pdf',
@@ -3063,6 +3068,7 @@ async function generatePDFOnServer(
       }),
       signal: controller.signal
     });
+
 
     // Stage 2: Generating (30-70%)
     updateProgress('generating', 35, 'Server processing started...');
