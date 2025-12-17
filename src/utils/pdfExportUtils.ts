@@ -1,6 +1,7 @@
 import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
 import { apiClient } from '../api/client';
+import pako from 'pako';
 
 const getApiBaseUrl = (): string => {
   const hostname = window.location.hostname;
@@ -3068,6 +3069,12 @@ async function generatePDFOnServer(
     
     const controller = new AbortController();
     const apiBaseUrl = getApiBaseUrl();
+
+    // Compress content
+    const compressed = pako.gzip(htmlContent);
+    // Convert to base64
+    const base64Content = btoa(String.fromCharCode.apply(null, Array.from(compressed)));
+
     const response = await fetch(`${apiBaseUrl}/api/pdf/generate`, {
       method: "POST",
       headers: {
@@ -3075,9 +3082,10 @@ async function generatePDFOnServer(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        htmlContent: htmlContent,
+        htmlContent: base64Content,
         filename: `${options.filename}_${getPDFTypeSuffix(type)}.pdf`,
-        format: 'custom'
+        format: 'custom',
+        compressed: true
       }),
       signal: controller.signal
     });
