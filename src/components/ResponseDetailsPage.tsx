@@ -2870,10 +2870,16 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {sectionAnswers.map(([key, value]) => {
                         const question = questions[key];
+                        const isMainQuestion = question && !question.parentId && !question.showWhen?.questionId;
+                        
                         return (
                           <div
                             key={key}
-                            className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
+                            className={`rounded-lg p-4 border hover:shadow-md transition-shadow ${
+                              isMainQuestion 
+                                ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-blue-200 dark:border-blue-700" 
+                                : "bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-200 dark:border-gray-700"
+                            }`}
                           >
                             <div className="mb-3">
                               <h5 className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2">

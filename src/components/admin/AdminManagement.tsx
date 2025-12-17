@@ -94,8 +94,17 @@ export default function AdminManagement() {
     setError(null);
 
     try {
-      const data = await apiClient.getUsers({ role: "subadmin", limit: 100 });
-      setAdmins(Array.isArray(data.users) ? data.users : []);
+      const [adminData, subadminData] = await Promise.all([
+        apiClient.getUsers({ role: "admin", limit: 100 }).catch(() => ({ users: [] })),
+        apiClient.getUsers({ role: "subadmin", limit: 100 }).catch(() => ({ users: [] }))
+      ]);
+      
+      const allUsers = [
+        ...(Array.isArray(adminData.users) ? adminData.users : []),
+        ...(Array.isArray(subadminData.users) ? subadminData.users : [])
+      ];
+      
+      setAdmins(allUsers);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Failed to load administrators";
       setError(message);
@@ -305,7 +314,7 @@ export default function AdminManagement() {
           <div>
             <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Admin Management</h1>
             <p className="mt-2 text-neutral-600 dark:text-neutral-300">
-              Create and manage sub-admins for your tenant and control their module access.
+              Create and manage administrators for your tenant and control their module access.
             </p>
           </div>
         </div>
@@ -412,7 +421,7 @@ export default function AdminManagement() {
       )}
 
       <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Create sub-admin</h2>
+        <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Create admin</h2>
         <form className="mt-4 space-y-4" onSubmit={handleCreate}>
           <div className="grid gap-4 md:grid-cols-2">
             <input
@@ -484,14 +493,14 @@ export default function AdminManagement() {
             disabled={saving}
             className="inline-flex w-full items-center justify-center rounded-lg bg-primary-600 dark:bg-primary-500 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 dark:hover:bg-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
           >
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add sub-admin"}
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add admin"}
           </button>
         </form>
       </div>
 
       <div className="bg-white dark:bg-gray-900 border border-neutral-200 dark:border-gray-700 rounded-lg p-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Existing sub-admins</h2>
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Existing admins</h2>
         </div>
 
         {loading ? (
@@ -500,7 +509,7 @@ export default function AdminManagement() {
           </div>
         ) : admins.length === 0 ? (
           <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-300">
-            No sub-admins have been created yet. Add one using the form above.
+            No admins have been created yet. Add one using the form above.
           </p>
         ) : (
           <div className="mt-4 space-y-4">

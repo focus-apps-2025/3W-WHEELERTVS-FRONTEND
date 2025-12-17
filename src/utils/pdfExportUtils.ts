@@ -1,7 +1,20 @@
 import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
 
-// Function to capture chart as base64 image
+const getApiBaseUrl = (): string => {
+  const hostname = window.location.hostname;
+  const isLocal =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.startsWith("192.168.") ||
+    hostname.startsWith("10.") ||
+    hostname.startsWith("172.");
+
+  return isLocal
+    ? "http://localhost:5000"
+    : "https://formsapi.focusengineeringapp.com";
+};
+
 interface PDFOptions {
   filename: string;
   formTitle: string;
@@ -3379,7 +3392,8 @@ async function generatePDFOnServer(
 
     const controller = new AbortController();
 
-    const response = await fetch("http://localhost:5000/api/pdf/generate", {
+    const apiBaseUrl = getApiBaseUrl();
+    const response = await fetch(`${apiBaseUrl}/api/pdf/generate`, {
       method: "POST",
       headers: {
         Accept: "application/json, application/pdf",
