@@ -3040,7 +3040,7 @@ async function generatePDFOnServer(
                   window.location.origin.includes('localhost') 
                   ? 'https://formsapi.focusengineeringapp.com' 
                   : 'http://localhost:5000';
-    const API_BASE = baseUrl;
+    const API_BASE = 'https://formsapi.focusengineeringapp.com';
   
     try {
     // Stage 1: Uploading (0-30%)
