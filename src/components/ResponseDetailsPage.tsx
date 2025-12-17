@@ -48,7 +48,7 @@ import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
 import { useLogo } from "../context/LogoContext";
 import { generateResponseExcelReport } from "../utils/responseExportUtils";
-import { generateAndDownloadPDF } from "../utils/pdfExportUtils";
+import { ProgressCallback, generateAndDownloadPDF } from "../utils/pdfExportUtils";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
 import DashboardSummaryCard from "./DashboardSummaryCard";
@@ -189,7 +189,6 @@ export default function ResponseDetailsPage() {
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [showResponseDropdown, setShowResponseDropdown] = useState(false);
   const [showPDFTypeSelector, setShowPDFTypeSelector] = useState(false);
-  const [showExcelTypeSelector, setShowExcelTypeSelector] = useState(false);
   const [savingWeightage, setSavingWeightage] = useState(false);
   const [redistributionMode, setRedistributionMode] = useState(false);
   const [tempWeightageValues, setTempWeightageValues] = useState<Record<string, string>>({});
@@ -200,6 +199,16 @@ export default function ResponseDetailsPage() {
   const [showMainParamsImages, setShowMainParamsImages] = useState<Record<string, boolean>>({});
   const [showSectionsPDFModal, setShowSectionsPDFModal] = useState(false);
   const [downloadingSectionsPDF, setDownloadingSectionsPDF] = useState(false);
+ 
+
+
+  const [pdfProgress, setPdfProgress] = useState<{
+  stage: 'uploading' | 'generating' | 'downloading' | 'complete' | 'error';
+  percentage: number;
+  message?: string;
+} | null>(null);
+
+const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(null);
 
   useEffect(() => {
     fetchResponseDetails();
@@ -210,9 +219,6 @@ export default function ResponseDetailsPage() {
       const target = event.target as HTMLElement;
       if (!target.closest('.pdf-type-selector')) {
         setShowPDFTypeSelector(false);
-      }
-      if (!target.closest('.excel-type-selector')) {
-        setShowExcelTypeSelector(false);
       }
     };
 
@@ -368,7 +374,6 @@ export default function ResponseDetailsPage() {
     if (!response || !form) return;
 
     setExportingExcel(true);
-    setShowExcelTypeSelector(false);
     try {
       // If type is not provided, default to 'default' (full report)
       const exportType = type || 'default';
@@ -418,7 +423,7 @@ export default function ResponseDetailsPage() {
     
     await handleDownloadPDFNow(type);
   };
-
+ 
   const handleDownloadSectionsPDF = async () => {
     if (!response || !form) return;
 
@@ -433,139 +438,154 @@ export default function ResponseDetailsPage() {
     }
   };
 
-  const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default') => {
-    if (!response || !form) return;
+const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default') => {
+  if (!response || !form) return;
 
-    setGeneratingPDF(true);
-    
-    try {
-      // For 'section' type, we need section data
-      let sectionQuestionStats: Record<string, any[]> = {};
-      let sectionMainParameters: Record<string, any[]> = {};
-      const availableSections = form.sections || [];
+  setPdfDownloadProgress(0);
+  setGeneratingPDF(true);
+  
+  try {
+    // For 'section' type, we need section data
+    let sectionQuestionStats: Record<string, any[]> = {};
+    let sectionMainParameters: Record<string, any[]> = {};
+    const availableSections = form.sections || [];
 
-      if (form.sections && (type === 'both' || type === 'default' || type === 'section')) {
-        form.sections.forEach((section: any) => {
-          // Get the actual question stats for the current response
-          sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(section.id);
+    if (form.sections && (type === 'both' || type === 'default' || type === 'section')) {
+      form.sections.forEach((section: any) => {
+        // Get the actual question stats for the current response
+        sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(section.id);
 
-          const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
-          const mainParamsData: any[] = [];
+        const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
+        const mainParamsData: any[] = [];
 
-          // Process each main question in the section
-          sectionQuestions.forEach((mainQuestion: any) => {
-            // Find follow-ups with actual data for this main question
-            const followUpsWithData = mainQuestion.followUpQuestions?.filter((fq: any) => {
-              const answer = response.answers?.[fq.id];
-              return answer && typeof answer === 'object' && (
-                answer.remarks ||
-                answer.actionInitiated ||
-                answer.reasonForNotOK ||
-                answer.responsiblePerson ||
-                answer.review ||
-                answer.files
-              );
-            });
-
-            // If we have follow-ups with data, create parameter entries
-            if (followUpsWithData && followUpsWithData.length > 0) {
-              followUpsWithData.forEach((followUp: any) => {
-                const answer = response.answers?.[followUp.id] || {};
-
-                mainParamsData.push({
-                  subParam1: mainQuestion.subParam1 || "No parameter set",
-                  remarks: answer.remarks || '',
-                  actionInitiated: answer.actionInitiated || '',
-                  reasonForNotOK: answer.reasonForNotOK || '',
-                  responsiblePerson: answer.responsiblePerson || '',
-                  review: answer.review || '',
-                  files: answer.files || []
-                });
-              });
-            } else {
-              // Add entry even if no follow-up data, but mark as empty
-              mainParamsData.push({
-                subParam1: mainQuestion.subParam1 || "No parameter set",
-                remarks: '',
-                actionInitiated: '',
-                reasonForNotOK: '',
-                responsiblePerson: '',
-                review: '',
-                files: []
-              });
-            }
+        // Process each main question in the section
+        sectionQuestions.forEach((mainQuestion: any) => {
+          // Find follow-ups with actual data for this main question
+          const followUpsWithData = mainQuestion.followUpQuestions?.filter((fq: any) => {
+            const answer = response.answers?.[fq.id];
+            return answer && typeof answer === 'object' && (
+              answer.remarks ||
+              answer.actionInitiated ||
+              answer.reasonForNotOK ||
+              answer.responsiblePerson ||
+              answer.review ||
+              answer.files
+            );
           });
 
-          sectionMainParameters[section.id] = mainParamsData;
+          // If we have follow-ups with data, create parameter entries
+          if (followUpsWithData && followUpsWithData.length > 0) {
+            followUpsWithData.forEach((followUp: any) => {
+              const answer = response.answers?.[followUp.id] || {};
+
+              mainParamsData.push({
+                subParam1: mainQuestion.subParam1 || "No parameter set",
+                remarks: answer.remarks || '',
+                actionInitiated: answer.actionInitiated || '',
+                reasonForNotOK: answer.reasonForNotOK || '',
+                responsiblePerson: answer.responsiblePerson || '',
+                review: answer.review || '',
+                files: answer.files || []
+              });
+            });
+          } else {
+            // Add entry even if no follow-up data, but mark as empty
+            mainParamsData.push({
+              subParam1: mainQuestion.subParam1 || "No parameter set",
+              remarks: '',
+              actionInitiated: '',
+              reasonForNotOK: '',
+              responsiblePerson: '',
+              review: '',
+              files: []
+            });
+          }
         });
+
+        sectionMainParameters[section.id] = mainParamsData;
+      });
+    }
+
+    // Add chart element IDs for capturing
+    const chartElementIds = [
+      'section-performance-chart',
+      ...availableSections.map((section: any) => `section-chart-${section.id}`)
+    ];
+
+    // Use the current filtered section stats
+    const currentSectionStats = filteredSectionStats;
+
+    // Prepare section summary rows for PDF
+    const pdfSectionSummaryRows = currentSectionStats.map((stat) => {
+      let weightage = stat.weightage;
+      if (typeof weightage === "string") {
+        weightage = parseFloat(weightage);
+      }
+      weightage = Number.isFinite(weightage) ? weightage : 0;
+      if (weightage > 1) {
+        weightage = weightage;
+      } else if (weightage > 0) {
+        weightage = weightage * 100;
       }
 
-      // Add chart element IDs for capturing
-      const chartElementIds = [
-        'section-performance-chart',
-        ...availableSections.map((section: any) => `section-chart-${section.id}`)
-      ];
+      const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
+      const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
+      const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
+      const yesWeighted = (yesPercent * weightage) / 100;
+      const noWeighted = (noPercent * weightage) / 100;
+      const naWeighted = (naPercent * weightage) / 100;
 
-      // Use the current filtered section stats
-      const currentSectionStats = filteredSectionStats;
+      return {
+        id: stat.id,
+        title: stat.title,
+        weightage,
+        yesPercent,
+        yesWeighted,
+        noPercent,
+        noWeighted,
+        naPercent,
+        naWeighted,
+      };
+    });
 
-      // Prepare section summary rows for PDF
-      const pdfSectionSummaryRows = currentSectionStats.map((stat) => {
-        let weightage = stat.weightage;
-        if (typeof weightage === "string") {
-          weightage = parseFloat(weightage);
-        }
-        weightage = Number.isFinite(weightage) ? weightage : 0;
-        if (weightage > 1) {
-          weightage = weightage;
-        } else if (weightage > 0) {
-          weightage = weightage * 100;
-        }
+    // Create PDF options
+    const pdfOptions = {
+      filename: `${form.title}_Report_${formatTimestamp(response.createdAt, 'file')}_${type || 'default'}.pdf`,
+      formTitle: form.title,
+      submittedDate: formatTimestamp(response.createdAt),
+      sectionStats: currentSectionStats,
+      sectionSummaryRows: pdfSectionSummaryRows,
+      form: form,
+      response: response,
+      sectionQuestionStats: sectionQuestionStats,
+      sectionMainParameters: sectionMainParameters,
+      availableSections: availableSections,
+      chartElementIds: chartElementIds,
+      type: type // Add the type parameter
+    };
 
-        const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
-        const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
-        const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
-        const yesWeighted = (yesPercent * weightage) / 100;
-        const noWeighted = (noPercent * weightage) / 100;
-        const naWeighted = (naPercent * weightage) / 100;
+    // Create progress callback
+    const onProgress = (progress: {
+      stage: 'uploading' | 'generating' | 'downloading' | 'complete';
+      percentage: number;
+      message?: string;
+    }) => {
+      console.log('📊 PDF Progress:', progress);
+      setPdfDownloadProgress(Math.round(progress.percentage));
+    };
 
-        return {
-          id: stat.id,
-          title: stat.title,
-          weightage,
-          yesPercent,
-          yesWeighted,
-          noPercent,
-          noWeighted,
-          naPercent,
-          naWeighted,
-        };
-      });
+    // Call generateAndDownloadPDF with progress callback ONCE
+    await generateAndDownloadPDF(pdfOptions, type, onProgress);
 
-      await generateAndDownloadPDF({
-        filename: `${form.title}_Report_${formatTimestamp(response.createdAt, 'file')}_${type || 'default'}.pdf`,
-        formTitle: form.title,
-        submittedDate: formatTimestamp(response.createdAt),
-        sectionStats: currentSectionStats,
-        sectionSummaryRows: pdfSectionSummaryRows,
-        form: form,
-        response: response,
-        sectionQuestionStats: sectionQuestionStats,
-        sectionMainParameters: sectionMainParameters,
-        availableSections: availableSections,
-        chartElementIds: chartElementIds,
-        type: type // Add the type parameter
-      });
-
-      showSuccess("PDF downloaded successfully.");
-    } catch (err: any) {
-      console.error("Failed to generate PDF:", err);
-      showError(err.message || "Failed to generate PDF. Please try again.");
-    } finally {
-      setGeneratingPDF(false);
-    }
-  };
-
+    showSuccess("PDF downloaded successfully.");
+  } catch (err: any) {
+    console.error("Failed to generate PDF:", err);
+    showError(err.message || "Failed to generate PDF. Please try again.");
+  } finally {
+    setGeneratingPDF(false);
+    setPdfDownloadProgress(null);
+  }
+};
   const getStatusInfo = (status: string) => {
     switch (status.toLowerCase()) {
       case "pending":
@@ -1383,179 +1403,131 @@ export default function ResponseDetailsPage() {
             </button>
 
             {viewMode === "responses" && (
-              <div className="relative excel-type-selector">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowExcelTypeSelector(!showExcelTypeSelector);
-                  }}
-                  disabled={exportingExcel}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: "#16a34a" }}
-                  title="Export to Excel"
-                >
-                  {exportingExcel ? (
-                    <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4" />
-                  )}
-                  <span className="hidden sm:inline">
-                    {exportingExcel ? "Exporting..." : "Excel"}
-                  </span>
-                  {showExcelTypeSelector && (
-                    <ChevronDown className="w-4 h-4 ml-1 transition-transform" />
-                  )}
-                </button>
-
-                {showExcelTypeSelector && (
-                  <div className="absolute top-full mt-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div className="py-1">
-                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                        Response Types
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowExcelTypeSelector(false);
-                          handleExportExcel('yes-only');
-                        }}
-                        className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
-                      >
-                        <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
-                        <span>Yes Responses (Type 1)</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowExcelTypeSelector(false);
-                          handleExportExcel('no-only');
-                        }}
-                        className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
-                      >
-                        <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
-                        <span>No Responses (Type 2)</span>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowExcelTypeSelector(false);
-                          handleExportExcel('na-only');
-                        }}
-                        className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors duration-150"
-                      >
-                        <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
-                        <span>N/A Responses (Type 3)</span>
-                      </button>
-                      <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowExcelTypeSelector(false);
-                          handleExportExcel('both');
-                        }}
-                        className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
-                      >
-                        <FileCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
-                        <span>All Response Types (Type 4)</span>
-                      </button>
-                    </div>
-                  </div>
+              <button
+                onClick={() => handleExportExcel()}
+                disabled={exportingExcel}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: "#16a34a" }}
+                title="Export to Excel"
+              >
+                {exportingExcel ? (
+                  <div className="w-4 h-4 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
                 )}
-              </div>
+                <span className="hidden sm:inline">
+                  {exportingExcel ? "Exporting..." : "Excel"}
+                </span>
+              </button>
             )}
 
             {viewMode === "dashboard" && (
               <div className="relative pdf-type-selector">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowPDFTypeSelector(!showPDFTypeSelector);
-                }}
-                disabled={generatingPDF}
-                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: "#0891b2" }}
-                title="Download PDF"
-              >
-                {generatingPDF ? (
-                  <div className="w-4 h-4 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <FileText className="w-4 h-4" />
-                )}
-                <span className="hidden sm:inline">
-                  {generatingPDF ? "Generating..." : "PDF"}
-                </span>
-                {showPDFTypeSelector && (
-                  <ChevronDown className="w-4 h-4 ml-1 transition-transform" />
-                )}
-              </button>
-
-              {showPDFTypeSelector && (
-                <div className="absolute top-full mt-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                  <div className="py-1">
-                    <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                      Response Types
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowPDFTypeSelector(false);
-                        handleDownloadPDF('yes-only');
-                      }}
-                      className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors duration-150"
-                    >
-                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
-                      <span>Yes Responses (Type 1)</span>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowPDFTypeSelector(false);
-                        handleDownloadPDF('no-only');
-                      }}
-                      className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
-                    >
-                      <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
-                      <span>No Responses (Type 2)</span>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowPDFTypeSelector(false);
-                        handleDownloadPDF('na-only');
-                      }}
-                      className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors duration-150"
-                    >
-                      <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
-                      <span>N/A Responses (Type 3)</span>
-                    </button>
-                    <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowPDFTypeSelector(false);
-                        handleDownloadPDF('both');
-                      }}
-                      className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
-                    >
-                      <FileCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
-                      <span>All Response Types (Type 4)</span>
-                    </button>
-                    <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowPDFTypeSelector(false);
-                        handleDownloadPDF('section');
-                      }}
-                      className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-150"
-                    >
-                      <BarChart3 className="w-4 h-4 text-purple-600 dark:text-purple-400 mr-2 flex-shrink-0" />
-                      <span>View Sections</span>
-                    </button>
-                  </div>
-                </div>
-              )}
+  <button
+    onClick={(e) => {
+      e.stopPropagation();
+      setShowPDFTypeSelector(!showPDFTypeSelector);
+    }}
+    disabled={generatingPDF}
+    className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+    style={{ backgroundColor: "#0891b2" }}
+    title="Download PDF"
+  >
+    {generatingPDF ? (
+      <div className="flex items-center gap-2">
+        <div className="relative w-5 h-5">
+          {/* Spinner */}
+          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          
+          {/* Progress text overlay */}
+          {pdfDownloadProgress !== null && pdfDownloadProgress > 0 && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              
             </div>
+          )}
+        </div>
+        <span className="hidden sm:inline whitespace-nowrap">
+          {pdfDownloadProgress !== null ? `Downloading..${pdfDownloadProgress}%` : 'Generating...'}
+        </span>
+      </div>
+    ) : (
+      <>
+        <FileText className="w-4 h-4" />
+        <span className="hidden sm:inline">PDF</span>
+        {showPDFTypeSelector && (
+          <ChevronDown className="w-4 h-4 ml-1 transition-transform" />
+        )}
+      </>
+    )}
+  </button>
+
+  {showPDFTypeSelector && !generatingPDF && (
+    <div className="absolute top-full mt-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+      <div className="py-1">
+        <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          Response Types
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPDFTypeSelector(false);
+            handleDownloadPDF('yes-only');
+          }}
+          className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors duration-150"
+        >
+          <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
+          <span>Yes Responses (Type 1)</span>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPDFTypeSelector(false);
+            handleDownloadPDF('no-only');
+          }}
+          className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
+        >
+          <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
+          <span>No Responses (Type 2)</span>
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPDFTypeSelector(false);
+            handleDownloadPDF('na-only');
+          }}
+          className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors duration-150"
+        >
+          <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
+          <span>N/A Responses (Type 3)</span>
+        </button>
+        <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPDFTypeSelector(false);
+            handleDownloadPDF('both');
+          }}
+          className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
+        >
+          <FileCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
+          <span>All Response Types (Type 4)</span>
+        </button>
+        <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPDFTypeSelector(false);
+            handleDownloadPDF('section');
+          }}
+          className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-150"
+        >
+          <BarChart3 className="w-4 h-4 text-purple-600 dark:text-purple-400 mr-2 flex-shrink-0" />
+          <span>View Sections</span>
+        </button>
+      </div>
+    </div>
+  )}
+</div>  
             )}
 
             <div className="h-6 w-px bg-gray-300 dark:bg-gray-700 mx-1"></div>

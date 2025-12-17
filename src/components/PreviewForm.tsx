@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AlertCircle } from "lucide-react";
 import type { Question, Response, Section, FollowUpQuestion } from "../types";
@@ -119,7 +119,7 @@ const normalizeTriggerValue = (
 
 interface PreviewFormProps {
   questions: Question[];
-  onSubmit: (response: Response) => void;
+  onSubmit: (response: Response) => Promise<void> | void;
   branchingRules?: any[];
 }
 
@@ -132,6 +132,7 @@ export default function PreviewForm({
   const navigate = useNavigate();
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [branchingAlert, setBranchingAlert] = useState<string | null>(null);
   const [visitedSectionIndices, setVisitedSectionIndices] = useState<
@@ -145,6 +146,13 @@ export default function PreviewForm({
   );
   const [parentSectionIndex, setParentSectionIndex] = useState<number | null>(null);
   const { getOrderedVisibleQuestions } = useQuestionLogic();
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
 
   const branchingRules = propBranchingRules;
   const question = questions.find((q) => q.id === id);
@@ -390,7 +398,7 @@ export default function PreviewForm({
     return null;
   };
 
-  const handleSubmit = (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
 
     if (hasMissingRequiredAnswers()) {
@@ -423,16 +431,33 @@ export default function PreviewForm({
 
           // Store the linked form ID to show in the thank you message
           setLinkedFollowUpForm(linkedFormId);
-          onSubmit(response);
-          setSubmitted(true);
+          
+          try {
+            setIsSubmitting(true);
+            await onSubmit(response);
+            if (isMounted.current) setSubmitted(true);
+          } catch (error) {
+            console.error("Submission failed:", error);
+          } finally {
+            if (isMounted.current) setIsSubmitting(false);
+          }
           return;
         }
       }
     }
 
     console.log("[Follow-up Form] No linked forms found");
-    onSubmit(response);
-    setSubmitted(true);
+    
+    try {
+      setIsSubmitting(true);
+      await onSubmit(response);
+      if (isMounted.current) setSubmitted(true);
+    } catch (error) {
+      console.error("Submission failed:", error);
+      // Don't set submitted(true) if submission failed
+    } finally {
+      if (isMounted.current) setIsSubmitting(false);
+    }
   };
 
   const handleAnswerChange = (questionId: string, value: any) => {
@@ -672,6 +697,7 @@ export default function PreviewForm({
             onNext={handleNext}
             onSubmit={handleSubmit}
             submitDisabled={submitDisabled}
+            isSubmitting={isSubmitting}
           />
         </form>
       </div>

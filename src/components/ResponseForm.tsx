@@ -461,11 +461,37 @@ export default function ResponseForm({
       answers,
       timestamp: new Date().toISOString(),
       parentResponseId: selectedParentResponse?.id,
+      submissionMetadata: {
+        source: 'internal'
+      }
     };
 
     try {
+      const submitData: any = { ...response };
+
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: false,
+              timeout: 5000,
+              maximumAge: 0
+            });
+          });
+
+          submitData.location = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            source: 'browser'
+          };
+        } catch (geoErr) {
+          console.warn("Geolocation not available:", geoErr);
+        }
+      }
+
       // Save response to backend
-      await apiClient.submitResponse(question.id, response);
+      await apiClient.submitResponse(question.id, submitData);
 
       // Also save to local storage for backward compatibility
       responsesApi.save(response);

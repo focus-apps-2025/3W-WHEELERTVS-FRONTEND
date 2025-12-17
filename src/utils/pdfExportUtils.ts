@@ -42,6 +42,871 @@ interface PDFOptions {
     | undefined; // Add this new parameter
 }
 
+function formatQuestionNumberForDisplay(qNumber: string): string {
+  if (!qNumber) return qNumber;
+
+  // Handle formats:
+  // "Q3.4" → "S3.Q4"
+  // "Q3.4.1" → "S3.Q4.1"
+  // "S3.Q4" (already correct) → keep as is
+
+  if (qNumber.startsWith("S")) {
+    return qNumber; // Already in correct format
+  }
+
+  if (qNumber.startsWith("Q")) {
+    // Remove the leading Q
+    const rest = qNumber.substring(1);
+    // Find the first dot
+    const firstDotIndex = rest.indexOf(".");
+    if (firstDotIndex > 0) {
+      const sectionNum = rest.substring(0, firstDotIndex);
+      const questionPart = rest.substring(firstDotIndex + 1);
+      return `S${sectionNum}.Q${questionPart}`;
+    }
+  }
+
+  return qNumber; // Return as is if pattern doesn't match
+}
+// New function for combined response analysis (shows same question multiple times if has multiple responses)
+function generateCombinedResponseAnalysis(
+  form: any,
+  response: any,
+  availableSections: any[]
+): string {
+  console.log("🔍 Starting COMBINED Response Analysis generation...");
+
+  if (!form || !response || !response.answers) {
+    console.log("❌ No form, response, or answers available");
+    return "";
+  }
+
+  // Build nested structure from flat data
+  const nestedForm = buildNestedFormForAnalysis(availableSections);
+  const sectionsToUse = nestedForm.sections || [];
+
+  console.log("✅ Built nested form structure");
+  console.log(`📊 Sections: ${sectionsToUse.length}`);
+
+  // Collect ALL responses (YES, NO, NA) - a question can appear multiple times
+  const allResponses: Array<{
+    sectionId: string;
+    sectionTitle: string;
+    questionId: string;
+    questionNumber: string;
+    questionText: string;
+    response: "YES" | "NO" | "NA";
+    followUpQuestions: Array<{
+      id: string;
+      text: string;
+      answer: any;
+      number: string;
+    }>;
+    suggestion: string;
+    recommendation?: string;
+  }> = [];
+
+  // Recursive function to process questions
+  const processQuestion = (
+    question: any,
+    section: any,
+    depth: number = 0,
+    sectionIndex: number,
+    questionIndex: number,
+    followUpPath: number[] = []
+  ) => {
+    const answer = response.answers?.[question.id];
+    const questionNumber = getQuestionNumber(
+      question,
+      sectionIndex,
+      questionIndex,
+      followUpPath
+    );
+
+    // Check for ALL response types for this question
+    if (depth === 0) {
+      // Check for YES response
+      if (isYesResponse(answer)) {
+        console.log(
+          `\n✅ Found YES response for ${questionNumber}: "${question.text}"`
+        );
+        addResponseToCollection(
+          question,
+          section,
+          sectionIndex,
+          questionIndex,
+          followUpPath,
+          "YES",
+          answer
+        );
+      }
+
+      // Check for NO response
+      if (isNoResponse(answer)) {
+        console.log(
+          `\n✅ Found NO response for ${questionNumber}: "${question.text}"`
+        );
+        addResponseToCollection(
+          question,
+          section,
+          sectionIndex,
+          questionIndex,
+          followUpPath,
+          "NO",
+          answer
+        );
+      }
+
+      // Check for NA response
+      if (isNAResponse(answer)) {
+        console.log(
+          `\n✅ Found NA response for ${questionNumber}: "${question.text}"`
+        );
+        addResponseToCollection(
+          question,
+          section,
+          sectionIndex,
+          questionIndex,
+          followUpPath,
+          "NA",
+          answer
+        );
+      }
+    }
+
+    if (question.followUpQuestions && question.followUpQuestions.length > 0) {
+      question.followUpQuestions.forEach((fq: any, fqIndex: number) => {
+        const newFollowUpPath = [...followUpPath, fqIndex + 1];
+        processQuestion(
+          fq,
+          section,
+          depth + 1,
+          sectionIndex,
+          questionIndex,
+          newFollowUpPath
+        );
+      });
+    }
+  };
+
+  // Helper function to add a response to the collection
+  const addResponseToCollection = (
+    question: any,
+    section: any,
+    sectionIndex: number,
+    questionIndex: number,
+    followUpPath: number[],
+    responseType: "YES" | "NO" | "NA",
+    answer: any
+  ) => {
+    const questionNumber = getQuestionNumber(
+      question,
+      sectionIndex,
+      questionIndex,
+      followUpPath
+    );
+
+    const followUps: Array<{
+      id: string;
+      text: string;
+      answer: any;
+      number: string;
+    }> = [];
+
+    const collectFollowUps = (
+      questions: any[],
+      currentDepth: number,
+      parentPath: number[]
+    ) => {
+      questions.forEach((fq, fqIndex) => {
+        const followUpAnswer = response.answers?.[fq.id];
+        const fuPath = [...parentPath, fqIndex + 1];
+        const followUpNumber = `${questionNumber}.${fqIndex + 1}`;
+
+        const isRealAnswer = checkIfRealAnswer(followUpAnswer, fq.text);
+
+        if (isRealAnswer) {
+          console.log(`       ✅ Adding to followUps (has real answer)`);
+          followUps.push({
+            id: fq.id,
+            text: fq.text,
+            answer: followUpAnswer,
+            number: followUpNumber,
+          });
+        } else {
+          console.log(`       ❌ Skipping follow-up (not a real answer)`);
+        }
+
+        if (fq.followUpQuestions && fq.followUpQuestions.length > 0) {
+          collectFollowUps(fq.followUpQuestions, currentDepth + 1, fuPath);
+        }
+      });
+    };
+
+    if (question.followUpQuestions && question.followUpQuestions.length > 0) {
+      console.log(
+        `   📞 Starting to collect follow-ups for: "${question.text}"`
+      );
+      collectFollowUps(question.followUpQuestions, 1, []);
+    } else {
+      console.log(`   ⓘ No follow-up questions found for: "${question.text}"`);
+    }
+
+    const suggestion =
+      question.suggestion ||
+      question.recommendation ||
+      question.actionItem ||
+      question.correctiveAction ||
+      question.guidance ||
+      question.notes ||
+      question.instruction ||
+      "";
+
+    allResponses.push({
+      sectionId: section.id,
+      sectionTitle: section.title || section.name || "Unknown Section",
+      questionId: question.id,
+      questionNumber: questionNumber,
+      questionText: question.text,
+      response: responseType,
+      followUpQuestions: followUps,
+      suggestion: suggestion,
+      recommendation: question.recommendation || question.actionItem,
+    });
+
+    console.log(
+      `   ✅ Added ${responseType} response with ${followUps.length} follow-up answer(s)`
+    );
+  };
+
+  // Process all sections and questions
+  console.log(`\n🔍 Processing nested sections for ALL responses...`);
+  sectionsToUse.forEach((section, sectionIndex) => {
+    console.log(`\n📁 Processing section: "${section.title}"`);
+    if (section.questions && section.questions.length > 0) {
+      console.log(`   Questions: ${section.questions.length}`);
+      section.questions.forEach((question: any, questionIndex: number) => {
+        console.log(
+          `   Q${sectionIndex + 1}.${
+            questionIndex + 1
+          }: "${question.text.substring(0, 50)}..."`
+        );
+        processQuestion(question, section, 0, sectionIndex, questionIndex, []);
+      });
+    }
+  });
+
+  console.log(`\n📊 Found ${allResponses.length} total responses`);
+
+  if (allResponses.length === 0) {
+    return "";
+  }
+
+  // Group responses by section
+  const responsesBySection = allResponses.reduce(
+    (groups: Record<string, any[]>, response) => {
+      if (!groups[response.sectionTitle]) {
+        groups[response.sectionTitle] = [];
+      }
+      groups[response.sectionTitle].push(response);
+      return groups;
+    },
+    {}
+  );
+
+  // Generate HTML
+  let html = "";
+
+  Object.entries(responsesBySection).forEach(
+    ([sectionTitle, responses], sectionIndex) => {
+      responses.forEach((response, responseIndex) => {
+        const responseFollowUps = response.followUpQuestions || [];
+        const hasSuggestion =
+          response.suggestion && response.suggestion.trim() !== "";
+
+        // Set color based on response type
+        let responseColor = "";
+        switch (response.response) {
+          case "NO":
+            responseColor = "red";
+            break;
+          case "YES":
+            responseColor = "black";
+            break;
+          case "NA":
+            responseColor = "#f59e0b";
+            break;
+        }
+
+        // Use the existing HTML template but remove the ${responseType.toUpperCase()} from the comment
+        html += `
+<!-- Separate Table for EACH Question -->
+<table style="width: 100%; border-collapse: collapse; border: 1px solid #666; margin: -5 0 20px 0; page-break-after: always;">
+  
+  <!-- SECTION HEADER -->
+  <tr style="background: #ffffffff;">
+    <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 14px; font-weight: 800; color: #1e3a8a;">
+        ${sectionTitle} - ${formatQuestionNumberForDisplay(
+          response.questionNumber
+        )}
+    </td>
+  </tr>
+  
+  <!-- TABLE HEADERS -->
+  <tr style="background:#1e3a8a;">
+    <td style="border: 1px solid #666; padding: 8px; font-weight: 700; font-size: 11px; width: 15%;background:#1e3a8a; color:#ffffffff">
+      Question No
+    </td>
+    <td style="border: 1px solid #666; padding: 8px; font-weight: 700; font-size: 11px; width: 75%;background:#1e3a8a;color:#ffffffff">
+      Question
+    </td>
+    <td style="border: 1px solid #666; padding: 8px; text-align: center; font-weight: 700; font-size: 11px; width: 10%;background:#1e3a8a;color:#ffffffff">
+      Response
+    </td>
+  </tr>
+  
+  <!-- MAIN QUESTION ROW -->
+  <tr style="background: #ffffff;">
+    <td style="border: 1px solid #666; padding: 8px; vertical-align: top; font-size: 10px; font-weight: 600; color: #374151;page-break-inside: avoid;">
+      ${formatQuestionNumberForDisplay(response.questionNumber)}
+    </td>
+    <td style="border: 1px solid #666; padding: 8px; vertical-align: top; font-size: 10px; color: #4b5563; line-height: 1.6;page-break-inside: avoid;">
+      ${response.questionText}
+    </td>
+    <td style="border: 1px solid #666; padding: 8px; vertical-align: middle; text-align: center; font-size: 11px; font-weight: 600; color: ${responseColor};page-break-inside: avoid;">
+      ${response.response}
+    </td>
+  </tr>
+`;
+        if (responseFollowUps.length > 0) {
+          html += `
+<!-- FOLLOW-UP SECTION HEADER -->
+<tr style="background: #f8fafc;">
+  <td colspan="3" style="border: 1px solid #666; padding: 5px; font-size: 12px; font-weight: 700; color: #1e3a8a;">
+    Follow-up Questions:
+  </td>
+</tr>
+`;
+
+          // Split follow-up questions into two columns
+          const midPoint = Math.ceil(responseFollowUps.length / 2);
+          const leftColumnQuestions = responseFollowUps.slice(0, midPoint);
+          const rightColumnQuestions = responseFollowUps.slice(midPoint);
+
+          // Start the two-column table
+          html += `
+<tr style="background: #ffffff;">
+  <td colspan="3" style="border: 1px solid #666; padding: 0;">
+    <table style="width: 100%; border-collapse: collapse; border: none;">
+      <tr>
+        <!-- LEFT COLUMN -->
+        <td style="width: 50%; padding: 0; border-right: 1px solid #e2e8f0; vertical-align: top;">
+          <div style="padding: 10px;">
+  `;
+
+          // Display left column questions
+          leftColumnQuestions.forEach((fq, index) => {
+            const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
+            let answerDisplay = "";
+            let locationInfo = "";
+
+            try {
+              let parsedAnswer = fq.answer;
+              if (typeof fq.answer === "string") {
+                try {
+                  parsedAnswer = JSON.parse(fq.answer);
+                } catch (e) {
+                  // Not JSON, keep as string
+                }
+              }
+
+              // Helper function to check if a string is an image URL
+              const isImageUrl = (urlString: string): boolean => {
+                if (!urlString || typeof urlString !== "string") return false;
+                const url = urlString.toLowerCase().trim();
+                const imageExtensions = [
+                  ".jpg",
+                  ".jpeg",
+                  ".png",
+                  ".gif",
+                  ".bmp",
+                  ".webp",
+                  ".svg",
+                  ".jpg?",
+                  ".jpeg?",
+                  ".png?",
+                  ".gif?",
+                  ".bmp?",
+                  ".webp?",
+                  ".svg?",
+                  ".jpg&",
+                  ".jpeg&",
+                  ".png&",
+                  ".gif&",
+                  ".bmp&",
+                  ".webp&",
+                  ".svg&",
+                ];
+                const imageHostingPatterns = [
+                  "cloudinary.com",
+                  "imgur.com",
+                  "images.unsplash.com",
+                  "i.imgur.com",
+                  "storage.googleapis.com",
+                  "amazonaws.com",
+                  "/uploads/",
+                  "/images/",
+                  "/img/",
+                  "/media/",
+                  "/photos/",
+                ];
+                const hasImageExtension = imageExtensions.some((ext) =>
+                  url.includes(ext)
+                );
+                const hasImagePattern = imageHostingPatterns.some((pattern) =>
+                  url.includes(pattern)
+                );
+                const isDataUrl = url.startsWith("data:image");
+                return hasImageExtension || hasImagePattern || isDataUrl;
+              };
+
+              // Function to extract image URLs
+              const getImageUrls = (
+                answer: any
+              ): Array<{
+                url: string;
+                location?: any;
+                timestamp?: string;
+              }> => {
+                const images: Array<{
+                  url: string;
+                  location?: any;
+                  timestamp?: string;
+                }> = [];
+                if (!answer) return images;
+
+                if (typeof answer === "string") {
+                  if (isImageUrl(answer)) {
+                    images.push({ url: answer });
+                  }
+                  return images;
+                }
+
+                if (Array.isArray(answer)) {
+                  answer.forEach((item) => {
+                    if (typeof item === "string" && isImageUrl(item)) {
+                      images.push({ url: item });
+                    } else if (item && typeof item === "object") {
+                      const potentialUrl =
+                        item.url ||
+                        item.imageUrl ||
+                        item.image ||
+                        item.photo ||
+                        item.src;
+                      if (potentialUrl && isImageUrl(potentialUrl)) {
+                        images.push({
+                          url: potentialUrl,
+                          location: item.location,
+                          timestamp: item.timestamp,
+                        });
+                      }
+                    }
+                  });
+                  return images;
+                }
+
+                if (typeof answer === "object") {
+                  const potentialUrl =
+                    answer.url ||
+                    answer.imageUrl ||
+                    answer.image ||
+                    answer.photo ||
+                    answer.src;
+                  if (potentialUrl && isImageUrl(potentialUrl)) {
+                    images.push({
+                      url: potentialUrl,
+                      location: answer.location,
+                      timestamp: answer.timestamp,
+                    });
+                  }
+                }
+                return images;
+              };
+
+              // Check for images
+              const imageUrls = getImageUrls(parsedAnswer);
+
+              if (imageUrls.length > 0) {
+                const imagesWithLocation = imageUrls.filter(
+                  (img) => img.location
+                ).length;
+
+                answerDisplay = `
+          <div style="margin-top: 5px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+        `;
+
+                imageUrls.forEach((image, imgIndex) => {
+                  answerDisplay += `
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;">
+              <img src="${image.url}" 
+                   style="width: 80px; height: 80px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; margin-bottom: 2px;"
+                   alt="Evidence ${imgIndex + 1}"
+                   onerror="this.onerror=null; this.src='https://via.placeholder.com/70/cccccc/999999?text=Image+Error'; this.style.border='1px solid #dc2626';">
+              ${
+                image.location
+                  ? `
+                <div style="font-size: 7px; color: #4b5563; text-align: center; line-height: 1.1; max-width: 70px;">
+                  <div style="font-weight: 600;">📍</div>
+                  <div>Lat: ${image.location.latitude.toFixed(4)}</div>
+                  <div>Long: ${image.location.longitude.toFixed(4)}</div>
+                </div>
+              `
+                  : ""
+              }
+            </div>
+          `;
+                });
+
+                answerDisplay += `
+            </div>
+          </div>
+        `;
+
+                if (imagesWithLocation > 0) {
+                  locationInfo = `
+            <div style="font-size: 8px; color: #4b5563; margin-top: 3px; padding: 3px; background: #f0f9ff; border-radius: 2px;">
+              📍 ${imagesWithLocation} of ${imageUrls.length} images have location
+            </div>
+          `;
+                }
+              } else if (typeof parsedAnswer === "string") {
+                let cleanAnswer = parsedAnswer.trim();
+                if (cleanAnswer.includes(fq.text)) {
+                  cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
+                  cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
+                }
+                answerDisplay =
+                  cleanAnswer ||
+                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+              } else if (
+                parsedAnswer === null ||
+                parsedAnswer === undefined ||
+                parsedAnswer === ""
+              ) {
+                answerDisplay =
+                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+              } else {
+                answerDisplay = String(parsedAnswer);
+              }
+            } catch (error) {
+              console.error("❌ Error processing follow-up answer:", error);
+              answerDisplay =
+                '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
+            }
+
+            html += `
+      <div style="margin-bottom: 12px; padding: 8px; background: ${rowBgColor}; border-radius: 4px; border: 1px solid #e2e8f0; page-break-inside: avoid;">
+        <div style="font-size: 10px; font-weight: 600; color: #1e40af; margin-bottom: 3px;">
+           ${formatQuestionNumberForDisplay(fq.number)} ${fq.text} ?
+        </div>
+        <div style="font-size: 10px; color: #374151; padding-left: 12px; line-height: 1.4;font-family: Arial, sans-serif;">
+           ${answerDisplay}
+          ${locationInfo}
+        </div>
+      </div>
+    `;
+          });
+
+          html += `
+          </div>
+        </td>
+        
+        <!-- RIGHT COLUMN -->
+        <td style="width: 50%; padding: 0; vertical-align: top;">
+          <div style="padding: 10px;">
+  `;
+
+          // Display right column questions
+          rightColumnQuestions.forEach((fq, index) => {
+            const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
+            let answerDisplay = "";
+            let locationInfo = "";
+
+            try {
+              let parsedAnswer = fq.answer;
+              if (typeof fq.answer === "string") {
+                try {
+                  parsedAnswer = JSON.parse(fq.answer);
+                } catch (e) {
+                  // Not JSON, keep as string
+                }
+              }
+
+              // Helper function to check if a string is an image URL
+              const isImageUrl = (urlString: string): boolean => {
+                if (!urlString || typeof urlString !== "string") return false;
+                const url = urlString.toLowerCase().trim();
+                const imageExtensions = [
+                  ".jpg",
+                  ".jpeg",
+                  ".png",
+                  ".gif",
+                  ".bmp",
+                  ".webp",
+                  ".svg",
+                  ".jpg?",
+                  ".jpeg?",
+                  ".png?",
+                  ".gif?",
+                  ".bmp?",
+                  ".webp?",
+                  ".svg?",
+                  ".jpg&",
+                  ".jpeg&",
+                  ".png&",
+                  ".gif&",
+                  ".bmp&",
+                  ".webp&",
+                  ".svg&",
+                ];
+                const imageHostingPatterns = [
+                  "cloudinary.com",
+                  "imgur.com",
+                  "images.unsplash.com",
+                  "i.imgur.com",
+                  "storage.googleapis.com",
+                  "amazonaws.com",
+                  "/uploads/",
+                  "/images/",
+                  "/img/",
+                  "/media/",
+                  "/photos/",
+                ];
+                const hasImageExtension = imageExtensions.some((ext) =>
+                  url.includes(ext)
+                );
+                const hasImagePattern = imageHostingPatterns.some((pattern) =>
+                  url.includes(pattern)
+                );
+                const isDataUrl = url.startsWith("data:image");
+                return hasImageExtension || hasImagePattern || isDataUrl;
+              };
+
+              // Function to extract image URLs
+              const getImageUrls = (
+                answer: any
+              ): Array<{
+                url: string;
+                location?: any;
+                timestamp?: string;
+              }> => {
+                const images: Array<{
+                  url: string;
+                  location?: any;
+                  timestamp?: string;
+                }> = [];
+                if (!answer) return images;
+
+                if (typeof answer === "string") {
+                  if (isImageUrl(answer)) {
+                    images.push({ url: answer });
+                  }
+                  return images;
+                }
+
+                if (Array.isArray(answer)) {
+                  answer.forEach((item) => {
+                    if (typeof item === "string" && isImageUrl(item)) {
+                      images.push({ url: item });
+                    } else if (item && typeof item === "object") {
+                      const potentialUrl =
+                        item.url ||
+                        item.imageUrl ||
+                        item.image ||
+                        item.photo ||
+                        item.src;
+                      if (potentialUrl && isImageUrl(potentialUrl)) {
+                        images.push({
+                          url: potentialUrl,
+                          location: item.location,
+                          timestamp: item.timestamp,
+                        });
+                      }
+                    }
+                  });
+                  return images;
+                }
+
+                if (typeof answer === "object") {
+                  const potentialUrl =
+                    answer.url ||
+                    answer.imageUrl ||
+                    answer.image ||
+                    answer.photo ||
+                    answer.src;
+                  if (potentialUrl && isImageUrl(potentialUrl)) {
+                    images.push({
+                      url: potentialUrl,
+                      location: answer.location,
+                      timestamp: answer.timestamp,
+                    });
+                  }
+                }
+                return images;
+              };
+
+              // Check for images
+              const imageUrls = getImageUrls(parsedAnswer);
+
+              if (imageUrls.length > 0) {
+                const imagesWithLocation = imageUrls.filter(
+                  (img) => img.location
+                ).length;
+
+                answerDisplay = `
+          <div style="margin-top: 5px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+        `;
+
+                imageUrls.forEach((image, imgIndex) => {
+                  answerDisplay += `
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;">
+              <img src="${image.url}" 
+                   style="width: 70px; height: 70px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; margin-bottom: 2px;"
+                   alt="Evidence ${imgIndex + 1}"
+                   onerror="this.onerror=null; this.src='https://via.placeholder.com/70/cccccc/999999?text=Image+Error'; this.style.border='1px solid #dc2626';">
+              ${
+                image.location
+                  ? `
+                <div style="font-size: 7px; color: #4b5563; text-align: center; line-height: 1.1; max-width: 70px;">
+                  <div style="font-weight: 600;">📍</div>
+                  <div>Lat: ${image.location.latitude.toFixed(4)}</div>
+                  <div>Long: ${image.location.longitude.toFixed(4)}</div>
+                </div>
+              `
+                  : ""
+              }
+            </div>
+          `;
+                });
+
+                answerDisplay += `
+            </div>
+          </div>
+        `;
+
+                if (imagesWithLocation > 0) {
+                  locationInfo = `
+            <div style="font-size: 8px; color: #4b5563; margin-top: 3px; padding: 3px; background: #f0f9ff; border-radius: 2px;">
+              📍 ${imagesWithLocation} of ${imageUrls.length} images have location
+            </div>
+          `;
+                }
+              } else if (typeof parsedAnswer === "string") {
+                let cleanAnswer = parsedAnswer.trim();
+                if (cleanAnswer.includes(fq.text)) {
+                  cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
+                  cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
+                }
+                answerDisplay =
+                  cleanAnswer ||
+                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+              } else if (
+                parsedAnswer === null ||
+                parsedAnswer === undefined ||
+                parsedAnswer === ""
+              ) {
+                answerDisplay =
+                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+              } else {
+                answerDisplay = String(parsedAnswer);
+              }
+            } catch (error) {
+              console.error("❌ Error processing follow-up answer:", error);
+              answerDisplay =
+                '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
+            }
+
+            html += `
+      <div style="margin-bottom: 12px; padding: 8px; background: ${rowBgColor}; border-radius: 4px; border: 1px solid #e2e8f0; page-break-inside: avoid;">
+        <div style="font-size: 10px; font-weight: 600; color: #1e40af; margin-bottom: 3px;">
+          ${fq.number} ${fq.text} ?
+        </div>
+        <div style="font-size: 10px; color: #374151; padding-left: 12px; line-height: 1.4;font-family:italic;">
+          ${answerDisplay}
+          ${locationInfo}
+        </div>
+      </div>
+    `;
+          });
+
+          html += `
+          </div>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+`;
+        }
+
+        if (hasSuggestion) {
+          html += `
+  <!-- SUGGESTION SECTION -->
+  <tr style="background: #ffffffff;">
+    <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 12px; font-weight: 700; color: #1e3a8a;">
+      Suggestion/Notes:
+    </td>
+  </tr>
+  
+  <tr style="background: #ffffff;">
+    <td colspan="3" style="border: 1px solid #666; padding: 10px;">
+      <div style="font-size: 10px; line-height: 1.6;" page-break-after:always;>
+        <span style="font-weight: 700; color: #1e3a8a;">${formatQuestionNumberForDisplay(
+          response.questionNumber
+        )}</span> - ${response.suggestion}
+      </div>
+    </td>
+  </tr>
+`;
+        }
+
+        html += `
+    </td>
+  </tr>
+</table>
+`;
+      });
+    }
+  );
+
+  return html;
+}
+
+// Helper function to limit combined response analysis size
+function limitCombinedResponseAnalysisSize(
+  html: string,
+  maxSizeInChars: number = 300000
+): string {
+  return limitResponseAnalysisSize(html, maxSizeInChars);
+}
+
+// Update the generateBothResponseAnalysis function
+function generateBothResponseAnalysis(
+  form: any,
+  response: any,
+  availableSections: any[],
+  maxSize: number = 300000
+): string {
+  const html = generateCombinedResponseAnalysis(
+    form,
+    response,
+    availableSections
+  );
+  return limitCombinedResponseAnalysisSize(html, maxSize);
+}
+
 // Add this function at the top of your file
 function buildNestedFormForAnalysis(sections: any[]): any {
   console.log("🔄 Building nested form structure for analysis...");
@@ -466,6 +1331,7 @@ function generateResponseAnalysis(
 
   // Generate HTML
   let html = "";
+  // Helper function to format question number for display: "Q3.4" → "S3.Q4"
 
   Object.entries(responsesBySection).forEach(
     ([sectionTitle, responses], sectionIndex) => {
@@ -482,39 +1348,39 @@ function generateResponseAnalysis(
 
         html += `
 <!-- Separate Table for EACH Main Question (${responseType.toUpperCase()} Response) -->
-<table style="width: 100%; border-collapse: collapse; border: 1px solid #666; margin: ${
-          responseIndex === 0 ? "0" : "20px"
-        } 0 20px 0;">
+<table style="width: 100%; border-collapse: collapse; border: 1px solid #666; margin: -5 0 20px 0; page-break-after: always;">
   
   <!-- SECTION HEADER -->
   <tr style="background: #ffffffff;">
     <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 14px; font-weight: 800; color: #1e3a8a;">
-      ${sectionTitle} - ${response.questionNumber}
+        ${sectionTitle} - ${formatQuestionNumberForDisplay(
+          response.questionNumber
+        )}
     </td>
   </tr>
   
   <!-- TABLE HEADERS -->
   <tr style="background:#1e3a8a;">
-    <td style="border: 1px solid #666; padding: 8px; font-weight: 700; font-size: 11px; width: 15%;background:#1e3a8a; color:#ffffffff">
+    <td style="border: 1px solid #666; padding: 8px; font-weight: 700; font-size: 11px; width: 10%;background:#1e3a8a; color:#ffffffff">
       Question No
     </td>
-    <td style="border: 1px solid #666; padding: 8px; font-weight: 700; font-size: 11px; width: 60%;background:#1e3a8a;color:#ffffffff">
+    <td style="border: 1px solid #666; padding: 8px; font-weight: 700; font-size: 11px; width: 80%;background:#1e3a8a;color:#ffffffff">
       Question
     </td>
-    <td style="border: 1px solid #666; padding: 8px; text-align: center; font-weight: 700; font-size: 11px; width: 25%;background:#1e3a8a;color:#ffffffff">
+    <td style="border: 1px solid #666; padding: 8px; text-align: center; font-weight: 700; font-size: 11px; width: 10%;background:#1e3a8a;color:#ffffffff">
       Response
     </td>
   </tr>
   
   <!-- MAIN QUESTION ROW -->
   <tr style="background: #ffffff;">
-    <td style="border: 1px solid #666; padding: 8px; vertical-align: top; font-size: 10px; font-weight: 600; color: #374151;">
-      ${response.questionNumber || "N/A"}
+    <td style="border: 1px solid #666; padding: 8px; vertical-align: top; font-size: 10px; font-weight: 600; color: #374151;page-break-inside: avoid;">
+      ${formatQuestionNumberForDisplay(response.questionNumber)}
     </td>
-    <td style="border: 1px solid #666; padding: 8px; vertical-align: top; font-size: 12px; color: #4b5563; line-height: 1.6;">
+    <td style="border: 1px solid #666; padding: 8px; vertical-align: top; font-size: 10px; color: #4b5563; line-height: 1.6;page-break-inside: avoid;">
       ${response.questionText}
     </td>
-    <td style="border: 1px solid #666; padding: 8px; vertical-align: middle; text-align: center; font-size: 11px; font-weight: 600; color: ${responseColor};">
+    <td style="border: 1px solid #666; padding: 8px; vertical-align: middle; text-align: center; font-size: 11px; font-weight: 600; color: ${responseColor};page-break-inside: avoid;">
       ${response.response}
     </td>
   </tr>
@@ -522,17 +1388,33 @@ function generateResponseAnalysis(
 
         if (responseFollowUps.length > 0) {
           html += `
- <!-- FOLLOW-UP SECTION HEADER -->
-  <tr style="background: #f8fafc;">
-    <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 12px; font-weight: 700; color: #1e3a8a;">
-      Follow-up Questions:
-    </td>
-  </tr>
+<!-- FOLLOW-UP SECTION HEADER -->
+<tr style="background: #f8fafc;">
+  <td colspan="3" style="border: 1px solid #666; padding: 5px; font-size: 12px; font-weight: 700; color: #1e3a8a;">
+    Follow-up Questions:
+  </td>
+</tr>
 `;
 
-          // Display follow-up questions for THIS main question only
-          responseFollowUps.forEach((fq, fqIndex) => {
-            const rowBgColor = fqIndex % 2 === 0 ? "#ffffff" : "#f8fafc";
+          // Split follow-up questions into two columns
+          const midPoint = Math.ceil(responseFollowUps.length / 2);
+          const leftColumnQuestions = responseFollowUps.slice(0, midPoint);
+          const rightColumnQuestions = responseFollowUps.slice(midPoint);
+
+          // Start the two-column table
+          html += `
+<tr style="background: #ffffff;">
+  <td colspan="3" style="border: 1px solid #666; padding: 0;">
+    <table style="width: 100%; border-collapse: collapse; border: none;">
+      <tr>
+        <!-- LEFT COLUMN -->
+        <td style="width: 50%; padding: 0; border-right: 1px solid #e2e8f0; vertical-align: top;">
+          <div style="padding: 10px;">
+  `;
+
+          // Display left column questions
+          leftColumnQuestions.forEach((fq, index) => {
+            const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
             let answerDisplay = "";
             let locationInfo = "";
 
@@ -549,10 +1431,7 @@ function generateResponseAnalysis(
               // Helper function to check if a string is an image URL
               const isImageUrl = (urlString: string): boolean => {
                 if (!urlString || typeof urlString !== "string") return false;
-
                 const url = urlString.toLowerCase().trim();
-
-                // Common image extensions (including with query params)
                 const imageExtensions = [
                   ".jpg",
                   ".jpeg",
@@ -576,13 +1455,6 @@ function generateResponseAnalysis(
                   ".webp&",
                   ".svg&",
                 ];
-
-                // Check for image extensions
-                const hasImageExtension = imageExtensions.some((ext) =>
-                  url.includes(ext)
-                );
-
-                // Check for common image hosting patterns
                 const imageHostingPatterns = [
                   "cloudinary.com",
                   "imgur.com",
@@ -596,18 +1468,17 @@ function generateResponseAnalysis(
                   "/media/",
                   "/photos/",
                 ];
-
+                const hasImageExtension = imageExtensions.some((ext) =>
+                  url.includes(ext)
+                );
                 const hasImagePattern = imageHostingPatterns.some((pattern) =>
                   url.includes(pattern)
                 );
-
-                // Check for data URLs
                 const isDataUrl = url.startsWith("data:image");
-
                 return hasImageExtension || hasImagePattern || isDataUrl;
               };
 
-              // Function to extract image URLs from various formats
+              // Function to extract image URLs
               const getImageUrls = (
                 answer: any
               ): Array<{
@@ -620,10 +1491,8 @@ function generateResponseAnalysis(
                   location?: any;
                   timestamp?: string;
                 }> = [];
-
                 if (!answer) return images;
 
-                // Case 1: String (could be URL or data URL)
                 if (typeof answer === "string") {
                   if (isImageUrl(answer)) {
                     images.push({ url: answer });
@@ -631,13 +1500,11 @@ function generateResponseAnalysis(
                   return images;
                 }
 
-                // Case 2: Array
                 if (Array.isArray(answer)) {
                   answer.forEach((item) => {
                     if (typeof item === "string" && isImageUrl(item)) {
                       images.push({ url: item });
                     } else if (item && typeof item === "object") {
-                      // Try to find image URL in object
                       const potentialUrl =
                         item.url ||
                         item.imageUrl ||
@@ -656,9 +1523,7 @@ function generateResponseAnalysis(
                   return images;
                 }
 
-                // Case 3: Object
                 if (typeof answer === "object") {
-                  // Try to find image URL in object
                   const potentialUrl =
                     answer.url ||
                     answer.imageUrl ||
@@ -673,7 +1538,6 @@ function generateResponseAnalysis(
                     });
                   }
                 }
-
                 return images;
               };
 
@@ -681,76 +1545,55 @@ function generateResponseAnalysis(
               const imageUrls = getImageUrls(parsedAnswer);
 
               if (imageUrls.length > 0) {
-                // Count images with location data
                 const imagesWithLocation = imageUrls.filter(
                   (img) => img.location
                 ).length;
 
                 answerDisplay = `
-                <div style="margin-top: 5px;">
-                  <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 10px;">
-              `;
+          <div style="margin-top: 5px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 0px;">
+        `;
 
-                // Create image grid
                 imageUrls.forEach((image, imgIndex) => {
                   answerDisplay += `
-                  <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;">
-                    <img src="${image.url}" 
-                         style="width: 100px; height: 100px; object-fit: cover; border: 1px solid #999; border-radius: 3px; margin-bottom: 5px;"
-                         alt="Evidence photo ${imgIndex + 1}"
-                         onerror="this.onerror=null; this.src='https://via.placeholder.com/100/cccccc/999999?text=Image+Error'; this.style.border='1px solid #dc2626';">
-                    
-                    <!-- Image number -->
-                    <div style="font-size: 9px; color: #666; margin-bottom: 2px; font-weight: 600;">
-                      Image ${imgIndex + 1}
-                    </div>
-                    
-                    <!-- Location info (only if exists for this image) -->
-                    ${
-                      image.location
-                        ? `
-                    <div style="font-size: 8px; color: #4b5563; text-align: center; line-height: 1.2; max-width: 100px;">
-                      <div style="font-weight: 600; margin-bottom: 1px;">📍 Location:</div>
-                      <div>Lat: ${image.location.latitude.toFixed(6)}</div>
-                      <div>Long: ${image.location.longitude.toFixed(6)}</div>
-                      <div>Acc: ±${image.location.accuracy}m</div>
-                      ${
-                        image.timestamp
-                          ? `<div style="margin-top: 2px;">🕒 ${new Date(
-                              image.timestamp
-                            ).toLocaleString()}</div>`
-                          : ""
-                      }
-                    </div>
-                    `
-                        : ``
-                    }
-                  </div>
-                `;
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;">
+              <img src="${image.url}" 
+                   style="width: 80px; height: 80px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; margin-bottom: 0  px;"
+                   alt="Evidence ${imgIndex + 1}"
+                   onerror="this.onerror=null; this.src='https://via.placeholder.com/70/cccccc/999999?text=Image+Error'; this.style.border='1px solid #dc2626';">
+              ${
+                image.location
+                  ? `
+                <div style="font-size: 7px; color: #4b5563; text-align: center; line-height: 1.1; max-width: 70px;">
+                  <div style="font-weight: 600;">📍</div>
+                  <div>Lat: ${image.location.latitude.toFixed(4)}</div>
+                  <div>Long: ${image.location.longitude.toFixed(4)}</div>
+                </div>
+              `
+                  : ""
+              }
+            </div>
+          `;
                 });
 
                 answerDisplay += `
-                  </div>
-                </div>
-              `;
+            </div>
+          </div>
+        `;
 
-                // Add summary if images have location
                 if (imagesWithLocation > 0) {
                   locationInfo = `
-                  <div style="font-size: 9px; color: #4b5563; margin-top: 5px; padding: 5px; background: #f0f9ff; border-radius: 3px;">
-                    📍 ${imagesWithLocation} out of ${imageUrls.length} images have location data
-                  </div>
-                `;
+            <div style="font-size: 8px; color: #4b5563; margin-top: 3px; padding: 3px; background: #f0f9ff; border-radius: 2px;">
+              📍 ${imagesWithLocation} of ${imageUrls.length} images have location
+            </div>
+          `;
                 }
               } else if (typeof parsedAnswer === "string") {
-                // Plain text answer
                 let cleanAnswer = parsedAnswer.trim();
-
                 if (cleanAnswer.includes(fq.text)) {
                   cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
                   cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
                 }
-
                 answerDisplay =
                   cleanAnswer ||
                   '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
@@ -771,27 +1614,257 @@ function generateResponseAnalysis(
             }
 
             html += `
-  <tr style="background: ${rowBgColor};">
-    <td colspan="3" style="border: 1px solid #666; padding: 10px;">
-      <div style="font-size: 10px; font-weight: 600; color: #595a5bff; margin-bottom: 8px;">
-        ${fq.number} ${fq.text} ?
+      <div style="margin-bottom: 2px; padding: 8px; background: ${rowBgColor}; border-radius: 4px; border: 1px solid #e2e8f0; page-break-inside: avoid;">
+        <div style="font-size: 10px; font-weight: 600; color: #1e40af; margin-bottom: 3px;">
+           ${formatQuestionNumberForDisplay(fq.number)} ${fq.text} ?
+        </div>
+        <div style="font-size: 10px; color: #374151; padding-left: 12px; line-height: 1.4;font-family: Arial, sans-serif;">
+           ${answerDisplay}
+          ${locationInfo}
+        </div>
       </div>
-      <div style="font-size: 11px; color: #151617ff; padding-left: 18px; line-height: 1.5;">
-        Answer: ${answerDisplay}
-        ${locationInfo}
-      </div>
-    </td>
-  </tr>
-`;
+    `;
           });
+
+          html += `
+          </div>
+        </td>
+        
+        <!-- RIGHT COLUMN -->
+        <td style="width: 50%; padding: 0; vertical-align: top;">
+          <div style="padding: 10px;">
+  `;
+
+          // Display right column questions
+          rightColumnQuestions.forEach((fq, index) => {
+            const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
+            let answerDisplay = "";
+            let locationInfo = "";
+
+            try {
+              let parsedAnswer = fq.answer;
+              if (typeof fq.answer === "string") {
+                try {
+                  parsedAnswer = JSON.parse(fq.answer);
+                } catch (e) {
+                  // Not JSON, keep as string
+                }
+              }
+
+              // Helper function to check if a string is an image URL
+              const isImageUrl = (urlString: string): boolean => {
+                if (!urlString || typeof urlString !== "string") return false;
+                const url = urlString.toLowerCase().trim();
+                const imageExtensions = [
+                  ".jpg",
+                  ".jpeg",
+                  ".png",
+                  ".gif",
+                  ".bmp",
+                  ".webp",
+                  ".svg",
+                  ".jpg?",
+                  ".jpeg?",
+                  ".png?",
+                  ".gif?",
+                  ".bmp?",
+                  ".webp?",
+                  ".svg?",
+                  ".jpg&",
+                  ".jpeg&",
+                  ".png&",
+                  ".gif&",
+                  ".bmp&",
+                  ".webp&",
+                  ".svg&",
+                ];
+                const imageHostingPatterns = [
+                  "cloudinary.com",
+                  "imgur.com",
+                  "images.unsplash.com",
+                  "i.imgur.com",
+                  "storage.googleapis.com",
+                  "amazonaws.com",
+                  "/uploads/",
+                  "/images/",
+                  "/img/",
+                  "/media/",
+                  "/photos/",
+                ];
+                const hasImageExtension = imageExtensions.some((ext) =>
+                  url.includes(ext)
+                );
+                const hasImagePattern = imageHostingPatterns.some((pattern) =>
+                  url.includes(pattern)
+                );
+                const isDataUrl = url.startsWith("data:image");
+                return hasImageExtension || hasImagePattern || isDataUrl;
+              };
+
+              // Function to extract image URLs
+              const getImageUrls = (
+                answer: any
+              ): Array<{
+                url: string;
+                location?: any;
+                timestamp?: string;
+              }> => {
+                const images: Array<{
+                  url: string;
+                  location?: any;
+                  timestamp?: string;
+                }> = [];
+                if (!answer) return images;
+
+                if (typeof answer === "string") {
+                  if (isImageUrl(answer)) {
+                    images.push({ url: answer });
+                  }
+                  return images;
+                }
+
+                if (Array.isArray(answer)) {
+                  answer.forEach((item) => {
+                    if (typeof item === "string" && isImageUrl(item)) {
+                      images.push({ url: item });
+                    } else if (item && typeof item === "object") {
+                      const potentialUrl =
+                        item.url ||
+                        item.imageUrl ||
+                        item.image ||
+                        item.photo ||
+                        item.src;
+                      if (potentialUrl && isImageUrl(potentialUrl)) {
+                        images.push({
+                          url: potentialUrl,
+                          location: item.location,
+                          timestamp: item.timestamp,
+                        });
+                      }
+                    }
+                  });
+                  return images;
+                }
+
+                if (typeof answer === "object") {
+                  const potentialUrl =
+                    answer.url ||
+                    answer.imageUrl ||
+                    answer.image ||
+                    answer.photo ||
+                    answer.src;
+                  if (potentialUrl && isImageUrl(potentialUrl)) {
+                    images.push({
+                      url: potentialUrl,
+                      location: answer.location,
+                      timestamp: answer.timestamp,
+                    });
+                  }
+                }
+                return images;
+              };
+
+              // Check for images
+              const imageUrls = getImageUrls(parsedAnswer);
+
+              if (imageUrls.length > 0) {
+                const imagesWithLocation = imageUrls.filter(
+                  (img) => img.location
+                ).length;
+
+                answerDisplay = `
+          <div style="margin-top: 5px;">
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+        `;
+
+                imageUrls.forEach((image, imgIndex) => {
+                  answerDisplay += `
+            <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;">
+              <img src="${image.url}" 
+                   style="width: 70px; height: 70px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; margin-bottom: 2px;"
+                   alt="Evidence ${imgIndex + 1}"
+                   onerror="this.onerror=null; this.src='https://via.placeholder.com/70/cccccc/999999?text=Image+Error'; this.style.border='1px solid #dc2626';">
+              ${
+                image.location
+                  ? `
+                <div style="font-size: 7px; color: #4b5563; text-align: center; line-height: 1.1; max-width: 70px;">
+                  <div style="font-weight: 600;">📍</div>
+                  <div>Lat: ${image.location.latitude.toFixed(4)}</div>
+                  <div>Long: ${image.location.longitude.toFixed(4)}</div>
+                </div>
+              `
+                  : ""
+              }
+            </div>
+          `;
+                });
+
+                answerDisplay += `
+            </div>
+          </div>
+        `;
+
+                if (imagesWithLocation > 0) {
+                  locationInfo = `
+            <div style="font-size: 8px; color: #4b5563; margin-top: 3px; padding: 3px; background: #f0f9ff; border-radius: 2px;">
+              📍 ${imagesWithLocation} of ${imageUrls.length} images have location
+            </div>
+          `;
+                }
+              } else if (typeof parsedAnswer === "string") {
+                let cleanAnswer = parsedAnswer.trim();
+                if (cleanAnswer.includes(fq.text)) {
+                  cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
+                  cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
+                }
+                answerDisplay =
+                  cleanAnswer ||
+                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+              } else if (
+                parsedAnswer === null ||
+                parsedAnswer === undefined ||
+                parsedAnswer === ""
+              ) {
+                answerDisplay =
+                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+              } else {
+                answerDisplay = String(parsedAnswer);
+              }
+            } catch (error) {
+              console.error("❌ Error processing follow-up answer:", error);
+              answerDisplay =
+                '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
+            }
+
+            html += `
+      <div style="margin-bottom: 2px; padding: 8px; background: ${rowBgColor}; border-radius: 4px; border: 1px solid #e2e8f0; page-break-inside: avoid;">
+        <div style="font-size: 10px; font-weight: 600; color: #1e40af; margin-bottom: 3px;">
+          ${fq.number} ${fq.text} ?
+        </div>
+        <div style="font-size: 10px; color: #374151; padding-left: 12px; line-height: 1.4;font-family:italic;">
+          ${answerDisplay}
+          ${locationInfo}
+        </div>
+      </div>
+    `;
+          });
+
+          html += `
+          </div>
+        </td>
+      </tr>
+    </table>
+  </td>
+</tr>
+`;
         }
 
         if (hasSuggestion) {
           html += `
   <!-- SUGGESTION SECTION -->
   <tr style="background: #ffffffff;">
-    <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 12px; font-weight: 700; color: #1e3a8a;">
-      Suggestion/Notes:
+    <td colspan="3" style="border: 1px solid #666; padding: 5px; font-size: 12px; font-weight: 700; color: #1e3a8a;">
+      Suggestion/Notes: 
     </td>
   </tr>
   
@@ -818,18 +1891,25 @@ function generateResponseAnalysis(
 }
 
 // Helper function to limit response analysis size
-function limitResponseAnalysisSize(html: string, maxSizeInChars: number = 300000): string {
+function limitResponseAnalysisSize(
+  html: string,
+  maxSizeInChars: number = 300000
+): string {
   if (html.length <= maxSizeInChars) {
     return html;
   }
-  
-  console.warn(`⚠️ Response analysis exceeds size limit (${html.length} chars). Truncating...`);
-  
+
+  console.warn(
+    `⚠️ Response analysis exceeds size limit (${html.length} chars). Truncating...`
+  );
+
   const truncated = html.substring(0, maxSizeInChars);
-  const lastTableEnd = truncated.lastIndexOf('</table>');
-  
+  const lastTableEnd = truncated.lastIndexOf("</table>");
+
   if (lastTableEnd > 0) {
-    return truncated.substring(0, lastTableEnd + 8) + `
+    return (
+      truncated.substring(0, lastTableEnd + 8) +
+      `
 <table style="width: 100%; border-collapse: collapse; border: 1px solid #666; margin: 20px 0;">
   <tr style="background: #ffffffff;">
     <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 12px; font-weight: 700; color: #f59e0b;">
@@ -842,10 +1922,14 @@ function limitResponseAnalysisSize(html: string, maxSizeInChars: number = 300000
     </td>
   </tr>
 </table>
-    `;
+    `
+    );
   }
-  
-  return truncated + `<p style="color: #f59e0b; font-weight: 700; margin-top: 20px;">⚠️ Response analysis was truncated due to size.</p>`;
+
+  return (
+    truncated +
+    `<p style="color: #f59e0b; font-weight: 700; margin-top: 20px;">⚠️ Response analysis was truncated due to size.</p>`
+  );
 }
 
 // Individual response analysis functions (kept for backward compatibility)
@@ -855,7 +1939,12 @@ function generateNoResponseAnalysis(
   availableSections: any[],
   maxSize: number = 300000
 ): string {
-  const html = generateResponseAnalysis(form, response, availableSections, "no");
+  const html = generateResponseAnalysis(
+    form,
+    response,
+    availableSections,
+    "no"
+  );
   return limitResponseAnalysisSize(html, maxSize);
 }
 
@@ -865,7 +1954,12 @@ function generateYesResponseAnalysis(
   availableSections: any[],
   maxSize: number = 300000
 ): string {
-  const html = generateResponseAnalysis(form, response, availableSections, "yes");
+  const html = generateResponseAnalysis(
+    form,
+    response,
+    availableSections,
+    "yes"
+  );
   return limitResponseAnalysisSize(html, maxSize);
 }
 
@@ -875,7 +1969,12 @@ function generateNAResponseAnalysis(
   availableSections: any[],
   maxSize: number = 300000
 ): string {
-  const html = generateResponseAnalysis(form, response, availableSections, "na");
+  const html = generateResponseAnalysis(
+    form,
+    response,
+    availableSections,
+    "na"
+  );
   return limitResponseAnalysisSize(html, maxSize);
 }
 
@@ -1849,10 +2948,587 @@ async function getLogoAsBase64(): Promise<string> {
   console.warn("⚠️ No logo found in any path, image will be empty");
   return "";
 }
+// Add this function (generateTableBarChart)
+function generateTableBarChart(
+  yesPercent: number,
+  noPercent: number,
+  naPercent: number
+): string {
+  const totalWidth = 200;
+  const yesWidth = (yesPercent / 100) * totalWidth;
+  const noWidth = (noPercent / 100) * totalWidth;
+  const naWidth = (naPercent / 100) * totalWidth;
 
+  return `
+    <div style="position: relative; width: ${totalWidth}px; height: 20px; background: #f1f5f9; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0;">
+      ${
+        yesPercent > 0
+          ? `
+        <div style="position: absolute; left: 0; width: ${yesWidth}px; height: 100%; background: #10b981; display: flex; align-items: center; justify-content: center;">
+          ${
+            yesPercent >= 15
+              ? `<span style="color: white; font-size: 8px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${yesPercent.toFixed(
+                  0
+                )}%</span>`
+              : ""
+          }
+        </div>
+      `
+          : ""
+      }
+      ${
+        noPercent > 0
+          ? `
+        <div style="position: absolute; left: ${yesWidth}px; width: ${noWidth}px; height: 100%; background: #ef4444; display: flex; align-items: center; justify-content: center;">
+          ${
+            noPercent >= 15
+              ? `<span style="color: white; font-size: 8px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${noPercent.toFixed(
+                  0
+                )}%</span>`
+              : ""
+          }
+        </div>
+      `
+          : ""
+      }
+      ${
+        naPercent > 0
+          ? `
+        <div style="position: absolute; left: ${
+          yesWidth + noWidth
+        }px; width: ${naWidth}px; height: 100%; background: #9ca3af; display: flex; align-items: center; justify-content: center;">
+          ${
+            naPercent >= 15
+              ? `<span style="color: white; font-size: 8px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${naPercent.toFixed(
+                  0
+                )}%</span>`
+              : ""
+          }
+        </div>
+      `
+          : ""
+      }
+      
+      <!-- Fallback labels for small segments -->
+      ${
+        yesPercent > 0 && yesPercent < 15
+          ? `
+        <div style="position: absolute; left: 2px; top: 1px;">
+          <span style="color: #059669; font-size: 7px; font-weight: bold; background: rgba(255,255,255,0.8); padding: 1px 2px; border-radius: 1px;">${yesPercent.toFixed(
+            0
+          )}%</span>
+        </div>
+      `
+          : ""
+      }
+      ${
+        noPercent > 0 && noPercent < 15
+          ? `
+        <div style="position: absolute; left: ${yesWidth + 2}px; top: 1px;">
+          <span style="color: #dc2626; font-size: 7px; font-weight: bold; background: rgba(255,255,255,0.8); padding: 1px 2px; border-radius: 1px;">${noPercent.toFixed(
+            0
+          )}%</span>
+        </div>
+      `
+          : ""
+      }
+      ${
+        naPercent > 0 && naPercent < 15
+          ? `
+        <div style="position: absolute; left: ${
+          yesWidth + noWidth + 2
+        }px; top: 1px;">
+          <span style="color: #6b7280; font-size: 7px; font-weight: bold; background: rgba(255,255,255,0.8); padding: 1px 2px; border-radius: 1px;">${naPercent.toFixed(
+            0
+          )}%</span>
+        </div>
+      `
+          : ""
+      }
+    </div>
+  `;
+}
+
+// Add these helper functions (they should already exist somewhere in your code)
+function getTypeColor(type: string): string {
+  switch (type) {
+    case "no-only":
+      return "#dc2626";
+    case "yes-only":
+      return "#059669";
+    case "na-only":
+      return "#f59e0b";
+    case "both":
+      return "#1e3a8a";
+    case "section":
+      return "#7c3aed";
+    default:
+      return "#1e3a8a";
+  }
+}
+
+function getPDFTypeDisplayName(type: string): string {
+  switch (type) {
+    case "no-only":
+      return "NO Response Analysis Only";
+    case "yes-only":
+      return "YES Response Analysis Only";
+    case "na-only":
+      return "N/A Response Analysis Only";
+    case "both":
+      return "BOTH NO, YES & N/A Response Analysis";
+    case "section":
+      return "Section-wise Analysis Only";
+    default:
+      return "Standard Report";
+  }
+}
+
+function getExclusionNote(type: string): string {
+  switch (type) {
+    case "no-only":
+      return "YES, N/A analysis and Section tables excluded in this NO-only report";
+    case "yes-only":
+      return "NO, N/A analysis and Section tables excluded in this YES-only report";
+    case "na-only":
+      return "NO, YES analysis and Section tables excluded in this N/A-only report";
+    case "section":
+      return "Individual response analysis tables (NO, YES, N/A) excluded in this section-only report";
+    default:
+      return "";
+  }
+}
+
+function getPDFTypeSuffix(type: string): string {
+  switch (type) {
+    case "no-only":
+      return "NO_Analysis_Only";
+    case "yes-only":
+      return "YES_Analysis_Only";
+    case "na-only":
+      return "NA_Analysis_Only";
+    case "both":
+      return "BOTH_Complete";
+    case "section":
+      return "Section_Only";
+    default:
+      return "Standard";
+  }
+}
 export async function generateAndDownloadPDF(
-  options: PDFOptions
+  options: PDFOptions,
+  type?: "no-only" | "yes-only" | "both" | "na-only" | "section" | "default",
+  onProgress?: ProgressCallback // Add this parameter
 ): Promise<void> {
+  const pdfType = type || "default";
+
+  try {
+    // Track initial progress
+    if (onProgress) {
+      onProgress({
+        stage: "uploading",
+        percentage: 0,
+        message: "Preparing PDF data...",
+      });
+    }
+
+    // Try server-side first
+    const pdfBlob = await generatePDFOnServer(options, pdfType, onProgress);
+
+    // Download the blob
+    const url = URL.createObjectURL(pdfBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${options.filename}_${getPDFTypeSuffix(pdfType)}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Failed to generate PDF:", error);
+
+    if (onProgress) {
+      onProgress({
+        stage: "complete",
+        percentage: 0,
+        message: `Error: ${error.message}`,
+      });
+    }
+
+    // If server fails, show user-friendly message
+    if (error.message?.includes("too large")) {
+      alert(
+        "Document is too large for server processing. Please try exporting smaller reports or contact support."
+      );
+    } else {
+      alert(
+        `PDF generation failed: ${error.message}. Please try again or contact support.`
+      );
+    }
+
+    throw error;
+  }
+}
+
+// Update these convenience functions
+export async function generateNoOnlyPDF(
+  options: Omit<PDFOptions, "type">,
+  onProgress?: ProgressCallback
+): Promise<void> {
+  return generateAndDownloadPDF(
+    { ...options, type: "no-only" },
+    "no-only",
+    onProgress
+  );
+}
+
+export async function generateYesOnlyPDF(
+  options: Omit<PDFOptions, "type">,
+  onProgress?: ProgressCallback
+): Promise<void> {
+  return generateAndDownloadPDF(
+    { ...options, type: "yes-only" },
+    "yes-only",
+    onProgress
+  );
+}
+
+export async function generateNAOnlyPDF(
+  options: Omit<PDFOptions, "type">,
+  onProgress?: ProgressCallback
+): Promise<void> {
+  return generateAndDownloadPDF(
+    { ...options, type: "na-only" },
+    "na-only",
+    onProgress
+  );
+}
+
+export async function generateBothPDF(
+  options: Omit<PDFOptions, "type">,
+  onProgress?: ProgressCallback
+): Promise<void> {
+  return generateAndDownloadPDF(
+    { ...options, type: "both" },
+    "both",
+    onProgress
+  );
+}
+
+export async function generateSectionOnlyPDF(
+  options: Omit<PDFOptions, "type">,
+  onProgress?: ProgressCallback
+): Promise<void> {
+  return generateAndDownloadPDF(
+    { ...options, type: "section" },
+    "section",
+    onProgress
+  );
+}
+
+export async function generateFullPDF(
+  options: Omit<PDFOptions, "type">,
+  onProgress?: ProgressCallback
+): Promise<void> {
+  return generateAndDownloadPDF(
+    { ...options, type: "default" },
+    "default",
+    onProgress
+  );
+}
+
+// Server-side PDF generation function
+
+// Add progress callback type
+export type ProgressCallback = (progress: {
+  stage: "uploading" | "generating" | "downloading" | "complete";
+  percentage: number;
+  message?: string;
+}) => void;
+
+async function generatePDFOnServer(
+  options: PDFOptions,
+  type: string = "default",
+  onProgress?: ProgressCallback
+): Promise<Blob> {
+  const htmlContent = await generateCompleteHTMLForServer(options, type);
+
+  // Progress tracking with continuous interpolation
+  let targetPercentage = 0;
+  let currentPercentage = 0;
+  let currentStage: "uploading" | "generating" | "downloading" | "complete" =
+    "uploading";
+  let currentMessage = "Starting...";
+  let interpolationId: number | null = null;
+
+  const startInterpolation = () => {
+    if (interpolationId) {
+      clearInterval(interpolationId);
+      interpolationId = null;
+    }
+
+    // Only animate if we're not at target and not complete
+    if (currentStage !== "complete" && currentPercentage < 100) {
+      interpolationId = window.setInterval(() => {
+        // Calculate increment based on distance to target
+        const diff = targetPercentage - currentPercentage;
+        let increment = 0.5; // Default slow increment
+
+        if (diff > 0) {
+          // When we have a target, move toward it
+          if (diff > 20) increment = 2;
+          else if (diff > 10) increment = 1.5;
+          else if (diff > 5) increment = 1;
+          else increment = 0.5;
+
+          currentPercentage = Math.min(
+            currentPercentage + increment,
+            targetPercentage
+          );
+        } else {
+          // If we've reached target but not at 100, continue slowly
+          // This prevents getting stuck
+          increment = 0.2;
+          currentPercentage = Math.min(currentPercentage + increment, 99); // Cap at 99 until complete
+
+          // If we're stuck at target for too long, slowly increase target
+          if (currentPercentage >= targetPercentage - 1) {
+            targetPercentage = Math.min(targetPercentage + 5, 99);
+          }
+        }
+
+        if (onProgress) {
+          onProgress({
+            stage: currentStage,
+            percentage: Math.round(currentPercentage),
+            message: currentMessage,
+          });
+        }
+
+        // Don't stop interpolation until we're complete
+        // Keep it running continuously
+        if (currentPercentage >= 100) {
+          if (interpolationId) {
+            clearInterval(interpolationId);
+            interpolationId = null;
+          }
+        }
+      }, 50); // Update every 50ms
+    }
+  };
+
+  const updateProgress = (
+    stage: "uploading" | "generating" | "downloading" | "complete",
+    percentage: number,
+    message?: string
+  ) => {
+    if (!onProgress) return;
+
+    // Update state
+    if (stage !== "complete") {
+      currentStage = stage;
+    }
+
+    if (percentage > targetPercentage) {
+      targetPercentage = percentage;
+    }
+
+    if (message) currentMessage = message;
+
+    // If complete, handle specially
+    if (stage === "complete") {
+      if (interpolationId) {
+        clearInterval(interpolationId);
+        interpolationId = null;
+      }
+      targetPercentage = 100;
+      currentPercentage = 100;
+      onProgress({ stage, percentage: 100, message });
+      return;
+    }
+
+    // Update immediately if we're close
+    if (Math.abs(currentPercentage - percentage) < 2) {
+      currentPercentage = percentage;
+      onProgress({ stage, percentage, message });
+    }
+
+    // Always ensure interpolation is running
+    if (!interpolationId) {
+      startInterpolation();
+    }
+  };
+
+  // Start interpolation immediately
+  startInterpolation();
+
+  // Initial progress
+  updateProgress("uploading", 5, "Initializing...");
+
+  try {
+    // Stage 1: Uploading (0-30%)
+    // Use promises to ensure sequential updates
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    updateProgress("uploading", 10, "Preparing HTML content...");
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    updateProgress("uploading", 20, "Processing content...");
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    updateProgress("uploading", 30, "Sending to server...");
+
+    const controller = new AbortController();
+
+    const response = await fetch("http://localhost:5000/api/pdf/generate", {
+      method: "POST",
+      headers: {
+        Accept: "application/json, application/pdf",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        htmlContent: htmlContent,
+        filename: `${options.filename}_${getPDFTypeSuffix(type)}.pdf`,
+        format: "custom",
+      }),
+      signal: controller.signal,
+    });
+
+    // Stage 2: Generating (30-70%)
+    updateProgress("generating", 35, "Server processing started...");
+
+    // Keep progress moving during server processing
+    const generatingInterval = window.setInterval(() => {
+      if (currentStage === "generating" && currentPercentage < 70) {
+        // Slowly increase target during generation phase
+        targetPercentage = Math.min(targetPercentage + 2, 70);
+      }
+    }, 800);
+
+    // Also update with specific messages
+    const generatingMessages = [
+      { delay: 400, percent: 40, message: "Processing pages..." },
+      { delay: 800, percent: 45, message: "Building layout..." },
+      { delay: 1200, percent: 50, message: "Rendering content..." },
+      { delay: 1600, percent: 55, message: "Optimizing PDF..." },
+      { delay: 2000, percent: 60, message: "Finalizing generation..." },
+    ];
+
+    generatingMessages.forEach((update) => {
+      setTimeout(() => {
+        if (currentStage === "generating") {
+          updateProgress("generating", update.percent, update.message);
+        }
+      }, update.delay);
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || "Failed to generate PDF");
+    }
+
+    // Clear generation interval
+    clearInterval(generatingInterval);
+
+    const contentLength = response.headers.get("Content-Length");
+    const total = parseInt(contentLength || "0", 10);
+
+    if (!response.body) {
+      throw new Error("No response body");
+    }
+
+    const reader = response.body.getReader();
+    let received = 0;
+    const chunks = [];
+
+    // Stage 3: Downloading (70-100%)
+    updateProgress("downloading", 70, "Starting download...");
+
+    // Keep progress moving during download
+    const downloadProgressInterval = window.setInterval(() => {
+      if (currentStage === "downloading" && currentPercentage < 99) {
+        // Slowly increase target during download phase if stuck
+        if (currentPercentage >= targetPercentage - 2) {
+          targetPercentage = Math.min(targetPercentage + 1, 99);
+        }
+      }
+    }, 500);
+
+    const startTime = Date.now();
+    const minDownloadTime = 1500;
+
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) break;
+
+      chunks.push(value);
+      received += value.length;
+
+      if (total > 0) {
+        const actualProgress = received / total;
+        const downloadPercentage = Math.min(99, 70 + actualProgress * 29);
+
+        // Update target percentage based on actual download
+        updateProgress(
+          "downloading",
+          Math.round(downloadPercentage),
+          `Downloading PDF... ${Math.round(actualProgress * 100)}%`
+        );
+
+        // Simulate micro-updates for smoother progress
+        if (actualProgress < 0.99) {
+          const microTarget = downloadPercentage + Math.random();
+          if (microTarget < 99) {
+            targetPercentage = Math.max(targetPercentage, microTarget);
+          }
+        }
+      } else {
+        // If no content-length, simulate progress
+        const elapsed = Date.now() - startTime;
+        const simulatedProgress = Math.min(0.9, elapsed / 2500);
+        const downloadPercentage = 70 + simulatedProgress * 29;
+
+        updateProgress(
+          "downloading",
+          Math.round(downloadPercentage),
+          "Downloading PDF..."
+        );
+      }
+    }
+
+    // Clear download interval
+    clearInterval(downloadProgressInterval);
+
+    // Ensure we reach 100%
+    updateProgress("complete", 100, "PDF ready!");
+
+    // Final cleanup
+    if (interpolationId) {
+      clearInterval(interpolationId);
+      interpolationId = null;
+    }
+
+    const blob = new Blob(chunks, { type: "application/pdf" });
+    return blob;
+  } catch (error) {
+    // Clean up on error
+    if (interpolationId) {
+      clearInterval(interpolationId);
+      interpolationId = null;
+    }
+
+    console.error("❌ Server PDF generation failed:", error);
+    throw error;
+  }
+}
+
+// Helper function to generate complete HTML for server
+async function generateCompleteHTMLForServer(
+  options: PDFOptions,
+  type: string = "default"
+): Promise<string> {
+  console.log("🔄 Generating complete HTML for server...");
+
   const {
     filename,
     formTitle,
@@ -1864,27 +3540,41 @@ export async function generateAndDownloadPDF(
     form,
     response,
     chartElementIds = [],
-    type = "default", // Default to current behavior
   } = options;
 
-  // Capture chart images first (only needed if we're showing section tables or section type)
+  // 1. Capture chart images
   const sectionChartImages: Record<string, string> = {};
-  const logoBase64 = await getLogoAsBase64();
+  console.log("📊 Capturing chart images...");
 
-  // Determine if we need to capture charts
-  const needsCharts =
-    type === "both" || type === "default" || type === "section";
-  if (needsCharts) {
-    for (const section of availableSections) {
+  // Note: This requires html2canvas which only works in browser
+  // For server-side, we'll use SVG charts instead
+  for (const section of availableSections) {
+    try {
       const chartId = `section-chart-${section.id}`;
-      const chartImage = await captureChartAsImage(chartId);
-      if (chartImage) {
-        sectionChartImages[section.id] = chartImage;
+      const chartElement = document.getElementById(chartId);
+      if (chartElement) {
+        const canvas = await html2canvas(chartElement, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#ffffff",
+        });
+        sectionChartImages[section.id] = canvas.toDataURL("image/png");
+        console.log(`✅ Captured chart for section ${section.id}`);
       }
+    } catch (error) {
+      console.warn(
+        `⚠️ Could not capture chart for section ${section.id}:`,
+        error
+      );
     }
   }
 
-  // Calculate basic information
+  // 2. Get logo
+  const logoBase64 = await getLogoAsBase64();
+  console.log(`📸 Logo loaded: ${logoBase64 ? "Yes" : "No"}`);
+
+  // 3. Calculate totals
   const totalYes = sectionStats.reduce((sum, stat) => sum + stat.yes, 0);
   const totalNo = sectionStats.reduce((sum, stat) => sum + stat.no, 0);
   const totalNA = sectionStats.reduce((sum, stat) => sum + stat.na, 0);
@@ -1901,274 +3591,24 @@ export async function generateAndDownloadPDF(
     totalQuestions > 0 ? (totalNA / totalQuestions) * 100 : 0;
   const overallScore = yesPercentage;
 
-  // Check if we need to show weightage columns (only for types that show section tables)
-  let hasWeightage = false;
-  const showSectionTable =
-    type === "both" || type === "default" || type === "section";
-  if (showSectionTable) {
-    hasWeightage = sectionStats.some((stat) => {
-      let weightage = stat.weightage;
-      if (typeof weightage === "string") weightage = parseFloat(weightage);
-      return Number.isFinite(weightage) && weightage > 0;
-    });
-  }
+  console.log(
+    `📊 Calculated scores: Yes ${yesPercentage.toFixed(
+      1
+    )}%, No ${noPercentage.toFixed(1)}%, NA ${naPercentage.toFixed(1)}%`
+  );
 
-  // Prepare section data for table and charts (only for types that show section tables)
-  let sectionData: any[] = [];
-  let tableHeaders = "";
-  let tableRows = "";
-
-  if (showSectionTable) {
-    sectionData = sectionStats.map((stat) => {
-      const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
-      const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
-      const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
-
-      let weightage = stat.weightage;
-      if (typeof weightage === "string") weightage = parseFloat(weightage);
-      weightage = Number.isFinite(weightage) ? weightage : 0;
-      if (weightage > 0 && weightage < 1) weightage = weightage * 100;
-
-      const yesWeighted = (yesPercent * weightage) / 100;
-      const noWeighted = (noPercent * weightage) / 100;
-      const naWeighted = (naPercent * weightage) / 100;
-
-      return {
-        ...stat,
-        yesPercent,
-        noPercent,
-        naPercent,
-        weightage,
-        yesWeighted,
-        noWeighted,
-        naWeighted,
-      };
-    });
-
-    const generateTableBarChart = (
-      yesPercent: number,
-      noPercent: number,
-      naPercent: number
-    ): string => {
-      const totalWidth = 200;
-      const yesWidth = (yesPercent / 100) * totalWidth;
-      const noWidth = (noPercent / 100) * totalWidth;
-      const naWidth = (naPercent / 100) * totalWidth;
-
-      return `
-        <div style="position: relative; width: ${totalWidth}px; height: 20px; background: #f1f5f9; border-radius: 3px; overflow: hidden; border: 1px solid #e2e8f0;">
-          ${
-            yesPercent > 0
-              ? `
-            <div style="position: absolute; left: 0; width: ${yesWidth}px; height: 100%; background: #10b981; display: flex; align-items: center; justify-content: center;">
-              ${
-                yesPercent >= 15
-                  ? `<span style="color: white; font-size: 8px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${yesPercent.toFixed(
-                      0
-                    )}%</span>`
-                  : ""
-              }
-            </div>
-          `
-              : ""
-          }
-          ${
-            noPercent > 0
-              ? `
-            <div style="position: absolute; left: ${yesWidth}px; width: ${noWidth}px; height: 100%; background: #ef4444; display: flex; align-items: center; justify-content: center;">
-              ${
-                noPercent >= 15
-                  ? `<span style="color: white; font-size: 8px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${noPercent.toFixed(
-                      0
-                    )}%</span>`
-                  : ""
-              }
-            </div>
-          `
-              : ""
-          }
-          ${
-            naPercent > 0
-              ? `
-            <div style="position: absolute; left: ${
-              yesWidth + noWidth
-            }px; width: ${naWidth}px; height: 100%; background: #9ca3af; display: flex; align-items: center; justify-content: center;">
-              ${
-                naPercent >= 15
-                  ? `<span style="color: white; font-size: 8px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${naPercent.toFixed(
-                      0
-                    )}%</span>`
-                  : ""
-              }
-            </div>
-          `
-              : ""
-          }
-          
-          <!-- Fallback labels for small segments -->
-          ${
-            yesPercent > 0 && yesPercent < 15
-              ? `
-            <div style="position: absolute; left: 2px; top: 1px;">
-              <span style="color: #059669; font-size: 7px; font-weight: bold; background: rgba(255,255,255,0.8); padding: 1px 2px; border-radius: 1px;">${yesPercent.toFixed(
-                0
-              )}%</span>
-            </div>
-          `
-              : ""
-          }
-          ${
-            noPercent > 0 && noPercent < 15
-              ? `
-            <div style="position: absolute; left: ${yesWidth + 2}px; top: 1px;">
-              <span style="color: #dc2626; font-size: 7px; font-weight: bold; background: rgba(255,255,255,0.8); padding: 1px 2px; border-radius: 1px;">${noPercent.toFixed(
-                0
-              )}%</span>
-            </div>
-          `
-              : ""
-          }
-          ${
-            naPercent > 0 && naPercent < 15
-              ? `
-            <div style="position: absolute; left: ${
-              yesWidth + noWidth + 2
-            }px; top: 1px;">
-              <span style="color: #6b7280; font-size: 7px; font-weight: bold; background: rgba(255,255,255,0.8); padding: 1px 2px; border-radius: 1px;">${naPercent.toFixed(
-                0
-              )}%</span>
-            </div>
-          `
-              : ""
-          }
-        </div>
-      `;
-    };
-
-    // Generate table HTML with new columns
-    tableHeaders = `
-      <th style="padding: 10px; text-align: left; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Section</th>
-      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Total</th>
-      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Yes</th>
-      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">No</th>
-      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">N.A</th>
-      ${
-        hasWeightage
-          ? `
-        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">W%</th>
-        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">YW%</th>
-        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">NW%</th>
-        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">N/AW%</th>
-      `
-          : ""
-      }
-      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Visualization</th>
-    `;
-
-    tableRows = sectionData
-      .map((section, index) => {
-        const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
-
-        // Calculate percentages
-        const yesPercent =
-          section.total > 0 ? (section.yes / section.total) * 100 : 0;
-        const noPercent =
-          section.total > 0 ? (section.no / section.total) * 100 : 0;
-        const naPercent =
-          section.total > 0 ? (section.na / section.total) * 100 : 0;
-
-        // Calculate weighted percentages
-        const yesWeighted = (yesPercent * section.weightage) / 100;
-        const noWeighted = (noPercent * section.weightage) / 100;
-        const naWeighted = (naPercent * section.weightage) / 100;
-
-        return `
-        <tr style="background-color: ${rowBgColor};">
-          <!-- Section Column: Shows section name with weightage below it -->
-          <td style="padding: 8px; font-size: 10px; font-weight: 600; color: #1e293b; border: 1px solid #e5e7eb;">
-            <div style="font-weight: 700; margin-bottom: 2px;">${
-              section.title
-            }</div>
-            <div style="font-size: 9px; color: #6b7280; font-weight: 500;">
-              Weightage: ${section.weightage.toFixed(1)}%
-            </div>
-          </td>
-          <!-- Total Column: Total count + "Responses" label -->
-          <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-            <div style="font-weight: 700; color: #1e40af;">${
-              section.total
-            }</div>
-            <div style="font-size: 9px; color: #6b7280; font-weight: 600;">Responses</div>
-          </td>
-          
-          <!-- Yes Column: Count + Percentage (e.g., "42" + "100.0%") -->
-          <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-            <div style="font-weight: 700; color: #059669;">${section.yes}</div>
-            <div style="font-size: 9px; color: #059669; font-weight: 600;">${yesPercent.toFixed(
-              1
-            )}%</div>
-          </td>
-          
-          <!-- No Column: Count + Percentage (e.g., "0" + "0.0%") -->
-          <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-            <div style="font-weight: 700; color: #dc2626;">${section.no}</div>
-            <div style="font-size: 9px; color: #dc2626; font-weight: 600;">${noPercent.toFixed(
-              1
-            )}%</div>
-          </td>
-          
-          <!-- N.A Column: Count + Percentage (e.g., "0" + "0.0%") -->
-          <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-            <div style="font-weight: 700; color: #6b7280;">${section.na}</div>
-            <div style="font-size: 9px; color: #6b7280; font-weight: 600;">${naPercent.toFixed(
-              1
-            )}%</div>
-          </td>
-          
-          ${
-            hasWeightage
-              ? `
-            <!-- Weightage Columns (if applicable): W%, YW%, NW%, N/AW% -->
-            <td style="padding: 8px; text-align: center; font-size: 10px; font-weight: 700; color: #1e40af; border: 1px solid #e5e7eb;">${section.weightage.toFixed(
-              1
-            )}</td>
-            <td style="padding: 8px; text-align: center; font-size: 10px; font-weight: 700; color: #059669; border: 1px solid #e5e7eb;">${yesWeighted.toFixed(
-              1
-            )}</td>
-            <td style="padding: 8px; text-align: center; font-size: 10px; font-weight: 700; color: #dc2626; border: 1px solid #e5e7eb;">${noWeighted.toFixed(
-              1
-            )}</td>
-            <td style="padding: 8px; text-align: center; font-size: 10px; font-weight: 700; color: #6b7280; border: 1px solid #e5e7eb;">${naWeighted.toFixed(
-              1
-            )}</td>
-          `
-              : ""
-          }
-          
-          <!-- Visualization: The bar chart -->
-          <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">
-            ${generateTableBarChart(yesPercent, noPercent, naPercent)}
-          </td>
-        </tr>
-      `;
-      })
-      .join("");
-  }
-
-  // Generate content based on selected type
-  const firstSectionHTML = generateFirstSectionContent(form, response);
-  const scoreSectionHTML = generateScoreSection(sectionStats);
-
+  // 4. Generate response analysis based on type
   let responseAnalysisHTML = "";
   let responseAnalysisTitle = "";
 
-  // Generate response analysis based on type
+  console.log(`🔍 Generating response analysis for type: ${type}`);
+
   switch (type) {
     case "no-only":
       responseAnalysisHTML = generateNoResponseAnalysis(
         form,
         response,
-        form.sections || [],
+        form?.sections || [],
         1000000
       );
       responseAnalysisTitle = "NO Response Analysis Only";
@@ -2177,7 +3617,7 @@ export async function generateAndDownloadPDF(
       responseAnalysisHTML = generateYesResponseAnalysis(
         form,
         response,
-        form.sections || [],
+        form?.sections || [],
         1000000
       );
       responseAnalysisTitle = "YES Response Analysis Only";
@@ -2186,34 +3626,42 @@ export async function generateAndDownloadPDF(
       responseAnalysisHTML = generateNAResponseAnalysis(
         form,
         response,
-        form.sections || [],
+        form?.sections || [],
         1000000
       );
       responseAnalysisTitle = "N/A Response Analysis Only";
       break;
     case "both":
-      responseAnalysisHTML =
-        generateNoResponseAnalysis(form, response, form.sections || [], 300000) +
-        generateYesResponseAnalysis(form, response, form.sections || [], 300000) +
-        generateNAResponseAnalysis(form, response, form.sections || [], 300000);
-      responseAnalysisTitle = "BOTH NO, YES & N/A Response Analysis";
+      responseAnalysisHTML = generateBothResponseAnalysis(
+        form,
+        response,
+        form?.sections || [],
+        1000000
+      );
+      responseAnalysisTitle = "Combined Response Analysis (YES, NO & N/A)";
       break;
     case "section":
-      responseAnalysisHTML = ""; // No individual response analysis for section type
+      responseAnalysisHTML = "";
       responseAnalysisTitle = "Section-wise Analysis Only";
       break;
     default:
-      // Current behavior: NO analysis only (backward compatibility)
       responseAnalysisHTML = generateNoResponseAnalysis(
         form,
         response,
-        form.sections || [],
+        form?.sections || [],
         1000000
       );
       responseAnalysisTitle = "Response Analysis";
   }
 
-  // Generate section tables ONLY for specific types
+  console.log(
+    `📄 Response analysis generated: ${responseAnalysisHTML.length} chars`
+  );
+
+  // 5. Generate other sections
+  const firstSectionHTML = generateFirstSectionContent(form, response);
+  const scoreSectionHTML = generateScoreSection(sectionStats);
+
   let sectionTablesHTML = "";
   if (type === "default" || type === "section") {
     sectionTablesHTML = generateSectionTables(
@@ -2226,8 +3674,99 @@ export async function generateAndDownloadPDF(
     );
   }
 
-  // Create HTML for PDF with conditional content based on type
-  let htmlContent = `
+  console.log(`📋 Section tables generated: ${sectionTablesHTML.length} chars`);
+
+  // 6. Generate section table for overview
+  let tableHTML = "";
+  let tableHeaders = "";
+  let tableRows = "";
+
+  const hasWeightage = sectionStats.some((stat) => stat.weightage > 0);
+
+  if (sectionStats.length > 0) {
+    tableHeaders = `
+      <th style="padding: 10px; text-align: left; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Section</th>
+      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Total</th>
+      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Yes</th>
+      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">No</th>
+      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">N/A</th>
+      ${
+        hasWeightage
+          ? `
+        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Weightage</th>
+      `
+          : ""
+      }
+      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Visualization</th>
+    `;
+
+    tableRows = sectionStats
+      .map((section, index) => {
+        const yesPercent =
+          section.total > 0 ? (section.yes / section.total) * 100 : 0;
+        const noPercent =
+          section.total > 0 ? (section.no / section.total) * 100 : 0;
+        const naPercent =
+          section.total > 0 ? (section.na / section.total) * 100 : 0;
+        const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
+
+        return `
+        <tr style="background-color: ${rowBgColor};">
+          <td style="padding: 8px; font-size: 10px; font-weight: 600; color: #1e293b; border: 1px solid #e5e7eb;">
+            <div style="font-weight: 700;">${section.title}</div>
+          </td>
+          <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
+            <div style="font-weight: 700; color: #1e40af;">${
+              section.total
+            }</div>
+          </td>
+          <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
+            <div style="font-weight: 700; color: #059669;">${section.yes}</div>
+            <div style="font-size: 9px; color: #059669;">${yesPercent.toFixed(
+              1
+            )}%</div>
+          </td>
+          <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
+            <div style="font-weight: 700; color: #dc2626;">${section.no}</div>
+            <div style="font-size: 9px; color: #dc2626;">${noPercent.toFixed(
+              1
+            )}%</div>
+          </td>
+          <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
+            <div style="font-weight: 700; color: #6b7280;">${section.na}</div>
+            <div style="font-size: 9px; color: #6b7280;">${naPercent.toFixed(
+              1
+            )}%</div>
+          </td>
+          ${
+            hasWeightage
+              ? `
+            <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
+              <div style="font-weight: 700; color: #7c3aed;">${section.weightage}%</div>
+            </td>
+          `
+              : ""
+          }
+          <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">
+            ${generateTableBarChart(yesPercent, noPercent, naPercent)}
+          </td>
+        </tr>
+      `;
+      })
+      .join("");
+
+    tableHTML = `
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #e2e8f0;">
+        <thead>
+          <tr>${tableHeaders}</tr>
+        </thead>
+        <tbody>${tableRows}</tbody>
+      </table>
+    `;
+  }
+
+  // 7. Create the complete HTML
+  let completeHTML = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -2476,13 +4015,15 @@ export async function generateAndDownloadPDF(
       <!-- Header -->
       <div class="header">
         <div class="header-content">
-          <h1>3W Audit Point for Service and Assessment Report</h1>
+          <h1 class="form-title">${formTitle || "Form Report"}</h1>
           <p>Submitted on ${submittedDate}</p>
           ${
             type !== "default"
               ? `<p style="font-size: 10px; color: ${getTypeColor(
                   type
-                )}; font-weight: 600; margin-top: 2px;">${responseAnalysisTitle}</p>`
+                )}; font-weight: 600; margin-top: 2px;">${getPDFTypeDisplayName(
+                  type
+                )}</p>`
               : ""
           }
         </div>
@@ -2513,7 +4054,6 @@ export async function generateAndDownloadPDF(
     </div>
   `;
 
-  // Add Overall Section Performance table for specific types
   const showOverallTable =
     type === "both" ||
     type === "default" ||
@@ -2524,7 +4064,7 @@ export async function generateAndDownloadPDF(
     type === "na";
 
   if (showOverallTable) {
-    htmlContent += `
+    completeHTML += `
     <!-- PAGE 2: Overall Section Performance -->
     <div class="page-break-before">
       <div class="table-container">
@@ -2556,7 +4096,7 @@ export async function generateAndDownloadPDF(
 
   // Add Response Analysis Section (if not section type)
   if (responseAnalysisHTML && type !== "section") {
-    htmlContent += `
+    completeHTML += `
     <!-- Response Analysis Section -->
     <div class="${showOverallTable ? "page-break-before" : ""}">
       <div class="table-container">
@@ -2568,11 +4108,11 @@ export async function generateAndDownloadPDF(
 
   // Add Section Tables ONLY for specific types
   if (sectionTablesHTML) {
-    htmlContent += sectionTablesHTML;
+    completeHTML += sectionTablesHTML;
   }
 
   // Add Footer
-  htmlContent += `
+  completeHTML += `
     <!-- Footer -->
     <div class="footer">
       <p>Generated on ${new Date().toLocaleString()} • Total Assessment Score: ${overallScore.toFixed(
@@ -2595,190 +4135,6 @@ export async function generateAndDownloadPDF(
 </html>
 `;
 
-  // Helper function to get type color
-  function getTypeColor(type: string): string {
-    switch (type) {
-      case "no-only":
-        return "#dc2626";
-      case "yes-only":
-        return "#059669";
-      case "na-only":
-      case "na":
-        return "#f59e0b";
-      case "both":
-        return "#1e3a8a";
-      case "section":
-        return "#7c3aed";
-      default:
-        return "#1e3a8a";
-    }
-  }
-
-  // Helper function to get PDF type display name
-  function getPDFTypeDisplayName(type: string): string {
-    switch (type) {
-      case "no-only":
-        return "NO Response Analysis Only";
-      case "yes-only":
-        return "YES Response Analysis Only";
-      case "na-only":
-      case "na":
-        return "N/A Response Analysis Only";
-      case "both":
-        return "BOTH NO, YES & N/A Response Analysis";
-      case "section":
-        return "Section-wise Analysis Only";
-      default:
-        return "Standard Report";
-    }
-  }
-
-  // Helper function to get exclusion note
-  function getExclusionNote(type: string): string {
-    switch (type) {
-      case "no-only":
-        return "YES, N/A analysis and Section tables excluded in this NO-only report";
-      case "yes-only":
-        return "NO, N/A analysis and Section tables excluded in this YES-only report";
-      case "na-only":
-      case "na":
-        return "NO, YES analysis and Section tables excluded in this N/A-only report";
-      case "section":
-        return "Individual response analysis tables (NO, YES, N/A) excluded in this section-only report";
-      default:
-        return "";
-    }
-  }
-
-  // Helper function to get PDF type suffix
-  function getPDFTypeSuffix(type: string): string {
-    switch (type) {
-      case "no-only":
-        return "NO_Analysis_Only";
-      case "yes-only":
-        return "YES_Analysis_Only";
-      case "na-only":
-      case "na":
-        return "NA_Analysis_Only";
-      case "both":
-        return "BOTH_Complete";
-      case "section":
-        return "Section_Only";
-      default:
-        return "Standard";
-    }
-  }
-
-  const element = document.createElement("div");
-  element.innerHTML = htmlContent;
-
-  const contentSize = htmlContent.length;
-  const isLargeDocument = contentSize > 500000;
-  
-  let scale = 2;
-  let quality = 0.98;
-  
-  if (isLargeDocument) {
-    console.warn(`⚠️ Large PDF document detected (${(contentSize / 1024 / 1024).toFixed(2)} MB). Optimizing rendering...`);
-    scale = 1;
-    quality = 0.85;
-  } else if (contentSize > 250000) {
-    scale = 1.5;
-    quality = 0.90;
-  }
-
-  const opt = {
-    margin: 10,
-    filename: `${filename.replace(".pdf", "")}_${getPDFTypeSuffix(type)}.pdf`,
-    image: {
-      type: "jpeg",
-      quality: quality,
-    },
-    html2canvas: {
-      scale: scale,
-      logging: false,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: "#ffffff",
-    },
-    jsPDF: {
-      orientation: "landscape",
-      unit: "mm",
-      format: [279.4, 157.1],
-      compress: true,
-    },
-    pagebreak: {
-      mode: ["css", "legacy"],
-      before: ".page-break-before",
-    },
-  };
-
-  return new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      console.error("❌ PDF generation timed out after 120 seconds");
-      reject(new Error("PDF generation timed out. The response may be too large. Please try exporting a smaller subset of responses or reducing the number of response types."));
-    }, 120000);
-
-    html2pdf()
-      .set(opt)
-      .from(element)
-      .save()
-      .then(() => {
-        clearTimeout(timeout);
-        console.log("✅ PDF generated successfully");
-        resolve();
-      })
-      .catch((error: Error) => {
-        clearTimeout(timeout);
-        console.error("❌ PDF generation error:", error);
-        
-        let userMessage = "Failed to generate PDF. ";
-        if (error.message?.includes("memory") || error.message?.includes("OutOfMemory")) {
-          userMessage += "The response is too large. Please try exporting with individual response types (Yes/No/N/A) instead of 'All'.";
-        } else if (error.message?.includes("Canvas")) {
-          userMessage += "Canvas rendering failed. Try reducing the number of responses or exporting in smaller batches.";
-        } else {
-          userMessage += "Please try again or contact support if the problem persists.";
-        }
-        
-        reject(new Error(userMessage));
-      });
-  });
-}
-
-// Update these convenience functions
-export async function generateNoOnlyPDF(
-  options: Omit<PDFOptions, "type">
-): Promise<void> {
-  return generateAndDownloadPDF({ ...options, type: "no-only" });
-}
-
-export async function generateYesOnlyPDF(
-  options: Omit<PDFOptions, "type">
-): Promise<void> {
-  return generateAndDownloadPDF({ ...options, type: "yes-only" });
-}
-
-export async function generateNAOnlyPDF(
-  options: Omit<PDFOptions, "type">
-): Promise<void> {
-  return generateAndDownloadPDF({ ...options, type: "na-only" });
-}
-
-export async function generateBothPDF(
-  options: Omit<PDFOptions, "type">
-): Promise<void> {
-  return generateAndDownloadPDF({ ...options, type: "both" });
-}
-
-export async function generateSectionOnlyPDF(
-  options: Omit<PDFOptions, "type">
-): Promise<void> {
-  return generateAndDownloadPDF({ ...options, type: "section" });
-}
-
-export async function generateFullPDF(
-  options: Omit<PDFOptions, "type">
-): Promise<void> {
-  return generateAndDownloadPDF({ ...options, type: "default" });
+  console.log(`✅ Generated complete HTML: ${completeHTML.length} characters`);
+  return completeHTML;
 }

@@ -21,6 +21,8 @@ import {
   Upload,
   Download,
   MapPin,
+  X,
+  Save,
 } from "lucide-react";
 import { useForms, useResponses, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
@@ -62,6 +64,9 @@ export default function FormsAnalytics() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isAnswerTemplateOpen, setIsAnswerTemplateOpen] = useState(false);
+  const [previewFormData, setPreviewFormData] = useState<FormQuestion | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isSavingForm, setIsSavingForm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -323,20 +328,40 @@ export default function FormsAnalytics() {
         isVisible: parsed.isVisible ?? true,
         followUpQuestions: parsed.followUpQuestions || [],
       } as FormQuestion;
-      const created = await apiClient.createForm(formPayload);
-      showSuccess("Form imported successfully", "Import Complete");
-      if (created?.form?._id) {
-        navigate(`/forms/${created.form._id}/edit`);
-      }
-      refetchForms();
+      
+      setPreviewFormData(formPayload);
+      setIsPreviewOpen(true);
     } catch (error: any) {
-      showError(error?.message || "Failed to import form", "Import Failed");
+      showError(error?.message || "Failed to parse form", "Import Failed");
     } finally {
       setIsImporting(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
     }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!previewFormData) return;
+
+    setIsSavingForm(true);
+
+    try {
+      await apiClient.createForm(previewFormData);
+      showSuccess("Form imported successfully", "Import Complete");
+      refetchForms();
+      setIsPreviewOpen(false);
+      setPreviewFormData(null);
+    } catch (error: any) {
+      showError(error?.message || "Failed to import form", "Import Failed");
+    } finally {
+      setIsSavingForm(false);
+    }
+  };
+
+  const handleCancelImport = () => {
+    setIsPreviewOpen(false);
+    setPreviewFormData(null);
   };
 
   const handleImportClick = () => {
@@ -985,6 +1010,173 @@ export default function FormsAnalytics() {
         onClose={() => setIsAnswerTemplateOpen(false)}
         onSuccess={() => refetchForms()}
       />
+
+      {isPreviewOpen && previewFormData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-4xl w-full max-h-[95vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 p-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-primary-800 dark:text-primary-100">
+                  Edit Imported Form
+                </h2>
+                <p className="text-sm text-primary-600 dark:text-primary-400">
+                  Modify form details and then save
+                </p>
+              </div>
+              <button
+                onClick={handleCancelImport}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-2">
+                    Form Title
+                  </label>
+                  <input
+                    type="text"
+                    value={previewFormData.title || ""}
+                    onChange={(e) =>
+                      setPreviewFormData({
+                        ...previewFormData,
+                        title: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500"
+                    placeholder="Enter form title"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={previewFormData.description || ""}
+                    onChange={(e) =>
+                      setPreviewFormData({
+                        ...previewFormData,
+                        description: e.target.value,
+                      })
+                    }
+                    rows={3}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500"
+                    placeholder="Enter form description (optional)"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-2">
+                      Sections
+                    </label>
+                    <p className="text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg font-medium">
+                      {(previewFormData.sections?.length || 0)} section(s)
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-2">
+                      Total Questions
+                    </label>
+                    <p className="text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg font-medium">
+                      {(previewFormData.sections?.reduce((sum, s) => sum + (s.questions?.length || 0), 0) || 0)} question(s)
+                    </p>
+                  </div>
+                </div>
+
+                {previewFormData.sections && previewFormData.sections.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-3">
+                      Sections & Questions
+                    </label>
+                    <div className="space-y-3 max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                      {previewFormData.sections.map((section, idx) => (
+                        <div
+                          key={idx}
+                          className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700"
+                        >
+                          <div className="mb-3">
+                            <label className="text-xs font-medium text-primary-600 dark:text-primary-400 block mb-1">
+                              Section {idx + 1} Title
+                            </label>
+                            <input
+                              type="text"
+                              value={section.title || ""}
+                              onChange={(e) => {
+                                const updatedSections = [...(previewFormData.sections || [])];
+                                updatedSections[idx] = {
+                                  ...updatedSections[idx],
+                                  title: e.target.value,
+                                };
+                                setPreviewFormData({
+                                  ...previewFormData,
+                                  sections: updatedSections,
+                                });
+                              }}
+                              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500"
+                            />
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                            <p className="font-medium">
+                              Questions ({section.questions?.length || 0}):
+                            </p>
+                            {section.questions && section.questions.length > 0 ? (
+                              <ul className="space-y-1 ml-2">
+                                {section.questions.map((q, qIdx) => (
+                                  <li
+                                    key={qIdx}
+                                    className="text-xs text-gray-600 dark:text-gray-400 flex items-start"
+                                  >
+                                    <span className="mr-2">•</span>
+                                    <span className="break-words">{q.text || `Question ${qIdx + 1}`}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-xs text-gray-500 ml-2">No questions</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={handleCancelImport}
+                  disabled={isSavingForm}
+                  className="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmImport}
+                  disabled={isSavingForm || !previewFormData.title?.trim()}
+                  className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {isSavingForm ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      Save Form
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

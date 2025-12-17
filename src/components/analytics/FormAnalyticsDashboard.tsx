@@ -16,6 +16,8 @@ import {
   Table,
   Edit,
   Trash2,
+  Eye,
+  X,
 
 
 } from "lucide-react";
@@ -38,9 +40,11 @@ import { apiClient } from "../../api/client";
 import ResponseQuestion from "./ResponseQuestion";
 import SectionAnalytics from "./SectionAnalytics";
 import LocationHeatmap from "./LocationHeatmap";
+import CascadingFilterModal from "./CascadingFilterModal";
 import * as XLSX from "xlsx-js-style";
 import { isImageUrl } from "../../utils/answerTemplateUtils";
 import ImageLink from "../ImageLink";
+import FilePreview from "../FilePreview";
 
 
 ChartJS.register(
@@ -56,6 +60,7 @@ ChartJS.register(
 );
 
 interface Response {
+  _id?: string;
   id: string;
   questionId: string;
   answers: Record<string, any>;
@@ -541,17 +546,9 @@ export default function FormAnalyticsDashboard() {
   const [weightageBalance, setWeightageBalance] = useState(0);
 
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [appliedFilters, setAppliedFilters] = useState<Array<{ id: string; label: string; value: string }>>([]);
-  const [showSectionDropdown, setShowSectionDropdown] = useState(false);
-  const [showAnswerDropdown, setShowAnswerDropdown] = useState(false);
-  const [showDateDropdown, setShowDateDropdown] = useState(false);
-  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
-  const [showAppliedFiltersDropdown, setShowAppliedFiltersDropdown] = useState(false);
   const [showSectionSelector, setShowSectionSelector] = useState(false);
-  const [selectedFilterQuestion, setSelectedFilterQuestion] = useState<any>(null);
-  const [selectedFilterQuestionIdx, setSelectedFilterQuestionIdx] = useState<number | null>(null);
-  const [selectedFilterSection, setSelectedFilterSection] = useState<string>("");
-  const [activeFilters, setActiveFilters] = useState<Array<{ questionId: string; answers: string[]; questionText: string }>>([]);
+  const [appliedFilters, setAppliedFilters] = useState<Array<{ id: string; label: string; value: string }>>([]);
+  const [cascadingFilters, setCascadingFilters] = useState<Record<string, string[]>>({});
   const [dateFilter, setDateFilter] = useState<{
     type: 'all' | 'single' | 'range';
     startDate: string;
@@ -567,6 +564,9 @@ export default function FormAnalyticsDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; id: string } | null>(null);
+  const [selectedResponse, setSelectedResponse] = useState<Response | null>(null);
+  const [selectedFormForModal, setSelectedFormForModal] = useState<Form | null>(null);
+  const [formLoading, setFormLoading] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -583,7 +583,6 @@ export default function FormAnalyticsDashboard() {
         // Initialize selected sections for responses view - select all by default
         if (formData.form?.sections && formData.form.sections.length > 0) {
           setSelectedResponsesSectionIds(formData.form.sections.map((s: Section) => s.id));
-          setSelectedFilterSection(formData.form.sections[0].id);
         }
 
         // Fetch responses for this form
@@ -673,30 +672,34 @@ export default function FormAnalyticsDashboard() {
       });
     }
 
-    // 3. Question Filters (Active Filters)
-    if (activeFilters.length === 0) {
+    // 3. Cascading Question Filters
+    const cascadingFiltersArray = Object.entries(cascadingFilters).filter(
+      ([_, answers]) => answers.length > 0
+    );
+
+    if (cascadingFiltersArray.length === 0) {
       return result;
     }
 
     return result.filter((response) => {
-      return activeFilters.every((filter) => {
-        const answer = response.answers[filter.questionId];
+      return cascadingFiltersArray.every(([questionId, selectedAnswers]) => {
+        const answer = response.answers[questionId];
         if (!answer) return false;
 
         // Handle different answer types
         if (Array.isArray(answer)) {
           return answer.some((item) => 
-            filter.answers.some((selectedAnswer) => 
+            selectedAnswers.some((selectedAnswer) => 
               String(item).toLowerCase() === selectedAnswer.toLowerCase()
             )
           );
         }
-        return filter.answers.some((selectedAnswer) => 
+        return selectedAnswers.some((selectedAnswer) => 
           String(answer).toLowerCase() === selectedAnswer.toLowerCase()
         );
       });
     });
-  }, [responses, activeFilters, dateFilter, locationFilter]);
+  }, [responses, cascadingFilters, dateFilter, locationFilter]);
 
   const analytics = useMemo(() => {
     const total = filteredResponses.length;
@@ -796,6 +799,265 @@ export default function FormAnalyticsDashboard() {
       ),
     [filteredSectionStats, selectedSectionIds]
   );
+
+  const hasAnswerValue = (value: any) => {
+    if (value === null || value === undefined) {
+      return false;
+    }
+    if (typeof value === "string") {
+      return value.trim() !== "";
+    }
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+    if (typeof value === "object") {
+      return Object.keys(value).length > 0;
+    }
+    return true;
+  };
+
+  const renderAnswerDisplay = (value: any, question?: any): React.ReactNode => {
+    const ensureAbsoluteFileSource = (input: string) => {
+      if (!input) {
+        return "";
+      }
+      if (input.startsWith("data:")) {
+        return input;
+      }
+      if (input.startsWith("http://") || input.startsWith("https://")) {
+        return input;
+      }
+      if (input.startsWith("//")) {
+        if (typeof window !== "undefined" && window.location) {
+          return `${window.location.protocol}${input}`;
+        }
+        return `https:${input}`;
+      }
+      const normalized = input.startsWith("/") ? input : `/${input}`;
+      if (typeof window !== "undefined" && window.location) {
+        return `${window.location.origin}${normalized}`;
+      }
+      return normalized;
+    };
+
+    const extractFileName = (input: string | undefined) => {
+      if (!input) {
+        return undefined;
+      }
+      try {
+        const sanitized = input.split("?")[0];
+        const parts = sanitized.split("/");
+        const name = parts[parts.length - 1] || undefined;
+        return name ? decodeURIComponent(name) : undefined;
+      } catch {
+        return undefined;
+      }
+    };
+
+    const resolveFileData = (input: any) => {
+      if (!input) {
+        return null;
+      }
+      const candidate =
+        Array.isArray(input) && input.length === 1 ? input[0] : input;
+      if (typeof candidate === "string") {
+        if (candidate.startsWith("data:")) {
+          return {
+            data: candidate,
+            fileName: question?.fileName || question?.name,
+          };
+        }
+        if (
+          candidate.startsWith("http") ||
+          candidate.startsWith("//") ||
+          candidate.startsWith("/") ||
+          candidate.startsWith("uploads/")
+        ) {
+          const absolute = ensureAbsoluteFileSource(candidate);
+          return {
+            url: absolute,
+            fileName:
+              question?.fileName ||
+              question?.name ||
+              extractFileName(candidate),
+          };
+        }
+        return null;
+      }
+      if (typeof candidate === "object") {
+        const dataValue =
+          candidate.data ||
+          candidate.value ||
+          candidate.file ||
+          candidate.base64 ||
+          candidate.url ||
+          candidate.path;
+        const nameValue =
+          candidate.fileName ||
+          candidate.filename ||
+          candidate.name ||
+          question?.fileName ||
+          question?.name;
+        if (typeof dataValue === "string" && dataValue.startsWith("data:")) {
+          return { data: dataValue, fileName: nameValue };
+        }
+        if (typeof dataValue === "string") {
+          const absolute = ensureAbsoluteFileSource(dataValue);
+          return {
+            url: absolute,
+            fileName: nameValue || extractFileName(dataValue),
+          };
+        }
+        if (typeof candidate.url === "string") {
+          const absolute = ensureAbsoluteFileSource(candidate.url);
+          return {
+            url: absolute,
+            fileName: nameValue || extractFileName(candidate.url),
+          };
+        }
+      }
+      return null;
+    };
+
+    if (question?.type === "file" || question?.type === "radio-image") {
+      const fileData = resolveFileData(value);
+      if (fileData?.data) {
+        return (
+          <FilePreview data={fileData.data} fileName={fileData.fileName} />
+        );
+      }
+      if (fileData?.url) {
+        return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
+      }
+    }
+
+    if (value === null || value === undefined) {
+      return <span className="text-gray-400">No response</span>;
+    }
+
+    if (typeof value === "string") {
+      if (value.startsWith("data:")) {
+        return (
+          <FilePreview
+            data={value}
+            fileName={question?.fileName || question?.name}
+          />
+        );
+      }
+      if (question?.type === "file" || question?.type === "radio-image") {
+        if (
+          value.startsWith("http") ||
+          value.startsWith("//") ||
+          value.startsWith("/") ||
+          value.startsWith("uploads/")
+        ) {
+          const absolute = ensureAbsoluteFileSource(value);
+          return (
+            <FilePreview
+              url={absolute}
+              fileName={
+                question?.fileName || question?.name || extractFileName(value)
+              }
+            />
+          );
+        }
+      }
+      if (value.startsWith("http://") || value.startsWith("https://")) {
+        if (isImageUrl(value)) {
+          return <ImageLink text={value} />;
+        }
+        return (
+          <a
+            href={value}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:text-blue-800"
+          >
+            {value}
+          </a>
+        );
+      }
+      const trimmed = value.trim();
+      return trimmed ? (
+        trimmed
+      ) : (
+        <span className="text-gray-400">No response</span>
+      );
+    }
+
+    if (Array.isArray(value)) {
+      if (value.length === 0) {
+        return <span className="text-gray-400">No response</span>;
+      }
+      if (question?.type === "file" || question?.type === "radio-image") {
+        const previews = value
+          .map((entry: any, index: number) => {
+            const fileData = resolveFileData(entry);
+            if (!fileData) {
+              return null;
+            }
+            return (
+              <FilePreview
+                key={`${question?.id ?? "file-array"}-${index}`}
+                data={fileData.data}
+                url={fileData.url}
+                fileName={fileData.fileName}
+              />
+            );
+          })
+          .filter(Boolean);
+        if (previews.length) {
+          return <div className="space-y-3">{previews}</div>;
+        }
+      }
+      const first = value[0];
+      if (typeof first === "string" && first.startsWith("data:")) {
+        return (
+          <FilePreview
+            data={first}
+            fileName={question?.fileName || question?.name}
+          />
+        );
+      }
+      return (
+        <div className="flex flex-wrap gap-2">
+          {value.map((item: any, index: number) => {
+            const itemStr = String(item);
+            if (isImageUrl(itemStr)) {
+              return (
+                <div key={index} className="inline-block">
+                  <ImageLink text={itemStr} />
+                </div>
+              );
+            }
+            return <span key={index} className="text-sm">{itemStr}</span>;
+          })}
+        </div>
+      );
+    }
+
+    if (typeof value === "object") {
+      const fileData = resolveFileData(value);
+      if (fileData?.data) {
+        return (
+          <FilePreview data={fileData.data} fileName={fileData.fileName} />
+        );
+      }
+      if (fileData?.url) {
+        return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
+      }
+      if (!Object.keys(value).length) {
+        return <span className="text-gray-400">No response</span>;
+      }
+      return (
+        <pre className="whitespace-pre-wrap text-gray-600 text-sm">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      );
+    }
+
+    return String(value);
+  };
 
   const handleSelectAllSections = () => {
     setSelectedSectionIds(filteredSectionStats.map((stat) => stat.id));
@@ -1605,6 +1867,28 @@ export default function FormAnalyticsDashboard() {
     } catch (error) {
       console.error("Error exporting to Excel:", error);
       alert("Failed to export to Excel. Please try again.");
+    }
+  };
+
+  const handleViewDetails = (response: Response) => {
+    const responseId = response._id || response.id;
+    console.log('Navigating to response:', responseId);
+    navigate(`/responses/${responseId}`);
+  };
+
+  const handleOpenModal = async (response: Response) => {
+    try {
+      const formIdentifier = response.questionId;
+      if (!formIdentifier) {
+        throw new Error("Missing form identifier for response");
+      }
+      const formData = await apiClient.getForm(formIdentifier);
+      const formDetails = formData.form;
+      setSelectedResponse(response);
+      setSelectedFormForModal(formDetails);
+    } catch (err) {
+      console.error("Failed to load form for modal:", err);
+      showToast("Failed to load form. Please try again.", "error");
     }
   };
 
@@ -3078,6 +3362,19 @@ export default function FormAnalyticsDashboard() {
                                       >
                                         <Trash2 className="w-4 h-4" />
                                       </button>
+                                      <div className="relative z-30">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleViewDetails(response);
+                                          }}
+                                          className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-all duration-200"
+                                          title="View Details"
+                                        >
+                                          <Eye className="w-4 h-4" />
+                                        </button>
+                                      </div>
                                     </>
                                   )}
                                 </div>
@@ -3153,8 +3450,120 @@ export default function FormAnalyticsDashboard() {
 
 
 
-      {/* Advanced Filter Modal */}
-      {showFilterModal && (
+      {/* Cascading Filter Modal */}
+      <CascadingFilterModal
+        isOpen={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        questions={
+          form?.sections?.[0]?.questions?.filter(
+            (q: any) => !q.parentId && !q.showWhen?.questionId
+          ) || []
+        }
+        responses={responses}
+        onApplyFilters={(filters) => {
+          const { dates, locations, ...questionFilters } = filters as any;
+          setCascadingFilters(questionFilters);
+          if (dates) {
+            setDateFilter({
+              type: dates.startDate || dates.endDate ? 'range' : 'all',
+              startDate: dates.startDate || '',
+              endDate: dates.endDate || '',
+            });
+          }
+          if (locations && locations.length > 0) {
+            setLocationFilter(locations);
+          }
+        }}
+      />
+
+      {selectedResponse && selectedFormForModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white dark:bg-gray-900 rounded-lg max-w-4xl w-full my-8 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-white dark:bg-gray-900 px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between z-10">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Response Details</h2>
+              <button
+                onClick={() => {
+                  setSelectedResponse(null);
+                  setSelectedFormForModal(null);
+                }}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">Form</p>
+                  <p className="text-gray-900 dark:text-white">{selectedFormForModal?.title || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">Submitted</p>
+                  <p className="text-gray-900 dark:text-white">
+                    {getResponseTimestamp(selectedResponse) 
+                      ? new Date(getResponseTimestamp(selectedResponse)!).toLocaleString() 
+                      : "N/A"}
+                  </p>
+                </div>
+              </div>
+
+              {selectedFormForModal?.sections?.map((section: Section) => (
+                <div key={section.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                  <h3 className="font-semibold text-lg text-gray-900 dark:text-white mb-4">{section.title}</h3>
+                  <div className="space-y-4">
+                    {section.questions?.map((question: any) => {
+                      const answer = selectedResponse.answers?.[question.id];
+                      return (
+                        <div key={question.id} className="border-l-4 border-blue-300 dark:border-blue-700 pl-4">
+                          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{question.text}</p>
+                          <div className="text-gray-900 dark:text-gray-100">
+                            {hasAnswerValue(answer) ? renderAnswerDisplay(answer, question) : <span className="text-gray-400">No response</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {selectedFormForModal?.followUpQuestions?.length > 0 && (
+                <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                  <h3 className="font-semibold text-lg text-gray-900 dark:text-white mb-4">Follow-up Questions</h3>
+                  <div className="space-y-4">
+                    {selectedFormForModal.followUpQuestions.map((question: any) => {
+                      const answer = selectedResponse.answers?.[question.id];
+                      return (
+                        <div key={question.id} className="border-l-4 border-purple-300 dark:border-purple-700 pl-4">
+                          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{question.text}</p>
+                          <div className="text-gray-900 dark:text-gray-100">
+                            {hasAnswerValue(answer) ? renderAnswerDisplay(answer, question) : <span className="text-gray-400">No response</span>}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="sticky bottom-0 bg-gray-50 dark:bg-gray-800 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+              <button
+                onClick={() => {
+                  setSelectedResponse(null);
+                  setSelectedFormForModal(null);
+                }}
+                className="px-4 py-2 bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-400 dark:hover:bg-gray-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Old Modal Code - Kept for reference, will be removed after testing */}
+      {false && showFilterModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg w-full max-w-6xl h-[75vh] overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-gray-300 flex items-center justify-between">
@@ -3162,11 +3571,6 @@ export default function FormAnalyticsDashboard() {
               <button
                 onClick={() => {
                   setShowFilterModal(false);
-                  setShowSectionDropdown(false);
-                  setShowAnswerDropdown(false);
-                  setShowDateDropdown(false);
-                  setShowLocationDropdown(false);
-                  setShowAppliedFiltersDropdown(false);
                 }}
                 className="text-gray-600 hover:text-gray-900"
               >

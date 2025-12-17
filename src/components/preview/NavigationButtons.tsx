@@ -8,6 +8,7 @@ interface NavigationButtonsProps {
   onNext: () => void;
   onSubmit: () => void;
   submitDisabled: boolean;
+  isSubmitting?: boolean;
 }
 
 export default function NavigationButtons({
@@ -17,8 +18,9 @@ export default function NavigationButtons({
   onNext,
   onSubmit,
   submitDisabled,
+  isSubmitting = false,
 }: NavigationButtonsProps) {
-  const submitButtonClasses = submitDisabled
+  const submitButtonClasses = submitDisabled || isSubmitting
     ? "flex items-center px-8 py-3 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed font-medium"
     : "flex items-center px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium";
 
@@ -28,7 +30,8 @@ export default function NavigationButtons({
         <button
           type="button"
           onClick={onPrevious}
-          className="flex items-center px-8 py-3 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-colors font-medium"
+          disabled={isSubmitting}
+          className="flex items-center px-8 py-3 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <ChevronLeft className="w-5 h-5 mr-2" />
           Previous
@@ -40,7 +43,8 @@ export default function NavigationButtons({
           <button
             type="button"
             onClick={onNext}
-            className="flex items-center px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            disabled={isSubmitting}
+            className="flex items-center px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Next
             <ChevronRight className="w-5 h-5 ml-2" />
@@ -49,11 +53,20 @@ export default function NavigationButtons({
         <button
           type="submit"
           onClick={onSubmit}
-          disabled={submitDisabled}
+          disabled={submitDisabled || isSubmitting}
           className={submitButtonClasses}
         >
-          Submit Response
-          <Send className="w-5 h-5 ml-2" />
+          {isSubmitting ? (
+            <>
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-500 mr-2"></div>
+              Submitting...
+            </>
+          ) : (
+            <>
+              Submit Response
+              <Send className="w-5 h-5 ml-2" />
+            </>
+          )}
         </button>
       </div>
     </div>

@@ -26,6 +26,7 @@ import {
   ChevronDown,
   MapPin,
   List,
+  RefreshCw,
 } from "lucide-react";
 import { Bar, Line, Pie, Radar } from "react-chartjs-2";
 import {
@@ -125,6 +126,7 @@ interface SubmissionMetadata {
   os?: string;
   location?: LocationData;
   submittedAt?: string;
+  source?: string;
 }
 
 interface Response {
@@ -229,9 +231,9 @@ export default function AllResponses() {
 
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [showResponseDropdown, setShowResponseDropdown] = useState(false);
-  const [showExcelDownloadOptions, setShowExcelDownloadOptions] = useState(false);
-  const [showExcelResponseDropdown, setShowExcelResponseDropdown] = useState(false);
-  const [openViewDropdown, setOpenViewDropdown] = useState<string | null>(null);
+  // const [showExcelDownloadOptions, setShowExcelDownloadOptions] = useState(false);
+  // const [showExcelResponseDropdown, setShowExcelResponseDropdown] = useState(false);
+  // const [openViewDropdown, setOpenViewDropdown] = useState<string | null>(null);
 
   const handlePDFTypeSelect = (type: 'no-only' | 'yes-only' | 'both') => {
   setSelectedPDFType(type);
@@ -464,10 +466,9 @@ export default function AllResponses() {
       return;
     }
 
-    // If type is not a string (e.g. event object) or undefined, toggle options
+    // If type is not a string (e.g. event object) or undefined, use default type
     if (!type || typeof type !== 'string') {
-      setShowExcelDownloadOptions(!showExcelDownloadOptions);
-      return;
+      type = 'both';
     }
 
     if (!selectedResponse || !selectedForm) {
@@ -487,8 +488,8 @@ export default function AllResponses() {
         type
       );
       showSuccess("Excel exported successfully.");
-      setShowExcelDownloadOptions(false);
-      setShowExcelResponseDropdown(false);
+      // setShowExcelDownloadOptions(false);
+      // setShowExcelResponseDropdown(false);
     } catch (error) {
       console.error("Failed to export Excel:", error);
       showError("Failed to export Excel. Please try again.");
@@ -681,10 +682,10 @@ useEffect(() => {
       setShowDownloadOptions(false);
       setShowResponseDropdown(false);
     }
-    if (!target.closest('.download-excel-container') && !target.closest('.excel-responses-dropdown')) {
-      setShowExcelDownloadOptions(false);
-      setShowExcelResponseDropdown(false);
-    }
+    // if (!target.closest('.download-excel-container') && !target.closest('.excel-responses-dropdown')) {
+    //   setShowExcelDownloadOptions(false);
+    //   setShowExcelResponseDropdown(false);
+    // }
   };
 
   document.addEventListener('click', handleClickOutside);
@@ -941,13 +942,9 @@ const handleCancelWeightageEdit = () => {
     return Array.from(formMap.values()).sort((a, b) => a.title.localeCompare(b.title));
   }, [responses]);
 
-  // Initialize selectedFormIds with all forms on first load only
-  useEffect(() => {
-    if (!isInitialized && uniqueForms.length > 0) {
-      setSelectedFormIds(uniqueForms.map(f => f.id));
-      setIsInitialized(true);
-    }
-  }, [uniqueForms, isInitialized]);
+  // Initialize selectedFormIds with all forms on first load only - REMOVED to allow auto-update
+  // Defaulting to empty array [] means "All Forms" and will automatically include new forms
+
 
   // Filter responses based on search and selected forms
   const filteredResponses = useMemo(() => {
@@ -2915,7 +2912,16 @@ const handleCancelWeightageEdit = () => {
           </div>
         </div>
         
-        <div className="flex-shrink-0 relative">
+        <div className="flex-shrink-0 relative flex items-center gap-2">
+          <button
+            onClick={fetchData}
+            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+            title="Refresh responses"
+          >
+            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+
+          <div className="relative">
           <button
             onClick={() => setShowFormFilter(!showFormFilter)}
             style={{ backgroundColor: "#1e3a8a" }}
@@ -2925,7 +2931,7 @@ const handleCancelWeightageEdit = () => {
               <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
               <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
             </svg>
-            Forms ({selectedFormIds.length}/{uniqueForms.length})
+            Forms ({selectedFormIds.length === 0 ? uniqueForms.length : selectedFormIds.length}/{uniqueForms.length})
           </button>
 
           {showFormFilter && (
@@ -2948,7 +2954,7 @@ const handleCancelWeightageEdit = () => {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setSelectedFormIds(uniqueForms.map(f => f.id))}
+                      onClick={() => setSelectedFormIds([])}
                       className="flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded transition-colors"
                       style={{ backgroundColor: "#1e3a8a" }}
                     >
@@ -2970,12 +2976,29 @@ const handleCancelWeightageEdit = () => {
                         <div className="relative flex items-center flex-shrink-0">
                           <input
                             type="checkbox"
-                            checked={selectedFormIds.includes(form.id)}
+                            checked={selectedFormIds.length === 0 || selectedFormIds.includes(form.id)}
                             onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedFormIds([...selectedFormIds, form.id]);
+                              const isChecked = e.target.checked;
+                              if (selectedFormIds.length === 0) {
+                                // Currently "All" (effectively all checked)
+                                if (!isChecked) {
+                                  // User unchecked one, so we select all OTHERS
+                                  const allIds = uniqueForms.map(f => f.id);
+                                  setSelectedFormIds(allIds.filter(id => id !== form.id));
+                                }
                               } else {
-                                setSelectedFormIds(selectedFormIds.filter(id => id !== form.id));
+                                // Currently specific selection
+                                if (isChecked) {
+                                  const newIds = [...selectedFormIds, form.id];
+                                  // If now all are selected, switch back to "All" (empty)
+                                  if (newIds.length === uniqueForms.length) {
+                                    setSelectedFormIds([]);
+                                  } else {
+                                    setSelectedFormIds(newIds);
+                                  }
+                                } else {
+                                  setSelectedFormIds(selectedFormIds.filter(id => id !== form.id));
+                                }
                               }
                             }}
                             className="w-5 h-5 border-gray-300 dark:border-gray-600 rounded cursor-pointer"
@@ -3000,11 +3023,12 @@ const handleCancelWeightageEdit = () => {
                 
                 <div className="sticky bottom-0 px-4 py-3 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700">
                   <p className="text-xs text-gray-600 dark:text-gray-400 text-center">
-                    {selectedFormIds.length} of {uniqueForms.length} forms selected
+                    {selectedFormIds.length === 0 ? uniqueForms.length : selectedFormIds.length} of {uniqueForms.length} forms selected
                   </p>
                 </div>
               </div>
             )}
+          </div>
         </div>
       </div>
 
@@ -3068,15 +3092,31 @@ const handleCancelWeightageEdit = () => {
                                 Follow-up
                               </span>
                             )}
+                            {response.submissionMetadata?.source === 'internal' && (
+                              <span className="text-xs font-semibold px-2 py-1 rounded-md bg-purple-200 dark:bg-purple-900/40 text-purple-900 dark:text-purple-300">
+                                Internal Submission
+                              </span>
+                            )}
                           </div>
 
-                          {/* Dealer Name and Submission Time */}
+                          {/* Dealer Name, Location and Submission Time */}
                           <div className="flex flex-col sm:flex-row sm:items-center text-xs gap-2 sm:gap-3">
                             {dealerName && dealerName !== "Unknown" && (
                               <div className="inline-flex items-center text-gray-600 dark:text-gray-400">
                                 <User className="w-4 h-4 mr-1.5 flex-shrink-0" />
                                 <span className="font-medium truncate" title={dealerName}>
                                   {dealerName}
+                                </span>
+                              </div>
+                            )}
+
+                            {response.submissionMetadata?.location && (
+                              <div className="inline-flex items-center text-gray-600 dark:text-gray-400">
+                                <MapPin className="w-4 h-4 mr-1.5 flex-shrink-0" />
+                                <span className="truncate" title={`${response.submissionMetadata.location.city}, ${response.submissionMetadata.location.region}, ${response.submissionMetadata.location.country}`}>
+                                  {[response.submissionMetadata.location.city, response.submissionMetadata.location.region, response.submissionMetadata.location.country]
+                                    .filter(Boolean)
+                                    .join(', ')}
                                 </span>
                               </div>
                             )}
@@ -3091,6 +3131,14 @@ const handleCancelWeightageEdit = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-3 flex-shrink-0 mt-4 sm:mt-0 sm:ml-4">
+                        <button
+                          onClick={() => handleViewDetails(response)}
+                          className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all duration-200"
+                          title="View details"
+                        >
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        {/* Commented out modal view dropdown
                         <div className="relative">
                           <button
                             onClick={() => setOpenViewDropdown(openViewDropdown === response.id ? null : response.id)}
@@ -3121,20 +3169,10 @@ const handleCancelWeightageEdit = () => {
                                 <FileText className="w-4 h-4 mr-3 flex-shrink-0" style={{ color: "#2563eb" }} />
                                 <span>View as Page</span>
                               </button>
-                              {/* <button
-                                onClick={() => {
-                                  const responseId = response._id || response.id;
-                                  navigate(`/responses/${responseId}`, { state: { viewMode: 'responses' } });
-                                  setOpenViewDropdown(null);
-                                }}
-                                className="flex items-center w-full px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
-                              >
-                                <List className="w-4 h-4 mr-3 flex-shrink-0" style={{ color: "#7c3aed" }} />
-                                <span>View Sections</span>
-                              </button> */}
                             </div>
                           )}
                         </div>
+                        */}
                         <button
                           onClick={() => handleEditResponse(response)}
                           disabled={
@@ -3325,80 +3363,20 @@ const handleCancelWeightageEdit = () => {
   </div>
 </div>
                 ) : (
-                  <div className="flex items-center download-excel-container relative">
-                    {showExcelDownloadOptions && (
-                      <div className="flex items-center gap-2 absolute right-full mr-2 top-0 bottom-0 my-auto">
-                        {/* Responses Dropdown */}
-                        <div className="relative excel-responses-dropdown">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowExcelResponseDropdown(!showExcelResponseDropdown);
-                            }}
-                            className="flex items-center px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all duration-200 shadow-sm hover:shadow-md"
-                          >
-                            <span>Responses</span>
-                            <ChevronDown className={`w-3 h-3 ml-1.5 transition-transform duration-200 ${showExcelResponseDropdown ? 'rotate-180' : ''}`} />
-                          </button>
-                          
-                          {/* Dropdown Menu */}
-                          {showExcelResponseDropdown && (
-                            <div className="absolute right-0 top-full mt-2 w-48 bg-gradient-to-b from-white to-blue-50/50 dark:from-gray-800 dark:to-blue-900/20 rounded-lg shadow-xl border border-blue-200 dark:border-blue-800/50 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-                              <div className="py-1">
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleExportExcel('yes-only'); }}
-                                  className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors duration-150"
-                                >
-                                  <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
-                                  <span>Yes Responses (Type 1)</span>
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleExportExcel('no-only'); }}
-                                  className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
-                                >
-                                  <XCircle className="w-3 h-3 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
-                                  <span>No Responses (Type 2)</span>
-                                </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleExportExcel('na-only'); }}
-                                  className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors duration-150"
-                                >
-                                  <AlertTriangle className="w-3 h-3 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
-                                  <span>N/A Responses (Type 3)</span>
-                                </button>
-                                <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleExportExcel('both'); }}
-                                  className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
-                                >
-                                  <FileText className="w-3 h-3 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
-                                  <span>All Response Types</span>
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                  <button
+                    onClick={handleExportExcel}
+                    disabled={exportingExcel}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                    style={{ backgroundColor: "#16a34a" }}
+                    title="Export Excel"
+                  >
+                    {exportingExcel ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
+                    ) : (
+                      <Download className="w-3 h-3" />
                     )}
-
-                    <button
-                      onClick={handleExportExcel}
-                      disabled={exportingExcel}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 ${showExcelDownloadOptions ? 'rounded-r-xl' : 'rounded-lg'}`}
-                      style={{ backgroundColor: "#16a34a" }}
-                      title="Export Excel"
-                    >
-                      {exportingExcel ? (
-                        <span className="h-3 w-3 animate-spin rounded-full border-2 border-green-600 border-t-transparent" />
-                      ) : (
-                        <Download className="w-3 h-3" />
-                      )}
-                      Export Excel
-                      {showExcelDownloadOptions && (
-                        <ChevronDown className="w-3 h-3 ml-0.5 transition-transform" />
-                      )}
-                    </button>
-                  </div>
+                    Export Excel
+                  </button>
                 )}
 
                 <button
