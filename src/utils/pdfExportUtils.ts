@@ -44,28 +44,28 @@ interface PDFOptions {
 
 function formatQuestionNumberForDisplay(qNumber: string): string {
   if (!qNumber) return qNumber;
-
+  
   // Handle formats:
   // "Q3.4" → "S3.Q4"
   // "Q3.4.1" → "S3.Q4.1"
   // "S3.Q4" (already correct) → keep as is
-
-  if (qNumber.startsWith("S")) {
+  
+  if (qNumber.startsWith('S')) {
     return qNumber; // Already in correct format
   }
-
-  if (qNumber.startsWith("Q")) {
+  
+  if (qNumber.startsWith('Q')) {
     // Remove the leading Q
     const rest = qNumber.substring(1);
     // Find the first dot
-    const firstDotIndex = rest.indexOf(".");
+    const firstDotIndex = rest.indexOf('.');
     if (firstDotIndex > 0) {
       const sectionNum = rest.substring(0, firstDotIndex);
       const questionPart = rest.substring(firstDotIndex + 1);
       return `S${sectionNum}.Q${questionPart}`;
     }
   }
-
+  
   return qNumber; // Return as is if pattern doesn't match
 }
 // New function for combined response analysis (shows same question multiple times if has multiple responses)
@@ -130,47 +130,23 @@ function generateCombinedResponseAnalysis(
         console.log(
           `\n✅ Found YES response for ${questionNumber}: "${question.text}"`
         );
-        addResponseToCollection(
-          question,
-          section,
-          sectionIndex,
-          questionIndex,
-          followUpPath,
-          "YES",
-          answer
-        );
+        addResponseToCollection(question, section, sectionIndex, questionIndex, followUpPath, "YES", answer);
       }
-
+      
       // Check for NO response
       if (isNoResponse(answer)) {
         console.log(
           `\n✅ Found NO response for ${questionNumber}: "${question.text}"`
         );
-        addResponseToCollection(
-          question,
-          section,
-          sectionIndex,
-          questionIndex,
-          followUpPath,
-          "NO",
-          answer
-        );
+        addResponseToCollection(question, section, sectionIndex, questionIndex, followUpPath, "NO", answer);
       }
-
+      
       // Check for NA response
       if (isNAResponse(answer)) {
         console.log(
           `\n✅ Found NA response for ${questionNumber}: "${question.text}"`
         );
-        addResponseToCollection(
-          question,
-          section,
-          sectionIndex,
-          questionIndex,
-          followUpPath,
-          "NA",
-          answer
-        );
+        addResponseToCollection(question, section, sectionIndex, questionIndex, followUpPath, "NA", answer);
       }
     }
 
@@ -287,9 +263,7 @@ function generateCombinedResponseAnalysis(
       console.log(`   Questions: ${section.questions.length}`);
       section.questions.forEach((question: any, questionIndex: number) => {
         console.log(
-          `   Q${sectionIndex + 1}.${
-            questionIndex + 1
-          }: "${question.text.substring(0, 50)}..."`
+          `   Q${sectionIndex + 1}.${questionIndex + 1}: "${question.text.substring(0, 50)}..."`
         );
         processQuestion(question, section, 0, sectionIndex, questionIndex, []);
       });
@@ -323,7 +297,7 @@ function generateCombinedResponseAnalysis(
         const responseFollowUps = response.followUpQuestions || [];
         const hasSuggestion =
           response.suggestion && response.suggestion.trim() !== "";
-
+        
         // Set color based on response type
         let responseColor = "";
         switch (response.response) {
@@ -346,9 +320,7 @@ function generateCombinedResponseAnalysis(
   <!-- SECTION HEADER -->
   <tr style="background: #ffffffff;">
     <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 14px; font-weight: 800; color: #1e3a8a;">
-        ${sectionTitle} - ${formatQuestionNumberForDisplay(
-          response.questionNumber
-        )}
+        ${sectionTitle} - ${formatQuestionNumberForDisplay(response.questionNumber)}
     </td>
   </tr>
   
@@ -379,7 +351,7 @@ function generateCombinedResponseAnalysis(
   </tr>
 `;
         if (responseFollowUps.length > 0) {
-          html += `
+  html += `
 <!-- FOLLOW-UP SECTION HEADER -->
 <tr style="background: #f8fafc;">
   <td colspan="3" style="border: 1px solid #666; padding: 5px; font-size: 12px; font-weight: 700; color: #1e3a8a;">
@@ -388,13 +360,13 @@ function generateCombinedResponseAnalysis(
 </tr>
 `;
 
-          // Split follow-up questions into two columns
-          const midPoint = Math.ceil(responseFollowUps.length / 2);
-          const leftColumnQuestions = responseFollowUps.slice(0, midPoint);
-          const rightColumnQuestions = responseFollowUps.slice(midPoint);
-
-          // Start the two-column table
-          html += `
+  // Split follow-up questions into two columns
+  const midPoint = Math.ceil(responseFollowUps.length / 2);
+  const leftColumnQuestions = responseFollowUps.slice(0, midPoint);
+  const rightColumnQuestions = responseFollowUps.slice(midPoint);
+  
+  // Start the two-column table
+  html += `
 <tr style="background: #ffffff;">
   <td colspan="3" style="border: 1px solid #666; padding: 0;">
     <table style="width: 100%; border-collapse: collapse; border: none;">
@@ -403,209 +375,156 @@ function generateCombinedResponseAnalysis(
         <td style="width: 50%; padding: 0; border-right: 1px solid #e2e8f0; vertical-align: top;">
           <div style="padding: 10px;">
   `;
+  
+  // Display left column questions
+  leftColumnQuestions.forEach((fq, index) => {
+    const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
+    let answerDisplay = "";
+    let locationInfo = "";
 
-          // Display left column questions
-          leftColumnQuestions.forEach((fq, index) => {
-            const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
-            let answerDisplay = "";
-            let locationInfo = "";
+    try {
+      let parsedAnswer = fq.answer;
+      if (typeof fq.answer === "string") {
+        try {
+          parsedAnswer = JSON.parse(fq.answer);
+        } catch (e) {
+          // Not JSON, keep as string
+        }
+      }
 
-            try {
-              let parsedAnswer = fq.answer;
-              if (typeof fq.answer === "string") {
-                try {
-                  parsedAnswer = JSON.parse(fq.answer);
-                } catch (e) {
-                  // Not JSON, keep as string
-                }
+      // Helper function to check if a string is an image URL
+      const isImageUrl = (urlString: string): boolean => {
+        if (!urlString || typeof urlString !== "string") return false;
+        const url = urlString.toLowerCase().trim();
+        const imageExtensions = [
+          ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg",
+          ".jpg?", ".jpeg?", ".png?", ".gif?", ".bmp?", ".webp?", ".svg?",
+          ".jpg&", ".jpeg&", ".png&", ".gif&", ".bmp&", ".webp&", ".svg&",
+        ];
+        const imageHostingPatterns = [
+          "cloudinary.com", "imgur.com", "images.unsplash.com", "i.imgur.com",
+          "storage.googleapis.com", "amazonaws.com", "/uploads/", "/images/",
+          "/img/", "/media/", "/photos/",
+        ];
+        const hasImageExtension = imageExtensions.some((ext) => url.includes(ext));
+        const hasImagePattern = imageHostingPatterns.some((pattern) => url.includes(pattern));
+        const isDataUrl = url.startsWith("data:image");
+        return hasImageExtension || hasImagePattern || isDataUrl;
+      };
+
+      // Function to extract image URLs
+      const getImageUrls = (answer: any): Array<{
+        url: string;
+        location?: any;
+        timestamp?: string;
+      }> => {
+        const images: Array<{
+          url: string;
+          location?: any;
+          timestamp?: string;
+        }> = [];
+        if (!answer) return images;
+
+        if (typeof answer === "string") {
+          if (isImageUrl(answer)) {
+            images.push({ url: answer });
+          }
+          return images;
+        }
+
+        if (Array.isArray(answer)) {
+          answer.forEach((item) => {
+            if (typeof item === "string" && isImageUrl(item)) {
+              images.push({ url: item });
+            } else if (item && typeof item === "object") {
+              const potentialUrl = item.url || item.imageUrl || item.image || item.photo || item.src;
+              if (potentialUrl && isImageUrl(potentialUrl)) {
+                images.push({
+                  url: potentialUrl,
+                  location: item.location,
+                  timestamp: item.timestamp,
+                });
               }
+            }
+          });
+          return images;
+        }
 
-              // Helper function to check if a string is an image URL
-              const isImageUrl = (urlString: string): boolean => {
-                if (!urlString || typeof urlString !== "string") return false;
-                const url = urlString.toLowerCase().trim();
-                const imageExtensions = [
-                  ".jpg",
-                  ".jpeg",
-                  ".png",
-                  ".gif",
-                  ".bmp",
-                  ".webp",
-                  ".svg",
-                  ".jpg?",
-                  ".jpeg?",
-                  ".png?",
-                  ".gif?",
-                  ".bmp?",
-                  ".webp?",
-                  ".svg?",
-                  ".jpg&",
-                  ".jpeg&",
-                  ".png&",
-                  ".gif&",
-                  ".bmp&",
-                  ".webp&",
-                  ".svg&",
-                ];
-                const imageHostingPatterns = [
-                  "cloudinary.com",
-                  "imgur.com",
-                  "images.unsplash.com",
-                  "i.imgur.com",
-                  "storage.googleapis.com",
-                  "amazonaws.com",
-                  "/uploads/",
-                  "/images/",
-                  "/img/",
-                  "/media/",
-                  "/photos/",
-                ];
-                const hasImageExtension = imageExtensions.some((ext) =>
-                  url.includes(ext)
-                );
-                const hasImagePattern = imageHostingPatterns.some((pattern) =>
-                  url.includes(pattern)
-                );
-                const isDataUrl = url.startsWith("data:image");
-                return hasImageExtension || hasImagePattern || isDataUrl;
-              };
+        if (typeof answer === "object") {
+          const potentialUrl = answer.url || answer.imageUrl || answer.image || answer.photo || answer.src;
+          if (potentialUrl && isImageUrl(potentialUrl)) {
+            images.push({
+              url: potentialUrl,
+              location: answer.location,
+              timestamp: answer.timestamp,
+            });
+          }
+        }
+        return images;
+      };
 
-              // Function to extract image URLs
-              const getImageUrls = (
-                answer: any
-              ): Array<{
-                url: string;
-                location?: any;
-                timestamp?: string;
-              }> => {
-                const images: Array<{
-                  url: string;
-                  location?: any;
-                  timestamp?: string;
-                }> = [];
-                if (!answer) return images;
+      // Check for images
+      const imageUrls = getImageUrls(parsedAnswer);
 
-                if (typeof answer === "string") {
-                  if (isImageUrl(answer)) {
-                    images.push({ url: answer });
-                  }
-                  return images;
-                }
+      if (imageUrls.length > 0) {
+        const imagesWithLocation = imageUrls.filter((img) => img.location).length;
 
-                if (Array.isArray(answer)) {
-                  answer.forEach((item) => {
-                    if (typeof item === "string" && isImageUrl(item)) {
-                      images.push({ url: item });
-                    } else if (item && typeof item === "object") {
-                      const potentialUrl =
-                        item.url ||
-                        item.imageUrl ||
-                        item.image ||
-                        item.photo ||
-                        item.src;
-                      if (potentialUrl && isImageUrl(potentialUrl)) {
-                        images.push({
-                          url: potentialUrl,
-                          location: item.location,
-                          timestamp: item.timestamp,
-                        });
-                      }
-                    }
-                  });
-                  return images;
-                }
-
-                if (typeof answer === "object") {
-                  const potentialUrl =
-                    answer.url ||
-                    answer.imageUrl ||
-                    answer.image ||
-                    answer.photo ||
-                    answer.src;
-                  if (potentialUrl && isImageUrl(potentialUrl)) {
-                    images.push({
-                      url: potentialUrl,
-                      location: answer.location,
-                      timestamp: answer.timestamp,
-                    });
-                  }
-                }
-                return images;
-              };
-
-              // Check for images
-              const imageUrls = getImageUrls(parsedAnswer);
-
-              if (imageUrls.length > 0) {
-                const imagesWithLocation = imageUrls.filter(
-                  (img) => img.location
-                ).length;
-
-                answerDisplay = `
+        answerDisplay = `
           <div style="margin-top: 5px;">
             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
         `;
 
-                imageUrls.forEach((image, imgIndex) => {
-                  answerDisplay += `
+        imageUrls.forEach((image, imgIndex) => {
+          answerDisplay += `
             <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;">
               <img src="${image.url}" 
                    style="width: 80px; height: 80px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; margin-bottom: 2px;"
                    alt="Evidence ${imgIndex + 1}"
                    onerror="this.onerror=null; this.src='https://via.placeholder.com/70/cccccc/999999?text=Image+Error'; this.style.border='1px solid #dc2626';">
-              ${
-                image.location
-                  ? `
+              ${image.location ? `
                 <div style="font-size: 7px; color: #4b5563; text-align: center; line-height: 1.1; max-width: 70px;">
                   <div style="font-weight: 600;">📍</div>
                   <div>Lat: ${image.location.latitude.toFixed(4)}</div>
                   <div>Long: ${image.location.longitude.toFixed(4)}</div>
                 </div>
-              `
-                  : ""
-              }
+              ` : ''}
             </div>
           `;
-                });
+        });
 
-                answerDisplay += `
+        answerDisplay += `
             </div>
           </div>
         `;
 
-                if (imagesWithLocation > 0) {
-                  locationInfo = `
+        if (imagesWithLocation > 0) {
+          locationInfo = `
             <div style="font-size: 8px; color: #4b5563; margin-top: 3px; padding: 3px; background: #f0f9ff; border-radius: 2px;">
               📍 ${imagesWithLocation} of ${imageUrls.length} images have location
             </div>
           `;
-                }
-              } else if (typeof parsedAnswer === "string") {
-                let cleanAnswer = parsedAnswer.trim();
-                if (cleanAnswer.includes(fq.text)) {
-                  cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
-                  cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
-                }
-                answerDisplay =
-                  cleanAnswer ||
-                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
-              } else if (
-                parsedAnswer === null ||
-                parsedAnswer === undefined ||
-                parsedAnswer === ""
-              ) {
-                answerDisplay =
-                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
-              } else {
-                answerDisplay = String(parsedAnswer);
-              }
-            } catch (error) {
-              console.error("❌ Error processing follow-up answer:", error);
-              answerDisplay =
-                '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
-            }
+        }
+      } else if (typeof parsedAnswer === "string") {
+        let cleanAnswer = parsedAnswer.trim();
+        if (cleanAnswer.includes(fq.text)) {
+          cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
+          cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
+        }
+        answerDisplay = cleanAnswer || 
+          '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+      } else if (parsedAnswer === null || parsedAnswer === undefined || parsedAnswer === "") {
+        answerDisplay = 
+          '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+      } else {
+        answerDisplay = String(parsedAnswer);
+      }
+    } catch (error) {
+      console.error("❌ Error processing follow-up answer:", error);
+      answerDisplay = 
+        '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
+    }
 
-            html += `
+    html += `
       <div style="margin-bottom: 12px; padding: 8px; background: ${rowBgColor}; border-radius: 4px; border: 1px solid #e2e8f0; page-break-inside: avoid;">
         <div style="font-size: 10px; font-weight: 600; color: #1e40af; margin-bottom: 3px;">
            ${formatQuestionNumberForDisplay(fq.number)} ${fq.text} ?
@@ -616,9 +535,9 @@ function generateCombinedResponseAnalysis(
         </div>
       </div>
     `;
-          });
+  });
 
-          html += `
+  html += `
           </div>
         </td>
         
@@ -627,208 +546,155 @@ function generateCombinedResponseAnalysis(
           <div style="padding: 10px;">
   `;
 
-          // Display right column questions
-          rightColumnQuestions.forEach((fq, index) => {
-            const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
-            let answerDisplay = "";
-            let locationInfo = "";
+  // Display right column questions
+  rightColumnQuestions.forEach((fq, index) => {
+    const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
+    let answerDisplay = "";
+    let locationInfo = "";
 
-            try {
-              let parsedAnswer = fq.answer;
-              if (typeof fq.answer === "string") {
-                try {
-                  parsedAnswer = JSON.parse(fq.answer);
-                } catch (e) {
-                  // Not JSON, keep as string
-                }
+    try {
+      let parsedAnswer = fq.answer;
+      if (typeof fq.answer === "string") {
+        try {
+          parsedAnswer = JSON.parse(fq.answer);
+        } catch (e) {
+          // Not JSON, keep as string
+        }
+      }
+
+      // Helper function to check if a string is an image URL
+      const isImageUrl = (urlString: string): boolean => {
+        if (!urlString || typeof urlString !== "string") return false;
+        const url = urlString.toLowerCase().trim();
+        const imageExtensions = [
+          ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg",
+          ".jpg?", ".jpeg?", ".png?", ".gif?", ".bmp?", ".webp?", ".svg?",
+          ".jpg&", ".jpeg&", ".png&", ".gif&", ".bmp&", ".webp&", ".svg&",
+        ];
+        const imageHostingPatterns = [
+          "cloudinary.com", "imgur.com", "images.unsplash.com", "i.imgur.com",
+          "storage.googleapis.com", "amazonaws.com", "/uploads/", "/images/",
+          "/img/", "/media/", "/photos/",
+        ];
+        const hasImageExtension = imageExtensions.some((ext) => url.includes(ext));
+        const hasImagePattern = imageHostingPatterns.some((pattern) => url.includes(pattern));
+        const isDataUrl = url.startsWith("data:image");
+        return hasImageExtension || hasImagePattern || isDataUrl;
+      };
+
+      // Function to extract image URLs
+      const getImageUrls = (answer: any): Array<{
+        url: string;
+        location?: any;
+        timestamp?: string;
+      }> => {
+        const images: Array<{
+          url: string;
+          location?: any;
+          timestamp?: string;
+        }> = [];
+        if (!answer) return images;
+
+        if (typeof answer === "string") {
+          if (isImageUrl(answer)) {
+            images.push({ url: answer });
+          }
+          return images;
+        }
+
+        if (Array.isArray(answer)) {
+          answer.forEach((item) => {
+            if (typeof item === "string" && isImageUrl(item)) {
+              images.push({ url: item });
+            } else if (item && typeof item === "object") {
+              const potentialUrl = item.url || item.imageUrl || item.image || item.photo || item.src;
+              if (potentialUrl && isImageUrl(potentialUrl)) {
+                images.push({
+                  url: potentialUrl,
+                  location: item.location,
+                  timestamp: item.timestamp,
+                });
               }
+            }
+          });
+          return images;
+        }
 
-              // Helper function to check if a string is an image URL
-              const isImageUrl = (urlString: string): boolean => {
-                if (!urlString || typeof urlString !== "string") return false;
-                const url = urlString.toLowerCase().trim();
-                const imageExtensions = [
-                  ".jpg",
-                  ".jpeg",
-                  ".png",
-                  ".gif",
-                  ".bmp",
-                  ".webp",
-                  ".svg",
-                  ".jpg?",
-                  ".jpeg?",
-                  ".png?",
-                  ".gif?",
-                  ".bmp?",
-                  ".webp?",
-                  ".svg?",
-                  ".jpg&",
-                  ".jpeg&",
-                  ".png&",
-                  ".gif&",
-                  ".bmp&",
-                  ".webp&",
-                  ".svg&",
-                ];
-                const imageHostingPatterns = [
-                  "cloudinary.com",
-                  "imgur.com",
-                  "images.unsplash.com",
-                  "i.imgur.com",
-                  "storage.googleapis.com",
-                  "amazonaws.com",
-                  "/uploads/",
-                  "/images/",
-                  "/img/",
-                  "/media/",
-                  "/photos/",
-                ];
-                const hasImageExtension = imageExtensions.some((ext) =>
-                  url.includes(ext)
-                );
-                const hasImagePattern = imageHostingPatterns.some((pattern) =>
-                  url.includes(pattern)
-                );
-                const isDataUrl = url.startsWith("data:image");
-                return hasImageExtension || hasImagePattern || isDataUrl;
-              };
+        if (typeof answer === "object") {
+          const potentialUrl = answer.url || answer.imageUrl || answer.image || answer.photo || answer.src;
+          if (potentialUrl && isImageUrl(potentialUrl)) {
+            images.push({
+              url: potentialUrl,
+              location: answer.location,
+              timestamp: answer.timestamp,
+            });
+          }
+        }
+        return images;
+      };
 
-              // Function to extract image URLs
-              const getImageUrls = (
-                answer: any
-              ): Array<{
-                url: string;
-                location?: any;
-                timestamp?: string;
-              }> => {
-                const images: Array<{
-                  url: string;
-                  location?: any;
-                  timestamp?: string;
-                }> = [];
-                if (!answer) return images;
+      // Check for images
+      const imageUrls = getImageUrls(parsedAnswer);
 
-                if (typeof answer === "string") {
-                  if (isImageUrl(answer)) {
-                    images.push({ url: answer });
-                  }
-                  return images;
-                }
+      if (imageUrls.length > 0) {
+        const imagesWithLocation = imageUrls.filter((img) => img.location).length;
 
-                if (Array.isArray(answer)) {
-                  answer.forEach((item) => {
-                    if (typeof item === "string" && isImageUrl(item)) {
-                      images.push({ url: item });
-                    } else if (item && typeof item === "object") {
-                      const potentialUrl =
-                        item.url ||
-                        item.imageUrl ||
-                        item.image ||
-                        item.photo ||
-                        item.src;
-                      if (potentialUrl && isImageUrl(potentialUrl)) {
-                        images.push({
-                          url: potentialUrl,
-                          location: item.location,
-                          timestamp: item.timestamp,
-                        });
-                      }
-                    }
-                  });
-                  return images;
-                }
-
-                if (typeof answer === "object") {
-                  const potentialUrl =
-                    answer.url ||
-                    answer.imageUrl ||
-                    answer.image ||
-                    answer.photo ||
-                    answer.src;
-                  if (potentialUrl && isImageUrl(potentialUrl)) {
-                    images.push({
-                      url: potentialUrl,
-                      location: answer.location,
-                      timestamp: answer.timestamp,
-                    });
-                  }
-                }
-                return images;
-              };
-
-              // Check for images
-              const imageUrls = getImageUrls(parsedAnswer);
-
-              if (imageUrls.length > 0) {
-                const imagesWithLocation = imageUrls.filter(
-                  (img) => img.location
-                ).length;
-
-                answerDisplay = `
+        answerDisplay = `
           <div style="margin-top: 5px;">
             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
         `;
 
-                imageUrls.forEach((image, imgIndex) => {
-                  answerDisplay += `
+        imageUrls.forEach((image, imgIndex) => {
+          answerDisplay += `
             <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;">
               <img src="${image.url}" 
                    style="width: 70px; height: 70px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; margin-bottom: 2px;"
                    alt="Evidence ${imgIndex + 1}"
                    onerror="this.onerror=null; this.src='https://via.placeholder.com/70/cccccc/999999?text=Image+Error'; this.style.border='1px solid #dc2626';">
-              ${
-                image.location
-                  ? `
+              ${image.location ? `
                 <div style="font-size: 7px; color: #4b5563; text-align: center; line-height: 1.1; max-width: 70px;">
                   <div style="font-weight: 600;">📍</div>
                   <div>Lat: ${image.location.latitude.toFixed(4)}</div>
                   <div>Long: ${image.location.longitude.toFixed(4)}</div>
                 </div>
-              `
-                  : ""
-              }
+              ` : ''}
             </div>
           `;
-                });
+        });
 
-                answerDisplay += `
+        answerDisplay += `
             </div>
           </div>
         `;
 
-                if (imagesWithLocation > 0) {
-                  locationInfo = `
+        if (imagesWithLocation > 0) {
+          locationInfo = `
             <div style="font-size: 8px; color: #4b5563; margin-top: 3px; padding: 3px; background: #f0f9ff; border-radius: 2px;">
               📍 ${imagesWithLocation} of ${imageUrls.length} images have location
             </div>
           `;
-                }
-              } else if (typeof parsedAnswer === "string") {
-                let cleanAnswer = parsedAnswer.trim();
-                if (cleanAnswer.includes(fq.text)) {
-                  cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
-                  cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
-                }
-                answerDisplay =
-                  cleanAnswer ||
-                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
-              } else if (
-                parsedAnswer === null ||
-                parsedAnswer === undefined ||
-                parsedAnswer === ""
-              ) {
-                answerDisplay =
-                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
-              } else {
-                answerDisplay = String(parsedAnswer);
-              }
-            } catch (error) {
-              console.error("❌ Error processing follow-up answer:", error);
-              answerDisplay =
-                '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
-            }
+        }
+      } else if (typeof parsedAnswer === "string") {
+        let cleanAnswer = parsedAnswer.trim();
+        if (cleanAnswer.includes(fq.text)) {
+          cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
+          cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
+        }
+        answerDisplay = cleanAnswer || 
+          '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+      } else if (parsedAnswer === null || parsedAnswer === undefined || parsedAnswer === "") {
+        answerDisplay = 
+          '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+      } else {
+        answerDisplay = String(parsedAnswer);
+      }
+    } catch (error) {
+      console.error("❌ Error processing follow-up answer:", error);
+      answerDisplay = 
+        '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
+    }
 
-            html += `
+    html += `
       <div style="margin-bottom: 12px; padding: 8px; background: ${rowBgColor}; border-radius: 4px; border: 1px solid #e2e8f0; page-break-inside: avoid;">
         <div style="font-size: 10px; font-weight: 600; color: #1e40af; margin-bottom: 3px;">
           ${fq.number} ${fq.text} ?
@@ -839,9 +705,9 @@ function generateCombinedResponseAnalysis(
         </div>
       </div>
     `;
-          });
+  });
 
-          html += `
+  html += `
           </div>
         </td>
       </tr>
@@ -849,8 +715,8 @@ function generateCombinedResponseAnalysis(
   </td>
 </tr>
 `;
-        }
-
+}
+        
         if (hasSuggestion) {
           html += `
   <!-- SUGGESTION SECTION -->
@@ -863,9 +729,7 @@ function generateCombinedResponseAnalysis(
   <tr style="background: #ffffff;">
     <td colspan="3" style="border: 1px solid #666; padding: 10px;">
       <div style="font-size: 10px; line-height: 1.6;" page-break-after:always;>
-        <span style="font-weight: 700; color: #1e3a8a;">${formatQuestionNumberForDisplay(
-          response.questionNumber
-        )}</span> - ${response.suggestion}
+        <span style="font-weight: 700; color: #1e3a8a;">${formatQuestionNumberForDisplay(response.questionNumber)}</span> - ${response.suggestion}
       </div>
     </td>
   </tr>
@@ -885,10 +749,7 @@ function generateCombinedResponseAnalysis(
 }
 
 // Helper function to limit combined response analysis size
-function limitCombinedResponseAnalysisSize(
-  html: string,
-  maxSizeInChars: number = 300000
-): string {
+function limitCombinedResponseAnalysisSize(html: string, maxSizeInChars: number = 300000): string {
   return limitResponseAnalysisSize(html, maxSizeInChars);
 }
 
@@ -899,11 +760,7 @@ function generateBothResponseAnalysis(
   availableSections: any[],
   maxSize: number = 300000
 ): string {
-  const html = generateCombinedResponseAnalysis(
-    form,
-    response,
-    availableSections
-  );
+  const html = generateCombinedResponseAnalysis(form, response, availableSections);
   return limitCombinedResponseAnalysisSize(html, maxSize);
 }
 
@@ -1333,6 +1190,7 @@ function generateResponseAnalysis(
   let html = "";
   // Helper function to format question number for display: "Q3.4" → "S3.Q4"
 
+
   Object.entries(responsesBySection).forEach(
     ([sectionTitle, responses], sectionIndex) => {
       responses.forEach((response, responseIndex) => {
@@ -1353,9 +1211,7 @@ function generateResponseAnalysis(
   <!-- SECTION HEADER -->
   <tr style="background: #ffffffff;">
     <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 14px; font-weight: 800; color: #1e3a8a;">
-        ${sectionTitle} - ${formatQuestionNumberForDisplay(
-          response.questionNumber
-        )}
+        ${sectionTitle} - ${formatQuestionNumberForDisplay(response.questionNumber)}
     </td>
   </tr>
   
@@ -1387,7 +1243,7 @@ function generateResponseAnalysis(
 `;
 
         if (responseFollowUps.length > 0) {
-          html += `
+  html += `
 <!-- FOLLOW-UP SECTION HEADER -->
 <tr style="background: #f8fafc;">
   <td colspan="3" style="border: 1px solid #666; padding: 5px; font-size: 12px; font-weight: 700; color: #1e3a8a;">
@@ -1396,13 +1252,13 @@ function generateResponseAnalysis(
 </tr>
 `;
 
-          // Split follow-up questions into two columns
-          const midPoint = Math.ceil(responseFollowUps.length / 2);
-          const leftColumnQuestions = responseFollowUps.slice(0, midPoint);
-          const rightColumnQuestions = responseFollowUps.slice(midPoint);
-
-          // Start the two-column table
-          html += `
+  // Split follow-up questions into two columns
+  const midPoint = Math.ceil(responseFollowUps.length / 2);
+  const leftColumnQuestions = responseFollowUps.slice(0, midPoint);
+  const rightColumnQuestions = responseFollowUps.slice(midPoint);
+  
+  // Start the two-column table
+  html += `
 <tr style="background: #ffffff;">
   <td colspan="3" style="border: 1px solid #666; padding: 0;">
     <table style="width: 100%; border-collapse: collapse; border: none;">
@@ -1411,209 +1267,156 @@ function generateResponseAnalysis(
         <td style="width: 50%; padding: 0; border-right: 1px solid #e2e8f0; vertical-align: top;">
           <div style="padding: 10px;">
   `;
+  
+  // Display left column questions
+  leftColumnQuestions.forEach((fq, index) => {
+    const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
+    let answerDisplay = "";
+    let locationInfo = "";
 
-          // Display left column questions
-          leftColumnQuestions.forEach((fq, index) => {
-            const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
-            let answerDisplay = "";
-            let locationInfo = "";
+    try {
+      let parsedAnswer = fq.answer;
+      if (typeof fq.answer === "string") {
+        try {
+          parsedAnswer = JSON.parse(fq.answer);
+        } catch (e) {
+          // Not JSON, keep as string
+        }
+      }
 
-            try {
-              let parsedAnswer = fq.answer;
-              if (typeof fq.answer === "string") {
-                try {
-                  parsedAnswer = JSON.parse(fq.answer);
-                } catch (e) {
-                  // Not JSON, keep as string
-                }
+      // Helper function to check if a string is an image URL
+      const isImageUrl = (urlString: string): boolean => {
+        if (!urlString || typeof urlString !== "string") return false;
+        const url = urlString.toLowerCase().trim();
+        const imageExtensions = [
+          ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg",
+          ".jpg?", ".jpeg?", ".png?", ".gif?", ".bmp?", ".webp?", ".svg?",
+          ".jpg&", ".jpeg&", ".png&", ".gif&", ".bmp&", ".webp&", ".svg&",
+        ];
+        const imageHostingPatterns = [
+          "cloudinary.com", "imgur.com", "images.unsplash.com", "i.imgur.com",
+          "storage.googleapis.com", "amazonaws.com", "/uploads/", "/images/",
+          "/img/", "/media/", "/photos/",
+        ];
+        const hasImageExtension = imageExtensions.some((ext) => url.includes(ext));
+        const hasImagePattern = imageHostingPatterns.some((pattern) => url.includes(pattern));
+        const isDataUrl = url.startsWith("data:image");
+        return hasImageExtension || hasImagePattern || isDataUrl;
+      };
+
+      // Function to extract image URLs
+      const getImageUrls = (answer: any): Array<{
+        url: string;
+        location?: any;
+        timestamp?: string;
+      }> => {
+        const images: Array<{
+          url: string;
+          location?: any;
+          timestamp?: string;
+        }> = [];
+        if (!answer) return images;
+
+        if (typeof answer === "string") {
+          if (isImageUrl(answer)) {
+            images.push({ url: answer });
+          }
+          return images;
+        }
+
+        if (Array.isArray(answer)) {
+          answer.forEach((item) => {
+            if (typeof item === "string" && isImageUrl(item)) {
+              images.push({ url: item });
+            } else if (item && typeof item === "object") {
+              const potentialUrl = item.url || item.imageUrl || item.image || item.photo || item.src;
+              if (potentialUrl && isImageUrl(potentialUrl)) {
+                images.push({
+                  url: potentialUrl,
+                  location: item.location,
+                  timestamp: item.timestamp,
+                });
               }
+            }
+          });
+          return images;
+        }
 
-              // Helper function to check if a string is an image URL
-              const isImageUrl = (urlString: string): boolean => {
-                if (!urlString || typeof urlString !== "string") return false;
-                const url = urlString.toLowerCase().trim();
-                const imageExtensions = [
-                  ".jpg",
-                  ".jpeg",
-                  ".png",
-                  ".gif",
-                  ".bmp",
-                  ".webp",
-                  ".svg",
-                  ".jpg?",
-                  ".jpeg?",
-                  ".png?",
-                  ".gif?",
-                  ".bmp?",
-                  ".webp?",
-                  ".svg?",
-                  ".jpg&",
-                  ".jpeg&",
-                  ".png&",
-                  ".gif&",
-                  ".bmp&",
-                  ".webp&",
-                  ".svg&",
-                ];
-                const imageHostingPatterns = [
-                  "cloudinary.com",
-                  "imgur.com",
-                  "images.unsplash.com",
-                  "i.imgur.com",
-                  "storage.googleapis.com",
-                  "amazonaws.com",
-                  "/uploads/",
-                  "/images/",
-                  "/img/",
-                  "/media/",
-                  "/photos/",
-                ];
-                const hasImageExtension = imageExtensions.some((ext) =>
-                  url.includes(ext)
-                );
-                const hasImagePattern = imageHostingPatterns.some((pattern) =>
-                  url.includes(pattern)
-                );
-                const isDataUrl = url.startsWith("data:image");
-                return hasImageExtension || hasImagePattern || isDataUrl;
-              };
+        if (typeof answer === "object") {
+          const potentialUrl = answer.url || answer.imageUrl || answer.image || answer.photo || answer.src;
+          if (potentialUrl && isImageUrl(potentialUrl)) {
+            images.push({
+              url: potentialUrl,
+              location: answer.location,
+              timestamp: answer.timestamp,
+            });
+          }
+        }
+        return images;
+      };
 
-              // Function to extract image URLs
-              const getImageUrls = (
-                answer: any
-              ): Array<{
-                url: string;
-                location?: any;
-                timestamp?: string;
-              }> => {
-                const images: Array<{
-                  url: string;
-                  location?: any;
-                  timestamp?: string;
-                }> = [];
-                if (!answer) return images;
+      // Check for images
+      const imageUrls = getImageUrls(parsedAnswer);
 
-                if (typeof answer === "string") {
-                  if (isImageUrl(answer)) {
-                    images.push({ url: answer });
-                  }
-                  return images;
-                }
+      if (imageUrls.length > 0) {
+        const imagesWithLocation = imageUrls.filter((img) => img.location).length;
 
-                if (Array.isArray(answer)) {
-                  answer.forEach((item) => {
-                    if (typeof item === "string" && isImageUrl(item)) {
-                      images.push({ url: item });
-                    } else if (item && typeof item === "object") {
-                      const potentialUrl =
-                        item.url ||
-                        item.imageUrl ||
-                        item.image ||
-                        item.photo ||
-                        item.src;
-                      if (potentialUrl && isImageUrl(potentialUrl)) {
-                        images.push({
-                          url: potentialUrl,
-                          location: item.location,
-                          timestamp: item.timestamp,
-                        });
-                      }
-                    }
-                  });
-                  return images;
-                }
-
-                if (typeof answer === "object") {
-                  const potentialUrl =
-                    answer.url ||
-                    answer.imageUrl ||
-                    answer.image ||
-                    answer.photo ||
-                    answer.src;
-                  if (potentialUrl && isImageUrl(potentialUrl)) {
-                    images.push({
-                      url: potentialUrl,
-                      location: answer.location,
-                      timestamp: answer.timestamp,
-                    });
-                  }
-                }
-                return images;
-              };
-
-              // Check for images
-              const imageUrls = getImageUrls(parsedAnswer);
-
-              if (imageUrls.length > 0) {
-                const imagesWithLocation = imageUrls.filter(
-                  (img) => img.location
-                ).length;
-
-                answerDisplay = `
+        answerDisplay = `
           <div style="margin-top: 5px;">
             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 0px;">
         `;
 
-                imageUrls.forEach((image, imgIndex) => {
-                  answerDisplay += `
+        imageUrls.forEach((image, imgIndex) => {
+          answerDisplay += `
             <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;">
               <img src="${image.url}" 
                    style="width: 80px; height: 80px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; margin-bottom: 0  px;"
                    alt="Evidence ${imgIndex + 1}"
                    onerror="this.onerror=null; this.src='https://via.placeholder.com/70/cccccc/999999?text=Image+Error'; this.style.border='1px solid #dc2626';">
-              ${
-                image.location
-                  ? `
+              ${image.location ? `
                 <div style="font-size: 7px; color: #4b5563; text-align: center; line-height: 1.1; max-width: 70px;">
                   <div style="font-weight: 600;">📍</div>
                   <div>Lat: ${image.location.latitude.toFixed(4)}</div>
                   <div>Long: ${image.location.longitude.toFixed(4)}</div>
                 </div>
-              `
-                  : ""
-              }
+              ` : ''}
             </div>
           `;
-                });
+        });
 
-                answerDisplay += `
+        answerDisplay += `
             </div>
           </div>
         `;
 
-                if (imagesWithLocation > 0) {
-                  locationInfo = `
+        if (imagesWithLocation > 0) {
+          locationInfo = `
             <div style="font-size: 8px; color: #4b5563; margin-top: 3px; padding: 3px; background: #f0f9ff; border-radius: 2px;">
               📍 ${imagesWithLocation} of ${imageUrls.length} images have location
             </div>
           `;
-                }
-              } else if (typeof parsedAnswer === "string") {
-                let cleanAnswer = parsedAnswer.trim();
-                if (cleanAnswer.includes(fq.text)) {
-                  cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
-                  cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
-                }
-                answerDisplay =
-                  cleanAnswer ||
-                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
-              } else if (
-                parsedAnswer === null ||
-                parsedAnswer === undefined ||
-                parsedAnswer === ""
-              ) {
-                answerDisplay =
-                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
-              } else {
-                answerDisplay = String(parsedAnswer);
-              }
-            } catch (error) {
-              console.error("❌ Error processing follow-up answer:", error);
-              answerDisplay =
-                '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
-            }
+        }
+      } else if (typeof parsedAnswer === "string") {
+        let cleanAnswer = parsedAnswer.trim();
+        if (cleanAnswer.includes(fq.text)) {
+          cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
+          cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
+        }
+        answerDisplay = cleanAnswer || 
+          '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+      } else if (parsedAnswer === null || parsedAnswer === undefined || parsedAnswer === "") {
+        answerDisplay = 
+          '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+      } else {
+        answerDisplay = String(parsedAnswer);
+      }
+    } catch (error) {
+      console.error("❌ Error processing follow-up answer:", error);
+      answerDisplay = 
+        '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
+    }
 
-            html += `
+    html += `
       <div style="margin-bottom: 2px; padding: 8px; background: ${rowBgColor}; border-radius: 4px; border: 1px solid #e2e8f0; page-break-inside: avoid;">
         <div style="font-size: 10px; font-weight: 600; color: #1e40af; margin-bottom: 3px;">
            ${formatQuestionNumberForDisplay(fq.number)} ${fq.text} ?
@@ -1624,9 +1427,9 @@ function generateResponseAnalysis(
         </div>
       </div>
     `;
-          });
+  });
 
-          html += `
+  html += `
           </div>
         </td>
         
@@ -1635,208 +1438,155 @@ function generateResponseAnalysis(
           <div style="padding: 10px;">
   `;
 
-          // Display right column questions
-          rightColumnQuestions.forEach((fq, index) => {
-            const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
-            let answerDisplay = "";
-            let locationInfo = "";
+  // Display right column questions
+  rightColumnQuestions.forEach((fq, index) => {
+    const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
+    let answerDisplay = "";
+    let locationInfo = "";
 
-            try {
-              let parsedAnswer = fq.answer;
-              if (typeof fq.answer === "string") {
-                try {
-                  parsedAnswer = JSON.parse(fq.answer);
-                } catch (e) {
-                  // Not JSON, keep as string
-                }
+    try {
+      let parsedAnswer = fq.answer;
+      if (typeof fq.answer === "string") {
+        try {
+          parsedAnswer = JSON.parse(fq.answer);
+        } catch (e) {
+          // Not JSON, keep as string
+        }
+      }
+
+      // Helper function to check if a string is an image URL
+      const isImageUrl = (urlString: string): boolean => {
+        if (!urlString || typeof urlString !== "string") return false;
+        const url = urlString.toLowerCase().trim();
+        const imageExtensions = [
+          ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg",
+          ".jpg?", ".jpeg?", ".png?", ".gif?", ".bmp?", ".webp?", ".svg?",
+          ".jpg&", ".jpeg&", ".png&", ".gif&", ".bmp&", ".webp&", ".svg&",
+        ];
+        const imageHostingPatterns = [
+          "cloudinary.com", "imgur.com", "images.unsplash.com", "i.imgur.com",
+          "storage.googleapis.com", "amazonaws.com", "/uploads/", "/images/",
+          "/img/", "/media/", "/photos/",
+        ];
+        const hasImageExtension = imageExtensions.some((ext) => url.includes(ext));
+        const hasImagePattern = imageHostingPatterns.some((pattern) => url.includes(pattern));
+        const isDataUrl = url.startsWith("data:image");
+        return hasImageExtension || hasImagePattern || isDataUrl;
+      };
+
+      // Function to extract image URLs
+      const getImageUrls = (answer: any): Array<{
+        url: string;
+        location?: any;
+        timestamp?: string;
+      }> => {
+        const images: Array<{
+          url: string;
+          location?: any;
+          timestamp?: string;
+        }> = [];
+        if (!answer) return images;
+
+        if (typeof answer === "string") {
+          if (isImageUrl(answer)) {
+            images.push({ url: answer });
+          }
+          return images;
+        }
+
+        if (Array.isArray(answer)) {
+          answer.forEach((item) => {
+            if (typeof item === "string" && isImageUrl(item)) {
+              images.push({ url: item });
+            } else if (item && typeof item === "object") {
+              const potentialUrl = item.url || item.imageUrl || item.image || item.photo || item.src;
+              if (potentialUrl && isImageUrl(potentialUrl)) {
+                images.push({
+                  url: potentialUrl,
+                  location: item.location,
+                  timestamp: item.timestamp,
+                });
               }
+            }
+          });
+          return images;
+        }
 
-              // Helper function to check if a string is an image URL
-              const isImageUrl = (urlString: string): boolean => {
-                if (!urlString || typeof urlString !== "string") return false;
-                const url = urlString.toLowerCase().trim();
-                const imageExtensions = [
-                  ".jpg",
-                  ".jpeg",
-                  ".png",
-                  ".gif",
-                  ".bmp",
-                  ".webp",
-                  ".svg",
-                  ".jpg?",
-                  ".jpeg?",
-                  ".png?",
-                  ".gif?",
-                  ".bmp?",
-                  ".webp?",
-                  ".svg?",
-                  ".jpg&",
-                  ".jpeg&",
-                  ".png&",
-                  ".gif&",
-                  ".bmp&",
-                  ".webp&",
-                  ".svg&",
-                ];
-                const imageHostingPatterns = [
-                  "cloudinary.com",
-                  "imgur.com",
-                  "images.unsplash.com",
-                  "i.imgur.com",
-                  "storage.googleapis.com",
-                  "amazonaws.com",
-                  "/uploads/",
-                  "/images/",
-                  "/img/",
-                  "/media/",
-                  "/photos/",
-                ];
-                const hasImageExtension = imageExtensions.some((ext) =>
-                  url.includes(ext)
-                );
-                const hasImagePattern = imageHostingPatterns.some((pattern) =>
-                  url.includes(pattern)
-                );
-                const isDataUrl = url.startsWith("data:image");
-                return hasImageExtension || hasImagePattern || isDataUrl;
-              };
+        if (typeof answer === "object") {
+          const potentialUrl = answer.url || answer.imageUrl || answer.image || answer.photo || answer.src;
+          if (potentialUrl && isImageUrl(potentialUrl)) {
+            images.push({
+              url: potentialUrl,
+              location: answer.location,
+              timestamp: answer.timestamp,
+            });
+          }
+        }
+        return images;
+      };
 
-              // Function to extract image URLs
-              const getImageUrls = (
-                answer: any
-              ): Array<{
-                url: string;
-                location?: any;
-                timestamp?: string;
-              }> => {
-                const images: Array<{
-                  url: string;
-                  location?: any;
-                  timestamp?: string;
-                }> = [];
-                if (!answer) return images;
+      // Check for images
+      const imageUrls = getImageUrls(parsedAnswer);
 
-                if (typeof answer === "string") {
-                  if (isImageUrl(answer)) {
-                    images.push({ url: answer });
-                  }
-                  return images;
-                }
+      if (imageUrls.length > 0) {
+        const imagesWithLocation = imageUrls.filter((img) => img.location).length;
 
-                if (Array.isArray(answer)) {
-                  answer.forEach((item) => {
-                    if (typeof item === "string" && isImageUrl(item)) {
-                      images.push({ url: item });
-                    } else if (item && typeof item === "object") {
-                      const potentialUrl =
-                        item.url ||
-                        item.imageUrl ||
-                        item.image ||
-                        item.photo ||
-                        item.src;
-                      if (potentialUrl && isImageUrl(potentialUrl)) {
-                        images.push({
-                          url: potentialUrl,
-                          location: item.location,
-                          timestamp: item.timestamp,
-                        });
-                      }
-                    }
-                  });
-                  return images;
-                }
-
-                if (typeof answer === "object") {
-                  const potentialUrl =
-                    answer.url ||
-                    answer.imageUrl ||
-                    answer.image ||
-                    answer.photo ||
-                    answer.src;
-                  if (potentialUrl && isImageUrl(potentialUrl)) {
-                    images.push({
-                      url: potentialUrl,
-                      location: answer.location,
-                      timestamp: answer.timestamp,
-                    });
-                  }
-                }
-                return images;
-              };
-
-              // Check for images
-              const imageUrls = getImageUrls(parsedAnswer);
-
-              if (imageUrls.length > 0) {
-                const imagesWithLocation = imageUrls.filter(
-                  (img) => img.location
-                ).length;
-
-                answerDisplay = `
+        answerDisplay = `
           <div style="margin-top: 5px;">
             <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
         `;
 
-                imageUrls.forEach((image, imgIndex) => {
-                  answerDisplay += `
+        imageUrls.forEach((image, imgIndex) => {
+          answerDisplay += `
             <div style="flex: 0 0 auto; display: flex; flex-direction: column; align-items: center;">
               <img src="${image.url}" 
                    style="width: 70px; height: 70px; object-fit: cover; border: 1px solid #ccc; border-radius: 3px; margin-bottom: 2px;"
                    alt="Evidence ${imgIndex + 1}"
                    onerror="this.onerror=null; this.src='https://via.placeholder.com/70/cccccc/999999?text=Image+Error'; this.style.border='1px solid #dc2626';">
-              ${
-                image.location
-                  ? `
+              ${image.location ? `
                 <div style="font-size: 7px; color: #4b5563; text-align: center; line-height: 1.1; max-width: 70px;">
                   <div style="font-weight: 600;">📍</div>
                   <div>Lat: ${image.location.latitude.toFixed(4)}</div>
                   <div>Long: ${image.location.longitude.toFixed(4)}</div>
                 </div>
-              `
-                  : ""
-              }
+              ` : ''}
             </div>
           `;
-                });
+        });
 
-                answerDisplay += `
+        answerDisplay += `
             </div>
           </div>
         `;
 
-                if (imagesWithLocation > 0) {
-                  locationInfo = `
+        if (imagesWithLocation > 0) {
+          locationInfo = `
             <div style="font-size: 8px; color: #4b5563; margin-top: 3px; padding: 3px; background: #f0f9ff; border-radius: 2px;">
               📍 ${imagesWithLocation} of ${imageUrls.length} images have location
             </div>
           `;
-                }
-              } else if (typeof parsedAnswer === "string") {
-                let cleanAnswer = parsedAnswer.trim();
-                if (cleanAnswer.includes(fq.text)) {
-                  cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
-                  cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
-                }
-                answerDisplay =
-                  cleanAnswer ||
-                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
-              } else if (
-                parsedAnswer === null ||
-                parsedAnswer === undefined ||
-                parsedAnswer === ""
-              ) {
-                answerDisplay =
-                  '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
-              } else {
-                answerDisplay = String(parsedAnswer);
-              }
-            } catch (error) {
-              console.error("❌ Error processing follow-up answer:", error);
-              answerDisplay =
-                '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
-            }
+        }
+      } else if (typeof parsedAnswer === "string") {
+        let cleanAnswer = parsedAnswer.trim();
+        if (cleanAnswer.includes(fq.text)) {
+          cleanAnswer = cleanAnswer.replace(fq.text, "").trim();
+          cleanAnswer = cleanAnswer.replace(/^[:.\s\-]+/, "");
+        }
+        answerDisplay = cleanAnswer || 
+          '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+      } else if (parsedAnswer === null || parsedAnswer === undefined || parsedAnswer === "") {
+        answerDisplay = 
+          '<span style="color: #9ca3af; font-style: italic; font-size: 9px;">No response</span>';
+      } else {
+        answerDisplay = String(parsedAnswer);
+      }
+    } catch (error) {
+      console.error("❌ Error processing follow-up answer:", error);
+      answerDisplay = 
+        '<span style="color: #dc2626; font-style: italic; font-size: 9px;">Error processing response</span>';
+    }
 
-            html += `
+    html += `
       <div style="margin-bottom: 2px; padding: 8px; background: ${rowBgColor}; border-radius: 4px; border: 1px solid #e2e8f0; page-break-inside: avoid;">
         <div style="font-size: 10px; font-weight: 600; color: #1e40af; margin-bottom: 3px;">
           ${fq.number} ${fq.text} ?
@@ -1847,9 +1597,9 @@ function generateResponseAnalysis(
         </div>
       </div>
     `;
-          });
+  });
 
-          html += `
+  html += `
           </div>
         </td>
       </tr>
@@ -1857,7 +1607,7 @@ function generateResponseAnalysis(
   </td>
 </tr>
 `;
-        }
+}
 
         if (hasSuggestion) {
           html += `
@@ -1891,25 +1641,18 @@ function generateResponseAnalysis(
 }
 
 // Helper function to limit response analysis size
-function limitResponseAnalysisSize(
-  html: string,
-  maxSizeInChars: number = 300000
-): string {
+function limitResponseAnalysisSize(html: string, maxSizeInChars: number = 300000): string {
   if (html.length <= maxSizeInChars) {
     return html;
   }
-
-  console.warn(
-    `⚠️ Response analysis exceeds size limit (${html.length} chars). Truncating...`
-  );
-
+  
+  console.warn(`⚠️ Response analysis exceeds size limit (${html.length} chars). Truncating...`);
+  
   const truncated = html.substring(0, maxSizeInChars);
-  const lastTableEnd = truncated.lastIndexOf("</table>");
-
+  const lastTableEnd = truncated.lastIndexOf('</table>');
+  
   if (lastTableEnd > 0) {
-    return (
-      truncated.substring(0, lastTableEnd + 8) +
-      `
+    return truncated.substring(0, lastTableEnd + 8) + `
 <table style="width: 100%; border-collapse: collapse; border: 1px solid #666; margin: 20px 0;">
   <tr style="background: #ffffffff;">
     <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 12px; font-weight: 700; color: #f59e0b;">
@@ -1922,14 +1665,10 @@ function limitResponseAnalysisSize(
     </td>
   </tr>
 </table>
-    `
-    );
+    `;
   }
-
-  return (
-    truncated +
-    `<p style="color: #f59e0b; font-weight: 700; margin-top: 20px;">⚠️ Response analysis was truncated due to size.</p>`
-  );
+  
+  return truncated + `<p style="color: #f59e0b; font-weight: 700; margin-top: 20px;">⚠️ Response analysis was truncated due to size.</p>`;
 }
 
 // Individual response analysis functions (kept for backward compatibility)
@@ -1939,12 +1678,7 @@ function generateNoResponseAnalysis(
   availableSections: any[],
   maxSize: number = 300000
 ): string {
-  const html = generateResponseAnalysis(
-    form,
-    response,
-    availableSections,
-    "no"
-  );
+  const html = generateResponseAnalysis(form, response, availableSections, "no");
   return limitResponseAnalysisSize(html, maxSize);
 }
 
@@ -1954,12 +1688,7 @@ function generateYesResponseAnalysis(
   availableSections: any[],
   maxSize: number = 300000
 ): string {
-  const html = generateResponseAnalysis(
-    form,
-    response,
-    availableSections,
-    "yes"
-  );
+  const html = generateResponseAnalysis(form, response, availableSections, "yes");
   return limitResponseAnalysisSize(html, maxSize);
 }
 
@@ -1969,12 +1698,7 @@ function generateNAResponseAnalysis(
   availableSections: any[],
   maxSize: number = 300000
 ): string {
-  const html = generateResponseAnalysis(
-    form,
-    response,
-    availableSections,
-    "na"
-  );
+  const html = generateResponseAnalysis(form, response, availableSections, "na");
   return limitResponseAnalysisSize(html, maxSize);
 }
 
@@ -3052,120 +2776,94 @@ function generateTableBarChart(
 // Add these helper functions (they should already exist somewhere in your code)
 function getTypeColor(type: string): string {
   switch (type) {
-    case "no-only":
-      return "#dc2626";
-    case "yes-only":
-      return "#059669";
-    case "na-only":
-      return "#f59e0b";
-    case "both":
-      return "#1e3a8a";
-    case "section":
-      return "#7c3aed";
-    default:
-      return "#1e3a8a";
+    case "no-only": return "#dc2626";
+    case "yes-only": return "#059669";
+    case "na-only": return "#f59e0b";
+    case "both": return "#1e3a8a";
+    case "section": return "#7c3aed";
+    default: return "#1e3a8a";
   }
 }
 
 function getPDFTypeDisplayName(type: string): string {
   switch (type) {
-    case "no-only":
-      return "NO Response Analysis Only";
-    case "yes-only":
-      return "YES Response Analysis Only";
-    case "na-only":
-      return "N/A Response Analysis Only";
-    case "both":
-      return "BOTH NO, YES & N/A Response Analysis";
-    case "section":
-      return "Section-wise Analysis Only";
-    default:
-      return "Standard Report";
+    case "no-only": return "NO Response Analysis Only";
+    case "yes-only": return "YES Response Analysis Only";
+    case "na-only": return "N/A Response Analysis Only";
+    case "both": return "BOTH NO, YES & N/A Response Analysis";
+    case "section": return "Section-wise Analysis Only";
+    default: return "Standard Report";
   }
 }
 
 function getExclusionNote(type: string): string {
   switch (type) {
-    case "no-only":
-      return "YES, N/A analysis and Section tables excluded in this NO-only report";
-    case "yes-only":
-      return "NO, N/A analysis and Section tables excluded in this YES-only report";
-    case "na-only":
-      return "NO, YES analysis and Section tables excluded in this N/A-only report";
-    case "section":
-      return "Individual response analysis tables (NO, YES, N/A) excluded in this section-only report";
-    default:
-      return "";
+    case "no-only": return "YES, N/A analysis and Section tables excluded in this NO-only report";
+    case "yes-only": return "NO, N/A analysis and Section tables excluded in this YES-only report";
+    case "na-only": return "NO, YES analysis and Section tables excluded in this N/A-only report";
+    case "section": return "Individual response analysis tables (NO, YES, N/A) excluded in this section-only report";
+    default: return "";
   }
 }
 
 function getPDFTypeSuffix(type: string): string {
   switch (type) {
-    case "no-only":
-      return "NO_Analysis_Only";
-    case "yes-only":
-      return "YES_Analysis_Only";
-    case "na-only":
-      return "NA_Analysis_Only";
-    case "both":
-      return "BOTH_Complete";
-    case "section":
-      return "Section_Only";
-    default:
-      return "Standard";
+    case "no-only": return "NO_Analysis_Only";
+    case "yes-only": return "YES_Analysis_Only";
+    case "na-only": return "NA_Analysis_Only";
+    case "both": return "BOTH_Complete";
+    case "section": return "Section_Only";
+    default: return "Standard";
   }
 }
 export async function generateAndDownloadPDF(
   options: PDFOptions,
-  type?: "no-only" | "yes-only" | "both" | "na-only" | "section" | "default",
-  onProgress?: ProgressCallback // Add this parameter
+  type?: 'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default',
+  onProgress?: ProgressCallback  // Add this parameter
 ): Promise<void> {
-  const pdfType = type || "default";
-
+  const pdfType = type || 'default';
+  
   try {
     // Track initial progress
     if (onProgress) {
       onProgress({
-        stage: "uploading",
+        stage: 'uploading',
         percentage: 0,
-        message: "Preparing PDF data...",
+        message: 'Preparing PDF data...'
       });
     }
-
+    
     // Try server-side first
     const pdfBlob = await generatePDFOnServer(options, pdfType, onProgress);
-
+    
     // Download the blob
     const url = URL.createObjectURL(pdfBlob);
-    const a = document.createElement("a");
+    const a = document.createElement('a');
     a.href = url;
     a.download = `${options.filename}_${getPDFTypeSuffix(pdfType)}.pdf`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    
   } catch (error) {
-    console.error("Failed to generate PDF:", error);
-
+    console.error('Failed to generate PDF:', error);
+    
     if (onProgress) {
       onProgress({
-        stage: "complete",
+        stage: 'complete',
         percentage: 0,
-        message: `Error: ${error.message}`,
+        message: `Error: ${error.message}`
       });
     }
-
+    
     // If server fails, show user-friendly message
-    if (error.message?.includes("too large")) {
-      alert(
-        "Document is too large for server processing. Please try exporting smaller reports or contact support."
-      );
+    if (error.message?.includes('too large')) {
+      alert('Document is too large for server processing. Please try exporting smaller reports or contact support.');
     } else {
-      alert(
-        `PDF generation failed: ${error.message}. Please try again or contact support.`
-      );
+      alert(`PDF generation failed: ${error.message}. Please try again or contact support.`);
     }
-
+    
     throw error;
   }
 }
@@ -3175,136 +2873,109 @@ export async function generateNoOnlyPDF(
   options: Omit<PDFOptions, "type">,
   onProgress?: ProgressCallback
 ): Promise<void> {
-  return generateAndDownloadPDF(
-    { ...options, type: "no-only" },
-    "no-only",
-    onProgress
-  );
+  return generateAndDownloadPDF({ ...options, type: "no-only" }, "no-only", onProgress);
 }
 
 export async function generateYesOnlyPDF(
   options: Omit<PDFOptions, "type">,
   onProgress?: ProgressCallback
 ): Promise<void> {
-  return generateAndDownloadPDF(
-    { ...options, type: "yes-only" },
-    "yes-only",
-    onProgress
-  );
+  return generateAndDownloadPDF({ ...options, type: "yes-only" }, "yes-only", onProgress);
 }
 
 export async function generateNAOnlyPDF(
   options: Omit<PDFOptions, "type">,
   onProgress?: ProgressCallback
 ): Promise<void> {
-  return generateAndDownloadPDF(
-    { ...options, type: "na-only" },
-    "na-only",
-    onProgress
-  );
+  return generateAndDownloadPDF({ ...options, type: "na-only" }, "na-only", onProgress);
 }
 
 export async function generateBothPDF(
   options: Omit<PDFOptions, "type">,
   onProgress?: ProgressCallback
 ): Promise<void> {
-  return generateAndDownloadPDF(
-    { ...options, type: "both" },
-    "both",
-    onProgress
-  );
+  return generateAndDownloadPDF({ ...options, type: "both" }, "both", onProgress);
 }
 
 export async function generateSectionOnlyPDF(
   options: Omit<PDFOptions, "type">,
   onProgress?: ProgressCallback
 ): Promise<void> {
-  return generateAndDownloadPDF(
-    { ...options, type: "section" },
-    "section",
-    onProgress
-  );
+  return generateAndDownloadPDF({ ...options, type: "section" }, "section", onProgress);
 }
 
 export async function generateFullPDF(
   options: Omit<PDFOptions, "type">,
   onProgress?: ProgressCallback
 ): Promise<void> {
-  return generateAndDownloadPDF(
-    { ...options, type: "default" },
-    "default",
-    onProgress
-  );
+  return generateAndDownloadPDF({ ...options, type: "default" }, "default", onProgress);
 }
 
 // Server-side PDF generation function
 
 // Add progress callback type
 export type ProgressCallback = (progress: {
-  stage: "uploading" | "generating" | "downloading" | "complete";
+  stage: 'uploading' | 'generating' | 'downloading' | 'complete';
   percentage: number;
   message?: string;
 }) => void;
 
 async function generatePDFOnServer(
-  options: PDFOptions,
-  type: string = "default",
+  options: PDFOptions, 
+  type: string = 'default',
   onProgress?: ProgressCallback
 ): Promise<Blob> {
+  
   const htmlContent = await generateCompleteHTMLForServer(options, type);
-
+  
   // Progress tracking with continuous interpolation
   let targetPercentage = 0;
   let currentPercentage = 0;
-  let currentStage: "uploading" | "generating" | "downloading" | "complete" =
-    "uploading";
-  let currentMessage = "Starting...";
+  let currentStage: 'uploading' | 'generating' | 'downloading' | 'complete' = 'uploading';
+  let currentMessage = 'Starting...';
   let interpolationId: number | null = null;
-
+  
   const startInterpolation = () => {
     if (interpolationId) {
       clearInterval(interpolationId);
       interpolationId = null;
     }
-
+    
     // Only animate if we're not at target and not complete
-    if (currentStage !== "complete" && currentPercentage < 100) {
+    if (currentStage !== 'complete' && currentPercentage < 100) {
       interpolationId = window.setInterval(() => {
         // Calculate increment based on distance to target
         const diff = targetPercentage - currentPercentage;
         let increment = 0.5; // Default slow increment
-
+        
         if (diff > 0) {
           // When we have a target, move toward it
           if (diff > 20) increment = 2;
           else if (diff > 10) increment = 1.5;
           else if (diff > 5) increment = 1;
           else increment = 0.5;
-
-          currentPercentage = Math.min(
-            currentPercentage + increment,
-            targetPercentage
-          );
+          
+          currentPercentage = Math.min(currentPercentage + increment, targetPercentage);
         } else {
           // If we've reached target but not at 100, continue slowly
           // This prevents getting stuck
           increment = 0.2;
           currentPercentage = Math.min(currentPercentage + increment, 99); // Cap at 99 until complete
-
+          
           // If we're stuck at target for too long, slowly increase target
           if (currentPercentage >= targetPercentage - 1) {
             targetPercentage = Math.min(targetPercentage + 5, 99);
           }
         }
-
+        
         if (onProgress) {
           onProgress({
             stage: currentStage,
             percentage: Math.round(currentPercentage),
-            message: currentMessage,
+            message: currentMessage
           });
         }
-
+        
         // Don't stop interpolation until we're complete
         // Keep it running continuously
         if (currentPercentage >= 100) {
@@ -3316,27 +2987,27 @@ async function generatePDFOnServer(
       }, 50); // Update every 50ms
     }
   };
-
+  
   const updateProgress = (
-    stage: "uploading" | "generating" | "downloading" | "complete",
+    stage: 'uploading' | 'generating' | 'downloading' | 'complete',
     percentage: number,
     message?: string
   ) => {
     if (!onProgress) return;
-
+    
     // Update state
-    if (stage !== "complete") {
+    if (stage !== 'complete') {
       currentStage = stage;
     }
-
+    
     if (percentage > targetPercentage) {
       targetPercentage = percentage;
     }
-
+    
     if (message) currentMessage = message;
-
+    
     // If complete, handle specially
-    if (stage === "complete") {
+    if (stage === 'complete') {
       if (interpolationId) {
         clearInterval(interpolationId);
         interpolationId = null;
@@ -3346,135 +3017,135 @@ async function generatePDFOnServer(
       onProgress({ stage, percentage: 100, message });
       return;
     }
-
+    
     // Update immediately if we're close
     if (Math.abs(currentPercentage - percentage) < 2) {
       currentPercentage = percentage;
       onProgress({ stage, percentage, message });
     }
-
+    
     // Always ensure interpolation is running
     if (!interpolationId) {
       startInterpolation();
     }
   };
-
+  
   // Start interpolation immediately
   startInterpolation();
-
+  
   // Initial progress
-  updateProgress("uploading", 5, "Initializing...");
-
+  updateProgress('uploading', 5, 'Initializing...');
+  
   try {
     // Stage 1: Uploading (0-30%)
     // Use promises to ensure sequential updates
-    await new Promise((resolve) => setTimeout(resolve, 200));
-    updateProgress("uploading", 10, "Preparing HTML content...");
-
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    updateProgress("uploading", 20, "Processing content...");
-
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    updateProgress("uploading", 30, "Sending to server...");
-
+    await new Promise(resolve => setTimeout(resolve, 200));
+    updateProgress('uploading', 10, 'Preparing HTML content...');
+    
+    await new Promise(resolve => setTimeout(resolve, 300));
+    updateProgress('uploading', 20, 'Processing content...');
+    
+    await new Promise(resolve => setTimeout(resolve, 300));
+    updateProgress('uploading', 30, 'Sending to server...');
+    
     const controller = new AbortController();
-
-    const response = await fetch("http://localhost:5000/api/pdf/generate", {
-      method: "POST",
+    
+    const response = await fetch('https://formsapi.focusengineeringapp.com/api/pdf/generate', {
+      method: 'POST',
       headers: {
-        Accept: "application/json, application/pdf",
-        "Content-Type": "application/json",
+        'Accept': 'application/json, application/pdf',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         htmlContent: htmlContent,
         filename: `${options.filename}_${getPDFTypeSuffix(type)}.pdf`,
-        format: "custom",
+        format: 'custom'
       }),
-      signal: controller.signal,
+      signal: controller.signal
     });
 
     // Stage 2: Generating (30-70%)
-    updateProgress("generating", 35, "Server processing started...");
-
+    updateProgress('generating', 35, 'Server processing started...');
+    
     // Keep progress moving during server processing
     const generatingInterval = window.setInterval(() => {
-      if (currentStage === "generating" && currentPercentage < 70) {
+      if (currentStage === 'generating' && currentPercentage < 70) {
         // Slowly increase target during generation phase
         targetPercentage = Math.min(targetPercentage + 2, 70);
       }
     }, 800);
-
+    
     // Also update with specific messages
     const generatingMessages = [
-      { delay: 400, percent: 40, message: "Processing pages..." },
-      { delay: 800, percent: 45, message: "Building layout..." },
-      { delay: 1200, percent: 50, message: "Rendering content..." },
-      { delay: 1600, percent: 55, message: "Optimizing PDF..." },
-      { delay: 2000, percent: 60, message: "Finalizing generation..." },
+      { delay: 400, percent: 40, message: 'Processing pages...' },
+      { delay: 800, percent: 45, message: 'Building layout...' },
+      { delay: 1200, percent: 50, message: 'Rendering content...' },
+      { delay: 1600, percent: 55, message: 'Optimizing PDF...' },
+      { delay: 2000, percent: 60, message: 'Finalizing generation...' },
     ];
-
-    generatingMessages.forEach((update) => {
+    
+    generatingMessages.forEach(update => {
       setTimeout(() => {
-        if (currentStage === "generating") {
-          updateProgress("generating", update.percent, update.message);
+        if (currentStage === 'generating') {
+          updateProgress('generating', update.percent, update.message);
         }
       }, update.delay);
     });
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || "Failed to generate PDF");
+      throw new Error(error.message || 'Failed to generate PDF');
     }
-
+    
     // Clear generation interval
     clearInterval(generatingInterval);
 
-    const contentLength = response.headers.get("Content-Length");
-    const total = parseInt(contentLength || "0", 10);
-
+    const contentLength = response.headers.get('Content-Length');
+    const total = parseInt(contentLength || '0', 10);
+    
     if (!response.body) {
-      throw new Error("No response body");
+      throw new Error('No response body');
     }
 
     const reader = response.body.getReader();
     let received = 0;
     const chunks = [];
-
+    
     // Stage 3: Downloading (70-100%)
-    updateProgress("downloading", 70, "Starting download...");
-
+    updateProgress('downloading', 70, 'Starting download...');
+    
     // Keep progress moving during download
     const downloadProgressInterval = window.setInterval(() => {
-      if (currentStage === "downloading" && currentPercentage < 99) {
+      if (currentStage === 'downloading' && currentPercentage < 99) {
         // Slowly increase target during download phase if stuck
         if (currentPercentage >= targetPercentage - 2) {
           targetPercentage = Math.min(targetPercentage + 1, 99);
         }
       }
     }, 500);
-
+    
     const startTime = Date.now();
     const minDownloadTime = 1500;
-
+    
     while (true) {
       const { done, value } = await reader.read();
-
+      
       if (done) break;
-
+      
       chunks.push(value);
       received += value.length;
-
+      
       if (total > 0) {
         const actualProgress = received / total;
         const downloadPercentage = Math.min(99, 70 + actualProgress * 29);
-
+        
         // Update target percentage based on actual download
         updateProgress(
-          "downloading",
+          'downloading',
           Math.round(downloadPercentage),
           `Downloading PDF... ${Math.round(actualProgress * 100)}%`
         );
-
+        
         // Simulate micro-updates for smoother progress
         if (actualProgress < 0.99) {
           const microTarget = downloadPercentage + Math.random();
@@ -3487,48 +3158,49 @@ async function generatePDFOnServer(
         const elapsed = Date.now() - startTime;
         const simulatedProgress = Math.min(0.9, elapsed / 2500);
         const downloadPercentage = 70 + simulatedProgress * 29;
-
+        
         updateProgress(
-          "downloading",
+          'downloading',
           Math.round(downloadPercentage),
-          "Downloading PDF..."
+          'Downloading PDF...'
         );
       }
     }
-
+    
     // Clear download interval
     clearInterval(downloadProgressInterval);
-
+    
     // Ensure we reach 100%
-    updateProgress("complete", 100, "PDF ready!");
-
+    updateProgress('complete', 100, 'PDF ready!');
+    
     // Final cleanup
     if (interpolationId) {
       clearInterval(interpolationId);
       interpolationId = null;
     }
-
-    const blob = new Blob(chunks, { type: "application/pdf" });
+    
+    const blob = new Blob(chunks, { type: 'application/pdf' });
     return blob;
+    
   } catch (error) {
     // Clean up on error
     if (interpolationId) {
       clearInterval(interpolationId);
       interpolationId = null;
     }
-
-    console.error("❌ Server PDF generation failed:", error);
+    
+    console.error('❌ Server PDF generation failed:', error);
     throw error;
   }
 }
 
 // Helper function to generate complete HTML for server
 async function generateCompleteHTMLForServer(
-  options: PDFOptions,
-  type: string = "default"
+  options: PDFOptions, 
+  type: string = 'default'
 ): Promise<string> {
-  console.log("🔄 Generating complete HTML for server...");
-
+  console.log('🔄 Generating complete HTML for server...');
+  
   const {
     filename,
     formTitle,
@@ -3544,8 +3216,8 @@ async function generateCompleteHTMLForServer(
 
   // 1. Capture chart images
   const sectionChartImages: Record<string, string> = {};
-  console.log("📊 Capturing chart images...");
-
+  console.log('📊 Capturing chart images...');
+  
   // Note: This requires html2canvas which only works in browser
   // For server-side, we'll use SVG charts instead
   for (const section of availableSections) {
@@ -3557,113 +3229,73 @@ async function generateCompleteHTMLForServer(
           scale: 2,
           useCORS: true,
           allowTaint: true,
-          backgroundColor: "#ffffff",
+          backgroundColor: '#ffffff'
         });
-        sectionChartImages[section.id] = canvas.toDataURL("image/png");
+        sectionChartImages[section.id] = canvas.toDataURL('image/png');
         console.log(`✅ Captured chart for section ${section.id}`);
       }
     } catch (error) {
-      console.warn(
-        `⚠️ Could not capture chart for section ${section.id}:`,
-        error
-      );
+      console.warn(`⚠️ Could not capture chart for section ${section.id}:`, error);
     }
   }
 
   // 2. Get logo
   const logoBase64 = await getLogoAsBase64();
-  console.log(`📸 Logo loaded: ${logoBase64 ? "Yes" : "No"}`);
+  console.log(`📸 Logo loaded: ${logoBase64 ? 'Yes' : 'No'}`);
 
   // 3. Calculate totals
   const totalYes = sectionStats.reduce((sum, stat) => sum + stat.yes, 0);
   const totalNo = sectionStats.reduce((sum, stat) => sum + stat.no, 0);
   const totalNA = sectionStats.reduce((sum, stat) => sum + stat.na, 0);
-  const totalQuestions = sectionStats.reduce(
-    (sum, stat) => sum + stat.total,
-    0
-  );
+  const totalQuestions = sectionStats.reduce((sum, stat) => sum + stat.total, 0);
 
-  const yesPercentage =
-    totalQuestions > 0 ? (totalYes / totalQuestions) * 100 : 0;
-  const noPercentage =
-    totalQuestions > 0 ? (totalNo / totalQuestions) * 100 : 0;
-  const naPercentage =
-    totalQuestions > 0 ? (totalNA / totalQuestions) * 100 : 0;
+  const yesPercentage = totalQuestions > 0 ? (totalYes / totalQuestions) * 100 : 0;
+  const noPercentage = totalQuestions > 0 ? (totalNo / totalQuestions) * 100 : 0;
+  const naPercentage = totalQuestions > 0 ? (totalNA / totalQuestions) * 100 : 0;
   const overallScore = yesPercentage;
 
-  console.log(
-    `📊 Calculated scores: Yes ${yesPercentage.toFixed(
-      1
-    )}%, No ${noPercentage.toFixed(1)}%, NA ${naPercentage.toFixed(1)}%`
-  );
+  console.log(`📊 Calculated scores: Yes ${yesPercentage.toFixed(1)}%, No ${noPercentage.toFixed(1)}%, NA ${naPercentage.toFixed(1)}%`);
 
   // 4. Generate response analysis based on type
-  let responseAnalysisHTML = "";
-  let responseAnalysisTitle = "";
+  let responseAnalysisHTML = '';
+  let responseAnalysisTitle = '';
 
   console.log(`🔍 Generating response analysis for type: ${type}`);
-
+  
   switch (type) {
-    case "no-only":
-      responseAnalysisHTML = generateNoResponseAnalysis(
-        form,
-        response,
-        form?.sections || [],
-        1000000
-      );
-      responseAnalysisTitle = "NO Response Analysis Only";
+    case 'no-only':
+      responseAnalysisHTML = generateNoResponseAnalysis(form, response, form?.sections || [], 1000000);
+      responseAnalysisTitle = 'NO Response Analysis Only';
       break;
-    case "yes-only":
-      responseAnalysisHTML = generateYesResponseAnalysis(
-        form,
-        response,
-        form?.sections || [],
-        1000000
-      );
-      responseAnalysisTitle = "YES Response Analysis Only";
+    case 'yes-only':
+      responseAnalysisHTML = generateYesResponseAnalysis(form, response, form?.sections || [], 1000000);
+      responseAnalysisTitle = 'YES Response Analysis Only';
       break;
-    case "na-only":
-      responseAnalysisHTML = generateNAResponseAnalysis(
-        form,
-        response,
-        form?.sections || [],
-        1000000
-      );
-      responseAnalysisTitle = "N/A Response Analysis Only";
+    case 'na-only':
+      responseAnalysisHTML = generateNAResponseAnalysis(form, response, form?.sections || [], 1000000);
+      responseAnalysisTitle = 'N/A Response Analysis Only';
       break;
-    case "both":
-      responseAnalysisHTML = generateBothResponseAnalysis(
-        form,
-        response,
-        form?.sections || [],
-        1000000
-      );
-      responseAnalysisTitle = "Combined Response Analysis (YES, NO & N/A)";
+    case 'both':
+      responseAnalysisHTML = generateBothResponseAnalysis(form, response, form?.sections || [], 1000000);
+      responseAnalysisTitle = 'Combined Response Analysis (YES, NO & N/A)';
       break;
-    case "section":
-      responseAnalysisHTML = "";
-      responseAnalysisTitle = "Section-wise Analysis Only";
+    case 'section':
+      responseAnalysisHTML = '';
+      responseAnalysisTitle = 'Section-wise Analysis Only';
       break;
     default:
-      responseAnalysisHTML = generateNoResponseAnalysis(
-        form,
-        response,
-        form?.sections || [],
-        1000000
-      );
-      responseAnalysisTitle = "Response Analysis";
+      responseAnalysisHTML = generateNoResponseAnalysis(form, response, form?.sections || [], 1000000);
+      responseAnalysisTitle = 'Response Analysis';
   }
 
-  console.log(
-    `📄 Response analysis generated: ${responseAnalysisHTML.length} chars`
-  );
+  console.log(`📄 Response analysis generated: ${responseAnalysisHTML.length} chars`);
 
   // 5. Generate other sections
   const firstSectionHTML = generateFirstSectionContent(form, response);
   const scoreSectionHTML = generateScoreSection(sectionStats);
-
-  let sectionTablesHTML = "";
-  if (type === "default" || type === "section") {
+  
+  let sectionTablesHTML = '';
+  if (type === 'default' || type === 'section') {
     sectionTablesHTML = generateSectionTables(
       availableSections,
       sectionQuestionStats,
@@ -3677,12 +3309,12 @@ async function generateCompleteHTMLForServer(
   console.log(`📋 Section tables generated: ${sectionTablesHTML.length} chars`);
 
   // 6. Generate section table for overview
-  let tableHTML = "";
-  let tableHeaders = "";
-  let tableRows = "";
-
-  const hasWeightage = sectionStats.some((stat) => stat.weightage > 0);
-
+  let tableHTML = '';
+  let tableHeaders = '';
+  let tableRows = '';
+  
+  const hasWeightage = sectionStats.some(stat => stat.weightage > 0);
+  
   if (sectionStats.length > 0) {
     tableHeaders = `
       <th style="padding: 10px; text-align: left; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Section</th>
@@ -3690,70 +3322,49 @@ async function generateCompleteHTMLForServer(
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Yes</th>
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">No</th>
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">N/A</th>
-      ${
-        hasWeightage
-          ? `
+      ${hasWeightage ? `
         <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Weightage</th>
-      `
-          : ""
-      }
+      ` : ''}
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Visualization</th>
     `;
 
-    tableRows = sectionStats
-      .map((section, index) => {
-        const yesPercent =
-          section.total > 0 ? (section.yes / section.total) * 100 : 0;
-        const noPercent =
-          section.total > 0 ? (section.no / section.total) * 100 : 0;
-        const naPercent =
-          section.total > 0 ? (section.na / section.total) * 100 : 0;
-        const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
+    tableRows = sectionStats.map((section, index) => {
+      const yesPercent = section.total > 0 ? (section.yes / section.total) * 100 : 0;
+      const noPercent = section.total > 0 ? (section.no / section.total) * 100 : 0;
+      const naPercent = section.total > 0 ? (section.na / section.total) * 100 : 0;
+      const rowBgColor = index % 2 === 0 ? '#ffffff' : '#f8fafc';
 
-        return `
+      return `
         <tr style="background-color: ${rowBgColor};">
           <td style="padding: 8px; font-size: 10px; font-weight: 600; color: #1e293b; border: 1px solid #e5e7eb;">
             <div style="font-weight: 700;">${section.title}</div>
           </td>
           <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-            <div style="font-weight: 700; color: #1e40af;">${
-              section.total
-            }</div>
+            <div style="font-weight: 700; color: #1e40af;">${section.total}</div>
           </td>
           <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
             <div style="font-weight: 700; color: #059669;">${section.yes}</div>
-            <div style="font-size: 9px; color: #059669;">${yesPercent.toFixed(
-              1
-            )}%</div>
+            <div style="font-size: 9px; color: #059669;">${yesPercent.toFixed(1)}%</div>
           </td>
           <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
             <div style="font-weight: 700; color: #dc2626;">${section.no}</div>
-            <div style="font-size: 9px; color: #dc2626;">${noPercent.toFixed(
-              1
-            )}%</div>
+            <div style="font-size: 9px; color: #dc2626;">${noPercent.toFixed(1)}%</div>
           </td>
           <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
             <div style="font-weight: 700; color: #6b7280;">${section.na}</div>
-            <div style="font-size: 9px; color: #6b7280;">${naPercent.toFixed(
-              1
-            )}%</div>
+            <div style="font-size: 9px; color: #6b7280;">${naPercent.toFixed(1)}%</div>
           </td>
-          ${
-            hasWeightage
-              ? `
+          ${hasWeightage ? `
             <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
               <div style="font-weight: 700; color: #7c3aed;">${section.weightage}%</div>
             </td>
-          `
-              : ""
-          }
+          ` : ''}
           <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">
             ${generateTableBarChart(yesPercent, noPercent, naPercent)}
           </td>
         </tr>
       `;
-      })
-      .join("");
+    }).join('');
 
     tableHTML = `
       <table style="width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #e2e8f0;">
@@ -4015,15 +3626,13 @@ async function generateCompleteHTMLForServer(
       <!-- Header -->
       <div class="header">
         <div class="header-content">
-          <h1 class="form-title">${formTitle || "Form Report"}</h1>
+          <h1 class="form-title">${formTitle || 'Form Report'}</h1>
           <p>Submitted on ${submittedDate}</p>
           ${
             type !== "default"
               ? `<p style="font-size: 10px; color: ${getTypeColor(
                   type
-                )}; font-weight: 600; margin-top: 2px;">${getPDFTypeDisplayName(
-                  type
-                )}</p>`
+                )}; font-weight: 600; margin-top: 2px;">${getPDFTypeDisplayName(type)}</p>`
               : ""
           }
         </div>
@@ -4064,7 +3673,7 @@ async function generateCompleteHTMLForServer(
     type === "na";
 
   if (showOverallTable) {
-    completeHTML += `
+    completeHTML+= `
     <!-- PAGE 2: Overall Section Performance -->
     <div class="page-break-before">
       <div class="table-container">
@@ -4112,7 +3721,7 @@ async function generateCompleteHTMLForServer(
   }
 
   // Add Footer
-  completeHTML += `
+  completeHTML+= `
     <!-- Footer -->
     <div class="footer">
       <p>Generated on ${new Date().toLocaleString()} • Total Assessment Score: ${overallScore.toFixed(
@@ -4138,3 +3747,9 @@ async function generateCompleteHTMLForServer(
   console.log(`✅ Generated complete HTML: ${completeHTML.length} characters`);
   return completeHTML;
 }
+
+
+
+
+
+
