@@ -1194,7 +1194,7 @@ function parseNewTemplateFormat(
       paragraph: "paragraph",
       select: "select",
       checkbox: "checkbox",
-      yesnona: "yesNoNA", // lowercase pass-through
+      // yesnona: "yesNoNA", // lowercase pass-through - REMOVED DUPLICATE
 
       // Extended types - supported by schema
       email: "email",

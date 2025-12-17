@@ -3067,17 +3067,9 @@ async function generatePDFOnServer(
     updateProgress('uploading', 30, 'Sending to server...');
     
     const controller = new AbortController();
-<<<<<<< HEAD
-
     const apiBaseUrl = getApiBaseUrl();
     const response = await fetch(`${apiBaseUrl}/api/pdf/generate`, {
       method: "POST",
-=======
-    
-    // Use the dynamic base URL instead of hardcoded localhost
-    const response = await fetch(`${API_BASE}/api/pdf/generate`, {  // <-- CHANGED HERE
-      method: 'POST',
->>>>>>> 8646b67ff37f129e3b488a27f64b14a49ab55ee3
       headers: {
         'Accept': 'application/json, application/pdf',
         'Content-Type': 'application/json',
