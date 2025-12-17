@@ -3038,8 +3038,8 @@ async function generatePDFOnServer(
   updateProgress('uploading', 5, 'Initializing...');
    const baseUrl = (apiClient as any).baseUrl || 
                   window.location.origin.includes('localhost') 
-                  ? 'http://localhost:5000' 
-                  : 'https://formsapi.focusengineeringapp.com';
+                  ? 'https://formsapi.focusengineeringapp.com' 
+                  : 'http://localhost:5000';
     const API_BASE = baseUrl;
   
     try {
