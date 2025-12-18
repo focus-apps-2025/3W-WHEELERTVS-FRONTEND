@@ -1,21 +1,8 @@
 import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
 import { apiClient } from '../api/client';
-import pako from 'pako';
 
-const getApiBaseUrl = (): string => {
-  const hostname = window.location.hostname;
-  const isLocal =
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname.startsWith("192.168.") ||
-    hostname.startsWith("10.") ||
-    hostname.startsWith("172.");
 
-  return isLocal
-    ? "http://localhost:5000"
-    : "https://formsapi.focusengineeringapp.com";
-};
 
 interface PDFOptions {
   filename: string;
@@ -3050,9 +3037,8 @@ async function generatePDFOnServer(
   
   // Initial progress
   updateProgress('uploading', 5, 'Initializing...');
-   
   
-    try {
+  try {
     // Stage 1: Uploading (0-30%)
     await new Promise(resolve => setTimeout(resolve, 200));
     updateProgress('uploading', 10, 'Preparing HTML content...');
@@ -3063,30 +3049,6 @@ async function generatePDFOnServer(
     await new Promise(resolve => setTimeout(resolve, 300));
     updateProgress('uploading', 30, 'Sending to server...');
     
-    const controller = new AbortController();
-    const apiBaseUrl = getApiBaseUrl();
-
-    // Compress content
-    const compressed = pako.gzip(htmlContent);
-    // Convert to base64
-    const base64Content = btoa(String.fromCharCode.apply(null, Array.from(compressed)));
-
-    const response = await fetch(`${apiBaseUrl}/api/pdf/generate`, {
-      method: "POST",
-      headers: {
-        'Accept': 'application/json, application/pdf',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        htmlContent: htmlContent,
-        filename: `${options.filename}_${getPDFTypeSuffix(type)}.pdf`,
-        format: 'custom',
-        compressed: true
-      }),
-      signal: controller.signal
-    });
-
-
     // Stage 2: Generating (30-70%)
     updateProgress('generating', 35, 'Server processing started...');
     
@@ -3115,83 +3077,25 @@ async function generatePDFOnServer(
       }, update.delay);
     });
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to generate PDF');
-    }
+    // Call the API - this returns a Blob directly
+    updateProgress('generating', 65, 'Generating PDF...');
+    
+    const blob = await apiClient.generatePDF({
+      htmlContent: htmlContent,
+      filename: `${options.filename}_${getPDFTypeSuffix(type)}.pdf`,
+      format: 'custom',
+      compressed: true
+    });
     
     // Clear generation interval
     clearInterval(generatingInterval);
-
-    const contentLength = response.headers.get('Content-Length');
-    const total = parseInt(contentLength || '0', 10);
-    
-    if (!response.body) {
-      throw new Error('No response body');
-    }
-
-    const reader = response.body.getReader();
-    let received = 0;
-    const chunks = [];
     
     // Stage 3: Downloading (70-100%)
-    updateProgress('downloading', 70, 'Starting download...');
-    
-    // Keep progress moving during download
-    const downloadProgressInterval = window.setInterval(() => {
-      if (currentStage === 'downloading' && currentPercentage < 99) {
-        // Slowly increase target during download phase if stuck
-        if (currentPercentage >= targetPercentage - 2) {
-          targetPercentage = Math.min(targetPercentage + 1, 99);
-        }
-      }
-    }, 500);
-    
-    const startTime = Date.now();
-    const minDownloadTime = 1500;
-    
-    while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) break;
-      
-      chunks.push(value);
-      received += value.length;
-      
-      if (total > 0) {
-        const actualProgress = received / total;
-        const downloadPercentage = Math.min(99, 70 + actualProgress * 29);
-        
-        // Update target percentage based on actual download
-        updateProgress(
-          'downloading',
-          Math.round(downloadPercentage),
-          `Downloading PDF... ${Math.round(actualProgress * 100)}%`
-        );
-        
-        // Simulate micro-updates for smoother progress
-        if (actualProgress < 0.99) {
-          const microTarget = downloadPercentage + Math.random();
-          if (microTarget < 99) {
-            targetPercentage = Math.max(targetPercentage, microTarget);
-          }
-        }
-      } else {
-        // If no content-length, simulate progress
-        const elapsed = Date.now() - startTime;
-        const simulatedProgress = Math.min(0.9, elapsed / 2500);
-        const downloadPercentage = 70 + simulatedProgress * 29;
-        
-        updateProgress(
-          'downloading',
-          Math.round(downloadPercentage),
-          'Downloading PDF...'
-        );
-      }
-    }
-    
-    // Clear download interval
-    clearInterval(downloadProgressInterval);
+    // Since we already have the blob, simulate download progress
+    updateProgress('downloading', 70, 'Processing PDF...');
+    await new Promise(resolve => setTimeout(resolve, 300));
+    updateProgress('downloading', 85, 'Finalizing...');
+    await new Promise(resolve => setTimeout(resolve, 200));
     
     // Ensure we reach 100%
     updateProgress('complete', 100, 'PDF ready!');
@@ -3202,7 +3106,6 @@ async function generatePDFOnServer(
       interpolationId = null;
     }
     
-    const blob = new Blob(chunks, { type: 'application/pdf' });
     return blob;
     
   } catch (error) {
