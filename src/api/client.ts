@@ -859,23 +859,38 @@ class ApiClient {
       compressed: false,
     };
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(requestBody),
-    });
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("API Error Response:", errorData);
-      throw new Error(
-        errorData.details ||
-          errorData.error ||
-          `PDF generation failed: ${response.statusText}`
-      );
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("API Error Response:", errorData);
+        throw new Error(
+          errorData.details ||
+            errorData.error ||
+            `PDF generation failed: ${response.statusText}`
+        );
+      }
+
+      return response.blob();
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        throw new Error(
+          "PDF generation timed out (120s). The document may be too large. Try with fewer sections or images."
+        );
+      }
+      throw error;
     }
-
-    return response.blob();
   }
 }
 
