@@ -836,34 +836,47 @@ class ApiClient {
       body: JSON.stringify({ answers, batchId }),
     });
   }
-  async generatePDF(pdfData: {
-  htmlContent: string;
-  filename: string;
-  format: 'custom' | 'a4';
-  compressed?: boolean;
-}): Promise<Blob> {
-  const headers: Record<string, string> = {
-    'Accept': 'application/json, application/pdf',
-    'Content-Type': 'application/json',
-  };
 
-  if (this.token) {
-    headers.Authorization = `Bearer ${this.token}`;
+  async generatePDF(options: {
+    htmlContent: string;
+    filename?: string;
+    format?: "custom" | "a4";
+    compressed?: boolean;
+  }): Promise<Blob> {
+    const url = `${this.baseUrl}/pdf/generate`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const requestBody = {
+      htmlContent: options.htmlContent,
+      filename: options.filename || "report.pdf",
+      format: options.format || "custom",
+      compressed: false,
+    };
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("API Error Response:", errorData);
+      throw new Error(
+        errorData.details ||
+          errorData.error ||
+          `PDF generation failed: ${response.statusText}`
+      );
+    }
+
+    return response.blob();
   }
-
-  const response = await fetch(`${this.baseUrl}/pdf/generate`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(pdfData),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new ApiError(response.status, error, error.message || 'Failed to generate PDF');
-  }
-
-  return response.blob();
-}
 }
 
 // Create and export a singleton instance
