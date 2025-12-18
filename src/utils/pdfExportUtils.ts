@@ -1,8 +1,22 @@
 import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
 import { apiClient } from '../api/client';
+import pako from 'pako';
 
-// Function to capture chart as base64 image
+const getApiBaseUrl = (): string => {
+  const hostname = window.location.hostname;
+  const isLocal =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.startsWith("192.168.") ||
+    hostname.startsWith("10.") ||
+    hostname.startsWith("172.");
+
+  return isLocal
+    ? "http://localhost:5000"
+    : "https://formsapi.focusengineeringapp.com";
+};
+
 interface PDFOptions {
   filename: string;
   formTitle: string;
@@ -3036,21 +3050,8 @@ async function generatePDFOnServer(
   
   // Initial progress
   updateProgress('uploading', 5, 'Initializing...');
-  const getBackendBaseUrl = () => {
-  const hostname = window.location.hostname;
-  const isLocal =
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname.startsWith("192.168.") ||
-    hostname.startsWith("10.") ||
-    hostname.startsWith("172.");
-
-  return isLocal
-    ? "http://localhost:5000" 
-    : "https://formsapi.focusengineeringapp.com";
-};
-
-const API_BASE = getBackendBaseUrl();
+   
+  
     try {
     // Stage 1: Uploading (0-30%)
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -3063,10 +3064,15 @@ const API_BASE = getBackendBaseUrl();
     updateProgress('uploading', 30, 'Sending to server...');
     
     const controller = new AbortController();
-    
-    // Use the dynamic base URL instead of hardcoded localhost
-    const response = await fetch(`${API_BASE}/api/pdf/generate`, {  // <-- CHANGED HERE
-      method: 'POST',
+    const apiBaseUrl = getApiBaseUrl();
+
+    // Compress content
+    const compressed = pako.gzip(htmlContent);
+    // Convert to base64
+    const base64Content = btoa(String.fromCharCode.apply(null, Array.from(compressed)));
+
+    const response = await fetch(`${apiBaseUrl}/api/pdf/generate`, {
+      method: "POST",
       headers: {
         'Accept': 'application/json, application/pdf',
         'Content-Type': 'application/json',
@@ -3074,7 +3080,8 @@ const API_BASE = getBackendBaseUrl();
       body: JSON.stringify({
         htmlContent: htmlContent,
         filename: `${options.filename}_${getPDFTypeSuffix(type)}.pdf`,
-        format: 'custom'
+        format: 'custom',
+        compressed: true
       }),
       signal: controller.signal
     });
@@ -3763,7 +3770,6 @@ async function generateCompleteHTMLForServer(
   console.log(`✅ Generated complete HTML: ${completeHTML.length} characters`);
   return completeHTML;
 }
-
 
 
 
