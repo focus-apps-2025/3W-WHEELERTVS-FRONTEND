@@ -1,22 +1,8 @@
 import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
 import { apiClient } from '../api/client';
-import pako from 'pako';
 
-const getApiBaseUrl = (): string => {
-  const hostname = window.location.hostname;
-  const isLocal =
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    hostname.startsWith("192.168.") ||
-    hostname.startsWith("10.") ||
-    hostname.startsWith("172.");
-
-  return isLocal
-    ? "http://localhost:5000"
-    : "https://formsapi.focusengineeringapp.com";
-};
-
+// Function to capture chart as base64 image
 interface PDFOptions {
   filename: string;
   formTitle: string;
@@ -3050,12 +3036,21 @@ async function generatePDFOnServer(
   
   // Initial progress
   updateProgress('uploading', 5, 'Initializing...');
-   const baseUrl = (apiClient as any).baseUrl || 
-                  window.location.origin.includes('localhost') 
-                  ? 'https://formsapi.focusengineeringapp.com' 
-                  : 'http://localhost:5000';
-    const API_BASE = 'https://formsapi.focusengineeringapp.com';
-  
+  const getBackendBaseUrl = () => {
+  const hostname = window.location.hostname;
+  const isLocal =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname.startsWith("192.168.") ||
+    hostname.startsWith("10.") ||
+    hostname.startsWith("172.");
+
+  return isLocal
+    ? "http://localhost:5000" 
+    : "https://formsapi.focusengineeringapp.com";
+};
+
+const API_BASE = getBackendBaseUrl();
     try {
     // Stage 1: Uploading (0-30%)
     await new Promise(resolve => setTimeout(resolve, 200));
@@ -3068,24 +3063,18 @@ async function generatePDFOnServer(
     updateProgress('uploading', 30, 'Sending to server...');
     
     const controller = new AbortController();
-    const apiBaseUrl = getApiBaseUrl();
-
-    // Compress content
-    const compressed = pako.gzip(htmlContent);
-    // Convert to base64
-    const base64Content = btoa(String.fromCharCode.apply(null, Array.from(compressed)));
-
-    const response = await fetch(`${apiBaseUrl}/api/pdf/generate`, {
-      method: "POST",
+    
+    // Use the dynamic base URL instead of hardcoded localhost
+    const response = await fetch(`${API_BASE}/api/pdf/generate`, {  // <-- CHANGED HERE
+      method: 'POST',
       headers: {
         'Accept': 'application/json, application/pdf',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        htmlContent: base64Content,
+        htmlContent: htmlContent,
         filename: `${options.filename}_${getPDFTypeSuffix(type)}.pdf`,
-        format: 'custom',
-        compressed: true
+        format: 'custom'
       }),
       signal: controller.signal
     });
