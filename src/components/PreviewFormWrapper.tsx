@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiClient } from "../api/client";
 import type { Response } from "../types";
+import { useNotification } from "../context/NotificationContext";
 import PreviewForm from "./PreviewForm";
 
 export default function PreviewFormWrapper() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showSuccess, showError } = useNotification();
   const [form, setForm] = useState<any>(null);
   const [branchingRules, setBranchingRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,11 +101,11 @@ export default function PreviewFormWrapper() {
       
       // Show success message and redirect to responses page
       // This ensures the user sees their submission in the list immediately
-      alert("Response submitted successfully!");
+      showSuccess("Response submitted successfully!");
       navigate("/responses/all");
     } catch (err) {
       console.error("Error submitting response:", err);
-      alert("Failed to submit response. Please try again.");
+      showError("Failed to submit response. Please try again.");
     }
   };
 

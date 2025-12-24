@@ -662,7 +662,7 @@ class ApiClient {
   }
 
   async updateUserProfile(profileData: any) {
-    return this.request<{ profile: any }>("/profile", {
+    return this.request<{ profile: any; user?: any }>("/profile", {
       method: "PUT",
       body: JSON.stringify(profileData),
     });

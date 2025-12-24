@@ -339,6 +339,27 @@ export default function TenantManagement() {
     }
   };
 
+  const handleToggleAdminStatus = async (
+    tenantId: string,
+    admin: any
+  ) => {
+    setUpdatingAdmin(admin._id);
+    try {
+      await apiClient.updateUser(admin._id, {
+        isActive: !admin.isActive,
+      });
+
+      showSuccess(
+        `Admin ${!admin.isActive ? "activated" : "deactivated"} successfully`
+      );
+      fetchTenants(); // Refresh the data
+    } catch (error: any) {
+      showError(error.response?.message || "Failed to update admin status");
+    } finally {
+      setUpdatingAdmin(null);
+    }
+  };
+
   const handleDeleteAdmin = async (
     tenantId: string,
     adminId: string,
@@ -922,16 +943,23 @@ export default function TenantManagement() {
                                   {admin.email}
                                 </p>
                                 <div className="flex items-center gap-2 flex-wrap">
-                                  <div
-                                    className={`w-2 h-2 rounded-full ${
+                                  <button
+                                    onClick={() =>
+                                      handleToggleAdminStatus(tenant._id, admin)
+                                    }
+                                    disabled={updatingAdmin === admin._id}
+                                    className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer disabled:opacity-60 ${
                                       admin.isActive
-                                        ? "bg-green-500"
-                                        : "bg-red-500"
+                                        ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
+                                        : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
                                     }`}
-                                  ></div>
-                                  <span className="text-xs text-primary-600">
-                                    {admin.isActive ? "Active" : "Inactive"}
-                                  </span>
+                                  >
+                                    {updatingAdmin === admin._id ? (
+                                      <span className="inline-block animate-spin">⟳</span>
+                                    ) : (
+                                      admin.isActive ? "Active" : "Inactive"
+                                    )}
+                                  </button>
                                   {admin.lastLogin && (
                                     <>
                                       <span className="text-xs text-primary-400">

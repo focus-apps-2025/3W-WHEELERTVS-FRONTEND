@@ -2220,19 +2220,19 @@ const handleCancelWeightageEdit = () => {
               <table className="w-full divide-y divide-blue-200 dark:divide-blue-700 text-sm">
                 <thead className="bg-blue-50 dark:bg-blue-900/50 sticky top-0">
                   <tr>
-                    <th className="px-4 py-3 text-left font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-48">
-                      Question
+                    <th className="px-4 py-3 text-left font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider w-[60%]">
+                      Question & Parameters
                     </th>
-                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
+                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider w-[10%]">
                       Yes
                     </th>
-                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
+                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider w-[10%]">
                       No
                     </th>
-                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
+                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider w-[10%]">
                       N/A
                     </th>
-                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider min-w-16">
+                    <th className="px-4 py-3 text-center font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider w-[10%]">
                       Total
                     </th>
                   </tr>
@@ -2255,8 +2255,18 @@ const handleCancelWeightageEdit = () => {
                           }`}
                       >
                         <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">
-                          <div className="font-semibold">
-                            {stat.subParam1 || "No parameter"}
+                          <div className="flex flex-col gap-1.5">
+                            {stat.subParam1 && (
+                              <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-2 py-0.5 rounded font-semibold text-xs w-fit">
+                                {stat.subParam1}
+                              </span>
+                            )}
+                            <span
+                              className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed"
+                              title={stat.title}
+                            >
+                              {stat.title}
+                            </span>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium">
@@ -2478,11 +2488,18 @@ const handleCancelWeightageEdit = () => {
                             }`}
                         >
                           <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-emerald-200 dark:border-emerald-800">
-                            <div className="font-bold text-base">
-                              {mainQuestion.subParam1 || "No parameter set"}
-                            </div>
-                            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                              {mainQuestion.title}
+                            <div className="flex flex-col gap-2">
+                              {mainQuestion.subParam1 && (
+                                <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-2 py-0.5 rounded font-semibold text-xs w-fit">
+                                  {mainQuestion.subParam1}
+                                </span>
+                              )}
+                              <div
+                                className="text-xs text-gray-600 dark:text-gray-400"
+                                title={mainQuestion.title}
+                              >
+                                {mainQuestion.title}
+                              </div>
                             </div>
                           </td>
                           {uniqueSubParams.map((subParam) => {

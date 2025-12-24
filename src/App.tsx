@@ -67,19 +67,6 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AccessDenied() {
-  return (
-    <div className="p-6">
-      <div className="mx-auto max-w-3xl rounded-lg border border-neutral-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 text-center">
-        <h2 className="text-lg font-semibold text-neutral-900 dark:text-gray-100">Access restricted</h2>
-        <p className="mt-2 text-sm text-neutral-600 dark:text-gray-400">
-          You do not have permission to view this area.
-        </p>
-      </div>
-    </div>
-  );
-}
-
 function AccessControl({
   children,
   allowedRoles,
@@ -92,11 +79,11 @@ function AccessControl({
   const { user } = useAuth();
 
   if (!user) {
-    return null;
+    return <Navigate to="/login" replace />;
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <AccessDenied />;
+    return <Navigate to="/login" replace />;
   }
 
   if (
@@ -106,7 +93,7 @@ function AccessControl({
   ) {
     const permissionSet = new Set(user.permissions || []);
     if (!permissionSet.has(requiredPermission)) {
-      return <AccessDenied />;
+      return <Navigate to="/login" replace />;
     }
   }
 
@@ -241,7 +228,9 @@ const router = createBrowserRouter(
         },
         {
           path: "/superadmin/tenants",
-          element: withAuthenticatedLayout(<TenantManagement />),
+          element: withAccessControl(<TenantManagement />, {
+            allowedRoles: ["superadmin"],
+          }),
         },
       ],
     },

@@ -1415,6 +1415,46 @@ export default function FormCreator() {
     }));
   };
 
+  const duplicateSection = (sectionId: string) => {
+    const section = form.sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    const duplicateQuestionRecursive = (
+      q: Question | FollowUpQuestion
+    ): Question | FollowUpQuestion => {
+      return {
+        ...q,
+        id: crypto.randomUUID(),
+        suggestion: q.suggestion || "",
+        followUpQuestions: q.followUpQuestions?.map(
+          (fq) =>
+            ({
+              ...duplicateQuestionRecursive(fq),
+              parentId: crypto.randomUUID(),
+            } as FollowUpQuestion)
+        ),
+      };
+    };
+
+    const duplicatedSection: FormSection = {
+      ...section,
+      id: crypto.randomUUID(),
+      questions: section.questions.map(
+        (q) => duplicateQuestionRecursive(q) as Question
+      ),
+    };
+
+    const sectionIndex = form.sections.findIndex((s) => s.id === sectionId);
+    const sections = [...form.sections];
+    sections.splice(sectionIndex + 1, 0, duplicatedSection);
+
+    setForm((prev) => ({
+      ...prev,
+      sections,
+    }));
+    showSuccess("Section duplicated successfully", "Success");
+  };
+
   const addQuestion = (sectionId: string) => {
     const newQuestion: Question = {
       id: crypto.randomUUID(),
@@ -3236,7 +3276,7 @@ export default function FormCreator() {
                             </p>
                           )}
                         </div>
-                        {/* <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2">
                           {!section.isSubsection && (
                             <button
                               onClick={() => addSubsection(section.id)}
@@ -3246,6 +3286,13 @@ export default function FormCreator() {
                               <Plus className="w-5 h-5" />
                             </button>
                           )}
+                          <button
+                            onClick={() => duplicateSection(section.id)}
+                            className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                            title="Duplicate section"
+                          >
+                            <Copy className="w-5 h-5" />
+                          </button>
                           {form.sections.filter((s) => !s.isSubsection).length >
                             1 && (
                             <button
@@ -3256,7 +3303,7 @@ export default function FormCreator() {
                               <Trash2 className="w-5 h-5" />
                             </button>
                           )}
-                        </div> */}
+                        </div>
                       </div>
                     </div>
 

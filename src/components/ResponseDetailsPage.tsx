@@ -538,6 +538,10 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
       return {
         id: stat.id,
         title: stat.title,
+        total: stat.total,
+        yes: stat.yes,
+        no: stat.no,
+        na: stat.na,
         weightage,
         yesPercent,
         yesWeighted,
@@ -881,7 +885,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
         if (yesNoValues.length > 0 || followUpQuestionsForThis.length > 0) {
           const mainQuestion = {
             id: question.id,
-            title: question.title || question.label,
+            title: question.title || question.label || question.text,
             subParam1: question.subParam1,
             yesNoValues,
             followUpQuestions: followUpQuestionsForThis.map((fq: any) => ({
@@ -980,22 +984,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          position: "bottom" as const,
-          labels: {
-            color: "#374151",
-            generateLabels: (chart: any) => {
-              const labels =
-                ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
-              labels.forEach((label: any) => {
-                label.color = document.documentElement.classList.contains(
-                  "dark"
-                )
-                  ? "#d1d5db"
-                  : "#374151";
-              });
-              return labels;
-            },
-          },
+          display: false,
         },
         tooltip: {
           callbacks: {
@@ -1017,6 +1006,16 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
         r: {
           beginAtZero: true,
           max: 100,
+          pointLabels: {
+            display: true,
+            font: {
+              size: 10,
+              weight: 500,
+            },
+            color: document.documentElement.classList.contains("dark")
+              ? "#d1d5db"
+              : "#374151",
+          },
           ticks: {
             callback: (value: any) => `${value}%`,
             color: document.documentElement.classList.contains("dark")
@@ -1071,6 +1070,10 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
         return {
           id: stat.id,
           title: stat.title,
+          total: stat.total,
+          yes: stat.yes,
+          no: stat.no,
+          na: stat.na,
           weightage,
           yesPercent,
           yesWeighted,
@@ -1092,7 +1095,6 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
       labels: sectionSummaryRows.map((row) => formatSectionLabel(row.title)),
       datasets: [
         {
-          label: "Yes % × Weightage",
           data: sectionSummaryRows.map((row) =>
             parseFloat(row.yesWeighted.toFixed(1))
           ),
@@ -1106,7 +1108,6 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
           pointBorderWidth: 2,
         },
         {
-          label: "No % × Weightage",
           data: sectionSummaryRows.map((row) =>
             parseFloat(row.noWeighted.toFixed(1))
           ),
@@ -1120,7 +1121,6 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
           pointBorderWidth: 2,
         },
         {
-          label: "N/A % × Weightage",
           data: sectionSummaryRows.map((row) =>
             parseFloat(row.naWeighted.toFixed(1))
           ),
@@ -1160,22 +1160,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
       },
       plugins: {
         legend: {
-          position: "bottom" as const,
-          labels: {
-            color: "#374151",
-            generateLabels: (chart: any) => {
-              const labels =
-                ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
-              labels.forEach((label: any) => {
-                label.color = document.documentElement.classList.contains(
-                  "dark"
-                )
-                  ? "#d1d5db"
-                  : "#374151";
-              });
-              return labels;
-            },
-          },
+          display: false,
         },
         tooltip: {
           callbacks: {
@@ -1339,7 +1324,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
               onClick={() => setViewMode("dashboard")}
               className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                 viewMode === "dashboard"
-                  ? "text-white shadow-sm"
+                  ? "text-white"
                   : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
               }`}
               style={{ backgroundColor: viewMode === "dashboard" ? "#1e3a8a" : "transparent" }}
@@ -1351,7 +1336,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
               onClick={() => setViewMode("responses")}
               className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                 viewMode === "responses"
-                  ? "text-white shadow-sm"
+                  ? "text-white"
                   : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
               }`}
               style={{ backgroundColor: viewMode === "responses" ? "#1e3a8a" : "transparent" }}
@@ -1550,7 +1535,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
               <div className="flex gap-5 items-stretch">
                 {/* Stats Cards - 25% */}
                 <div className="w-1/4 flex flex-col gap-2">
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-2.5 rounded-lg border border-blue-200 dark:border-blue-700 hover:shadow-md transition-shadow duration-300">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-2.5 rounded-lg border border-blue-200 dark:border-blue-700 transition-shadow duration-300">
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-0.5">
@@ -1570,7 +1555,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                     </div>
                   </div>
 
-                  <div className="bg-indigo-50 dark:bg-indigo-900/20 p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-700 hover:shadow-md transition-shadow duration-300 cursor-pointer" onClick={() => setViewMode("responses")}>
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-700 transition-shadow duration-300 cursor-pointer" onClick={() => setViewMode("responses")}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-0.5">
@@ -1586,7 +1571,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                     </div>
                   </div>
 
-                  <div className="bg-green-50 dark:bg-green-900/20 p-2.5 rounded-lg border border-green-200 dark:border-green-700 hover:shadow-md transition-shadow duration-300 cursor-pointer" onClick={() => setExpandResponseRateBreakdown(!expandResponseRateBreakdown)}>
+                  <div className="bg-green-50 dark:bg-green-900/20 p-2.5 rounded-lg border border-green-200 dark:border-green-700 transition-shadow duration-300 cursor-pointer" onClick={() => setExpandResponseRateBreakdown(!expandResponseRateBreakdown)}>
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <div className="flex items-center gap-1">
@@ -1624,15 +1609,18 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                               <>
                                 <div className="text-center p-1.5 bg-green-100/60 dark:bg-green-900/20 rounded-md">
                                   <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase">Yes</p>
-                                  <p className="text-sm font-bold text-green-800 dark:text-green-300">{yesPercent}%</p>
+                                  <p className="text-sm font-bold text-green-800 dark:text-green-300">{totalYes}</p>
+                                  <p className="text-xs text-green-700 dark:text-green-400">{yesPercent}%</p>
                                 </div>
                                 <div className="text-center p-1.5 bg-red-100/60 dark:bg-red-900/20 rounded-md">
                                   <p className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase">No</p>
-                                  <p className="text-sm font-bold text-red-800 dark:text-red-300">{noPercent}%</p>
+                                  <p className="text-sm font-bold text-red-800 dark:text-red-300">{totalNo}</p>
+                                  <p className="text-xs text-red-700 dark:text-red-400">{noPercent}%</p>
                                 </div>
                                 <div className="text-center p-1.5 bg-yellow-100/60 dark:bg-yellow-900/20 rounded-md">
                                   <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 uppercase">N/A</p>
-                                  <p className="text-sm font-bold text-yellow-800 dark:text-yellow-300">{naPercent}%</p>
+                                  <p className="text-sm font-bold text-yellow-800 dark:text-yellow-300">{totalNA}</p>
+                                  <p className="text-xs text-yellow-700 dark:text-yellow-400">{naPercent}%</p>
                                 </div>
                               </>
                             );
@@ -1642,7 +1630,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                     )}
                   </div>
 
-                  <div className="bg-purple-50 dark:bg-purple-900/20 p-2.5 rounded-lg border border-purple-200 dark:border-purple-700 hover:shadow-md transition-shadow duration-300">
+                  <div className="bg-purple-50 dark:bg-purple-900/20 p-2.5 rounded-lg border border-purple-200 dark:border-purple-700 transition-shadow duration-300">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-semibold text-purple-700 dark:text-purple-300 mb-0.5">
@@ -1670,7 +1658,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                 </div>
 
                 {/* Basic Information - 75% */}
-                <div className="w-3/4 bg-white dark:bg-gray-900 rounded-xl shadow border border-gray-200 dark:border-gray-800 p-5">
+                <div className="w-3/4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
                 {form?.sections && form.sections.length > 0 ? (
                   (() => {
                     const section = form.sections[0];
@@ -1686,11 +1674,26 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             {section.questions.map((question: any) => {
                               const answer = response.answers?.[question.id];
+                              const isMainQuestion = question && !question.parentId && !question.showWhen?.questionId;
                               return (
-                                <div key={question.id} className="p-3 rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
-                                  <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1">
-                                    {question.text || question.label || question.id}
-                                  </p>
+                                <div 
+                                  key={question.id} 
+                                  className={`p-3 rounded-lg border transition-shadow ${
+                                    isMainQuestion 
+                                      ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-blue-200 dark:border-blue-700" 
+                                      : "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"
+                                  }`}
+                                >
+                                  <div className="flex flex-col gap-1 mb-1">
+                                    {question.subParam1 && (
+                                      <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-2 py-0.5 rounded font-semibold text-xs w-fit">
+                                        {question.subParam1}
+                                      </span>
+                                    )}
+                                    <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                                      {question.text || question.label || question.id}
+                                    </p>
+                                  </div>
                                   <p className="text-sm font-medium text-gray-900 dark:text-white">
                                     {answer !== undefined && answer !== null && answer !== '' 
                                       ? (Array.isArray(answer) ? answer.join(', ') : String(answer))
@@ -1767,69 +1770,12 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
               </div>
 
               {/* Charts Section */}
-              <div className={`grid gap-8 ${showWeightageColumns ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
-                <div className={`bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 dark:from-gray-800 dark:via-blue-900/10 dark:to-indigo-900/10 p-8 rounded-3xl shadow-2xl border border-blue-200/50 dark:border-blue-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm ${!showWeightageColumns ? 'lg:max-w-3xl mx-auto w-full' : ''}`}>
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-                      <div className="p-2 bg-blue-500/20 rounded-lg mr-4">
-                        <BarChart3 className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      Section Performance
-                    </h3>
-                    <div className="flex items-center space-x-3 bg-white/50 dark:bg-gray-700/50 rounded-full px-4 py-2">
-                      <div className="flex items-center space-x-1">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Yes</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <div className="w-3 h-3 bg-blue-400 rounded-full"></div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">No</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <div className="w-3 h-3 bg-blue-300 rounded-full"></div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">N/A</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div id="section-performance-chart" className="w-full flex items-center justify-center" style={{ height: sectionChartHeight, minHeight: "400px" }}>
-                    <Radar data={sectionChartData} options={sectionChartOptions} />
-                  </div>
-                </div>
-
-                {showWeightageColumns && (
-                  <div className="bg-gradient-to-br from-white via-green-50/30 to-emerald-50/30 dark:from-gray-800 dark:via-green-900/10 dark:to-emerald-900/10 p-8 rounded-3xl shadow-2xl border border-green-200/50 dark:border-green-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm">
-                    <div className="flex items-center justify-between mb-8">
-                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
-                        <div className="p-2 bg-green-500/20 rounded-lg mr-4">
-                          <TrendingUp className="w-6 h-6 text-green-600 dark:text-green-400" />
-                        </div>
-                        Weighted Trends
-                      </h3>
-                      <div className="flex items-center space-x-3 bg-white/50 dark:bg-gray-700/50 rounded-full px-4 py-2">
-                        <div className="flex items-center space-x-1">
-                          <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Yes × Weight</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">No × Weight</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">N/A × Weight</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="w-full" style={{ height: weightedChartHeight }}>
-                      <Line data={weightedPercentageChartData} options={weightedPercentageChartOptions} />
-                    </div>
-                  </div>
-                )}
-              </div>
+              <div className="flex flex-col lg:flex-row gap-4 items-stretch">
+                <div className="flex-shrink-0 lg:w-[70%]">
 
               {/* Section-wise Breakdown Table */}
-              <div className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transform hover:scale-[1.01] transition-all duration-500 hover:shadow-3xl">
-                <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 p-6">
+              <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div className="bg-primary-600 p-6">
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-2xl font-bold text-white flex items-center">
@@ -1862,6 +1808,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                                   } else {
                                     setEditingAllWeightages(false);
                                     setWeightageValues({});
+                                    setShowWeightageColumns(false);
                                   }
                                 }}
                               />
@@ -1874,8 +1821,21 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                             </span>
                           </label>
                           {addWeightMode && (
-                            <div className="ml-3 text-xs text-white/80 bg-black/20 px-2 py-1 rounded">
-                              Total must be 100%
+                            <div className="flex items-center gap-2">
+                              <div className="text-xs text-white/80 bg-black/20 px-2 py-1 rounded">
+                                Total must be 100%
+                              </div>
+                              <button
+                                onClick={() => {
+                                  setAddWeightMode(false);
+                                  setEditingAllWeightages(false);
+                                  setWeightageValues({});
+                                  setShowWeightageColumns(false);
+                                }}
+                                className="px-2 py-1 text-xs bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
+                              >
+                                Cancel
+                              </button>
                             </div>
                           )}
                         </div>
@@ -1911,7 +1871,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                             setTempWeightageValues(initialValues);
                             setWeightageBalance(0);
                           }}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white transition-colors"
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary-700 hover:bg-primary-800 text-white transition-colors"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -1931,13 +1891,16 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                           Section
                         </th>
                         <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                          Yes %
+                          Total
                         </th>
-                        <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                          No %
+                        <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                          Yes
                         </th>
-                        <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
-                          N/A %
+                        <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                          No
+                        </th>
+                        <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                          N/A
                         </th>
                         {showWeightageColumns && (
                           <>
@@ -1965,13 +1928,16 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                             {row.title}
                           </td>
                           <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                            {row.yesPercent.toFixed(1)}%
+                            {row.total}
                           </td>
                           <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                            {row.noPercent.toFixed(1)}%
+                            {row.yes} ({row.yesPercent.toFixed(1)}%)
                           </td>
                           <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                            {row.naPercent.toFixed(1)}%
+                            {row.no} ({row.noPercent.toFixed(1)}%)
+                          </td>
+                          <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                            {row.na} ({row.naPercent.toFixed(1)}%)
                           </td>
                           {showWeightageColumns && (
                             <>
@@ -2297,6 +2263,63 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                   </table>
                 </div>
               </div>
+            </div>
+                <div className="lg:w-[30%] flex flex-col gap-4">
+                  {showWeightageColumns && (
+                    <div className="bg-gradient-to-br from-white via-green-50/30 to-emerald-50/30 dark:from-gray-800 dark:via-green-900/10 dark:to-emerald-900/10 p-2 rounded-2xl border border-green-200/50 dark:border-green-700/50 transform hover:scale-[1.02] transition-all duration-500 backdrop-blur-sm w-full flex flex-col">
+                      <div className="flex flex-col items-center justify-center mb-1 gap-1">
+                        <h3 className="text-xs font-bold text-gray-900 dark:text-white flex flex-col items-center text-center">
+                          <div className="p-1 bg-green-500/20 rounded-md mb-0.5">
+                            <TrendingUp className="w-3 h-3 text-green-600 dark:text-green-400" />
+                          </div>
+                          <span>Weighted Trends</span>
+                        </h3>
+                        <div className="flex flex-row justify-center gap-1 bg-white/50 dark:bg-gray-700/50 rounded-md px-1 py-0.5">
+                          <div className="flex items-center space-x-0.5">
+                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                            <span className="text-[7px] font-medium text-gray-700 dark:text-gray-300">Y×W</span>
+                          </div>
+                          <div className="flex items-center space-x-0.5">
+                            <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                            <span className="text-[7px] font-medium text-gray-700 dark:text-gray-300">N×W</span>
+                          </div>
+                          <div className="flex items-center space-x-0.5">
+                            <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
+                            <span className="text-[7px] font-medium text-gray-700 dark:text-gray-300">NA×W</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="w-full h-48 flex items-center justify-center">
+                        <Line data={weightedPercentageChartData} options={weightedPercentageChartOptions} />
+                      </div>
+                    </div>
+                  )}
+                  <div className="bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 dark:from-gray-800 dark:via-blue-900/10 dark:to-indigo-900/10 p-2 rounded-2xl border border-blue-200/50 dark:border-blue-700/50 transform hover:scale-[1.02] transition-all duration-500 backdrop-blur-sm w-full flex flex-col">
+                    <div className="flex flex-col items-center justify-center mb-1 gap-1">
+                      <h3 className="text-xs font-bold text-gray-900 dark:text-white flex flex-col items-center text-center">
+                        <span>Section Performance</span>
+                      </h3>
+                      <div className="flex gap-1 bg-white/50 dark:bg-gray-700/50 rounded-md px-1.5 py-1 flex-row">
+                        <div className="flex items-center space-x-0.5">
+                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">Yes</span>
+                        </div>
+                        <div className="flex items-center space-x-0.5">
+                          <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">No</span>
+                        </div>
+                        <div className="flex items-center space-x-0.5">
+                          <div className="w-1.5 h-1.5 bg-blue-300 rounded-full"></div>
+                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">N/A</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div id="section-performance-chart" className="w-full h-48 flex items-center justify-center">
+                      <Radar data={sectionChartData} options={{...sectionChartOptions, maintainAspectRatio: false}} />
+                    </div>
+                  </div>
+                </div>
+          </div>
 
 
 
@@ -2381,7 +2404,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                 };
 
                 return (
-                  <div key={section.id} className="bg-white dark:bg-gray-900 p-5 rounded-xl shadow border border-gray-200 dark:border-gray-800">
+                  <div key={section.id} className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-800">
                     <div className="mb-4">
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                         {section.title || "Section"} - Yes/No/N/A Analysis
@@ -2479,16 +2502,16 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                           <table className="w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
                             <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                               <tr>
-                                <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider min-w-40">
-                                  Question
+                                <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider w-[60%]">
+                                  Question & Parameters
                                 </th>
-                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider min-w-12">
+                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider w-[13%]">
                                   Yes
                                 </th>
-                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider min-w-12">
+                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider w-[13%]">
                                   No
                                 </th>
-                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider min-w-12">
+                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider w-[14%]">
                                   N/A
                                 </th>
                               </tr>
@@ -2512,8 +2535,22 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                                     }`}
                                   >
                                     <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
-                                      <div className="font-semibold text-xs">
-                                        {stat.subParam1 || "No parameter"}
+                                      <div className="flex flex-col gap-1.5">
+                                        {stat.subParam1 ? (
+                                          <span
+                                            className="text-xs font-medium text-gray-900 dark:text-gray-100"
+                                            title={stat.title}
+                                          >
+                                            {stat.subParam1}
+                                          </span>
+                                        ) : (
+                                          <span
+                                            className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed"
+                                            title={stat.title}
+                                          >
+                                            {stat.title}
+                                          </span>
+                                        )}
                                       </div>
                                     </td>
                                     <td className="px-3 py-2 text-center text-gray-700 dark:text-gray-300 font-medium">
@@ -2568,7 +2605,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                                 );
                               })}
                             </tbody>
-                            <tfoot className="sticky bottom-0 z-10 bg-blue-50 dark:bg-blue-900/15 border-t-2 border-blue-200 dark:border-blue-800 shadow-[0_-2px_4px_rgba(0,0,0,0.05)] dark:shadow-[0_-2px_4px_rgba(0,0,0,0.2)]">
+                            <tfoot className="sticky bottom-0 z-10 bg-blue-50 dark:bg-blue-900/15 border-t-2 border-blue-200 dark:border-blue-800">
                               <tr className="border-t border-blue-200 dark:border-blue-800">
                                 <td className="px-3 py-3 font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider text-xs">
                                   Section Total
@@ -2662,10 +2699,10 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                     );
 
                     return (
-                      <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-8 rounded-3xl shadow-xl border border-emerald-200 dark:border-emerald-800">
+                      <div className="bg-gradient-to-br from-blue-50 to-blue-50 dark:from-blue-900/20 dark:to-blue-900/20 p-8 rounded-3xl border border-blue-200 dark:border-blue-800 mt-4">
                         <div className="mb-6 flex items-center justify-between">
-                          <h3 className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
-                            <div className="w-1 h-8 bg-emerald-600 rounded-full"></div>
+                          <h3 className="text-2xl font-bold text-blue-900 dark:text-blue-100 flex items-center gap-3">
+                            <div className="w-1 h-8 bg-blue-600 rounded-full"></div>
                             {section.title || "Section"} - Main Parameters
                           </h3>
                           {hasImages && (
@@ -2678,7 +2715,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                               }
                               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                                 showMainParamsImages[section.id]
-                                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                                  ? "bg-blue-600 text-white hover:bg-blue-700"
                                   : "bg-gray-300 text-gray-700 hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200"
                               }`}
                             >
@@ -2697,16 +2734,16 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                         <div className="overflow-x-auto">
                           <table className="w-full border-collapse">
                             <thead>
-                              <tr className="bg-emerald-200 dark:bg-emerald-800/50">
-                                <th className="px-6 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-64">
+                              <tr className="bg-blue-200 dark:bg-blue-800/50">
+                                <th className="px-6 py-3 text-left text-blue-900 dark:text-blue-100 font-semibold border border-blue-300 dark:border-blue-700 min-w-64">
                                   Main Parameters
                                 </th>
                                 {uniqueSubParams.map((subParam) => (
                                   <th
                                     key={subParam}
-                                    className="px-4 py-3 text-left text-emerald-900 dark:text-emerald-100 font-semibold border border-emerald-300 dark:border-emerald-700 min-w-48 bg-emerald-50 dark:bg-emerald-900/30"
+                                    className="px-4 py-3 text-left text-blue-900 dark:text-blue-100 font-semibold border border-blue-300 dark:border-blue-700 min-w-48 bg-blue-50 dark:bg-blue-900/30"
                                   >
-                                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                                    <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">
                                       {subParam}
                                     </span>
                                   </th>
@@ -2717,52 +2754,69 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                               {sectionQuestions.map((mainQuestion, index) => (
                                 <tr
                                   key={mainQuestion.id}
-                                  className={`border-b border-emerald-200 dark:border-emerald-800 ${
+                                  className={`border-b border-blue-200 dark:border-blue-800 ${
                                     index % 2 === 0
                                       ? "bg-white dark:bg-gray-800/50"
-                                      : "bg-emerald-100/30 dark:bg-emerald-900/10"
+                                      : "bg-blue-100/30 dark:bg-blue-900/10"
                                   }`}
                                 >
-                                  <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-emerald-200 dark:border-emerald-800">
-                                    <div className="font-bold text-base">
-                                      {mainQuestion.subParam1 || "No parameter set"}
-                                    </div>
-                                    <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                      {mainQuestion.title}
+                                  <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30">
+                                    <div className="flex flex-col gap-3">
+                                      {mainQuestion.subParam1 && (
+                                        <span
+                                          className="inline-block px-3 py-1 bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 text-xs font-bold rounded-md w-fit"
+                                          title={mainQuestion.subParam1}
+                                        >
+                                          {mainQuestion.subParam1}
+                                        </span>
+                                      )}
+                                      <div
+                                        className="text-xs text-gray-600 dark:text-gray-400"
+                                        title={mainQuestion.title}
+                                      >
+                                        {mainQuestion.title}
+                                      </div>
                                     </div>
                                   </td>
                                   {uniqueSubParams.map((subParam) => {
                                     const followUpsForParam =
                                       followUpsBySubParam.get(subParam) || [];
-                                    const answersForParam = followUpsForParam
+                                    const answerQuestionPairs = followUpsForParam
                                       .map((followUp) => {
                                         const followUpFromMain =
                                           mainQuestion.followUpQuestions.find(
                                             (fq: any) => fq.id === followUp.id
                                           );
-                                        return followUpFromMain?.answer;
+                                        const answer = followUpFromMain?.answer;
+                                        if (answer !== undefined && answer !== null && answer !== "") {
+                                          return {
+                                            answer,
+                                            question: followUpFromMain?.title || "Question",
+                                          };
+                                        }
+                                        return null;
                                       })
-                                      .filter(
-                                        (answer) =>
-                                          answer !== undefined &&
-                                          answer !== null &&
-                                          answer !== ""
-                                      );
+                                      .filter((item) => item !== null);
 
                                     return (
                                       <td
                                         key={subParam}
-                                        className="px-4 py-4 border border-emerald-200 dark:border-emerald-800 text-sm text-gray-700 dark:text-gray-300 bg-emerald-50/40 dark:bg-emerald-900/20"
+                                        className="px-4 py-4 border border-blue-200 dark:border-blue-800 text-sm text-gray-700 dark:text-gray-300 bg-blue-50/40 dark:bg-blue-900/20"
                                       >
-                                        {answersForParam.length > 0 ? (
+                                        {answerQuestionPairs.length > 0 ? (
                                           <div className="flex flex-wrap gap-2">
-                                            {answersForParam.map((answer, idx) => (
-                                              <div key={idx} className="font-medium">
-                                                {isImageUrl(String(answer)) ? (
-                                                  <ImageLink text={String(answer)} showImage={showMainParamsImages[section.id] ?? true} />
-                                                ) : (
-                                                  <p>{answer}</p>
-                                                )}
+                                            {answerQuestionPairs.map((item, idx) => (
+                                              <div
+                                                key={idx}
+                                                className=""
+                                              >
+                                                <div className="font-medium">
+                                                  {isImageUrl(String(item.answer)) ? (
+                                                    <ImageLink text={String(item.answer)} showImage={showMainParamsImages[section.id] ?? true} />
+                                                  ) : (
+                                                    <p>{item.answer}</p>
+                                                  )}
+                                                </div>
                                               </div>
                                             ))}
                                           </div>
@@ -2789,7 +2843,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
 
 
               {/* Response Summary Card */}
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
                   <Users className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                   Response Summary
@@ -2841,14 +2895,14 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
               </div>
             </div>
           ) : (
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 text-center">
               <p className="text-gray-600 dark:text-gray-400 text-lg">
                 No section data available for analysis
               </p>
             </div>
           )
         ) : (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
               Form Responses
             </h3>
@@ -2875,20 +2929,30 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                         return (
                           <div
                             key={key}
-                            className={`rounded-lg p-4 border hover:shadow-md transition-shadow ${
+                            className={`rounded-lg p-4 border transition-shadow ${
                               isMainQuestion 
                                 ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-blue-200 dark:border-blue-700" 
                                 : "bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-200 dark:border-gray-700"
                             }`}
                           >
-                            <div className="mb-3">
-                              <h5 className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2">
+                            <div className="mb-3 flex flex-col gap-1.5">
+                              {question?.subParam1 && (
+                                <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-2 py-0.5 rounded font-semibold text-xs w-fit">
+                                  {question.subParam1}
+                                </span>
+                              )}
+                              <h5 
+                                className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2"
+                                title={question?.text || key}
+                              >
                                 {question?.text || key}
                               </h5>
                               {question?.description && (
-                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-1">
-                                  {question.description}
-                                </p>
+                                <div 
+                                  className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-1"
+                                  title={question.description.replace(/<br\s*\/?>/gi, '\n')}
+                                  dangerouslySetInnerHTML={{ __html: question.description }}
+                                />
                               )}
                             </div>
                             <div className="bg-white dark:bg-gray-700 rounded p-3 border border-gray-200 dark:border-gray-600">

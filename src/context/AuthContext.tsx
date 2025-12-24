@@ -55,6 +55,7 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   updateTenant: (tenant: Tenant | null) => void;
+  updateUser: (updatedUser: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -66,6 +67,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: false,
   error: null,
   updateTenant: () => {},
+  updateUser: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -80,6 +82,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem("tenant_info", JSON.stringify(nextTenant));
     } else {
       localStorage.removeItem("tenant_info");
+    }
+  };
+
+  const updateUserState = (updatedUser: Partial<User>) => {
+    if (user) {
+      setUser({ ...user, ...updatedUser });
     }
   };
 
@@ -179,7 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, tenant, login, logout, isAuthenticated, loading, error, updateTenant: updateTenantState }}
+      value={{ user, tenant, login, logout, isAuthenticated, loading, error, updateTenant: updateTenantState, updateUser: updateUserState }}
     >
       {children}
     </AuthContext.Provider>

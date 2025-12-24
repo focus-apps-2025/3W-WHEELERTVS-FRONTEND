@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   User,
@@ -17,6 +17,7 @@ import { useLogo } from "../context/LogoContext";
 import { useAuth } from "../context/AuthContext";
 import { useSidebar } from "../context/SidebarContext";
 import { useTheme } from "../context/ThemeContext";
+import ProfileModal from "./ProfileModal";
 
 interface MenuItem {
   title: string;
@@ -35,6 +36,7 @@ const MODULE_PERMISSIONS = {
 } as const;
 
 export default function Header() {
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const { logo } = useLogo();
   const { user, isAuthenticated, logout, tenant } = useAuth();
   const { isMobileOpen, toggleSidebar, closeMobile } = useSidebar();
@@ -171,14 +173,11 @@ export default function Header() {
                   alt="Logo"
                   className="h-8 w-auto object-contain"
                 />
-                <span className="ml-3 text-lg font-medium truncate text-gray-900 dark:text-white hidden sm:block">
-                  {tenant?.companyName || tenant?.name || "Focus Form"}
-                </span>
               </div>
             ) : (
               <div className="flex items-center">
                 <span className="text-lg font-medium text-primary-600 dark:text-primary-400 hidden sm:block">
-                  Focus Form
+                  {tenant?.companyName || tenant?.name || "Focus Form"}
                 </span>
               </div>
             )}
@@ -228,12 +227,29 @@ export default function Header() {
             
             {isAuthenticated && (
               <>
-                <div className="hidden md:flex items-center space-x-3 px-3 py-2 bg-primary-50 dark:bg-primary-900/20 rounded-lg">
-                  <User className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                  <span className="text-sm font-medium text-primary-600 dark:text-primary-400">
-                    {user?.firstName} {user?.lastName}
-                  </span>
-                </div>
+                <button
+                  onClick={() => setShowProfileModal(true)}
+                  className="hidden md:flex items-center space-x-2 px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors group"
+                  title="View Profile"
+                >
+                  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 group-hover:bg-primary-200 dark:group-hover:bg-primary-900/50 transition-colors">
+                    <User className="w-4 h-4 text-primary-600 dark:text-primary-400" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Profile</span>
+                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[100px]">
+                      {user?.firstName} {user?.lastName}
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setShowProfileModal(true)}
+                  className="md:hidden p-2 rounded-lg text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+                  title="View Profile"
+                >
+                  <User className="w-5 h-5" />
+                </button>
                 
                 <button
                   onClick={handleLogout}
@@ -278,6 +294,8 @@ export default function Header() {
           </div>
         )}
       </header>
+
+      <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
     </>
   );
 }
