@@ -32,6 +32,7 @@ import LoginPage from "./components/auth/LoginPage";
 import NotificationContainer from "./components/ui/NotificationContainer";
 import Header from "./components/Header";
 import ResponseDetailsPage from "./components/ResponseDetailsPage";
+import InviteStatusPage from "./components/InviteStatusPage";
 
 const ROUTE_PERMISSIONS = {
   DASHBOARD: "dashboard:view",
@@ -56,12 +57,13 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950" style={{ zoom: LAYOUT_CONFIG.zoomScale }}>
+    <div
+      className="min-h-screen bg-white dark:bg-gray-950"
+      style={{ zoom: LAYOUT_CONFIG.zoomScale }}
+    >
       <Header />
       <main className="pt-16 transition-all duration-300">
-        <div className="p-4 sm:p-6">
-          {children}
-        </div>
+        <div className="p-4 sm:p-6">{children}</div>
       </main>
     </div>
   );
@@ -125,9 +127,7 @@ const withAccessControl = (
   node: React.ReactNode,
   options?: { allowedRoles?: string[]; requiredPermission?: string }
 ) =>
-  withAuthenticatedLayout(
-    <AccessControl {...options}>{node}</AccessControl>
-  );
+  withAuthenticatedLayout(<AccessControl {...options}>{node}</AccessControl>);
 
 const router = createBrowserRouter(
   [
@@ -231,6 +231,10 @@ const router = createBrowserRouter(
           element: withAccessControl(<TenantManagement />, {
             allowedRoles: ["superadmin"],
           }),
+        },
+        {
+          path: "/forms/:id/invites",
+          element: withAuthenticatedLayout(<InviteStatusPage />),
         },
       ],
     },

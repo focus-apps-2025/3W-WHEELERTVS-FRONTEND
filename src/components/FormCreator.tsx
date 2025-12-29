@@ -34,7 +34,10 @@ import { SectionBranchingConfig } from "./forms/SectionBranchingConfig";
 import { FormRoutingConfig } from "./forms/FormRoutingConfig";
 import PreviewForm from "./PreviewForm";
 import ParameterModal from "./ParameterModal";
-import { downloadFormImportTemplate, parseFormWorkbook } from "../utils/exportUtils";
+import {
+  downloadFormImportTemplate,
+  parseFormWorkbook,
+} from "../utils/exportUtils";
 
 const YES_NO_NA_OPTIONS = ["Yes", "No", "N/A"];
 const YES_NO_NA_CORRECT = "Yes";
@@ -78,7 +81,7 @@ interface Question {
     targetSectionId: string;
     isOtherOption?: boolean;
   }>;
-   suggestion?: string;
+  suggestion?: string;
 }
 
 interface ShowWhen {
@@ -102,8 +105,7 @@ interface FollowUpQuestion {
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
   requireFollowUp?: boolean; // Make follow-up mandatory for certain question types
   correctAnswer?: string;
-  suggestion?: string;  
- 
+  suggestion?: string;
 }
 
 export default function FormCreator() {
@@ -154,7 +156,9 @@ export default function FormCreator() {
       },
     ] as FormSection[],
   });
-  const [sectionWeightageDrafts, setSectionWeightageDrafts] = useState<Record<string, string>>({});
+  const [sectionWeightageDrafts, setSectionWeightageDrafts] = useState<
+    Record<string, string>
+  >({});
   const [formSectionBranching, setFormSectionBranching] = useState<any[]>([]);
   const [showFormRoutingConfig, setShowFormRoutingConfig] = useState(false);
   const [formRoutingConfigQuestion, setFormRoutingConfigQuestion] = useState<{
@@ -205,18 +209,20 @@ export default function FormCreator() {
           const response = await apiClient.getForm(id);
           const backendForm = response.form;
 
-           console.log("=== DEBUG: Form loaded from backend ===");
-           console.log("Backend form structure:", backendForm);
-    
-    // Check first few questions for suggestions
-    backendForm.sections?.forEach((section: any, sIndex: number) => {
-      console.log(`\nSection ${sIndex + 1}: ${section.title}`);
-      section.questions?.slice(0, 3).forEach((q: any, qIndex: number) => {
-        console.log(`  Q${qIndex + 1}: "${q.text?.substring(0, 50)}..."`);
-        console.log(`    Has suggestion field: ${'suggestion' in q}`);
-        console.log(`    Suggestion value: "${q.suggestion || 'NO SUGGESTION'}"`);
-      });
-    });
+          console.log("=== DEBUG: Form loaded from backend ===");
+          console.log("Backend form structure:", backendForm);
+
+          // Check first few questions for suggestions
+          backendForm.sections?.forEach((section: any, sIndex: number) => {
+            console.log(`\nSection ${sIndex + 1}: ${section.title}`);
+            section.questions?.slice(0, 3).forEach((q: any, qIndex: number) => {
+              console.log(`  Q${qIndex + 1}: "${q.text?.substring(0, 50)}..."`);
+              console.log(`    Has suggestion field: ${"suggestion" in q}`);
+              console.log(
+                `    Suggestion value: "${q.suggestion || "NO SUGGESTION"}"`
+              );
+            });
+          });
 
           // Set the tenant ID from the loaded form
           if (backendForm.tenantId) {
@@ -248,9 +254,10 @@ export default function FormCreator() {
               // Second pass: attach follow-ups to their parent questions and initialize followUpConfig
               const questionsWithFollowUps = mainQuestions.map((q) => {
                 // Use existing nested follow-ups if present, otherwise reconstruct from flat array
-                const followUps = (q.followUpQuestions && q.followUpQuestions.length > 0)
-                  ? q.followUpQuestions
-                  : (followUpMap.get(q.id) || []);
+                const followUps =
+                  q.followUpQuestions && q.followUpQuestions.length > 0
+                    ? q.followUpQuestions
+                    : followUpMap.get(q.id) || [];
 
                 // Initialize followUpConfig if not present
                 const followUpConfig = q.followUpConfig || {};
@@ -394,7 +401,10 @@ export default function FormCreator() {
 
       form.sections.forEach((section) => {
         if (next[section.id] === undefined) {
-          if (typeof section.weightage === "number" && !Number.isNaN(section.weightage)) {
+          if (
+            typeof section.weightage === "number" &&
+            !Number.isNaN(section.weightage)
+          ) {
             next[section.id] = section.weightage.toString();
           } else {
             next[section.id] = "";
@@ -432,8 +442,8 @@ export default function FormCreator() {
     if (question.parentId) return true;
 
     // Check if question is in followUpQuestions of another question
-    const isInFollowUps = section.questions.some(q =>
-      q.followUpQuestions?.some(fq => fq.id === question.id)
+    const isInFollowUps = section.questions.some((q) =>
+      q.followUpQuestions?.some((fq) => fq.id === question.id)
     );
 
     return isInFollowUps;
@@ -449,13 +459,15 @@ export default function FormCreator() {
     }
   };
 
-  const handleImportTemplate = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportTemplate = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
     try {
       const importedData = await parseFormWorkbook(file);
-      
+
       const newForm = {
         title: importedData.title || "Imported Form",
         description: importedData.description || "",
@@ -465,7 +477,10 @@ export default function FormCreator() {
       };
 
       setForm(newForm);
-      if (importedData.parametersToCreate && importedData.parametersToCreate.length > 0) {
+      if (
+        importedData.parametersToCreate &&
+        importedData.parametersToCreate.length > 0
+      ) {
         setTempParameters(importedData.parametersToCreate);
       }
       showSuccess("Template imported successfully!", "Import Template");
@@ -486,7 +501,8 @@ export default function FormCreator() {
         "Load Sample Data",
         async () => {
           // Create sample parameters first
-          const tenantId = user?.role === "superadmin" ? selectedTenantId : user?.tenantId;
+          const tenantId =
+            user?.role === "superadmin" ? selectedTenantId : user?.tenantId;
 
           const sampleParameters = [
             // Main parameters
@@ -516,12 +532,13 @@ export default function FormCreator() {
           }
 
           // Update parameters state
-          setParameters(prev => [...prev, ...createdParameters]);
+          setParameters((prev) => [...prev, ...createdParameters]);
 
           // Create sample form data
           const sampleForm = {
             title: "Manufacturing Quality Inspection Form",
-            description: "Comprehensive quality inspection form with follow-up questions for manufacturing processes",
+            description:
+              "Comprehensive quality inspection form with follow-up questions for manufacturing processes",
             isVisible: true,
             locationEnabled: true,
             sections: [
@@ -536,13 +553,18 @@ export default function FormCreator() {
                     text: "What is the current production line status?",
                     type: "radio",
                     required: true,
-                    options: ["Running Normally", "Minor Issues", "Major Issues", "Stopped"],
+                    options: [
+                      "Running Normally",
+                      "Minor Issues",
+                      "Major Issues",
+                      "Stopped",
+                    ],
                     subParam1: "Efficiency Index",
                     subParam2: "Safety Score",
                     followUpConfig: {
                       "Minor Issues": { hasFollowUp: true, required: true },
                       "Major Issues": { hasFollowUp: true, required: true },
-                      "Stopped": { hasFollowUp: true, required: true },
+                      Stopped: { hasFollowUp: true, required: true },
                     },
                     followUpQuestions: [
                       {
@@ -561,30 +583,41 @@ export default function FormCreator() {
                             required: true,
                             subParam1: "Responsible Party",
                             showWhen: { questionId: "", value: "" },
-                          }
-                        ]
+                          },
+                        ],
                       },
                       {
                         id: crypto.randomUUID(),
                         text: "What is the estimated downtime?",
                         type: "select",
                         required: true,
-                        options: ["< 1 hour", "1-4 hours", "4-8 hours", "> 8 hours"],
+                        options: [
+                          "< 1 hour",
+                          "1-4 hours",
+                          "4-8 hours",
+                          "> 8 hours",
+                        ],
                         subParam1: "Timeline",
                         showWhen: { questionId: "", value: "Major Issues" },
-                      }
-                    ]
+                      },
+                    ],
                   },
                   {
                     id: crypto.randomUUID(),
                     text: "Rate the overall quality of recent production",
                     type: "radio",
                     required: true,
-                    options: ["Excellent", "Good", "Average", "Poor", "Critical"],
+                    options: [
+                      "Excellent",
+                      "Good",
+                      "Average",
+                      "Poor",
+                      "Critical",
+                    ],
                     subParam1: "Quality Rating",
                     followUpConfig: {
-                      "Poor": { hasFollowUp: true, required: true },
-                      "Critical": { hasFollowUp: true, required: true },
+                      Poor: { hasFollowUp: true, required: true },
+                      Critical: { hasFollowUp: true, required: true },
                     },
                     followUpQuestions: [
                       {
@@ -594,10 +627,10 @@ export default function FormCreator() {
                         required: true,
                         subParam1: "Root Cause",
                         showWhen: { questionId: "", value: "Poor" },
-                      }
-                    ]
-                  }
-                ]
+                      },
+                    ],
+                  },
+                ],
               },
               {
                 id: crypto.randomUUID(),
@@ -614,8 +647,8 @@ export default function FormCreator() {
                     subParam1: "Safety Score",
                     subParam2: "Compliance Level",
                     followUpConfig: {
-                      "No": { hasFollowUp: true, required: true },
-                      "Partially": { hasFollowUp: true, required: true },
+                      No: { hasFollowUp: true, required: true },
+                      Partially: { hasFollowUp: true, required: true },
                     },
                     followUpQuestions: [
                       {
@@ -625,10 +658,10 @@ export default function FormCreator() {
                         required: true,
                         subParam1: "Root Cause",
                         showWhen: { questionId: "", value: "No" },
-                      }
-                    ]
-                  }
-                ]
+                      },
+                    ],
+                  },
+                ],
               },
               {
                 id: crypto.randomUUID(),
@@ -641,11 +674,19 @@ export default function FormCreator() {
                     text: "Overall process efficiency rating",
                     type: "radio",
                     required: true,
-                    options: ["Highly Efficient", "Efficient", "Needs Improvement", "Inefficient"],
+                    options: [
+                      "Highly Efficient",
+                      "Efficient",
+                      "Needs Improvement",
+                      "Inefficient",
+                    ],
                     subParam1: "Efficiency Index",
                     followUpConfig: {
-                      "Needs Improvement": { hasFollowUp: true, required: false },
-                      "Inefficient": { hasFollowUp: true, required: true },
+                      "Needs Improvement": {
+                        hasFollowUp: true,
+                        required: false,
+                      },
+                      Inefficient: { hasFollowUp: true, required: true },
                     },
                     followUpQuestions: [
                       {
@@ -654,25 +695,28 @@ export default function FormCreator() {
                         type: "textarea",
                         required: true,
                         subParam1: "Action Required",
-                        showWhen: { questionId: "", value: "Needs Improvement" },
-                      }
-                    ]
-                  }
-                ]
-              }
-            ]
+                        showWhen: {
+                          questionId: "",
+                          value: "Needs Improvement",
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
           };
 
           // Fix followUp questionId references
-          sampleForm.sections.forEach(section => {
-            section.questions.forEach(question => {
+          sampleForm.sections.forEach((section) => {
+            section.questions.forEach((question) => {
               if (question.followUpQuestions) {
-                question.followUpQuestions.forEach(followUp => {
+                question.followUpQuestions.forEach((followUp) => {
                   if (followUp.showWhen) {
                     followUp.showWhen.questionId = question.id;
                   }
                   if (followUp.followUpQuestions) {
-                    followUp.followUpQuestions.forEach(nestedFollowUp => {
+                    followUp.followUpQuestions.forEach((nestedFollowUp) => {
                       if (nestedFollowUp.showWhen) {
                         nestedFollowUp.showWhen.questionId = followUp.id;
                       }
@@ -751,7 +795,9 @@ export default function FormCreator() {
         }
 
         const questionHasText = Boolean(question.text && question.text.trim());
-        const questionHasImage = Boolean(question.imageUrl && question.imageUrl.trim());
+        const questionHasImage = Boolean(
+          question.imageUrl && question.imageUrl.trim()
+        );
         const questionLabel = question.text?.trim() || "Image question";
 
         if (!questionHasText && !questionHasImage) {
@@ -896,7 +942,7 @@ export default function FormCreator() {
         }
 
         showSuccess("Form updated successfully", "Success");
-        navigate("/forms/management");
+        navigate("/forms/analytics");
       } else {
         // Create new form
         console.log("Creating new form...");
@@ -921,7 +967,7 @@ export default function FormCreator() {
         if (tempParameters.length > 0) {
           console.log("Creating parameters for new form:", tempParameters);
           try {
-            const createPromises = tempParameters.map(param =>
+            const createPromises = tempParameters.map((param) =>
               apiClient.createParameter({
                 name: param.name,
                 type: param.type,
@@ -934,7 +980,10 @@ export default function FormCreator() {
             setTempParameters([]);
           } catch (error) {
             console.error("Failed to create parameters for new form:", error);
-            showError("Form created but failed to create parameters", "Warning");
+            showError(
+              "Form created but failed to create parameters",
+              "Warning"
+            );
           }
         }
 
@@ -1026,165 +1075,642 @@ export default function FormCreator() {
   };
 
   const loadDemoData = () => {
-    const q1Id = crypto.randomUUID();
-    const q2Id = crypto.randomUUID();
-    const q3Id = crypto.randomUUID();
-    const q4Id = crypto.randomUUID();
+    type SampleDataRow = {
+      [key: string]: string | undefined;
+    };
+    const sampleData: SampleDataRow[] = [
+      {
+        "Form Title": "Bike Service & Maintenance Form",
+        "Form Description":
+          "Comprehensive bike service assessment with nested diagnostics",
+        "Section Number": "1",
+        "Section Title": "Basic Bike Information",
+        "Section Description": "Basic details about the bike",
+        "Section Weightage": "20",
+        "Section Merging": "",
+        Question: "What is your bike make and model?",
+        "Question Description": "Manufacturer and specific model",
+        "Question Type": "shortText",
+        Required: "TRUE",
+        Options: "",
+        SubParam1: "Bike Details",
+        SubParam2: "Identification",
+      },
+      {
+        "Section Weightage": "20",
+        Question: "What is the bike's registration number?",
+        "Question Description": "Official registration/plate number",
+        "Question Type": "shortText",
+        Required: "TRUE",
+        Options: "",
+        SubParam1: "Registration",
+        SubParam2: "Legal Info",
+      },
+      {
+        "Section Weightage": "20",
+        Question: "What is the current odometer reading?",
+        "Question Description": "Total kilometers/miles ridden",
+        "Question Type": "number",
+        Required: "TRUE",
+        Options: "",
+        SubParam1: "Usage Data",
+        SubParam2: "Mileage",
+      },
+      {
+        "Section Number": "2",
+        "Section Title": "Service Requirements Assessment",
+        "Section Description": "Evaluate what service the bike needs",
+        "Section Weightage": "80",
+        "Section Merging": "",
 
-    setForm({
-      title: "Student Registration Form - Demo",
-      description:
-        "This is a demo form with follow-up questions for testing purposes. It includes various question types and conditional logic.",
-      isVisible: true,
-      locationEnabled: true,
-      sections: [
-        {
+        // ========== MAIN QUESTION 1: ENGINE ISSUES (WITH NESTED FOLLOW-UPS) ==========
+        Question: "Are you experiencing any engine issues?",
+        "Question Description": "Problems related to engine performance",
+        "Question Type": "yesNoNA",
+        Required: "TRUE",
+        Options: "Yes,No,N/A",
+        SubParam1: "Engine Health",
+        SubParam2: "Performance",
+
+        // FU1: FOR YES (WITH NESTING)
+        "FU1: Option": "Yes",
+        "FU1: Question Type": "multipleChoice",
+        "FU1: Required": "TRUE",
+        "FU1: SubParam1": "Engine Problem Type",
+        "FU1: SubParam2": "Diagnosis",
+        "FU1: Question Text": "What type of engine issue are you experiencing?",
+        "FU1: Options":
+          "Starting Problem,Overheating,Knocking Sound,Oil Leak,Loss of Power",
+
+        // FU1.1: Nested under "Starting Problem"
+        "FU1.1: Option": "Starting Problem",
+        "FU1.1: Question Type": "multipleChoice",
+        "FU1.1: Required": "TRUE",
+        "FU1.1: SubParam1": "Start Issue Details",
+        "FU1.1: SubParam2": "Electrical",
+        "FU1.1: Question Text": "What happens when you try to start?",
+        "FU1.1: Options":
+          "No Sound at All,Clicking Sound,Cranks But Won't Start,Starts Then Dies",
+
+        // FU1.1.1: Nested under "Cranks But Won't Start"
+        "FU1.1.1: Option": "Cranks But Won't Start",
+        "FU1.1.1: Question Type": "multipleChoice",
+        "FU1.1.1: Required": "TRUE",
+        "FU1.1.1: SubParam1": "Fuel System",
+        "FU1.1.1: SubParam2": "Ignition",
+        "FU1.1.1: Question Text": "When did this problem start?",
+        "FU1.1.1: Options":
+          "After Fuel Fill,After Rain,Gradually Worsened,Suddenly",
+
+        // FU1.2: Nested under "Oil Leak"
+        "FU1.2: Option": "Oil Leak",
+        "FU1.2: Question Type": "multipleChoice",
+        "FU1.2: Required": "TRUE",
+        "FU1.2: SubParam1": "Leak Location",
+        "FU1.2: SubParam2": "Mechanical",
+        "FU1.2: Question Text": "Where is the oil leaking from?",
+        "FU1.2: Options": "Engine Bottom,Under Seat,Near Chain,From Filter",
+
+        // FU2: FOR NO (SIMPLE - NO NESTING)
+        "FU2: Option": "No",
+        "FU2: Question Type": "shortText",
+        "FU2: Required": "FALSE",
+        "FU2: SubParam1": "Engine Status",
+        "FU2: SubParam2": "Positive",
+        "FU2: Question Text": "When was your last engine service?",
+
+        // FU3: FOR N/A (SIMPLE - NO NESTING)
+        "FU3: Option": "N/A",
+        "FU3: Question Type": "shortText",
+        "FU3: Required": "FALSE",
+        "FU3: SubParam1": "Not Applicable",
+        "FU3: SubParam2": "Explanation",
+        "FU3: Question Text": "Why is this not applicable?",
+
+        // FU4: ADDITIONAL ENGINE QUESTION
+      },
+      {
+        "Section Weightage": "80",
+        // ========== MAIN QUESTION 2: BRAKE SYSTEM (WITH NESTED FOLLOW-UPS) ==========
+        Question: "Are there any brake system problems?",
+        "Question Description": "Issues with braking performance",
+        "Question Type": "multipleChoice",
+        Required: "TRUE",
+        Options: "Yes,No,N/A",
+        SubParam1: "Brake Safety",
+        SubParam2: "Critical",
+
+        // FU1: FOR YES (WITH NESTING)
+        "FU1: Option": "Yes",
+        "FU1: Question Type": "multipleChoice",
+        "FU1: Required": "TRUE",
+        "FU1: SubParam1": "Brake Problem Type",
+        "FU1: SubParam2": "Safety Issue",
+        "FU1: Question Text": "What brake problem are you experiencing?",
+        "FU1: Options":
+          "Soft Brake Lever,Grinding Noise,Brake Drag,Poor Stopping,Spongy Feel",
+
+        // FU1.1: Nested under "Grinding Noise"
+        "FU1.1: Option": "Grinding Noise",
+        "FU1.1: Question Type": "multipleChoice",
+        "FU1.1: Required": "TRUE",
+        "FU1.1: SubParam1": "Noise Details",
+        "FU1.1: SubParam2": "Wear Indicators",
+        "FU1.1: Question Text": "When do you hear the grinding noise?",
+        "FU1.1: Options":
+          "Always When Braking,Only During Hard Braking,When Releasing Brakes,With Specific Speed",
+
+        // FU1.1.1: Nested under "Always When Braking"
+        "FU1.1.1: Option": "Always When Braking",
+        "FU1.1.1: Question Type": "multipleChoice",
+        "FU1.1.1: Required": "TRUE",
+        "FU1.1.1: SubParam1": "Pad Condition",
+        "FU1.1.1: SubParam2": "Maintenance",
+        "FU1.1.1: Question Text": "When were brakes last serviced?",
+        "FU1.1.1: Options":
+          "Within Month,1-3 Months,3-6 Months,Over 6 Months,Never",
+
+        // FU1.2: Nested under "Poor Stopping"
+        "FU1.2: Option": "Poor Stopping",
+        "FU1.2: Question Type": "dropdown",
+        "FU1.2: Required": "TRUE",
+        "FU1.2: SubParam1": "Stopping Distance",
+        "FU1.2: SubParam2": "Performance",
+        "FU1.2: Question Text": "How much has stopping distance increased?",
+        "FU1.2: Options":
+          "Slightly Noticeable,Significantly Increased,Very Dangerous,Unpredictable",
+
+        // FU2: FOR NO (SIMPLE - NO NESTING)
+        "FU2: Option": "No",
+        "FU2: Question Type": "shortText",
+        "FU2: Required": "FALSE",
+        "FU2: SubParam1": "Brake Status",
+        "FU2: SubParam2": "Good Condition",
+        "FU2: Question Text": "When were brakes last checked?",
+
+        // FU3: FOR N/A (SIMPLE - NO NESTING)
+        "FU3: Option": "N/A",
+        "FU3: Question Type": "shortText",
+        "FU3: Required": "FALSE",
+        "FU3: SubParam1": "Not Applicable",
+        "FU3: SubParam2": "Explanation",
+        "FU3: Question Text": "Why are brakes not applicable?",
+      },
+      {
+        "Section Weightage": "80",
+
+        // ========== MAIN QUESTION 3: TIRE CONDITION (SIMPLE FOLLOW-UPS - NO NESTING) ==========
+        Question: "Are there any tire issues?",
+        "Question Description": "Problems with tires and wheels",
+        "Question Type": "yesNoNA",
+        Required: "TRUE",
+        Options: "Yes,No,N/A",
+        SubParam1: "Tire Safety",
+        SubParam2: "Wheels",
+
+        // FU1: FOR YES (SIMPLE - NO NESTING)
+        "FU1: Option": "Yes",
+        "FU1: Question Type": "multipleChoice",
+        "FU1: Required": "TRUE",
+        "FU1: SubParam1": "Tire Problem Type",
+        "FU1: SubParam2": "Condition",
+        "FU1: Question Text": "What tire issue are you facing?",
+        "FU1: Options":
+          "Puncture,Wear Uneven,Wear Excessive,Bulging,Pressure Loss",
+
+        // FU2: FOR NO (SIMPLE - NO NESTING)
+        "FU2: Option": "No",
+        "FU2: Question Type": "shortText",
+        "FU2: Required": "FALSE",
+        "FU2: SubParam1": "Tire Status",
+        "FU2: SubParam2": "Good Condition",
+        "FU2: Question Text": "When were tires last replaced?",
+
+        // FU3: FOR N/A (SIMPLE - NO NESTING)
+        "FU3: Option": "N/A",
+        "FU3: Question Type": "shortText",
+        "FU3: Required": "FALSE",
+        "FU3: SubParam1": "Not Applicable",
+        "FU3: SubParam2": "Explanation",
+        "FU3: Question Text": "Why are tires not applicable?",
+
+        // FU4: ADDITIONAL TIRE QUESTION
+      },
+      {
+        "Section Weightage": "80",
+
+        // ========== MAIN QUESTION 4: ELECTRICAL SYSTEM (SIMPLE FOLLOW-UPS - NO NESTING) ==========
+        Question: "Are there any electrical problems?",
+        "Question Description": "Issues with lights, battery, electronics",
+        "Question Type": "yesNoNA",
+        Required: "TRUE",
+        Options: "Yes,No,N/A",
+        SubParam1: "Electrical System",
+        SubParam2: "Electronics",
+
+        // FU1: FOR YES (SIMPLE - NO NESTING)
+        "FU1: Option": "Yes",
+        "FU1: Question Type": "multipleChoice",
+        "FU1: Required": "TRUE",
+        "FU1: SubParam1": "Electrical Problem",
+        "FU1: SubParam2": "Diagnosis",
+        "FU1: Question Text": "What electrical issue exists?",
+        "FU1: Options":
+          "Battery Drain,Light Failure,Indicator Problem,Horn Not Working,Display Issues",
+
+        // FU2: FOR NO (SIMPLE - NO NESTING)
+        "FU2: Option": "No",
+        "FU2: Question Type": "shortText",
+        "FU2: Required": "FALSE",
+        "FU2: SubParam1": "Electrical Status",
+        "FU2: SubParam2": "Good Condition",
+        "FU2: Question Text": "When was battery last replaced?",
+
+        // FU3: FOR N/A (SIMPLE - NO NESTING)
+        "FU3: Option": "N/A",
+        "FU3: Question Type": "shortText",
+        "FU3: Required": "FALSE",
+        "FU3: SubParam1": "Not Applicable",
+        "FU3: SubParam2": "Explanation",
+        "FU3: Question Text": "Why is electrical system not applicable?",
+
+        // FU4: ADDITIONAL ELECTRICAL QUESTION
+      },
+      {
+        "Section Weightage": "80",
+
+        // ========== MAIN QUESTION 5: SUSPENSION & HANDLING (SIMPLE FOLLOW-UPS - NO NESTING) ==========
+        Question: "Are there any suspension or handling issues?",
+        "Question Description": "Problems with ride comfort and control",
+        "Question Type": "yesNoNA",
+        Required: "TRUE",
+        Options: "Yes,No,N/A",
+        SubParam1: "Suspension",
+        SubParam2: "Handling",
+
+        // FU1: FOR YES (SIMPLE - NO NESTING)
+        "FU1: Option": "Yes",
+        "FU1: Question Type": "multipleChoice",
+        "FU1: Required": "TRUE",
+        "FU1: SubParam1": "Suspension Problem",
+        "FU1: SubParam2": "Ride Quality",
+        "FU1: Question Text": "What handling issue do you notice?",
+        "FU1: Options":
+          "Too Soft,Too Hard,Uneven,Bottoming Out,Noise Over Bumps",
+
+        // FU2: FOR NO (SIMPLE - NO NESTING)
+        "FU2: Option": "No",
+        "FU2: Question Type": "shortText",
+        "FU2: Required": "FALSE",
+        "FU2: SubParam1": "Suspension Status",
+        "FU2: SubParam2": "Good Condition",
+        "FU2: Question Text": "When was suspension last serviced?",
+
+        // FU3: FOR N/A (SIMPLE - NO NESTING)
+        "FU3: Option": "N/A",
+        "FU3: Question Type": "shortText",
+        "FU3: Required": "FALSE",
+        "FU3: SubParam1": "Not Applicable",
+        "FU3: SubParam2": "Explanation",
+        "FU3: Question Text": "Why is suspension not applicable?",
+      },
+      {
+        "Section Number": "3",
+        "Section Title": "Service History & Preferences",
+        "Section Description": "Previous service records and preferences",
+        "Section Weightage": "20",
+        "Section Merging": "",
+        Question: "When was your last full service?",
+        "Question Description": "Complete professional service",
+        "Question Type": "dropdown",
+        Required: "TRUE",
+        Options: "Within 3 months,3-6 months,6-12 months,Over 1 year,Never",
+        SubParam1: "Service History",
+        SubParam2: "Maintenance",
+      },
+      {
+        "Section Weightage": "20",
+        Question: "What type of service do you prefer?",
+        "Question Description": "Service package preference",
+        "Question Type": "multipleChoice",
+        Required: "TRUE",
+        Options:
+          "Basic Service,Standard Service,Comprehensive Service,Premium Service,Custom",
+        SubParam1: "Service Preference",
+        SubParam2: "Package",
+      },
+      {
+        "Section Weightage": "20",
+        Question: "Do you need a pickup/drop service?",
+        "Question Description": "Transportation assistance",
+        "Question Type": "yesNoNA",
+        Required: "TRUE",
+        Options: "Yes,No,N/A",
+        SubParam1: "Transport",
+        SubParam2: "Logistics",
+      },
+    ];
+
+    // Helper function to map question types
+    const mapQuestionType = (type: string | undefined): string => {
+      if (!type) return "text";
+
+      const typeMap: Record<string, string> = {
+        shortText: "text",
+        number: "number",
+        multipleChoice: "radio",
+        dropdown: "select",
+        yesNoNA: "yesNoNA",
+        checkbox: "checkbox",
+        paragraph: "textarea",
+        rating: "rating",
+        date: "date",
+      };
+      return typeMap[type] || "text";
+    };
+
+    // Helper function to parse options string
+    const parseOptions = (options: string | undefined): string[] => {
+      if (!options || options.trim() === "") return [];
+      return options.split(",").map((opt) => opt.trim());
+    };
+
+    // Helper function to safely get string values with fallback
+    const getString = (
+      value: string | undefined,
+      fallback: string = ""
+    ): string => {
+      return value || fallback;
+    };
+
+    // Helper function to get boolean from string
+    const getBoolean = (value: string | undefined): boolean => {
+      return value?.toUpperCase() === "TRUE";
+    };
+
+    // Helper function to get number from string
+    const getNumber = (
+      value: string | undefined,
+      fallback: number = 0
+    ): number => {
+      const num = parseInt(value || "");
+      return isNaN(num) ? fallback : num;
+    };
+
+    // Parse the sampleData into form sections
+    const sections: FormSection[] = [];
+    let currentSection: FormSection | null = null;
+    let currentQuestion: Question | null = null;
+
+    sampleData.forEach((row, index) => {
+      // Check if new section starts
+      const sectionNumber = getString(row["Section Number"]);
+      const sectionTitle = getString(row["Section Title"]);
+
+      if (sectionNumber || (sectionTitle && !currentSection)) {
+        // Save previous question if exists
+        if (currentQuestion && currentSection) {
+          currentSection.questions.push(currentQuestion);
+          currentQuestion = null;
+        }
+
+        // Save previous section if exists
+        if (currentSection) {
+          sections.push(currentSection);
+        }
+
+        // Create new section
+        currentSection = {
           id: crypto.randomUUID(),
-          title: "Personal Information",
-          description: "Please provide your basic information",
-          weightage: 50,
-          questions: [
-            {
-              id: q1Id,
-              text: "What is your full name?",
-              type: "text",
-              required: true,
-              description: "Enter your first and last name",
-            },
-            {
-              id: q2Id,
-              text: "What is your email address?",
-              type: "email",
-              required: true,
-              description: "We'll use this to contact you",
-            },
-            {
-              id: q3Id,
-              text: "Are you a new student or returning student?",
-              type: "radio",
-              required: true,
-              options: ["New Student", "Returning Student"],
-              followUpQuestions: [
-                {
-                  id: crypto.randomUUID(),
-                  text: "Which program are you interested in?",
-                  type: "radio",
-                  required: true,
-                  options: [
-                    "Computer Science",
-                    "Business Administration",
-                    "Engineering",
-                    "Arts",
-                  ],
-                  description: "Select your preferred program",
-                  showWhen: {
-                    questionId: q3Id,
-                    value: "New Student",
-                  },
-                  parentId: q3Id,
+          title:
+            sectionTitle || `Section ${sectionNumber || sections.length + 1}`,
+          description: getString(row["Section Description"]),
+          weightage: getNumber(row["Section Weightage"], 0),
+          questions: [],
+        };
+      }
+
+      // Process main question
+      const questionText = getString(row["Question"]);
+      const questionType = getString(row["Question Type"]);
+
+      if (questionText && questionType) {
+        // Save previous question to section
+        if (currentQuestion && currentSection) {
+          currentSection.questions.push(currentQuestion);
+        }
+
+        // Create new question
+        const questionId = crypto.randomUUID();
+        currentQuestion = {
+          id: questionId,
+          text: questionText,
+          type: mapQuestionType(questionType),
+          required: getBoolean(row["Required"]),
+          description: getString(row["Question Description"]),
+          options: parseOptions(row["Options"]),
+          subParam1: getString(row["SubParam1"]),
+          subParam2: getString(row["SubParam2"]),
+          suggestion: "",
+          followUpQuestions: [],
+        };
+
+        // Check if this question has follow-ups (looking for FU1: pattern)
+        const followUps: FollowUpQuestion[] = [];
+
+        // Find all follow-up question keys
+        Object.keys(row).forEach((key) => {
+          if (key.includes(": Question Text")) {
+            const fuPrefix = key.split(": Question Text")[0];
+            const triggerValue = getString(row[`${fuPrefix}: Option`]);
+
+            if (triggerValue) {
+              const followUpQuestion: FollowUpQuestion = {
+                id: crypto.randomUUID(),
+                text: getString(row[key]),
+                type: mapQuestionType(
+                  getString(row[`${fuPrefix}: Question Type`])
+                ),
+                required: getBoolean(row[`${fuPrefix}: Required`]),
+                description: "",
+                options: parseOptions(row[`${fuPrefix}: Options`]),
+                subParam1: getString(row[`${fuPrefix}: SubParam1`]),
+                subParam2: getString(row[`${fuPrefix}: SubParam2`]),
+                parentId: questionId,
+                showWhen: {
+                  questionId: questionId,
+                  value: triggerValue,
                 },
-                {
-                  id: crypto.randomUUID(),
-                  text: "What is your current year of study?",
-                  type: "radio",
-                  required: true,
-                  options: ["Year 1", "Year 2", "Year 3", "Year 4"],
-                  description: "Select your current academic year",
-                  showWhen: {
-                    questionId: q3Id,
-                    value: "Returning Student",
-                  },
-                  parentId: q3Id,
-                },
-              ],
-            },
-          ],
-        },
-        {
-          id: crypto.randomUUID(),
-          title: "Academic Background",
-          description: "Tell us about your educational history",
-          weightage: 50,
-          questions: [
-            {
-              id: q4Id,
-              text: "Have you completed high school?",
-              type: "radio",
-              required: true,
-              options: ["Yes", "No", "Currently Enrolled"],
-              followUpQuestions: [
-                {
-                  id: crypto.randomUUID(),
-                  text: "What was your graduation year?",
-                  type: "text",
-                  required: true,
-                  description: "Enter the year you graduated",
-                  showWhen: {
-                    questionId: q4Id,
-                    value: "Yes",
-                  },
-                  parentId: q4Id,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  text: "What is your expected graduation date?",
-                  type: "date",
-                  required: true,
-                  description: "Select your expected graduation date",
-                  showWhen: {
-                    questionId: q4Id,
-                    value: "Currently Enrolled",
-                  },
-                  parentId: q4Id,
-                },
-              ],
-            },
-            {
-              id: crypto.randomUUID(),
-              text: "Rate your proficiency in English",
-              type: "rating",
-              required: true,
-              description: "1 = Beginner, 5 = Native/Fluent",
-              min: 1,
-              max: 5,
-            },
-          ],
-        },
-        {
-          id: crypto.randomUUID(),
-          title: "Additional Information",
-          description: "Optional information to help us serve you better",
-          questions: [
-            {
-              id: crypto.randomUUID(),
-              text: "Select all extracurricular activities you're interested in",
-              type: "checkbox",
-              required: false,
-              options: [
-                "Sports",
-                "Music",
-                "Drama",
-                "Debate",
-                "Volunteering",
-                "Student Government",
-              ],
-              description: "You can select multiple options",
-            },
-            {
-              id: crypto.randomUUID(),
-              text: "Any additional comments or questions?",
-              type: "paragraph",
-              required: false,
-              description:
-                "Feel free to share anything else you'd like us to know",
-            },
-          ],
-        },
-      ] as FormSection[],
+                followUpQuestions: [],
+              };
+
+              // Check for nested follow-ups (FU1.1: pattern)
+              Object.keys(row).forEach((nestedKey) => {
+                if (
+                  nestedKey.startsWith(`${fuPrefix}.`) &&
+                  nestedKey.includes(": Question Text")
+                ) {
+                  const nestedPrefix = nestedKey.split(": Question Text")[0];
+                  const nestedTriggerValue = getString(
+                    row[`${nestedPrefix}: Option`]
+                  );
+
+                  if (nestedTriggerValue) {
+                    const nestedFollowUp: FollowUpQuestion = {
+                      id: crypto.randomUUID(),
+                      text: getString(row[nestedKey]),
+                      type: mapQuestionType(
+                        getString(row[`${nestedPrefix}: Question Type`])
+                      ),
+                      required: getBoolean(row[`${nestedPrefix}: Required`]),
+                      description: "",
+                      options: parseOptions(row[`${nestedPrefix}: Options`]),
+                      subParam1: getString(row[`${nestedPrefix}: SubParam1`]),
+                      subParam2: getString(row[`${nestedPrefix}: SubParam2`]),
+                      parentId: followUpQuestion.id,
+                      showWhen: {
+                        questionId: followUpQuestion.id,
+                        value: nestedTriggerValue,
+                      },
+                      followUpQuestions: [],
+                    };
+
+                    // Check for deeper nesting (FU1.1.1: pattern)
+                    Object.keys(row).forEach((deeperKey) => {
+                      if (
+                        deeperKey.startsWith(`${nestedPrefix}.`) &&
+                        deeperKey.includes(": Question Text")
+                      ) {
+                        const deeperPrefix =
+                          deeperKey.split(": Question Text")[0];
+                        const deeperTriggerValue = getString(
+                          row[`${deeperPrefix}: Option`]
+                        );
+
+                        if (deeperTriggerValue) {
+                          const deeperFollowUp: FollowUpQuestion = {
+                            id: crypto.randomUUID(),
+                            text: getString(row[deeperKey]),
+                            type: mapQuestionType(
+                              getString(row[`${deeperPrefix}: Question Type`])
+                            ),
+                            required: getBoolean(
+                              row[`${deeperPrefix}: Required`]
+                            ),
+                            description: "",
+                            options: parseOptions(
+                              row[`${deeperPrefix}: Options`]
+                            ),
+                            subParam1: getString(
+                              row[`${deeperPrefix}: SubParam1`]
+                            ),
+                            subParam2: getString(
+                              row[`${deeperPrefix}: SubParam2`]
+                            ),
+                            parentId: nestedFollowUp.id,
+                            showWhen: {
+                              questionId: nestedFollowUp.id,
+                              value: deeperTriggerValue,
+                            },
+                            followUpQuestions: [],
+                          };
+                          nestedFollowUp.followUpQuestions!.push(
+                            deeperFollowUp
+                          );
+                        }
+                      }
+                    });
+
+                    followUpQuestion.followUpQuestions!.push(nestedFollowUp);
+                  }
+                }
+              });
+
+              followUps.push(followUpQuestion);
+            }
+          }
+        });
+
+        // Add follow-ups to question
+        if (followUps.length > 0) {
+          currentQuestion.followUpQuestions = followUps;
+        }
+      }
     });
 
+    // Add the last question and section
+    if (currentQuestion && currentSection) {
+      currentSection.questions.push(currentQuestion);
+    }
+    if (currentSection) {
+      sections.push(currentSection);
+    }
+
+    // Get form title and description from first row
+    const formTitle = getString(
+      sampleData[0]?.["Form Title"],
+      "Bike Service & Maintenance Form"
+    );
+    const formDescription = getString(
+      sampleData[0]?.["Form Description"],
+      "Comprehensive bike service assessment with nested diagnostics"
+    );
+
+    // Create the form with proper typing
+    const formToSet = {
+      title: formTitle,
+      description: formDescription,
+      isVisible: true,
+      locationEnabled: true,
+      sections: sections.map((section) => ({
+        ...section,
+        questions: section.questions.map((question) => {
+          // Only add followUpConfig to main questions (not follow-ups)
+          if (question.options && question.options.length > 0) {
+            const followUpConfig: Record<
+              string,
+              { hasFollowUp: boolean; required: boolean; linkedFormId?: string }
+            > = {};
+            question.options.forEach((option) => {
+              followUpConfig[option] = {
+                hasFollowUp: false,
+                required: false,
+              };
+            });
+
+            // Check which options actually have follow-ups
+            if (
+              question.followUpQuestions &&
+              question.followUpQuestions.length > 0
+            ) {
+              question.followUpQuestions.forEach((followUp) => {
+                if (
+                  followUp.showWhen?.value &&
+                  followUpConfig[followUp.showWhen.value]
+                ) {
+                  followUpConfig[followUp.showWhen.value].hasFollowUp = true;
+                  followUpConfig[followUp.showWhen.value].required =
+                    followUp.required || false;
+                }
+              });
+            }
+
+            // Return the question with followUpConfig
+            return {
+              ...question,
+              followUpConfig: followUpConfig,
+            };
+          }
+          return question;
+        }),
+      })),
+    };
+
+    // Set the form state
+    setForm(formToSet);
+
     showSuccess(
-      "Demo data loaded! You can now save this form.",
+      "Bike Service Demo loaded! This includes nested follow-up questions for comprehensive diagnostics.",
       "Demo Data Loaded"
     );
   };
@@ -1351,7 +1877,10 @@ export default function FormCreator() {
     if (sectionWeightageDrafts[section.id] !== undefined) {
       return sectionWeightageDrafts[section.id];
     }
-    if (typeof section.weightage === "number" && !Number.isNaN(section.weightage)) {
+    if (
+      typeof section.weightage === "number" &&
+      !Number.isNaN(section.weightage)
+    ) {
       return section.weightage.toString();
     }
     return "";
@@ -1369,7 +1898,10 @@ export default function FormCreator() {
     }
 
     if (parsed < 0 || parsed > 100) {
-      showError("Section weightage must be between 0 and 100", "Validation Error");
+      showError(
+        "Section weightage must be between 0 and 100",
+        "Validation Error"
+      );
       return;
     }
 
@@ -1383,13 +1915,17 @@ export default function FormCreator() {
   };
 
   const getSavedSectionWeightage = (section: FormSection) => {
-    if (typeof section.weightage === "number" && !Number.isNaN(section.weightage)) {
+    if (
+      typeof section.weightage === "number" &&
+      !Number.isNaN(section.weightage)
+    ) {
       return Math.round(section.weightage * 10) / 10;
     }
     return 0;
   };
 
-  const formatWeightageDisplay = (value: number) => value.toFixed(1).replace(/\.0$/, "");
+  const formatWeightageDisplay = (value: number) =>
+    value.toFixed(1).replace(/\.0$/, "");
 
   const hasPendingWeightageChange = (section: FormSection) => {
     const draft = resolveSectionWeightageDraft(section).trim();
@@ -1465,7 +2001,7 @@ export default function FormCreator() {
       imageUrl: "",
       subParam1: "",
       subParam2: "",
-      suggestion: "", 
+      suggestion: "",
     };
 
     updateSection(sectionId, {
@@ -1618,14 +2154,18 @@ export default function FormCreator() {
       if (file.size <= MAX_QUESTION_IMAGE_BYTES) {
         return dataUrl;
       }
-      throw new Error("Unable to process image. Please upload a smaller file under 50KB.");
+      throw new Error(
+        "Unable to process image. Please upload a smaller file under 50KB."
+      );
     }
 
     if (!canvas.getContext("2d")) {
       if (file.size <= MAX_QUESTION_IMAGE_BYTES) {
         return dataUrl;
       }
-      throw new Error("Unable to process image. Please upload a smaller file under 50KB.");
+      throw new Error(
+        "Unable to process image. Please upload a smaller file under 50KB."
+      );
     }
 
     const drawImage = (width: number, height: number) => {
@@ -1674,7 +2214,10 @@ export default function FormCreator() {
       blob = nextBlob;
     }
 
-    while (blob.size > MAX_QUESTION_IMAGE_BYTES && (width > 120 || height > 120)) {
+    while (
+      blob.size > MAX_QUESTION_IMAGE_BYTES &&
+      (width > 120 || height > 120)
+    ) {
       width = Math.max(120, Math.floor(width * 0.85));
       height = Math.max(120, Math.floor(height * 0.85));
       drawImage(width, height);
@@ -1695,13 +2238,16 @@ export default function FormCreator() {
     }
 
     if (blob.size > MAX_QUESTION_IMAGE_BYTES) {
-      throw new Error("Unable to compress image below 50KB. Try a smaller image.");
+      throw new Error(
+        "Unable to compress image below 50KB. Try a smaller image."
+      );
     }
 
     return await new Promise<string>((resolve, reject) => {
       const resultReader = new FileReader();
       resultReader.onload = () => resolve(resultReader.result as string);
-      resultReader.onerror = () => reject(new Error("Failed to read compressed image"));
+      resultReader.onerror = () =>
+        reject(new Error("Failed to read compressed image"));
       resultReader.readAsDataURL(blob);
     });
   };
@@ -2675,7 +3221,8 @@ export default function FormCreator() {
 
     if (newType === "file") {
       updates.allowedFileTypes =
-        currentQuestion.allowedFileTypes && currentQuestion.allowedFileTypes.length > 0
+        currentQuestion.allowedFileTypes &&
+        currentQuestion.allowedFileTypes.length > 0
           ? [...currentQuestion.allowedFileTypes]
           : ["image", "pdf", "excel"];
     } else if (currentQuestion.allowedFileTypes) {
@@ -2902,7 +3449,7 @@ export default function FormCreator() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
-                onClick={() => navigate("/forms/management")}
+                onClick={() => navigate("/forms/analytics")}
                 className="p-2 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors group"
               >
                 <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600" />
@@ -2918,7 +3465,7 @@ export default function FormCreator() {
             </div>
             <div className="flex gap-3">
               <button
-                onClick={() => navigate("/forms/management")}
+                onClick={() => navigate("/forms/analytics")}
                 className="px-5 py-2.5 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-all"
               >
                 Cancel
@@ -2943,7 +3490,8 @@ export default function FormCreator() {
                   title="Import form template from Excel"
                   className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
                   onClick={(e) => {
-                    const input = e.currentTarget.nextElementSibling as HTMLInputElement;
+                    const input = e.currentTarget
+                      .nextElementSibling as HTMLInputElement;
                     input?.click();
                   }}
                 >
@@ -3272,7 +3820,12 @@ export default function FormCreator() {
                           )}
                           {section.isSubsection && section.parentSectionId && (
                             <p className="text-xs ml-11 text-green-600 dark:text-green-400 mt-2">
-                              Merged with: <strong>{form.sections.find((s) => s.id === section.parentSectionId)?.title || "Parent Section"}</strong>
+                              Merged with:{" "}
+                              <strong>
+                                {form.sections.find(
+                                  (s) => s.id === section.parentSectionId
+                                )?.title || "Parent Section"}
+                              </strong>
                             </p>
                           )}
                         </div>
@@ -3367,7 +3920,9 @@ export default function FormCreator() {
                               />
                               <button
                                 type="button"
-                                onClick={() => handleSaveSectionWeightage(section.id)}
+                                onClick={() =>
+                                  handleSaveSectionWeightage(section.id)
+                                }
                                 className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
                                   hasPendingWeightageChange(section)
                                     ? "bg-blue-600 text-white hover:bg-blue-700"
@@ -3379,7 +3934,11 @@ export default function FormCreator() {
                               </button>
                             </div>
                             <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                              Saved: {formatWeightageDisplay(getSavedSectionWeightage(section))}%
+                              Saved:{" "}
+                              {formatWeightageDisplay(
+                                getSavedSectionWeightage(section)
+                              )}
+                              %
                             </p>
                           </div>
                         )}
@@ -3402,7 +3961,8 @@ export default function FormCreator() {
                       )}
 
                       {section.questions.map((question, questionIndex) => {
-                        const selectedFileType = question.allowedFileTypes?.[0] ?? "any";
+                        const selectedFileType =
+                          question.allowedFileTypes?.[0] ?? "any";
                         const selectedFileTypeOption = fileTypeOptions.find(
                           (option) => option.value === selectedFileType
                         );
@@ -3426,823 +3986,885 @@ export default function FormCreator() {
 
                             {/* Question Card */}
                             <div className="bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-lg hover:border-blue-300 transition-all duration-200">
-                            {/* Question Header */}
-                            <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 dark:border-gray-700 rounded-t-xl">
-                              <div className="flex items-center gap-3">
-                                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs shadow">
-                                  {questionIndex + 1}
-                                </div>
-                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                  Question {questionIndex + 1}
-                                </span>
-                              </div>
-
-                              {/* Action Buttons */}
-                              <div className="flex items-center gap-1">
-                                {/* Move Up */}
-                                <button
-                                  onClick={() =>
-                                    moveQuestionUp(section.id, question.id)
-                                  }
-                                  disabled={questionIndex === 0}
-                                  className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                  title="Move up"
-                                >
-                                  <ChevronUp className="w-5 h-5" />
-                                </button>
-                                {/* Move Down */}
-                                <button
-                                  onClick={() =>
-                                    moveQuestionDown(section.id, question.id)
-                                  }
-                                  disabled={
-                                    questionIndex ===
-                                    section.questions.length - 1
-                                  }
-                                  className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                  title="Move down"
-                                >
-                                  <ChevronDown className="w-5 h-5" />
-                                </button>
-                                {/* Duplicate */}
-                                <button
-                                  onClick={() =>
-                                    duplicateQuestion(section.id, question.id)
-                                  }
-                                  className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors"
-                                  title="Duplicate question"
-                                >
-                                  <Copy className="w-5 h-5" />
-                                </button>
-                                {/* Delete */}
-                                <button
-                                  onClick={() =>
-                                    deleteQuestion(section.id, question.id)
-                                  }
-                                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Delete question"
-                                >
-                                  <Trash2 className="w-5 h-5" />
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Question Body */}
-                            <div className="p-5">
-                              {/* Parameter Display */}
-                              {question.subParam1 && (
-                                <div className="mb-4">
-                                  <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30 border border-purple-300 dark:border-purple-600 rounded-lg">
-                                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
-                                    <span className="text-sm font-semibold text-purple-800 dark:text-purple-200">
-                                      {question.subParam1}
-                                    </span>
+                              {/* Question Header */}
+                              <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 dark:border-gray-700 rounded-t-xl">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs shadow">
+                                    {questionIndex + 1}
                                   </div>
-                                </div>
-                              )}
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                    Question Text (optional when using image)
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={question.text}
-                                    onChange={(e) =>
-                                      updateQuestion(section.id, question.id, {
-                                        text: e.target.value,
-                                      })
-                                    }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
-                                    placeholder="Enter your question"
-                                  />
-                                  <div className="mt-3 space-y-3">
-                                    {question.imageUrl ? (
-                                      <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                                        <img
-                                          src={question.imageUrl}
-                                          alt={`Question ${questionIndex + 1} image`}
-                                          className="h-20 w-20 object-contain rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
-                                        />
-                                        <button
-                                          type="button"
-                                          onClick={() => clearQuestionImage(section.id, question.id)}
-                                          className="px-3 py-2 text-sm font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 rounded-lg transition-colors"
-                                        >
-                                          Remove Image
-                                        </button>
-                                      </div>
-                                    ) : null}
-                                    <div className="flex flex-col gap-2">
-                                      <label className="inline-flex items-center justify-center px-3 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          className="hidden"
-                                          onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              void handleQuestionImageUpload(
-                                                section.id,
-                                                question.id,
-                                                file
-                                              );
-                                              e.target.value = "";
-                                            }
-                                          }}
-                                        />
-                                        Upload Image
-                                      </label>
-                                      <p className="text-xs text-gray-500 dark:text-gray-500">
-                                        JPEG or PNG up to 50KB.
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                    Question Type
-                                  </label>
-                                  <select
-                                    value={question.type}
-                                    onChange={(e) =>
-                                      handleQuestionTypeChange(
-                                        section.id,
-                                        question.id,
-                                        question,
-                                        e.target.value
-                                      )
-                                    }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
-                                  >
-                                    {questionTypes.map((type) => (
-                                      <option
-                                        key={type.value}
-                                        value={type.value}
-                                      >
-                                        {type.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-
-                              {question.type === "file" ? (
-                                <div className="mt-4">
-                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                    Allowed file type
-                                  </label>
-                                  <select
-                                    value={selectedFileType}
-                                    onChange={(e) =>
-                                      updateQuestion(section.id, question.id, {
-                                        allowedFileTypes:
-                                          e.target.value === "any"
-                                            ? undefined
-                                            : [e.target.value],
-                                      })
-                                    }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
-                                  >
-                                    {fileTypeOptions.map((option) => (
-                                      <option
-                                        key={`${question.id}-file-type-${option.value}`}
-                                        value={option.value}
-                                      >
-                                        {option.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                                    {selectedFileType === "any"
-                                      ? "Respondents can upload any file type."
-                                      : `Respondents must upload files matching ${selectedFileTypeOption?.label}.`}
-                                  </p>
-                                </div>
-                              ) : null}
-
-                              <div className="mt-4">
-                                <label className="flex items-center cursor-pointer group">
-                                  <input
-                                    type="checkbox"
-                                    checked={question.required}
-                                    onChange={(e) =>
-                                      updateQuestion(section.id, question.id, {
-                                        required: e.target.checked,
-                                      })
-                                    }
-                                    className="mb-4 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all"
-                                  />
-                                  <span className="ml-1.5 text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-700 font-small transition-colors mb-4">
-                                    Required question
+                                  <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                    Question {questionIndex + 1}
                                   </span>
-                                </label>
-                              </div>
-                              <div className="mb-4">
-  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                    Suggestion
-                                  </label>
-  <textarea
-    value={question.suggestion || ""}
-    onChange={(e) =>
-      updateQuestion(section.id, question.id, {
-        suggestion: e.target.value,
-      })
-    }
-    placeholder="Suggestions or recommendations for this question"
-    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-gray-100"
-    rows={3}
-  />
-  
-</div>
-
-                              <div className="mt-4 grid grid-cols-2 gap-3">
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                    Sub Parameter 1
-                                  </label>
-                                  <select
-                                    value={question.subParam1 || ""}
-                                    onChange={(e) =>
-                                      updateQuestion(section.id, question.id, {
-                                        subParam1: e.target.value,
-                                      })
-                                    }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm dark:bg-gray-800 dark:text-gray-100"
-                                  >
-                                    <option value="">-- Select Parameter --</option>
-                                    {parameters
-                                      .filter(param => param.type === 'main')
-                                      .map((param) => (
-                                        <option key={param.id} value={param.name}>
-                                          {param.name} ({param.type})
-                                        </option>
-                                      ))}
-                                  </select>
                                 </div>
-                                <div>
-                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                    Sub Parameter 2
-                                  </label>
-                                  <select
-                                    value={question.subParam2 || ""}
-                                    onChange={(e) =>
-                                      updateQuestion(section.id, question.id, {
-                                        subParam2: e.target.value,
-                                      })
+
+                                {/* Action Buttons */}
+                                <div className="flex items-center gap-1">
+                                  {/* Move Up */}
+                                  <button
+                                    onClick={() =>
+                                      moveQuestionUp(section.id, question.id)
                                     }
-                                    className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm dark:bg-gray-800 dark:text-gray-100"
+                                    disabled={questionIndex === 0}
+                                    className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="Move up"
                                   >
-                                    <option value="">-- Select Parameter --</option>
-                                    {parameters
-                                      .filter(param => param.type === 'followup')
-                                      .map((param) => (
-                                        <option key={param.id} value={param.name}>
-                                          {param.name} ({param.type})
-                                        </option>
-                                      ))}
-                                  </select>
+                                    <ChevronUp className="w-5 h-5" />
+                                  </button>
+                                  {/* Move Down */}
+                                  <button
+                                    onClick={() =>
+                                      moveQuestionDown(section.id, question.id)
+                                    }
+                                    disabled={
+                                      questionIndex ===
+                                      section.questions.length - 1
+                                    }
+                                    className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="Move down"
+                                  >
+                                    <ChevronDown className="w-5 h-5" />
+                                  </button>
+                                  {/* Duplicate */}
+                                  <button
+                                    onClick={() =>
+                                      duplicateQuestion(section.id, question.id)
+                                    }
+                                    className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors"
+                                    title="Duplicate question"
+                                  >
+                                    <Copy className="w-5 h-5" />
+                                  </button>
+                                  {/* Delete */}
+                                  <button
+                                    onClick={() =>
+                                      deleteQuestion(section.id, question.id)
+                                    }
+                                    className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                                    title="Delete question"
+                                  >
+                                    <Trash2 className="w-5 h-5" />
+                                  </button>
                                 </div>
                               </div>
 
-                              {(question.type === "radio" ||
-                                question.type === "yesNoNA" ||
-                                question.type === "checkbox" ||
-                                question.type === "select") && (
-                                <div className="mt-5 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                                  <label className="block text-xs font-semibold text-blue-800 mb-3 uppercase tracking-wide">
-                                    Options
-                                  </label>
-                                  <div className="space-y-2.5">
-                                    {(question.options || []).map(
-                                      (option, index) => {
-                                        const menuKey = `${section.id}-${question.id}-${index}`;
-                                        const isMenuOpen =
-                                          openOptionMenu === menuKey;
-                                        const isYesNoNa =
-                                          question.type === "yesNoNA";
-
-                                        return (
-                                          <div
-                                            key={index}
-                                            className="flex items-center gap-2 group"
-                                          >
-                                            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 text-blue-700 font-bold text-xs">
-                                              {index + 1}
-                                            </div>
-                                            <input
-                                              type="text"
-                                              value={option}
-                                              onChange={(e) =>
-                                                updateOption(
-                                                  section.id,
-                                                  question.id,
-                                                  index,
-                                                  e.target.value
-                                                )
-                                              }
-                                              className="flex-1 px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-100 dark:bg-gray-700"
-                                              placeholder={`Option ${
-                                                index + 1
-                                              }`}
-                                              disabled={isYesNoNa}
-                                              readOnly={isYesNoNa}
-                                            />
-                                            {!isYesNoNa && (
-                                              <>
-                                                <button
-                                                  onClick={() =>
-                                                    duplicateOption(
-                                                      section.id,
-                                                      question.id,
-                                                      index
-                                                    )
-                                                  }
-                                                  className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all"
-                                                  title="Duplicate option"
-                                                >
-                                                  <Clipboard className="w-5 h-5" />
-                                                </button>
-                                                <button
-                                                  onClick={() =>
-                                                    removeOption(
-                                                      section.id,
-                                                      question.id,
-                                                      index
-                                                    )
-                                                  }
-                                                  className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all"
-                                                  title="Delete option"
-                                                >
-                                                  <X className="w-5 h-5" />
-                                                </button>
-                                              </>
-                                            )}
-
-                                            {!isYesNoNa && (
-                                              <div className="relative">
-                                                <button
-                                                  onClick={() =>
-                                                    setOpenOptionMenu(
-                                                      isMenuOpen
-                                                        ? null
-                                                        : menuKey
-                                                    )
-                                                  }
-                                                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-all"
-                                                  title="Follow-up options"
-                                                >
-                                                  <MoreVertical className="w-5 h-5" />
-                                                </button>
-
-                                                {isMenuOpen && (
-                                                  <>
-                                                    <div
-                                                      className="fixed inset-0 z-10"
-                                                      onClick={() =>
-                                                        setOpenOptionMenu(null)
-                                                      }
-                                                    />
-
-                                                    <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-20">
-                                                      <div className="py-1">
-                                                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase">
-                                                          Follow-up Options
-                                                        </div>
-                                                        <button
-                                                          onClick={() => {
-                                                            addFollowUpQuestion(
-                                                              section.id,
-                                                              question.id,
-                                                              option
-                                                            );
-                                                            setOpenOptionMenu(
-                                                              null
-                                                            );
-                                                          }}
-                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
-                                                        >
-                                                          <span className="text-lg">
-                                                            📝
-                                                          </span>
-                                                          <div>
-                                                            <div className="font-medium">
-                                                              Follow-up Question
-                                                            </div>
-                                                            <div className="text-xs text-gray-500 dark:text-gray-500">
-                                                              Add a question for
-                                                              this option
-                                                            </div>
-                                                          </div>
-                                                        </button>
-
-                                                        <button
-                                                          onClick={() => {
-                                                            linkFollowUpSection(
-                                                              section.id,
-                                                              question.id,
-                                                              option
-                                                            );
-                                                            setOpenOptionMenu(
-                                                              null
-                                                            );
-                                                          }}
-                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-2"
-                                                        >
-                                                          <span className="text-lg">
-                                                            📋
-                                                          </span>
-                                                          <div>
-                                                            <div className="font-medium">
-                                                              Follow-up Section
-                                                            </div>
-                                                            <div className="text-xs text-gray-500 dark:text-gray-500">
-                                                              Add a section for
-                                                              this option
-                                                            </div>
-                                                          </div>
-                                                        </button>
-
-                                                        <button
-                                                          onClick={() => {
-                                                            linkFollowUpForm(
-                                                              section.id,
-                                                              question.id,
-                                                              option
-                                                            );
-                                                            setOpenOptionMenu(
-                                                              null
-                                                            );
-                                                          }}
-                                                          className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
-                                                        >
-                                                          <span className="text-lg">
-                                                            📄
-                                                          </span>
-                                                          <div>
-                                                            <div className="font-medium">
-                                                              Follow-up Form
-                                                            </div>
-                                                            <div className="text-xs text-gray-500 dark:text-gray-500">
-                                                              Link a form for
-                                                              this option
-                                                            </div>
-                                                          </div>
-                                                        </button>
-                                                      </div>
-                                                    </div>
-                                                  </>
-                                                )}
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      }
-                                    )}
-                                    {question.type !== "yesNoNA" && (
-                                      <button
-                                        onClick={() =>
-                                          addOption(section.id, question.id)
-                                        }
-                                        className="flex items-center gap-2 px-4 py-2 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded-lg text-sm font-medium transition-all"
-                                      >
-                                        <Plus className="w-5 h-5" />
-                                        Add Option
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Section Branching Configuration */}
-                              {(question.type === "radio" ||
-                                question.type === "checkbox" ||
-                                question.type === "select" ||
-                                question.type === "yesNoNA") &&
-                                question.options &&
-                                question.options.length > 0 && (
-                                  <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
-                                    <div className="flex items-center justify-between mb-3">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-lg">🔀</span>
-                                        <label className="text-xs font-semibold text-purple-800 uppercase tracking-wide">
-                                          Section Routing
-                                        </label>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          openBranchingConfig(
-                                            section.id,
-                                            question.id,
-                                            question.options || []
-                                          )
-                                        }
-                                        className="px-3 py-1.5 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors flex items-center gap-1"
-                                      >
-                                        <LinkIcon className="w-4 h-4" />
-                                        Configure Routing
-                                      </button>
+                              {/* Question Body */}
+                              <div className="p-5">
+                                {/* Parameter Display */}
+                                {question.subParam1 && (
+                                  <div className="mb-4">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/30 border border-purple-300 dark:border-purple-600 rounded-lg">
+                                      <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                                      <span className="text-sm font-semibold text-purple-800 dark:text-purple-200">
+                                        {question.subParam1}
+                                      </span>
                                     </div>
-                                    <p className="text-xs text-purple-700 mb-2">
-                                      Route user to different sections based on
-                                      their answer
-                                    </p>
-                                    {question.branchingRules &&
-                                      question.branchingRules.length > 0 && (
-                                        <div className="text-xs text-purple-600 bg-white dark:bg-gray-900 rounded p-2">
-                                          <div className="font-medium mb-1">
-                                            Active routing:
-                                          </div>
-                                          <ul className="space-y-1">
-                                            {question.branchingRules.map(
-                                              (rule, idx) => (
-                                                <li key={idx}>
-                                                  • "{rule.optionLabel}" →{" "}
-                                                  {form.sections.find(
-                                                    (s) =>
-                                                      s.id ===
-                                                      rule.targetSectionId
-                                                  )?.title || "Unknown"}
-                                                </li>
-                                              )
-                                            )}
-                                          </ul>
-                                        </div>
-                                      )}
                                   </div>
                                 )}
 
-                              {/* Form Routing Configuration */}
-                              {(question.type === "radio" ||
-                                question.type === "checkbox" ||
-                                question.type === "select" ||
-                                question.type === "yesNoNA") &&
-                                question.options &&
-                                question.options.length > 0 && (
-                                  <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
-                                    <div className="flex items-center justify-between mb-3">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-lg">🔗</span>
-                                        <label className="text-xs font-semibold text-green-800 uppercase tracking-wide">
-                                          Follow-up Form Routing
-                                        </label>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            openFormRoutingConfig(
-                                              section.id,
-                                              question.id,
-                                              question.options || []
-                                            )
-                                          }
-                                          className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-1"
-                                        >
-                                          <LinkIcon className="w-4 h-4" />
-                                          Configure Form Links
-                                        </button>
-                                        {question.options && question.options.length > 0 && (
-                                          <div className="relative">
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                setOpenOptionMenu((current) =>
-                                                  current === `${section.id}-${question.id}-followup-quick-add`
-                                                    ? null
-                                                    : `${section.id}-${question.id}-followup-quick-add`
-                                                )
-                                              }
-                                              className="px-3 py-1.5 text-sm font-medium text-green-700 bg-white dark:bg-gray-900 border border-green-200 hover:border-green-300 hover:bg-green-50 rounded-lg transition-colors flex items-center gap-1"
-                                            >
-                                              <MessageSquarePlus className="w-4 h-4" />
-                                              Add Follow-up Question
-                                            </button>
-                                            {openOptionMenu === `${section.id}-${question.id}-followup-quick-add` && (
-                                              <div className="absolute right-0 mt-2 w-56 rounded-lg border border-green-200 bg-white dark:bg-gray-900 shadow-lg z-20">
-                                                <div className="py-2">
-                                                  {question.options.map((option) => (
-                                                    <button
-                                                      key={option}
-                                                      type="button"
-                                                      onClick={() => {
-                                                        addFollowUpQuestion(
-                                                          section.id,
-                                                          question.id,
-                                                          option
-                                                        );
-                                                        setOpenOptionMenu(null);
-                                                      }}
-                                                      className="w-full px-4 py-2 text-left text-sm text-green-700 hover:bg-green-50"
-                                                    >
-                                                      {option}
-                                                    </button>
-                                                  ))}
-                                                </div>
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <p className="text-xs text-green-700 mb-2">
-                                      Link answers to follow-up forms
-                                      (auto-redirect after submission)
-                                    </p>
-                                    {question.followUpConfig &&
-                                      Object.keys(question.followUpConfig).some(
-                                        (k) =>
-                                          question.followUpConfig?.[k]
-                                            ?.linkedFormId
-                                      ) && (
-                                        <div className="text-xs text-green-600 bg-white dark:bg-gray-900 rounded p-2">
-                                          <div className="font-medium mb-1">
-                                            ✅ Active form links:
-                                          </div>
-                                          <ul className="space-y-1">
-                                            {Object.entries(
-                                              question.followUpConfig
-                                            )
-                                              .filter(
-                                                ([_, config]) =>
-                                                  config.linkedFormId
-                                              )
-                                              .map(([option, config], idx) => (
-                                                <li key={idx}>
-                                                  • "{option}" → Form:{" "}
-                                                  {config.linkedFormId}
-                                                </li>
-                                              ))}
-                                          </ul>
-                                        </div>
-                                      )}
-                                  </div>
-                                )}
-
-                              {/* Correct Answer Section */}
-                              {(question.type === "radio" ||
-                                question.type === "checkbox" ||
-                                question.type === "select" ||
-                                question.type === "yesNoNA") &&
-                                question.options &&
-                                question.options.length > 0 && (
-                                  <div className="mt-3">
-                                    <label className="block text-xs font-medium text-primary-600 mb-2">
-                                      Correct Answer (Optional - for quiz
-                                      questions)
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                      Question Text (optional when using image)
                                     </label>
-                                    <select
-                                      value={question.correctAnswer || ""}
+                                    <input
+                                      type="text"
+                                      value={question.text}
                                       onChange={(e) =>
                                         updateQuestion(
                                           section.id,
                                           question.id,
                                           {
-                                            correctAnswer:
-                                              e.target.value || undefined,
+                                            text: e.target.value,
                                           }
                                         )
                                       }
-                                      className="w-full p-2 border border-neutral-300 rounded-md text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                      className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                                      placeholder="Enter your question"
+                                    />
+                                    <div className="mt-3 space-y-3">
+                                      {question.imageUrl ? (
+                                        <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+                                          <img
+                                            src={question.imageUrl}
+                                            alt={`Question ${
+                                              questionIndex + 1
+                                            } image`}
+                                            className="h-20 w-20 object-contain rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              clearQuestionImage(
+                                                section.id,
+                                                question.id
+                                              )
+                                            }
+                                            className="px-3 py-2 text-sm font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 rounded-lg transition-colors"
+                                          >
+                                            Remove Image
+                                          </button>
+                                        </div>
+                                      ) : null}
+                                      <div className="flex flex-col gap-2">
+                                        <label className="inline-flex items-center justify-center px-3 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) {
+                                                void handleQuestionImageUpload(
+                                                  section.id,
+                                                  question.id,
+                                                  file
+                                                );
+                                                e.target.value = "";
+                                              }
+                                            }}
+                                          />
+                                          Upload Image
+                                        </label>
+                                        <p className="text-xs text-gray-500 dark:text-gray-500">
+                                          JPEG or PNG up to 50KB.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                      Question Type
+                                    </label>
+                                    <select
+                                      value={question.type}
+                                      onChange={(e) =>
+                                        handleQuestionTypeChange(
+                                          section.id,
+                                          question.id,
+                                          question,
+                                          e.target.value
+                                        )
+                                      }
+                                      className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                                     >
-                                      <option value="">
-                                        No correct answer
-                                      </option>
-                                      {question.options.map((option, index) => (
-                                        <option key={index} value={option}>
-                                          {option}
+                                      {questionTypes.map((type) => (
+                                        <option
+                                          key={type.value}
+                                          value={type.value}
+                                        >
+                                          {type.label}
                                         </option>
                                       ))}
                                     </select>
                                   </div>
+                                </div>
+
+                                {question.type === "file" ? (
+                                  <div className="mt-4">
+                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                      Allowed file type
+                                    </label>
+                                    <select
+                                      value={selectedFileType}
+                                      onChange={(e) =>
+                                        updateQuestion(
+                                          section.id,
+                                          question.id,
+                                          {
+                                            allowedFileTypes:
+                                              e.target.value === "any"
+                                                ? undefined
+                                                : [e.target.value],
+                                          }
+                                        )
+                                      }
+                                      className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                                    >
+                                      {fileTypeOptions.map((option) => (
+                                        <option
+                                          key={`${question.id}-file-type-${option.value}`}
+                                          value={option.value}
+                                        >
+                                          {option.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                                      {selectedFileType === "any"
+                                        ? "Respondents can upload any file type."
+                                        : `Respondents must upload files matching ${selectedFileTypeOption?.label}.`}
+                                    </p>
+                                  </div>
+                                ) : null}
+
+                                <div className="mt-4">
+                                  <label className="flex items-center cursor-pointer group">
+                                    <input
+                                      type="checkbox"
+                                      checked={question.required}
+                                      onChange={(e) =>
+                                        updateQuestion(
+                                          section.id,
+                                          question.id,
+                                          {
+                                            required: e.target.checked,
+                                          }
+                                        )
+                                      }
+                                      className="mb-4 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all"
+                                    />
+                                    <span className="ml-1.5 text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-700 font-small transition-colors mb-4">
+                                      Required question
+                                    </span>
+                                  </label>
+                                </div>
+                                <div className="mb-4">
+                                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                    Suggestion
+                                  </label>
+                                  <textarea
+                                    value={question.suggestion || ""}
+                                    onChange={(e) =>
+                                      updateQuestion(section.id, question.id, {
+                                        suggestion: e.target.value,
+                                      })
+                                    }
+                                    placeholder="Suggestions or recommendations for this question"
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-primary-500 focus:border-primary-500 dark:bg-gray-800 dark:text-gray-100"
+                                    rows={3}
+                                  />
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                      Sub Parameter 1
+                                    </label>
+                                    <select
+                                      value={question.subParam1 || ""}
+                                      onChange={(e) =>
+                                        updateQuestion(
+                                          section.id,
+                                          question.id,
+                                          {
+                                            subParam1: e.target.value,
+                                          }
+                                        )
+                                      }
+                                      className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm dark:bg-gray-800 dark:text-gray-100"
+                                    >
+                                      <option value="">
+                                        -- Select Parameter --
+                                      </option>
+                                      {parameters
+                                        .filter(
+                                          (param) => param.type === "main"
+                                        )
+                                        .map((param) => (
+                                          <option
+                                            key={param.id}
+                                            value={param.name}
+                                          >
+                                            {param.name} ({param.type})
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                                      Sub Parameter 2
+                                    </label>
+                                    <select
+                                      value={question.subParam2 || ""}
+                                      onChange={(e) =>
+                                        updateQuestion(
+                                          section.id,
+                                          question.id,
+                                          {
+                                            subParam2: e.target.value,
+                                          }
+                                        )
+                                      }
+                                      className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm dark:bg-gray-800 dark:text-gray-100"
+                                    >
+                                      <option value="">
+                                        -- Select Parameter --
+                                      </option>
+                                      {parameters
+                                        .filter(
+                                          (param) => param.type === "followup"
+                                        )
+                                        .map((param) => (
+                                          <option
+                                            key={param.id}
+                                            value={param.name}
+                                          >
+                                            {param.name} ({param.type})
+                                          </option>
+                                        ))}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                {(question.type === "radio" ||
+                                  question.type === "yesNoNA" ||
+                                  question.type === "checkbox" ||
+                                  question.type === "select") && (
+                                  <div className="mt-5 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <label className="block text-xs font-semibold text-blue-800 mb-3 uppercase tracking-wide">
+                                      Options
+                                    </label>
+                                    <div className="space-y-2.5">
+                                      {(question.options || []).map(
+                                        (option, index) => {
+                                          const menuKey = `${section.id}-${question.id}-${index}`;
+                                          const isMenuOpen =
+                                            openOptionMenu === menuKey;
+                                          const isYesNoNa =
+                                            question.type === "yesNoNA";
+
+                                          return (
+                                            <div
+                                              key={index}
+                                              className="flex items-center gap-2 group"
+                                            >
+                                              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 text-blue-700 font-bold text-xs">
+                                                {index + 1}
+                                              </div>
+                                              <input
+                                                type="text"
+                                                value={option}
+                                                onChange={(e) =>
+                                                  updateOption(
+                                                    section.id,
+                                                    question.id,
+                                                    index,
+                                                    e.target.value
+                                                  )
+                                                }
+                                                className="flex-1 px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-100 dark:bg-gray-700"
+                                                placeholder={`Option ${
+                                                  index + 1
+                                                }`}
+                                                disabled={isYesNoNa}
+                                                readOnly={isYesNoNa}
+                                              />
+                                              {!isYesNoNa && (
+                                                <>
+                                                  <button
+                                                    onClick={() =>
+                                                      duplicateOption(
+                                                        section.id,
+                                                        question.id,
+                                                        index
+                                                      )
+                                                    }
+                                                    className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all"
+                                                    title="Duplicate option"
+                                                  >
+                                                    <Clipboard className="w-5 h-5" />
+                                                  </button>
+                                                  <button
+                                                    onClick={() =>
+                                                      removeOption(
+                                                        section.id,
+                                                        question.id,
+                                                        index
+                                                      )
+                                                    }
+                                                    className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all"
+                                                    title="Delete option"
+                                                  >
+                                                    <X className="w-5 h-5" />
+                                                  </button>
+                                                </>
+                                              )}
+
+                                              {!isYesNoNa && (
+                                                <div className="relative">
+                                                  <button
+                                                    onClick={() =>
+                                                      setOpenOptionMenu(
+                                                        isMenuOpen
+                                                          ? null
+                                                          : menuKey
+                                                      )
+                                                    }
+                                                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-all"
+                                                    title="Follow-up options"
+                                                  >
+                                                    <MoreVertical className="w-5 h-5" />
+                                                  </button>
+
+                                                  {isMenuOpen && (
+                                                    <>
+                                                      <div
+                                                        className="fixed inset-0 z-10"
+                                                        onClick={() =>
+                                                          setOpenOptionMenu(
+                                                            null
+                                                          )
+                                                        }
+                                                      />
+
+                                                      <div className="absolute right-0 mt-1 w-64 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-20">
+                                                        <div className="py-1">
+                                                          <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-500 uppercase">
+                                                            Follow-up Options
+                                                          </div>
+                                                          <button
+                                                            onClick={() => {
+                                                              addFollowUpQuestion(
+                                                                section.id,
+                                                                question.id,
+                                                                option
+                                                              );
+                                                              setOpenOptionMenu(
+                                                                null
+                                                              );
+                                                            }}
+                                                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
+                                                          >
+                                                            <span className="text-lg">
+                                                              📝
+                                                            </span>
+                                                            <div>
+                                                              <div className="font-medium">
+                                                                Follow-up
+                                                                Question
+                                                              </div>
+                                                              <div className="text-xs text-gray-500 dark:text-gray-500">
+                                                                Add a question
+                                                                for this option
+                                                              </div>
+                                                            </div>
+                                                          </button>
+
+                                                          <button
+                                                            onClick={() => {
+                                                              linkFollowUpSection(
+                                                                section.id,
+                                                                question.id,
+                                                                option
+                                                              );
+                                                              setOpenOptionMenu(
+                                                                null
+                                                              );
+                                                            }}
+                                                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-green-50 hover:text-green-600 transition-colors flex items-center gap-2"
+                                                          >
+                                                            <span className="text-lg">
+                                                              📋
+                                                            </span>
+                                                            <div>
+                                                              <div className="font-medium">
+                                                                Follow-up
+                                                                Section
+                                                              </div>
+                                                              <div className="text-xs text-gray-500 dark:text-gray-500">
+                                                                Add a section
+                                                                for this option
+                                                              </div>
+                                                            </div>
+                                                          </button>
+
+                                                          <button
+                                                            onClick={() => {
+                                                              linkFollowUpForm(
+                                                                section.id,
+                                                                question.id,
+                                                                option
+                                                              );
+                                                              setOpenOptionMenu(
+                                                                null
+                                                              );
+                                                            }}
+                                                            className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center gap-2"
+                                                          >
+                                                            <span className="text-lg">
+                                                              📄
+                                                            </span>
+                                                            <div>
+                                                              <div className="font-medium">
+                                                                Follow-up Form
+                                                              </div>
+                                                              <div className="text-xs text-gray-500 dark:text-gray-500">
+                                                                Link a form for
+                                                                this option
+                                                              </div>
+                                                            </div>
+                                                          </button>
+                                                        </div>
+                                                      </div>
+                                                    </>
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        }
+                                      )}
+                                      {question.type !== "yesNoNA" && (
+                                        <button
+                                          onClick={() =>
+                                            addOption(section.id, question.id)
+                                          }
+                                          className="flex items-center gap-2 px-4 py-2 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded-lg text-sm font-medium transition-all"
+                                        >
+                                          <Plus className="w-5 h-5" />
+                                          Add Option
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
                                 )}
 
-                              {/* Follow-up Questions Section - Now with Unlimited Nesting */}
-                              {question.followUpQuestions &&
-                                question.followUpQuestions.length > 0 && (
-                                  <div className="mt-6">
-                                    <NestedFollowUpRenderer
-                                      followUpQuestions={
-                                        question.followUpQuestions || []
-                                      }
-                                      sectionId={section.id}
-                                      parentQuestion={{
-                                        id: question.id,
-                                        options: question.options,
-                                      }}
-                                      path={[question.id]}
-                                      parameters={parameters}
-                                      onUpdate={(
-                                        nestedSectionId,
-                                        followUpQuestionId,
-                                        updates,
-                                        nestedPath
-                                      ) =>
-                                        updateNestedFollowUpQuestion(
+                                {/* Section Branching Configuration */}
+                                {(question.type === "radio" ||
+                                  question.type === "checkbox" ||
+                                  question.type === "select" ||
+                                  question.type === "yesNoNA") &&
+                                  question.options &&
+                                  question.options.length > 0 && (
+                                    <div className="mt-4 p-4 bg-purple-50 rounded-lg border border-purple-200">
+                                      <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-lg">🔀</span>
+                                          <label className="text-xs font-semibold text-purple-800 uppercase tracking-wide">
+                                            Section Routing
+                                          </label>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            openBranchingConfig(
+                                              section.id,
+                                              question.id,
+                                              question.options || []
+                                            )
+                                          }
+                                          className="px-3 py-1.5 text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors flex items-center gap-1"
+                                        >
+                                          <LinkIcon className="w-4 h-4" />
+                                          Configure Routing
+                                        </button>
+                                      </div>
+                                      <p className="text-xs text-purple-700 mb-2">
+                                        Route user to different sections based
+                                        on their answer
+                                      </p>
+                                      {question.branchingRules &&
+                                        question.branchingRules.length > 0 && (
+                                          <div className="text-xs text-purple-600 bg-white dark:bg-gray-900 rounded p-2">
+                                            <div className="font-medium mb-1">
+                                              Active routing:
+                                            </div>
+                                            <ul className="space-y-1">
+                                              {question.branchingRules.map(
+                                                (rule, idx) => (
+                                                  <li key={idx}>
+                                                    • "{rule.optionLabel}" →{" "}
+                                                    {form.sections.find(
+                                                      (s) =>
+                                                        s.id ===
+                                                        rule.targetSectionId
+                                                    )?.title || "Unknown"}
+                                                  </li>
+                                                )
+                                              )}
+                                            </ul>
+                                          </div>
+                                        )}
+                                    </div>
+                                  )}
+
+                                {/* Form Routing Configuration */}
+                                {(question.type === "radio" ||
+                                  question.type === "checkbox" ||
+                                  question.type === "select" ||
+                                  question.type === "yesNoNA") &&
+                                  question.options &&
+                                  question.options.length > 0 && (
+                                    <div className="mt-4 p-4 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200">
+                                      <div className="flex items-center justify-between mb-3">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-lg">🔗</span>
+                                          <label className="text-xs font-semibold text-green-800 uppercase tracking-wide">
+                                            Follow-up Form Routing
+                                          </label>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              openFormRoutingConfig(
+                                                section.id,
+                                                question.id,
+                                                question.options || []
+                                              )
+                                            }
+                                            className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-1"
+                                          >
+                                            <LinkIcon className="w-4 h-4" />
+                                            Configure Form Links
+                                          </button>
+                                          {question.options &&
+                                            question.options.length > 0 && (
+                                              <div className="relative">
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    setOpenOptionMenu(
+                                                      (current) =>
+                                                        current ===
+                                                        `${section.id}-${question.id}-followup-quick-add`
+                                                          ? null
+                                                          : `${section.id}-${question.id}-followup-quick-add`
+                                                    )
+                                                  }
+                                                  className="px-3 py-1.5 text-sm font-medium text-green-700 bg-white dark:bg-gray-900 border border-green-200 hover:border-green-300 hover:bg-green-50 rounded-lg transition-colors flex items-center gap-1"
+                                                >
+                                                  <MessageSquarePlus className="w-4 h-4" />
+                                                  Add Follow-up Question
+                                                </button>
+                                                {openOptionMenu ===
+                                                  `${section.id}-${question.id}-followup-quick-add` && (
+                                                  <div className="absolute right-0 mt-2 w-56 rounded-lg border border-green-200 bg-white dark:bg-gray-900 shadow-lg z-20">
+                                                    <div className="py-2">
+                                                      {question.options.map(
+                                                        (option) => (
+                                                          <button
+                                                            key={option}
+                                                            type="button"
+                                                            onClick={() => {
+                                                              addFollowUpQuestion(
+                                                                section.id,
+                                                                question.id,
+                                                                option
+                                                              );
+                                                              setOpenOptionMenu(
+                                                                null
+                                                              );
+                                                            }}
+                                                            className="w-full px-4 py-2 text-left text-sm text-green-700 hover:bg-green-50"
+                                                          >
+                                                            {option}
+                                                          </button>
+                                                        )
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                        </div>
+                                      </div>
+                                      <p className="text-xs text-green-700 mb-2">
+                                        Link answers to follow-up forms
+                                        (auto-redirect after submission)
+                                      </p>
+                                      {question.followUpConfig &&
+                                        Object.keys(
+                                          question.followUpConfig
+                                        ).some(
+                                          (k) =>
+                                            question.followUpConfig?.[k]
+                                              ?.linkedFormId
+                                        ) && (
+                                          <div className="text-xs text-green-600 bg-white dark:bg-gray-900 rounded p-2">
+                                            <div className="font-medium mb-1">
+                                              ✅ Active form links:
+                                            </div>
+                                            <ul className="space-y-1">
+                                              {Object.entries(
+                                                question.followUpConfig
+                                              )
+                                                .filter(
+                                                  ([_, config]) =>
+                                                    config.linkedFormId
+                                                )
+                                                .map(
+                                                  ([option, config], idx) => (
+                                                    <li key={idx}>
+                                                      • "{option}" → Form:{" "}
+                                                      {config.linkedFormId}
+                                                    </li>
+                                                  )
+                                                )}
+                                            </ul>
+                                          </div>
+                                        )}
+                                    </div>
+                                  )}
+
+                                {/* Correct Answer Section */}
+                                {(question.type === "radio" ||
+                                  question.type === "checkbox" ||
+                                  question.type === "select" ||
+                                  question.type === "yesNoNA") &&
+                                  question.options &&
+                                  question.options.length > 0 && (
+                                    <div className="mt-3">
+                                      <label className="block text-xs font-medium text-primary-600 mb-2">
+                                        Correct Answer (Optional - for quiz
+                                        questions)
+                                      </label>
+                                      <select
+                                        value={question.correctAnswer || ""}
+                                        onChange={(e) =>
+                                          updateQuestion(
+                                            section.id,
+                                            question.id,
+                                            {
+                                              correctAnswer:
+                                                e.target.value || undefined,
+                                            }
+                                          )
+                                        }
+                                        className="w-full p-2 border border-neutral-300 rounded-md text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                                      >
+                                        <option value="">
+                                          No correct answer
+                                        </option>
+                                        {question.options.map(
+                                          (option, index) => (
+                                            <option key={index} value={option}>
+                                              {option}
+                                            </option>
+                                          )
+                                        )}
+                                      </select>
+                                    </div>
+                                  )}
+
+                                {/* Follow-up Questions Section - Now with Unlimited Nesting */}
+                                {question.followUpQuestions &&
+                                  question.followUpQuestions.length > 0 && (
+                                    <div className="mt-6">
+                                      <NestedFollowUpRenderer
+                                        followUpQuestions={
+                                          question.followUpQuestions || []
+                                        }
+                                        sectionId={section.id}
+                                        parentQuestion={{
+                                          id: question.id,
+                                          options: question.options,
+                                        }}
+                                        path={[question.id]}
+                                        parameters={parameters}
+                                        onUpdate={(
                                           nestedSectionId,
                                           followUpQuestionId,
                                           updates,
                                           nestedPath
-                                        )
-                                      }
-                                      onImageUpload={(
-                                        nestedSectionId,
-                                        followUpQuestionId,
-                                        file,
-                                        nestedPath
-                                      ) =>
-                                        handleNestedFollowUpImageUpload(
+                                        ) =>
+                                          updateNestedFollowUpQuestion(
+                                            nestedSectionId,
+                                            followUpQuestionId,
+                                            updates,
+                                            nestedPath
+                                          )
+                                        }
+                                        onImageUpload={(
                                           nestedSectionId,
                                           followUpQuestionId,
                                           file,
                                           nestedPath
-                                        )
-                                      }
-                                      onImageRemove={(
-                                        nestedSectionId,
-                                        followUpQuestionId,
-                                        nestedPath
-                                      ) =>
-                                        clearNestedFollowUpImage(
+                                        ) =>
+                                          handleNestedFollowUpImageUpload(
+                                            nestedSectionId,
+                                            followUpQuestionId,
+                                            file,
+                                            nestedPath
+                                          )
+                                        }
+                                        onImageRemove={(
                                           nestedSectionId,
                                           followUpQuestionId,
                                           nestedPath
-                                        )
-                                      }
-                                      onDelete={(
-                                        nestedSectionId,
-                                        followUpQuestionId,
-                                        nestedPath
-                                      ) =>
-                                        deleteNestedFollowUpQuestion(
+                                        ) =>
+                                          clearNestedFollowUpImage(
+                                            nestedSectionId,
+                                            followUpQuestionId,
+                                            nestedPath
+                                          )
+                                        }
+                                        onDelete={(
                                           nestedSectionId,
                                           followUpQuestionId,
                                           nestedPath
-                                        )
-                                      }
-                                      onAddNested={(
-                                        nestedSectionId,
-                                        parentFollowUpId,
-                                        triggerValue,
-                                        nestedPath
-                                      ) =>
-                                        addNestedFollowUpQuestion(
+                                        ) =>
+                                          deleteNestedFollowUpQuestion(
+                                            nestedSectionId,
+                                            followUpQuestionId,
+                                            nestedPath
+                                          )
+                                        }
+                                        onAddNested={(
                                           nestedSectionId,
                                           parentFollowUpId,
                                           triggerValue,
                                           nestedPath
-                                        )
-                                      }
-                                      onAddOption={(
-                                        nestedSectionId,
-                                        followUpQuestionId,
-                                        nestedPath
-                                      ) =>
-                                        addNestedFollowUpOption(
+                                        ) =>
+                                          addNestedFollowUpQuestion(
+                                            nestedSectionId,
+                                            parentFollowUpId,
+                                            triggerValue,
+                                            nestedPath
+                                          )
+                                        }
+                                        onAddOption={(
                                           nestedSectionId,
                                           followUpQuestionId,
                                           nestedPath
-                                        )
-                                      }
-                                      onUpdateOption={(
-                                        nestedSectionId,
-                                        followUpQuestionId,
-                                        optionIndex,
-                                        value,
-                                        nestedPath
-                                      ) =>
-                                        updateNestedFollowUpOption(
+                                        ) =>
+                                          addNestedFollowUpOption(
+                                            nestedSectionId,
+                                            followUpQuestionId,
+                                            nestedPath
+                                          )
+                                        }
+                                        onUpdateOption={(
                                           nestedSectionId,
                                           followUpQuestionId,
                                           optionIndex,
                                           value,
                                           nestedPath
-                                        )
-                                      }
-                                      onRemoveOption={(
-                                        nestedSectionId,
-                                        followUpQuestionId,
-                                        optionIndex,
-                                        nestedPath
-                                      ) =>
-                                        removeNestedFollowUpOption(
+                                        ) =>
+                                          updateNestedFollowUpOption(
+                                            nestedSectionId,
+                                            followUpQuestionId,
+                                            optionIndex,
+                                            value,
+                                            nestedPath
+                                          )
+                                        }
+                                        onRemoveOption={(
                                           nestedSectionId,
                                           followUpQuestionId,
                                           optionIndex,
                                           nestedPath
-                                        )
-                                      }
-                                      onAddFollowUpSection={handleAddFollowUpSection}
-                                      onAddFollowUpForm={handleAddFollowUpForm}
-                                      questionTypes={questionTypes}
-                                    />
-                                  </div>
-                                )}
+                                        ) =>
+                                          removeNestedFollowUpOption(
+                                            nestedSectionId,
+                                            followUpQuestionId,
+                                            optionIndex,
+                                            nestedPath
+                                          )
+                                        }
+                                        onAddFollowUpSection={
+                                          handleAddFollowUpSection
+                                        }
+                                        onAddFollowUpForm={
+                                          handleAddFollowUpForm
+                                        }
+                                        questionTypes={questionTypes}
+                                      />
+                                    </div>
+                                  )}
+                              </div>
                             </div>
-                          </div>
                           </React.Fragment>
                         );
                       })}
@@ -4423,70 +5045,124 @@ export default function FormCreator() {
                                   </p>
                                   <p
                                     className={`text-xs ${
-                                      isCurrent ? "text-blue-100" : "text-blue-600"
+                                      isCurrent
+                                        ? "text-blue-100"
+                                        : "text-blue-600"
                                     }`}
                                   >
-                                    {questionCount} {questionCount === 1 ? "question" : "questions"}
+                                    {questionCount}{" "}
+                                    {questionCount === 1
+                                      ? "question"
+                                      : "questions"}
                                   </p>
                                   {sectionWeightage !== null && (
                                     <p
                                       className={`text-xs font-medium ${
-                                        isCurrent ? "text-blue-100" : "text-blue-500"
+                                        isCurrent
+                                          ? "text-blue-100"
+                                          : "text-blue-500"
                                       }`}
                                     >
-                                      Weightage: {Number(sectionWeightage).toFixed(1).replace(/\.0$/, "")}%
+                                      Weightage:{" "}
+                                      {Number(sectionWeightage)
+                                        .toFixed(1)
+                                        .replace(/\.0$/, "")}
+                                      %
                                     </p>
                                   )}
-                                  {page.filter((s) => s.isSubsection).length > 0 && (
-                                    <div className={`text-xs mt-2 pt-2 border-t ${
-                                      isCurrent ? "border-blue-400" : "border-blue-200"
-                                    }`}>
-                                      <p className={`font-semibold mb-1 ${
-                                        isCurrent ? "text-blue-100" : "text-green-700"
-                                      }`}>
+                                  {page.filter((s) => s.isSubsection).length >
+                                    0 && (
+                                    <div
+                                      className={`text-xs mt-2 pt-2 border-t ${
+                                        isCurrent
+                                          ? "border-blue-400"
+                                          : "border-blue-200"
+                                      }`}
+                                    >
+                                      <p
+                                        className={`font-semibold mb-1 ${
+                                          isCurrent
+                                            ? "text-blue-100"
+                                            : "text-green-700"
+                                        }`}
+                                      >
                                         Merged:
                                       </p>
-                                      {page.filter((s) => s.isSubsection).map((subsection) => (
-                                        <p key={subsection.id} className={`ml-2 ${
-                                          isCurrent ? "text-blue-100" : "text-green-600"
-                                        }`}>
-                                          • {subsection.title || "Subsection"}
-                                        </p>
-                                      ))}
+                                      {page
+                                        .filter((s) => s.isSubsection)
+                                        .map((subsection) => (
+                                          <p
+                                            key={subsection.id}
+                                            className={`ml-2 ${
+                                              isCurrent
+                                                ? "text-blue-100"
+                                                : "text-green-600"
+                                            }`}
+                                          >
+                                            • {subsection.title || "Subsection"}
+                                          </p>
+                                        ))}
                                     </div>
                                   )}
                                   {(() => {
                                     const routings = [];
                                     page.forEach((section) => {
                                       section.questions.forEach((question) => {
-                                        if (question.branchingRules && question.branchingRules.length > 0) {
-                                          question.branchingRules.forEach((rule) => {
-                                            const targetSection = form.sections.find((s) => s.id === rule.targetSectionId);
-                                            if (targetSection) {
-                                              routings.push({
-                                                from: section.title || `Section ${pageIndex + 1}`,
-                                                option: rule.optionLabel,
-                                                to: targetSection.title || "Unknown"
-                                              });
+                                        if (
+                                          question.branchingRules &&
+                                          question.branchingRules.length > 0
+                                        ) {
+                                          question.branchingRules.forEach(
+                                            (rule) => {
+                                              const targetSection =
+                                                form.sections.find(
+                                                  (s) =>
+                                                    s.id ===
+                                                    rule.targetSectionId
+                                                );
+                                              if (targetSection) {
+                                                routings.push({
+                                                  from:
+                                                    section.title ||
+                                                    `Section ${pageIndex + 1}`,
+                                                  option: rule.optionLabel,
+                                                  to:
+                                                    targetSection.title ||
+                                                    "Unknown",
+                                                });
+                                              }
                                             }
-                                          });
+                                          );
                                         }
                                       });
                                     });
-                                    
+
                                     return routings.length > 0 ? (
-                                      <div className={`text-xs mt-2 pt-2 border-t ${
-                                        isCurrent ? "border-blue-400" : "border-purple-200"
-                                      }`}>
-                                        <p className={`font-semibold mb-1 ${
-                                          isCurrent ? "text-blue-100" : "text-purple-700"
-                                        }`}>
+                                      <div
+                                        className={`text-xs mt-2 pt-2 border-t ${
+                                          isCurrent
+                                            ? "border-blue-400"
+                                            : "border-purple-200"
+                                        }`}
+                                      >
+                                        <p
+                                          className={`font-semibold mb-1 ${
+                                            isCurrent
+                                              ? "text-blue-100"
+                                              : "text-purple-700"
+                                          }`}
+                                        >
                                           🔀 Routes:
                                         </p>
                                         {routings.map((routing, idx) => (
-                                          <p key={idx} className={`ml-2 text-xs leading-tight ${
-                                            isCurrent ? "text-blue-100" : "text-purple-600"
-                                          }`}>
+                                          <p
+                                            key={idx}
+                                            className={`ml-2 text-xs leading-tight ${
+                                              isCurrent
+                                                ? "text-blue-100"
+                                                : "text-purple-600"
+                                            }`}
+                                          >
                                             "{routing.option}" → {routing.to}
                                           </p>
                                         ))}
@@ -4507,7 +5183,9 @@ export default function FormCreator() {
             })()}
 
             <div className="bg-white dark:bg-gray-900 rounded-lg border border-blue-100 shadow p-4">
-              <h3 className="text-sm font-bold text-blue-900 mb-3">Form Statistics</h3>
+              <h3 className="text-sm font-bold text-blue-900 mb-3">
+                Form Statistics
+              </h3>
               <div className="space-y-2 text-xs text-blue-700">
                 <div className="flex items-center justify-between">
                   <span>Sections</span>
@@ -4526,12 +5204,16 @@ export default function FormCreator() {
                   <span>Follow-ups</span>
                   <span>
                     {form.sections.reduce((total, section) => {
-                      const countQuestions = (questions: (Question | FollowUpQuestion)[]): number =>
+                      const countQuestions = (
+                        questions: (Question | FollowUpQuestion)[]
+                      ): number =>
                         questions.reduce((count, q) => {
                           const nested = q.followUpQuestions
                             ? countQuestions(q.followUpQuestions)
                             : 0;
-                          return count + (q.followUpQuestions?.length || 0) + nested;
+                          return (
+                            count + (q.followUpQuestions?.length || 0) + nested
+                          );
                         }, 0);
 
                       return total + countQuestions(section.questions);
@@ -4542,7 +5224,10 @@ export default function FormCreator() {
                   <span>Total weightage</span>
                   <span>
                     {form.sections
-                      .reduce((sum, section) => sum + (section.weightage || 0), 0)
+                      .reduce(
+                        (sum, section) => sum + (section.weightage || 0),
+                        0
+                      )
                       .toFixed(1)
                       .replace(/\.0$/, "")}
                     %

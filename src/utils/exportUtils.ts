@@ -3,7 +3,20 @@ import type { FollowUpQuestion, Section } from "../types/forms";
 import * as XLSX from "xlsx";
 
 const { utils, writeFile, read } = XLSX;
+// Add this interface at the top of your file
+interface FormRowData {
+  [key: string]: string | undefined;
+}
 
+interface FollowUpNode {
+  path: string; // "1.1.1.1.1"
+  question: string;
+  type: string;
+  required: boolean;
+  options?: string[];
+  parentPath: string; // "1.1.1.1"
+  triggerValue: string; // What triggers this
+}
 function generateId() {
   return typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
@@ -256,143 +269,411 @@ function getSectionForOption(
 export function createSampleFormData() {
   const sampleData = [
     {
-      "Form Title": "Customer Service Feedback Form",
+      "Form Title": "Bike Service & Maintenance Form",
       "Form Description":
-        "Comprehensive feedback form with sub-parameters for enhanced customization",
+        "Comprehensive bike service assessment with nested diagnostics",
       "Section Number": "1",
-      "Section Title": "Customer Information",
-      "Section Description": "Basic customer details and contact information",
-      "Section Weightage": "25",
-      Question: "What is your full name?",
-      "Question Description": "Please provide your complete legal name",
+      "Section Title": "Basic Bike Information",
+      "Section Description": "Basic details about the bike",
+      "Section Weightage": "20",
+      "Section Merging": "",
+      Question: "What is your bike make and model?",
+      "Question Description": "Manufacturer and specific model",
       "Question Type": "shortText",
       Required: "TRUE",
       Options: "",
-      Suggestion: "Consider asking for nickname or preferred name as well",
-      SubParam1: "Personal Info",
-      SubParam2: "Required Field",
-      "Allowed File Types": "",
-      "Correct Answer": "",
-      "Correct Answers": "",
+      SubParam1: "Bike Details",
+      SubParam2: "Identification",
     },
     {
-      "Section Weightage": "25",
-      Question: "What type of service did you receive?",
-      "Question Description": "Select the primary service category",
-      "Question Type": "dropdown",
+      "Section Weightage": "20",
+      Question: "What is the bike's registration number?",
+      "Question Description": "Official registration/plate number",
+      "Question Type": "shortText",
       Required: "TRUE",
-      Options:
-        "Technical Support,Product Consultation,Billing Inquiry,General Inquiry",
-      Suggestion: "Consider adding age range options instead of just yes/no",
-      SubParam1: "Service Category",
-      SubParam2: "Dropdown Selection",
-      "Allowed File Types": "",
-      "Correct Answer": "",
-      "Correct Answers": "",
-      "FU1: Option": "Technical Support",
-      "FU1: Question Type": "shortText",
-      "FU1: Required": "TRUE",
-      "FU1: SubParam1": "Tech Support",
-      "FU1: SubParam2": "Follow-up Required",
-      "FU1: Question Text": "What was the technical issue you experienced?",
-      "FU1: Options": "",
-      "FU1: Correct Answer": "",
-      "FU2: Option": "Product Consultation",
-      "FU2: Question Type": "longText",
-      "FU2: Required": "FALSE",
-      "FU2: SubParam1": "Product Info",
-      "FU2: SubParam2": "Optional Details",
-      "FU2: Question Text":
-        "Please describe the product information you were seeking:",
-      "FU2: Options": "",
-      "FU2: Correct Answer": "",
+      Options: "",
+      SubParam1: "Registration",
+      SubParam2: "Legal Info",
+    },
+    {
+      "Section Weightage": "20",
+      Question: "What is the current odometer reading?",
+      "Question Description": "Total kilometers/miles ridden",
+      "Question Type": "number",
+      Required: "TRUE",
+      Options: "",
+      SubParam1: "Usage Data",
+      SubParam2: "Mileage",
     },
     {
       "Section Number": "2",
-      "Section Title": "Service Quality Assessment",
-      "Section Description": "Rate various aspects of the service experience",
-      "Section Weightage": "35",
-      Question: "How would you rate the overall service quality?",
-      "Question Description": "Rate on a scale of 1-5",
+      "Section Title": "Service Requirements Assessment",
+      "Section Description": "Evaluate what service the bike needs",
+      "Section Weightage": "80",
+      "Section Merging": "",
+
+      // ========== MAIN QUESTION 1: ENGINE ISSUES (WITH NESTED FOLLOW-UPS) ==========
+      Question: "Are you experiencing any engine issues?",
+      "Question Description": "Problems related to engine performance",
       "Question Type": "multipleChoice",
       Required: "TRUE",
-      Options: "1 - Poor,2 - Below Average,3 - Average,4 - Good,5 - Excellent",
-      Suggestion: "Consider adding age range options instead of just yes/no",
-      SubParam1: "Quality Rating",
-      SubParam2: "Scale 1-5",
-      "Allowed File Types": "",
-      "Correct Answer": "",
-      "Correct Answers": "",
-      "FU1: Option": "1 - Poor",
-      "FU1: Question Type": "longText",
+      Options: "Yes,No,N/A",
+      SubParam1: "Engine Health",
+      SubParam2: "Performance",
+
+      // FU1: FOR YES (WITH NESTING)
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "dropdown",
       "FU1: Required": "TRUE",
-      "FU1: SubParam1": "Improvement Needed",
-      "FU1: SubParam2": "Critical Feedback",
-      "FU1: Question Text":
-        "What specific improvements would you suggest to enhance our service?",
-      "FU1: Options": "",
-      "FU1: Correct Answer": "",
-      "FU2: Option": "5 - Excellent",
+      "FU1: SubParam1": "Engine Problem Type",
+      "FU1: SubParam2": "Diagnosis",
+      "FU1: Question Text": "What type of engine issue are you experiencing?",
+      "FU1: Options":
+        "Starting Problem,Overheating,Knocking Sound,Oil Leak,Loss of Power",
+
+      // FU1.1: Nested under "Starting Problem"
+      "FU1.1: Option": "Starting Problem",
+      "FU1.1: Question Type": "multipleChoice",
+      "FU1.1: Required": "TRUE",
+      "FU1.1: SubParam1": "Start Issue Details",
+      "FU1.1: SubParam2": "Electrical",
+      "FU1.1: Question Text": "What happens when you try to start?",
+      "FU1.1: Options":
+        "No Sound at All,Clicking Sound,Cranks But Won't Start,Starts Then Dies",
+
+      // FU1.1.1: Nested under "Cranks But Won't Start"
+      "FU1.1.1: Option": "Cranks But Won't Start",
+      "FU1.1.1: Question Type": "multipleChoice",
+      "FU1.1.1: Required": "TRUE",
+      "FU1.1.1: SubParam1": "Fuel System",
+      "FU1.1.1: SubParam2": "Ignition",
+      "FU1.1.1: Question Text": "When did this problem start?",
+      "FU1.1.1: Options":
+        "After Fuel Fill,After Rain,Gradually Worsened,Suddenly",
+
+      // FU1.2: Nested under "Oil Leak"
+      "FU1.2: Option": "Oil Leak",
+      "FU1.2: Question Type": "dropdown",
+      "FU1.2: Required": "TRUE",
+      "FU1.2: SubParam1": "Leak Location",
+      "FU1.2: SubParam2": "Mechanical",
+      "FU1.2: Question Text": "Where is the oil leaking from?",
+      "FU1.2: Options": "Engine Bottom,Under Seat,Near Chain,From Filter",
+
+      // FU2: FOR NO (SIMPLE - NO NESTING)
+      "FU2: Option": "No",
       "FU2: Question Type": "shortText",
       "FU2: Required": "FALSE",
-      "FU2: SubParam1": "Positive Feedback",
-      "FU2: SubParam2": "Optional Praise",
-      "FU2: Question Text": "What did we do particularly well?",
-      "FU2: Options": "",
-      "FU2: Correct Answer": "",
+      "FU2: SubParam1": "Engine Status",
+      "FU2: SubParam2": "Positive",
+      "FU2: Question Text": "When was your last engine service?",
+
+      // FU3: FOR N/A (SIMPLE - NO NESTING)
+      "FU3: Option": "N/A",
+      "FU3: Question Type": "shortText",
+      "FU3: Required": "FALSE",
+      "FU3: SubParam1": "Not Applicable",
+      "FU3: SubParam2": "Explanation",
+      "FU3: Question Text": "Why is this not applicable?",
+
+      // FU4: ADDITIONAL ENGINE QUESTION
+      "FU4: Option": "Yes", // Same trigger as FU1
+      "FU4: Question Type": "yesNoNA",
+      "FU4: Required": "FALSE",
+      "FU4: SubParam1": "Warning Lights",
+      "FU4: SubParam2": "Dashboard",
+      "FU4: Question Text": "Are any warning lights on?",
+
+      // FU5: FINAL ENGINE QUESTION
+      "FU5: Option": "Yes", // Same trigger as FU1
+      "FU5: Question Type": "shortText",
+      "FU5: Required": "FALSE",
+      "FU5: SubParam1": "Additional Info",
+      "FU5: SubParam2": "Details",
+      "FU5: Question Text": "Any other engine symptoms?",
     },
     {
-      "Section Weightage": "35",
-      Question: "Would you recommend our service to others?",
-      "Question Description": "Net Promoter Score style question",
+      "Section Weightage": "80",
+
+      // ========== MAIN QUESTION 2: BRAKE SYSTEM (WITH NESTED FOLLOW-UPS) ==========
+      Question: "Are there any brake system problems?",
+      "Question Description": "Issues with braking performance",
+      "Question Type": "multipleChoice",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      SubParam1: "Brake Safety",
+      SubParam2: "Critical",
+
+      // FU1: FOR YES (WITH NESTING)
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "dropdown",
+      "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Brake Problem Type",
+      "FU1: SubParam2": "Safety Issue",
+      "FU1: Question Text": "What brake problem are you experiencing?",
+      "FU1: Options":
+        "Soft Brake Lever,Grinding Noise,Brake Drag,Poor Stopping,Spongy Feel",
+
+      // FU1.1: Nested under "Grinding Noise"
+      "FU1.1: Option": "Grinding Noise",
+      "FU1.1: Question Type": "dropdown",
+      "FU1.1: Required": "TRUE",
+      "FU1.1: SubParam1": "Noise Details",
+      "FU1.1: SubParam2": "Wear Indicators",
+      "FU1.1: Question Text": "When do you hear the grinding noise?",
+      "FU1.1: Options":
+        "Always When Braking,Only During Hard Braking,When Releasing Brakes,With Specific Speed",
+
+      // FU1.1.1: Nested under "Always When Braking"
+      "FU1.1.1: Option": "Always When Braking",
+      "FU1.1.1: Question Type": "dropdown",
+      "FU1.1.1: Required": "TRUE",
+      "FU1.1.1: SubParam1": "Pad Condition",
+      "FU1.1.1: SubParam2": "Maintenance",
+      "FU1.1.1: Question Text": "When were brakes last serviced?",
+      "FU1.1.1: Options":
+        "Within Month,1-3 Months,3-6 Months,Over 6 Months,Never",
+
+      // FU1.2: Nested under "Poor Stopping"
+      "FU1.2: Option": "Poor Stopping",
+      "FU1.2: Question Type": "dropdown",
+      "FU1.2: Required": "TRUE",
+      "FU1.2: SubParam1": "Stopping Distance",
+      "FU1.2: SubParam2": "Performance",
+      "FU1.2: Question Text": "How much has stopping distance increased?",
+      "FU1.2: Options":
+        "Slightly Noticeable,Significantly Increased,Very Dangerous,Unpredictable",
+
+      // FU2: FOR NO (SIMPLE - NO NESTING)
+      "FU2: Option": "No",
+      "FU2: Question Type": "shortText",
+      "FU2: Required": "FALSE",
+      "FU2: SubParam1": "Brake Status",
+      "FU2: SubParam2": "Good Condition",
+      "FU2: Question Text": "When were brakes last checked?",
+
+      // FU3: FOR N/A (SIMPLE - NO NESTING)
+      "FU3: Option": "N/A",
+      "FU3: Question Type": "shortText",
+      "FU3: Required": "FALSE",
+      "FU3: SubParam1": "Not Applicable",
+      "FU3: SubParam2": "Explanation",
+      "FU3: Question Text": "Why are brakes not applicable?",
+
+      // FU4: ADDITIONAL BRAKE QUESTION
+      "FU4: Option": "Yes", // Same trigger as FU1
+      "FU4: Question Type": "yesNoNA",
+      "FU4: Required": "FALSE",
+      "FU4: SubParam1": "Brake Fluid",
+      "FU4: SubParam2": "Maintenance",
+      "FU4: Question Text": "Has brake fluid been changed recently?",
+
+      // FU5: FINAL BRAKE QUESTION
+      "FU5: Option": "Yes", // Same trigger as FU1
+      "FU5: Question Type": "shortText",
+      "FU5: Required": "FALSE",
+      "FU5: SubParam1": "Additional Info",
+      "FU5: SubParam2": "Details",
+      "FU5: Question Text": "Any vibration during braking?",
+    },
+    {
+      "Section Weightage": "80",
+
+      // ========== MAIN QUESTION 3: TIRE CONDITION (SIMPLE FOLLOW-UPS - NO NESTING) ==========
+      Question: "Are there any tire issues?",
+      "Question Description": "Problems with tires and wheels",
       "Question Type": "yesNoNA",
       Required: "TRUE",
       Options: "Yes,No,N/A",
-      Suggestion: "Consider adding age range options instead of just yes/no",
-      SubParam1: "NPS Question",
-      SubParam2: "Recommendation",
-      "Allowed File Types": "",
-      "Correct Answer": "",
-      "Correct Answers": "",
+      SubParam1: "Tire Safety",
+      SubParam2: "Wheels",
+
+      // FU1: FOR YES (SIMPLE - NO NESTING)
       "FU1: Option": "Yes",
-      "FU1: Question Type": "shortText",
-      "FU1: Required": "FALSE",
-      "FU1: SubParam1": "Referral Source",
-      "FU1: SubParam2": "Optional",
-      "FU1: Question Text": "How did you hear about our service?",
-      "FU1: Options": "",
-      "FU1: Correct Answer": "",
+      "FU1: Question Type": "multipleChoice",
+      "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Tire Problem Type",
+      "FU1: SubParam2": "Condition",
+      "FU1: Question Text": "What tire issue are you facing?",
+      "FU1: Options":
+        "Puncture,Wear Uneven,Wear Excessive,Bulging,Pressure Loss",
+
+      // FU2: FOR NO (SIMPLE - NO NESTING)
+      "FU2: Option": "No",
+      "FU2: Question Type": "shortText",
+      "FU2: Required": "FALSE",
+      "FU2: SubParam1": "Tire Status",
+      "FU2: SubParam2": "Good Condition",
+      "FU2: Question Text": "When were tires last replaced?",
+
+      // FU3: FOR N/A (SIMPLE - NO NESTING)
+      "FU3: Option": "N/A",
+      "FU3: Question Type": "shortText",
+      "FU3: Required": "FALSE",
+      "FU3: SubParam1": "Not Applicable",
+      "FU3: SubParam2": "Explanation",
+      "FU3: Question Text": "Why are tires not applicable?",
+
+      // FU4: ADDITIONAL TIRE QUESTION
+      "FU4: Option": "Yes", // Same trigger as FU1
+      "FU4: Question Type": "multipleChoice",
+      "FU4: Required": "FALSE",
+      "FU4: SubParam1": "Tire Age",
+      "FU4: SubParam2": "Maintenance",
+      "FU4: Question Text": "How old are your tires?",
+      "FU4: Options": "Less than 1 year,1-2 years,2-3 years,Over 3 years",
+
+      // FU5: FINAL TIRE QUESTION
+      "FU5: Option": "Yes", // Same trigger as FU1
+      "FU5: Question Type": "shortText",
+      "FU5: Required": "FALSE",
+      "FU5: SubParam1": "Additional Info",
+      "FU5: SubParam2": "Details",
+      "FU5: Question Text": "Any recent impacts on tires?",
+    },
+    {
+      "Section Weightage": "80",
+
+      // ========== MAIN QUESTION 4: ELECTRICAL SYSTEM (SIMPLE FOLLOW-UPS - NO NESTING) ==========
+      Question: "Are there any electrical problems?",
+      "Question Description": "Issues with lights, battery, electronics",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      SubParam1: "Electrical System",
+      SubParam2: "Electronics",
+
+      // FU1: FOR YES (SIMPLE - NO NESTING)
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "multipleChoice",
+      "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Electrical Problem",
+      "FU1: SubParam2": "Diagnosis",
+      "FU1: Question Text": "What electrical issue exists?",
+      "FU1: Options":
+        "Battery Drain,Light Failure,Indicator Problem,Horn Not Working,Display Issues",
+
+      // FU2: FOR NO (SIMPLE - NO NESTING)
+      "FU2: Option": "No",
+      "FU2: Question Type": "shortText",
+      "FU2: Required": "FALSE",
+      "FU2: SubParam1": "Electrical Status",
+      "FU2: SubParam2": "Good Condition",
+      "FU2: Question Text": "When was battery last replaced?",
+
+      // FU3: FOR N/A (SIMPLE - NO NESTING)
+      "FU3: Option": "N/A",
+      "FU3: Question Type": "shortText",
+      "FU3: Required": "FALSE",
+      "FU3: SubParam1": "Not Applicable",
+      "FU3: SubParam2": "Explanation",
+      "FU3: Question Text": "Why is electrical system not applicable?",
+
+      // FU4: ADDITIONAL ELECTRICAL QUESTION
+      "FU4: Option": "Yes", // Same trigger as FU1
+      "FU4: Question Type": "yesNoNA",
+      "FU4: Required": "FALSE",
+      "FU4: SubParam1": "Charging System",
+      "FU4: SubParam2": "Battery",
+      "FU4: Question Text": "Is the charging system working properly?",
+
+      // FU5: FINAL ELECTRICAL QUESTION
+      "FU5: Option": "Yes", // Same trigger as FU1
+      "FU5: Question Type": "shortText",
+      "FU5: Required": "FALSE",
+      "FU5: SubParam1": "Additional Info",
+      "FU5: SubParam2": "Details",
+      "FU5: Question Text": "Any recent electrical modifications?",
+    },
+    {
+      "Section Weightage": "80",
+
+      // ========== MAIN QUESTION 5: SUSPENSION & HANDLING (SIMPLE FOLLOW-UPS - NO NESTING) ==========
+      Question: "Are there any suspension or handling issues?",
+      "Question Description": "Problems with ride comfort and control",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      SubParam1: "Suspension",
+      SubParam2: "Handling",
+
+      // FU1: FOR YES (SIMPLE - NO NESTING)
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "multipleChoice",
+      "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Suspension Problem",
+      "FU1: SubParam2": "Ride Quality",
+      "FU1: Question Text": "What handling issue do you notice?",
+      "FU1: Options": "Too Soft,Too Hard,Uneven,Bottoming Out,Noise Over Bumps",
+
+      // FU2: FOR NO (SIMPLE - NO NESTING)
+      "FU2: Option": "No",
+      "FU2: Question Type": "shortText",
+      "FU2: Required": "FALSE",
+      "FU2: SubParam1": "Suspension Status",
+      "FU2: SubParam2": "Good Condition",
+      "FU2: Question Text": "When was suspension last serviced?",
+
+      // FU3: FOR N/A (SIMPLE - NO NESTING)
+      "FU3: Option": "N/A",
+      "FU3: Question Type": "shortText",
+      "FU3: Required": "FALSE",
+      "FU3: SubParam1": "Not Applicable",
+      "FU3: SubParam2": "Explanation",
+      "FU3: Question Text": "Why is suspension not applicable?",
+
+      // FU4: ADDITIONAL SUSPENSION QUESTION
+      "FU4: Option": "Yes", // Same trigger as FU1
+      "FU4: Question Type": "multipleChoice",
+      "FU4: Required": "FALSE",
+      "FU4: SubParam1": "Ride Quality",
+      "FU4: SubParam2": "Comfort",
+      "FU4: Question Text": "How would you rate ride comfort?",
+      "FU4: Options":
+        "Very Comfortable,Comfortable,Average,Uncomfortable,Very Uncomfortable",
+
+      // FU5: FINAL SUSPENSION QUESTION
+      "FU5: Option": "Yes", // Same trigger as FU1
+      "FU5: Question Type": "shortText",
+      "FU5: Required": "FALSE",
+      "FU5: SubParam1": "Additional Info",
+      "FU5: SubParam2": "Details",
+      "FU5: Question Text": "Any handling issues during cornering?",
     },
     {
       "Section Number": "3",
-      "Section Title": "Additional Documentation",
-      "Section Description": "Upload any relevant files or documents",
-      "Section Weightage": "40",
-      Question: "Please upload any supporting documents (optional)",
-      "Question Description": "Accepted formats: PDF, images up to 5MB",
-      "Question Type": "file",
-      Required: "FALSE",
-      Options: "",
-      Suggestion: "Consider adding age range options instead of just yes/no",
-      SubParam1: "Document Upload",
-      SubParam2: "Max 5MB",
-      "Allowed File Types": "pdf,image",
-      "Correct Answer": "",
-      "Correct Answers": "",
+      "Section Title": "Service History & Preferences",
+      "Section Description": "Previous service records and preferences",
+      "Section Weightage": "20",
+      "Section Merging": "",
+      Question: "When was your last full service?",
+      "Question Description": "Complete professional service",
+      "Question Type": "dropdown",
+      Required: "TRUE",
+      Options: "Within 3 months,3-6 months,6-12 months,Over 1 year,Never",
+      SubParam1: "Service History",
+      SubParam2: "Maintenance",
     },
     {
-      "Section Weightage": "40",
-      Question: "Do you have any additional comments?",
-      "Question Description": "Any other feedback or suggestions",
-      "Question Type": "longText",
-      Required: "FALSE",
-      Options: "",
-      Suggestion: "Consider adding age range options instead of just yes/no",
-      SubParam1: "Open Feedback",
-      SubParam2: "Free Text",
-      "Allowed File Types": "",
-      "Correct Answer": "",
-      "Correct Answers": "",
+      "Section Weightage": "20",
+      Question: "What type of service do you prefer?",
+      "Question Description": "Service package preference",
+      "Question Type": "multipleChoice",
+      Required: "TRUE",
+      Options:
+        "Basic Service,Standard Service,Comprehensive Service,Premium Service,Custom",
+      SubParam1: "Service Preference",
+      SubParam2: "Package",
+    },
+    {
+      "Section Weightage": "20",
+      Question: "Do you need a pickup/drop service?",
+      "Question Description": "Transportation assistance",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      SubParam1: "Transport",
+      SubParam2: "Logistics",
     },
   ];
 
@@ -404,11 +685,8 @@ export async function loadSampleFormData(): Promise<
 > {
   const sampleData = createSampleFormData();
 
-  // Convert sample data to the format expected by parseNewTemplateFormat
-  // Skip the first 3 rows (header, description, separator) and process the data rows
-  const dataRows = sampleData;
-
-  return parseNewTemplateFormat(dataRows);
+  // Type assertion to FormRowData[]
+  return parseNewTemplateFormat(sampleData as FormRowData[], []);
 }
 
 export function downloadFormImportTemplate() {
@@ -435,19 +713,49 @@ export function downloadFormImportTemplate() {
   ];
 
   const followUpHeaders = [];
-  for (let i = 1; i <= 10; i++) {
-    followUpHeaders.push(
-      `FU${i}: Option`,
-      `FU${i}: Question Type`,
-      `FU${i}: Required`,
-      `FU${i}: SubParam1`,
-      `FU${i}: SubParam2`,
-      `FU${i}: Question Text`,
-      `FU${i}: Options`,
-      `FU${i}: Correct Answer`
-    );
-  }
 
+  // Generate headers for nested follow-ups (up to 3 levels deep)
+  for (let level1 = 1; level1 <= 5; level1++) {
+    // Level 1 follow-ups (FU1:, FU2:, etc.)
+    followUpHeaders.push(
+      `FU${level1}: Option`,
+      `FU${level1}: Question Type`,
+      `FU${level1}: Required`,
+      `FU${level1}: SubParam1`,
+      `FU${level1}: SubParam2`,
+      `FU${level1}: Question Text`,
+      `FU${level1}: Options`,
+      `FU${level1}: Correct Answer`
+    );
+
+    // Level 2 follow-ups (FU1.1:, FU1.2:, etc.)
+    for (let level2 = 1; level2 <= 3; level2++) {
+      followUpHeaders.push(
+        `FU${level1}.${level2}: Option`,
+        `FU${level1}.${level2}: Question Type`,
+        `FU${level1}.${level2}: Required`,
+        `FU${level1}.${level2}: SubParam1`,
+        `FU${level1}.${level2}: SubParam2`,
+        `FU${level1}.${level2}: Question Text`,
+        `FU${level1}.${level2}: Options`,
+        `FU${level1}.${level2}: Correct Answer`
+      );
+
+      // Level 3 follow-ups (FU1.1.1:, FU1.1.2:, etc.)
+      for (let level3 = 1; level3 <= 2; level3++) {
+        followUpHeaders.push(
+          `FU${level1}.${level2}.${level3}: Option`,
+          `FU${level1}.${level2}.${level3}: Question Type`,
+          `FU${level1}.${level2}.${level3}: Required`,
+          `FU${level1}.${level2}.${level3}: SubParam1`,
+          `FU${level1}.${level2}.${level3}: SubParam2`,
+          `FU${level1}.${level2}.${level3}: Question Text`,
+          `FU${level1}.${level2}.${level3}: Options`,
+          `FU${level1}.${level2}.${level3}: Correct Answer`
+        );
+      }
+    }
+  }
   const headers = [...mainHeaders, ...followUpHeaders];
 
   const descriptions = [
@@ -864,7 +1172,8 @@ export function downloadFormImportTemplate() {
     }
   });
 
-  rows.forEach((row, rowIndex) => {
+  rows.forEach((row: any, rowIndex) => {
+    // Use `any` type
     const sectionNum = row["Section Number"]?.toString().trim();
 
     // Build branching string from individual columns or combined branching column
@@ -1146,7 +1455,7 @@ export async function parseFormWorkbook(file: File) {
 }
 
 function parseNewTemplateFormat(
-  rows: Record<string, any>[],
+  rows: FormRowData[],
   parametersToCreate: Array<{ name: string; type: "main" | "followup" }>
 ): Partial<Question> & { sections: Section[] } {
   const sectionsMap = new Map<string, Section>();
@@ -1159,10 +1468,9 @@ function parseNewTemplateFormat(
   const questionMap = new Map<string, FollowUpQuestion>();
   const sectionMergingMap = new Map<string, string>(); // Map to store section merging info
   const normalizeQuestionType = (type: string): string => {
-    if (!type) return type || "text";
+    if (!type) return "text";
 
-    // Normalize: lowercase, trim, remove extra spaces, replace slashes with nothing
-    let normalizedType = String(type)
+    const normalizedType = String(type)
       .toLowerCase()
       .trim()
       .replace(/\s+/g, " ") // normalize multiple spaces to single space
@@ -1172,10 +1480,10 @@ function parseNewTemplateFormat(
       // Legacy/UI type names - without spaces/slashes
       shorttext: "text",
       shortint: "text",
-      multiplechoice: "radio",
+      multiplechoice: "radio", // This should be "radio"
       longtext: "paragraph",
       longinput: "paragraph",
-      dropdown: "select",
+      dropdown: "select", // This should be "select"
       checkboxes: "checkbox",
       fileupload: "file",
       "file upload": "file",
@@ -1190,50 +1498,150 @@ function parseNewTemplateFormat(
 
       // Core types - pass through
       text: "text",
-      radio: "radio",
+      radio: "radio", // Ensure radio stays radio
       paragraph: "paragraph",
-      select: "select",
+      select: "select", // Ensure select stays select
       checkbox: "checkbox",
-      // yesnona: "yesNoNA", // lowercase pass-through - REMOVED DUPLICATE
-
-      // Extended types - supported by schema
-      email: "email",
-      url: "url",
-      tel: "tel",
-      date: "date",
-      time: "time",
       file: "file",
-      range: "range",
-      rating: "rating",
-      scale: "scale",
-      "radio-grid": "radio-grid",
-      radiogrid: "radio-grid",
-      "checkbox-grid": "checkbox-grid",
-      checkboxgrid: "checkbox-grid",
-      "radio-image": "radio-image",
-      radioimage: "radio-image",
-      "search-select": "search-select",
-      searchselect: "search-select",
-      number: "number",
-      location: "location",
-      boolean: "boolean",
-      textarea: "textarea",
+
+      // Add these mappings for common variations
+      "multiple choice": "radio",
+      "drop down": "select",
+      "drop-down": "select",
+      "multi choice": "radio",
+      "multi-choice": "radio",
     };
 
     // First try exact match after normalization
     if (typeMap[normalizedType]) {
+      console.log(
+        `[TYPE MAPPING] "${type}" → "${normalizedType}" → "${typeMap[normalizedType]}"`
+      );
       return typeMap[normalizedType];
     }
 
     // If not found, try with spaces removed entirely
     const noSpaces = normalizedType.replace(/\s/g, "");
     if (typeMap[noSpaces]) {
+      console.log(
+        `[TYPE MAPPING] "${type}" → "${noSpaces}" → "${typeMap[noSpaces]}"`
+      );
       return typeMap[noSpaces];
     }
 
-    // Return 'text' as default for unrecognized types
+    console.warn(
+      `[TYPE MAPPING] Unknown type: "${type}", defaulting to "text"`
+    );
     return "text";
   };
+  function parseNestedFollowUps(
+    row: FormRowData,
+    parentQuestion: FollowUpQuestion,
+    parentId: string,
+    levelPath: string
+  ) {
+    console.log(
+      `[NESTED] Parsing level ${levelPath} for parent: ${parentQuestion.text}`
+    );
+
+    // Find all child columns for this level
+    const childPattern = new RegExp(`^FU${levelPath}\\.(\\d+):\\s*(.+)$`);
+    const childColumns = Object.keys(row).filter((key) =>
+      childPattern.test(key)
+    );
+
+    console.log(
+      `[NESTED] Found ${childColumns.length} child columns:`,
+      childColumns
+    );
+
+    if (childColumns.length === 0) return;
+
+    // Group by child number (1, 2, 3, etc.)
+    const childGroups = new Map<number, Record<string, string>>();
+
+    childColumns.forEach((column) => {
+      const match = column.match(childPattern);
+      if (!match) return;
+
+      const childNum = parseInt(match[1]);
+      const columnType = match[2].trim(); // "Option", "Question Type", etc.
+
+      if (!childGroups.has(childNum)) {
+        childGroups.set(childNum, {});
+      }
+
+      const childData = childGroups.get(childNum)!;
+      childData[columnType] = row[column]?.toString().trim() || "";
+    });
+
+    console.log(`[NESTED] Child groups:`, Array.from(childGroups.entries()));
+
+    // Process each child group
+    childGroups.forEach((childData, childNum) => {
+      const childOption = childData["Option"];
+      const childType = childData["Question Type"];
+      const childText = childData["Question Text"];
+
+      console.log(`[NESTED] Processing child ${childNum}:`, {
+        childOption,
+        childType,
+        childText,
+      });
+
+      if (!childOption || !childType || !childText) {
+        console.warn(`[NESTED] Missing required fields for child ${childNum}`);
+        return;
+      }
+
+      const childRequired =
+        (childData["Required"] || "FALSE").toLowerCase() === "true";
+      const childSubParam1 = childData["SubParam1"] || undefined;
+      const childSubParam2 = childData["SubParam2"] || undefined;
+      const childOptionsStr = childData["Options"] || "";
+      const childCorrectAnswer = childData["Correct Answer"] || undefined;
+
+      const childOptions = childOptionsStr
+        ? childOptionsStr
+            .split(",")
+            .map((opt) => opt.trim())
+            .filter(Boolean)
+        : undefined;
+
+      const childQuestionId = generateId();
+      const childQuestion: FollowUpQuestion = {
+        id: childQuestionId,
+        text: childText,
+        type: normalizeQuestionType(childType) as FollowUpQuestion["type"],
+        required: childRequired,
+        options: childOptions,
+        followUpQuestions: [],
+        sectionId: parentQuestion.sectionId,
+        correctAnswer: childCorrectAnswer,
+        showWhen: {
+          questionId: parentId,
+          value: childOption,
+        },
+        subParam1: childSubParam1,
+        subParam2: childSubParam2,
+        allowedFileTypes: undefined,
+      };
+
+      // Add to parent's follow-ups
+      parentQuestion.followUpQuestions = parentQuestion.followUpQuestions || [];
+      parentQuestion.followUpQuestions.push(childQuestion);
+
+      console.log(
+        `[NESTED] Added child question: ${childText} to parent: ${parentQuestion.text}`
+      );
+
+      // Recursively parse deeper levels
+      const nextLevelPath = levelPath
+        ? `${levelPath}.${childNum}`
+        : childNum.toString();
+      parseNestedFollowUps(row, childQuestion, childQuestionId, nextLevelPath);
+    });
+  }
 
   // Helper function to find column name (case-insensitive and flexible)
   const findColumnName = (
@@ -1291,7 +1699,7 @@ function parseNewTemplateFormat(
     }
   }
 
-  rows.forEach((row) => {
+  rows.forEach((row: FormRowData) => {
     const sectionNo = row["Section Number"]?.toString().trim();
     const sectionTitle = row["Section Title"]?.toString().trim();
     const sectionDesc = row["Section Description"]?.toString().trim();
@@ -1474,54 +1882,33 @@ function parseNewTemplateFormat(
       ...(branchingRules.length > 0 && { branchingRules }),
     };
 
+    // Process level 1 follow-ups
     for (let fuIndex = 1; fuIndex <= 10; fuIndex++) {
-      const fuOptionKey = `FU${fuIndex}: Option`;
-      const fuTypeKey = `FU${fuIndex}: Question Type`;
-      const fuRequiredKey = `FU${fuIndex}: Required`;
-      const fuSubParam1Key = `FU${fuIndex}: SubParam1`;
-      const fuSubParam2Key = `FU${fuIndex}: SubParam2`;
-      const fuTextKey = `FU${fuIndex}: Question Text`;
-      const fuOptionsKey = `FU${fuIndex}: Options`;
-      const fuCorrectAnswerKey = `FU${fuIndex}: Correct Answer`;
+      const fuOptionKey = `FU${fuIndex}: Option` as const;
+      const fuTypeKey = `FU${fuIndex}: Question Type` as const;
+      const fuRequiredKey = `FU${fuIndex}: Required` as const;
+      const fuSubParam1Key = `FU${fuIndex}: SubParam1` as const;
+      const fuSubParam2Key = `FU${fuIndex}: SubParam2` as const;
+      const fuTextKey = `FU${fuIndex}: Question Text` as const;
+      const fuOptionsKey = `FU${fuIndex}: Options` as const;
+      const fuCorrectAnswerKey = `FU${fuIndex}: Correct Answer` as const;
 
-      const fuOption = row[fuOptionKey]?.toString().trim();
-      const fuTypeRaw = row[fuTypeKey]?.toString().trim();
+      // Type-safe property access
+      const fuOption = (row[fuOptionKey] as string)?.toString().trim();
+      const fuTypeRaw = (row[fuTypeKey] as string)?.toString().trim();
       const fuType = fuTypeRaw ? normalizeQuestionType(fuTypeRaw) : "text";
-      const fuText = row[fuTextKey]?.toString().trim();
+      const fuText = (row[fuTextKey] as string)?.toString().trim();
 
       if (fuOption && fuType && fuText) {
-        const fuRequired =
-          (row[fuRequiredKey]?.toString().trim() || "FALSE").toLowerCase() ===
-          "true";
-        const fuSubParam1 = row[fuSubParam1Key]?.toString().trim();
-        const fuSubParam2 = row[fuSubParam2Key]?.toString().trim();
-
-        // Validate followup SubParam1 and SubParam2 against parameters from the Parameters sheet (if parameters exist)
-        if (fuSubParam1 && parametersToCreate.length > 0) {
-          const isFuSubParam1Valid = parametersToCreate.some(
-            (p) => p.name.toLowerCase() === fuSubParam1.toLowerCase()
-          );
-          if (!isFuSubParam1Valid) {
-            console.warn(
-              `FU${fuIndex}: SubParam1 "${fuSubParam1}" not found in parameters. Will be treated as custom value.`
-            );
-          }
-        }
-
-        if (fuSubParam2 && parametersToCreate.length > 0) {
-          const isFuSubParam2Valid = parametersToCreate.some(
-            (p) => p.name.toLowerCase() === fuSubParam2.toLowerCase()
-          );
-          if (!isFuSubParam2Valid) {
-            console.warn(
-              `FU${fuIndex}: SubParam2 "${fuSubParam2}" not found in parameters. Will be treated as custom value.`
-            );
-          }
-        }
-
-        const fuOptionsStr = row[fuOptionsKey]?.toString().trim() || "";
+        const fuRequiredStr =
+          (row[fuRequiredKey] as string)?.toString().trim() || "FALSE";
+        const fuRequired = fuRequiredStr.toLowerCase() === "true";
+        const fuSubParam1 = (row[fuSubParam1Key] as string)?.toString().trim();
+        const fuSubParam2 = (row[fuSubParam2Key] as string)?.toString().trim();
+        const fuOptionsStr =
+          (row[fuOptionsKey] as string)?.toString().trim() || "";
         const fuCorrectAnswer =
-          row[fuCorrectAnswerKey]?.toString().trim() || "";
+          (row[fuCorrectAnswerKey] as string)?.toString().trim() || "";
 
         const fuOptions = fuOptionsStr
           ? fuOptionsStr
@@ -1551,6 +1938,9 @@ function parseNewTemplateFormat(
 
         question.followUpQuestions = question.followUpQuestions || [];
         question.followUpQuestions.push(followUp);
+
+        // Parse nested follow-ups for this level 1 follow-up
+        parseNestedFollowUps(row, followUp, followUpId, fuIndex.toString());
 
         if (!followUpConfig[fuOption]) {
           followUpConfig[fuOption] = {

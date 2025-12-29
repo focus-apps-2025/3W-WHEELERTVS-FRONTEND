@@ -198,103 +198,104 @@ function formatAnswerForExport(
 
 // FIXED buildNestedForm function for FLAT structure
 function buildNestedForm(form: FormData): FormData {
-  //console.log("🔄 Building nested form structure from FLAT data...");
+  console.log("🔄 Building nested form structure from FLAT data...");
 
-  const nestedSections = form.sections?.map((section) => {
+  const processSection = (section: any) => {
     if (!section.questions || !Array.isArray(section.questions)) {
       return section;
     }
 
-    //console.log(`📋 Processing section: "${section.title}"`);
-    //console.log(`   - Original questions: ${section.questions.length}`);
+    console.log(`📋 Processing section: "${section.title}"`);
+    console.log(`   - Original questions: ${section.questions.length}`);
 
-    // Create a map of all questions by ID with proper typing
+    // Create a map of all questions by ID
     const questionMap = new Map<string, any>();
     section.questions.forEach((q: any) => {
       questionMap.set(q.id, { ...q, followUpQuestions: [] });
     });
 
-    // Properly type the arrays
+    // First pass: Create array of main questions and follow-ups
     const mainQuestions: any[] = [];
-    const followUpQuestions: any[] = [];
+    const allQuestions = Array.from(questionMap.values());
 
-    section.questions.forEach((q: any) => {
-      // Use type assertion to access showWhen
-      const questionWithShowWhen = q as any;
-      if (
-        q.parentId ||
-        (questionWithShowWhen.showWhen &&
-          questionWithShowWhen.showWhen.questionId)
-      ) {
-        followUpQuestions.push(q);
-      } else {
+    allQuestions.forEach((q: any) => {
+      const parentId = q.parentId || q.showWhen?.questionId;
+      if (!parentId) {
         mainQuestions.push(q);
       }
     });
 
-    //console.log(`   - Main questions: ${mainQuestions.length}`);
-    //console.log(`   - Follow-up questions: ${followUpQuestions.length}`);
+    // Second pass: Build nested structure recursively
+    const buildNestedStructure = (questions: any[]) => {
+      const nestedQuestions: any[] = [];
 
-    // Attach follow-ups to their parent questions
-    followUpQuestions.forEach((followUp: any) => {
-      const followUpWithShowWhen = followUp as any;
-      const parentId =
-        followUp.parentId || followUpWithShowWhen.showWhen?.questionId;
-
-      if (parentId && questionMap.has(parentId)) {
-        const parentQuestion = questionMap.get(parentId);
-        parentQuestion.followUpQuestions.push({
-          ...followUp,
-          parentId: parentId, // Ensure parentId is set
+      questions.forEach((q: any) => {
+        // Find all direct children of this question
+        const children = allQuestions.filter((child: any) => {
+          const childParentId = child.parentId || child.showWhen?.questionId;
+          return childParentId === q.id;
         });
-        //console.log(`   ✅ Attached follow-up: "${followUp.text}" → parent: "${parentQuestion.text}"`);
-      } else {
-        //console.log(`   ❌ Could not find parent for follow-up: "${followUp.text}" (parentId: ${parentId})`);
-        // Keep as main question if parent not found
-        mainQuestions.push(followUp);
-      }
-    });
 
-    // Update section with nested structure
-    const updatedSection = {
-      ...section,
-      questions: mainQuestions.map((q: any) => questionMap.get(q.id)),
+        // Recursively build nested structure for children
+        if (children.length > 0) {
+          q.followUpQuestions = buildNestedStructure(children);
+        }
+
+        nestedQuestions.push(q);
+      });
+
+      return nestedQuestions;
     };
 
+    // Build nested structure starting from main questions
+    const nestedMainQuestions = buildNestedStructure(mainQuestions);
+
     console.log(
-      `   - Final nested questions: ${updatedSection.questions.length}`
+      `   - Main questions after nesting: ${nestedMainQuestions.length}`
     );
-    updatedSection.questions.forEach((q: any, index: number) => {
-      console.log(
-        `   - Q${index + 1}: "${q.text}" (${
-          q.followUpQuestions.length
-        } follow-ups)`
-      );
-      q.followUpQuestions.forEach((fu: any, fuIndex: number) => {
-        console.log(`     ↳ FU${fuIndex + 1}: "${fu.text}"`);
-      });
+
+    // Log the structure for debugging
+    const logQuestionStructure = (q: any, prefix: string = "") => {
+      console.log(`${prefix}${q.text} (ID: ${q.id})`);
+      if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+        q.followUpQuestions.forEach((child: any, index: number) => {
+          logQuestionStructure(child, prefix + "  ↳ ");
+        });
+      }
+    };
+
+    nestedMainQuestions.forEach((q, index) => {
+      console.log(`   - Q${index + 1} structure:`);
+      logQuestionStructure(q, "     ");
     });
 
-    return updatedSection;
-  });
+    return {
+      ...section,
+      questions: nestedMainQuestions,
+    };
+  };
 
+  const nestedSections = form.sections?.map(processSection);
   const result = { ...form, sections: nestedSections };
+
   console.log("✅ Nested form structure completed");
   return result;
+}
+
+interface SheetContent {
+  data: any[][];
+  links: HyperlinkEntry[];
+  headerStyle: Record<string, any>;
+  cellStyles: Record<string, any>;
+  columnWidths: { wch: number }[];
 }
 
 function buildResponsesSheetContent(
   response: ResponseData,
   form: FormData,
-  type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'default'
-): {
-  data: any[][];
-  links: HyperlinkEntry[];
-  headerStyle: Record<string, any>;
-  cellStyles: Record<string, any>;
-} {
+  type?: "yes-only" | "no-only" | "na-only" | "both" | "default"
+): SheetContent {
   console.log("🔄 Building responses sheet content...");
-  console.log("📦 Response answers in DB:", Object.keys(response.answers));
 
   const rows: any[][] = [];
   const links: HyperlinkEntry[] = [];
@@ -305,111 +306,171 @@ function buildResponsesSheetContent(
     links.push({ rowIndex: r, columnIndex: c, target, display });
   };
 
-  // Gather main & follow‑ups horizontally
-  const gatherPairs = (q: any, base: string) => {
-    const pairs: Array<{ label: string; ans: FormattedAnswer }> = [];
+  // New: Gather questions with proper hierarchical numbering
+  const gatherQuestionPairs = (
+    question: any,
+    prefix: string,
+    depth: number = 0
+  ) => {
+    const pairs: Array<{
+      label: string;
+      ans: FormattedAnswer;
+      depth: number;
+      questionNumber: string;
+      type?: string;
+    }> = [];
 
-    const mainLabel = `${base}. ${q?.text || "Untitled Question"}`;
-    const mainAns = formatAnswerForExport(response.answers?.[q.id], q);
+    // Process a question and all its nested follow-ups
+    const processQuestion = (q: any, qNumber: string, qDepth: number) => {
+      // Get answer and type for current question
+      const answer = formatAnswerForExport(response.answers?.[q.id], q);
+      const questionType = q?.type || "text";
 
-    console.log(`❓ Main Question: ${mainLabel}`);
-    console.log(`   - Question ID: ${q.id}`);
-    console.log(`   - Answer in DB:`, response.answers?.[q.id]);
-    console.log(`   - Formatted as: ${mainAns.display}`);
+      console.log(`   ${qNumber}: "${q?.text || "Untitled"}"`);
+      console.log(`     - Depth: ${qDepth}`);
+      console.log(`     - Answer: ${answer.display}`);
+      console.log(
+        `     - Has follow-ups: ${q?.followUpQuestions?.length || 0}`
+      );
 
-    pairs.push({ label: mainLabel, ans: mainAns });
-
-    const walk = (nodes?: any[], path: number[] = []) => {
-      (nodes || []).forEach((fu, idx) => {
-        const lbl = `${base}.${[...path, idx + 1].join(".")}. ${
-          fu?.text || "Follow-up"
-        }`;
-        const ans = formatAnswerForExport(response.answers?.[fu.id], fu);
-
-        console.log(`   ↳ Follow-up: ${lbl}`);
-        console.log(`     - Question ID: ${fu.id}`);
-        console.log(`     - Answer in DB:`, response.answers?.[fu.id]);
-        console.log(`     - Formatted as: ${ans.display}`);
-
-        pairs.push({ label: lbl, ans });
-        if (fu?.followUpQuestions?.length) {
-          walk(fu.followUpQuestions, [...path, idx + 1]);
-        }
+      // Add current question to pairs
+      pairs.push({
+        label: q?.text || "Untitled Question",
+        ans: answer,
+        depth: qDepth,
+        questionNumber: qNumber,
+        type: questionType,
       });
+
+      // Process follow-ups recursively
+      if (q?.followUpQuestions && q.followUpQuestions.length > 0) {
+        q.followUpQuestions.forEach((followUp: any, index: number) => {
+          // Create hierarchical number for follow-up
+          const followUpNumber = `${qNumber}.${index + 1}`;
+          processQuestion(followUp, followUpNumber, qDepth + 1);
+        });
+      }
     };
 
-    walk(q?.followUpQuestions);
+    // Start processing with the main question
+    processQuestion(question, prefix, depth);
 
-    console.log(`   📊 Total pairs for this question: ${pairs.length}`);
+    console.log(`   📊 Total pairs for ${prefix}: ${pairs.length}`);
     return pairs;
   };
 
-  // Prepare all sections with their question pairs
-  type PreparedRow = { pairs: Array<{ label: string; ans: FormattedAnswer }> };
+  // Prepare all sections
+  type PreparedRow = {
+    pairs: Array<{
+      label: string;
+      ans: FormattedAnswer;
+      depth: number;
+      questionNumber: string;
+      type?: string;
+    }>;
+  };
   type PreparedSection = { title: string; rows: PreparedRow[] };
   const preparedSections: PreparedSection[] = [];
 
   console.log("📋 Processing form sections...");
-  (form.sections || []).forEach((section: any, si: number) => {
-    const title = `Section ${si + 1}: ${section?.title || "Untitled Section"}`;
+  (form.sections || []).forEach((section: any, sectionIndex: number) => {
+    const title = `Section ${sectionIndex + 1}: ${
+      section?.title || "Untitled Section"
+    }`;
     console.log(`\n📁 ${title}`);
 
-    const rowsForSection = (section?.questions || []).map(
-      (q: any, qi: number) => ({
-        pairs: gatherPairs(q, `Q${qi + 1}`), // Back to original
-      })
-    ).filter(row => {
-      if (!type || type === 'default') return true;
-      
-      const mainAns = row.pairs[0]?.ans?.display;
-      if (!mainAns) return false;
+    const rowsForSection: PreparedRow[] = [];
+    let mainQuestionIndex = 0;
 
-      if (type === 'yes-only') return mainAns === 'Yes';
-      if (type === 'no-only') return mainAns === 'No';
-      if (type === 'na-only') return mainAns === 'N/A';
-      if (type === 'both') return ['Yes', 'No', 'N/A'].includes(mainAns);
-      
-      return true;
+    // Process each main question in section
+    section?.questions?.forEach((question: any) => {
+      // Check if it's a main question (no parentId or showWhen)
+      const isMainQuestion =
+        !question.parentId && !question.showWhen?.questionId;
+
+      if (isMainQuestion) {
+        mainQuestionIndex++;
+        const questionNumber = `Q${mainQuestionIndex}`;
+        const pairs = gatherQuestionPairs(question, questionNumber);
+
+        // Apply filtering based on type
+        const shouldInclude = (() => {
+          if (!type || type === "default") return true;
+
+          const mainAns = pairs[0]?.ans?.display;
+          if (!mainAns) return false;
+
+          if (type === "yes-only") return mainAns === "Yes";
+          if (type === "no-only") return mainAns === "No";
+          if (type === "na-only") return mainAns === "N/A";
+          if (type === "both") return ["Yes", "No", "N/A"].includes(mainAns);
+
+          return true;
+        })();
+
+        if (shouldInclude) {
+          rowsForSection.push({ pairs });
+        }
+      }
     });
 
     preparedSections.push({ title, rows: rowsForSection });
-    console.log(`   - Questions in section: ${rowsForSection.length}`);
   });
 
+  // Process form-level follow-up questions
   if (form.followUpQuestions?.length) {
     console.log(
       `\n📋 Processing form-level follow-up questions: ${form.followUpQuestions.length}`
     );
     const fqTitle = "Form Follow-up Questions";
-    const rowsForFQ = (form.followUpQuestions || []).map(
-      (fq: any, i: number) => ({
-        pairs: gatherPairs(fq, `FQ${i + 1}`),
-      })
+
+    // Filter to find main questions at form level
+    const mainFormQuestions = form.followUpQuestions.filter(
+      (q: any) => !q.parentId && !q.showWhen?.questionId
     );
+
+    const rowsForFQ = mainFormQuestions
+      .map((question: any, index: number) => ({
+        pairs: gatherQuestionPairs(question, `FQ${index + 1}`),
+      }))
+      .filter((row) => {
+        if (!type || type === "default") return true;
+
+        const mainAns = row.pairs[0]?.ans?.display;
+        if (!mainAns) return false;
+
+        if (type === "yes-only") return mainAns === "Yes";
+        if (type === "no-only") return mainAns === "No";
+        if (type === "na-only") return mainAns === "N/A";
+        if (type === "both") return ["Yes", "No", "N/A"].includes(mainAns);
+
+        return true;
+      });
+
     preparedSections.push({ title: fqTitle, rows: rowsForFQ });
   }
 
+  // Calculate max columns needed
   const maxPairs = preparedSections.reduce(
     (m, s) => Math.max(m, ...s.rows.map((r) => r.pairs.length)),
     0
   );
 
   console.log(`\n📊 Layout Summary:`);
-  console.log(`   - Total sections: ${preparedSections.length}`);
   console.log(`   - Maximum question pairs per row: ${maxPairs}`);
-  console.log(`   - Total columns needed: ${1 + maxPairs * 2}`);
+  console.log(`   - Total columns needed: ${1 + maxPairs * 4}`);
 
   // ---------- HEADER ----------------
   const headerRow: any[] = ["Section"];
   for (let i = 0; i < maxPairs; i++) {
-    headerRow.push(i === 0 ? "Main Question" : "Follow‑Up Question");
+    headerRow.push("Question No.");
+    headerRow.push("Question");
+    headerRow.push("Type");
     headerRow.push("Answer");
   }
   rows.push(headerRow);
 
-  console.log(`\n📋 Header row structure:`, headerRow);
-
-  // Apply header styles with blue background and bold text
+  // Apply header styles
   headerRow.forEach((_, c) => {
     const addr = XLSX.utils.encode_cell({ r: 0, c });
     headerStyle[addr] = {
@@ -419,7 +480,7 @@ function buildResponsesSheetContent(
         sz: 12,
       },
       fill: {
-        fgColor: { rgb: "1D4ED8" }, // blue background
+        fgColor: { rgb: "1D4ED8" },
       },
       alignment: {
         horizontal: "center",
@@ -439,135 +500,146 @@ function buildResponsesSheetContent(
   console.log(`\n📋 Building data rows...`);
   let totalRows = 0;
 
-  preparedSections.forEach((section, sectionIndex) => {
+  preparedSections.forEach((section) => {
     console.log(`\n📁 Processing section: ${section.title}`);
-    let firstRowIn = true;
+    let firstRowInSection = true;
     let sectionRowCount = 0;
 
-    section.rows.forEach((r, rowIndex) => {
-      const row: any[] = new Array(1 + maxPairs * 2).fill("");
-      row[0] = firstRowIn ? section.title : "";
-      firstRowIn = false;
-
-      console.log(
-        `   📝 Row ${totalRows + 1}: ${r.pairs.length} question-answer pairs`
-      );
+    section.rows.forEach((rowData) => {
+      const row: any[] = new Array(1 + maxPairs * 4).fill("");
+      row[0] = firstRowInSection ? section.title : "";
+      firstRowInSection = false;
 
       let col = 1;
-      r.pairs.forEach((p, idx) => {
-        row[col] = p.label;
-        row[col + 1] = p.ans.display;
+      rowData.pairs.forEach((pair, pairIndex) => {
+        // Question Number
+        row[col] = pair.questionNumber;
+        // Question Text with indentation
+        const indent = "  ".repeat(pair.depth);
+        row[col + 1] = `${indent}${pair.label}`;
+        // Question Type
+        row[col + 2] = pair.type || "text";
+        // Answer
+        row[col + 3] = pair.ans.display;
 
-        const rIdx = rows.length;
-        const qAddr = XLSX.utils.encode_cell({ r: rIdx, c: col });
-        const aAddr = XLSX.utils.encode_cell({ r: rIdx, c: col + 1 });
+        const rowIdx = rows.length;
+        const qNoAddr = XLSX.utils.encode_cell({ r: rowIdx, c: col });
+        const qTextAddr = XLSX.utils.encode_cell({ r: rowIdx, c: col + 1 });
+        const qTypeAddr = XLSX.utils.encode_cell({ r: rowIdx, c: col + 2 });
+        const ansAddr = XLSX.utils.encode_cell({ r: rowIdx, c: col + 3 });
 
-        // Apply comprehensive styling (your existing styling code)
-        if (idx === 0) {
-          // Main Question - Bold with light blue background
-          cellStyles[qAddr] = {
-            font: {
-              bold: true,
-              color: { rgb: "0F172A" },
-              sz: 11,
-            },
-            fill: {
-              fgColor: { rgb: "E0F2FE" }, // Light blue background
-            },
-            alignment: {
-              horizontal: "left",
-              vertical: "center",
-              wrapText: true,
-            },
-            border: {
-              top: { style: "thin", color: { rgb: "CBD5E1" } },
-              left: { style: "thin", color: { rgb: "CBD5E1" } },
-              bottom: { style: "thin", color: { rgb: "CBD5E1" } },
-              right: { style: "thin", color: { rgb: "CBD5E1" } },
-            },
-          };
+        // Apply styling based on depth
+        const bgColor =
+          pair.depth === 0 ? "E0F2FE" : pair.depth === 1 ? "F0F9FF" : "F8FAFC";
 
-          // Main Answer - Italic with gray background
-          cellStyles[aAddr] = {
-            font: {
-              italic: true,
-              color: { rgb: "475569" },
-              sz: 10,
-            },
-            fill: {
-              fgColor: { rgb: "F8FAFC" }, // Very light gray background
-            },
-            alignment: {
-              horizontal: "left",
-              vertical: "center",
-              wrapText: true,
-            },
-            border: {
-              top: { style: "thin", color: { rgb: "CBD5E1" } },
-              left: { style: "thin", color: { rgb: "CBD5E1" } },
-              bottom: { style: "thin", color: { rgb: "CBD5E1" } },
-              right: { style: "thin", color: { rgb: "CBD5E1" } },
-            },
-          };
-        } else {
-          // Follow‑Up Questions - Normal text with white background
-          cellStyles[qAddr] = {
-            font: {
-              bold: false,
-              italic: false,
-              color: { rgb: "334155" },
-              sz: 10,
-            },
-            fill: {
-              fgColor: { rgb: "FFFFFF" }, // White background
-            },
-            alignment: {
-              horizontal: "left",
-              vertical: "center",
-              wrapText: true,
-            },
-            border: {
-              top: { style: "thin", color: { rgb: "E2E8F0" } },
-              left: { style: "thin", color: { rgb: "E2E8F0" } },
-              bottom: { style: "thin", color: { rgb: "E2E8F0" } },
-              right: { style: "thin", color: { rgb: "E2E8F0" } },
-            },
-          };
+        const textColor =
+          pair.depth === 0 ? "0F172A" : pair.depth === 1 ? "334155" : "64748B";
 
-          // Follow‑Up Answers - Normal text with white background
-          cellStyles[aAddr] = {
-            font: {
-              italic: false,
-              color: { rgb: "64748B" },
-              sz: 10,
-            },
-            fill: {
-              fgColor: { rgb: "FFFFFF" }, // White background
-            },
-            alignment: {
-              horizontal: "left",
-              vertical: "center",
-              wrapText: true,
-            },
-            border: {
-              top: { style: "thin", color: { rgb: "E2E8F0" } },
-              left: { style: "thin", color: { rgb: "E2E8F0" } },
-              bottom: { style: "thin", color: { rgb: "E2E8F0" } },
-              right: { style: "thin", color: { rgb: "E2E8F0" } },
-            },
-          };
+        const fontSize = pair.depth === 0 ? 11 : pair.depth === 1 ? 10 : 9;
+
+        const isBold = pair.depth === 0;
+        const isItalic = pair.depth > 0;
+
+        // Question Number cell style
+        cellStyles[qNoAddr] = {
+          font: {
+            bold: isBold,
+            color: { rgb: textColor },
+            sz: fontSize,
+          },
+          fill: {
+            fgColor: { rgb: bgColor },
+          },
+          alignment: {
+            horizontal: "left",
+            vertical: "center",
+            wrapText: true,
+          },
+          border: {
+            top: { style: "thin", color: { rgb: "CBD5E1" } },
+            left: { style: "thin", color: { rgb: "CBD5E1" } },
+            bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+            right: { style: "thin", color: { rgb: "CBD5E1" } },
+          },
+        };
+
+        // Question Text cell style
+        cellStyles[qTextAddr] = {
+          font: {
+            bold: isBold,
+            italic: isItalic,
+            color: { rgb: textColor },
+            sz: fontSize,
+          },
+          fill: {
+            fgColor: { rgb: bgColor },
+          },
+          alignment: {
+            horizontal: "left",
+            vertical: "center",
+            wrapText: true,
+          },
+          border: {
+            top: { style: "thin", color: { rgb: "CBD5E1" } },
+            left: { style: "thin", color: { rgb: "CBD5E1" } },
+            bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+            right: { style: "thin", color: { rgb: "CBD5E1" } },
+          },
+        };
+
+        // Question Type cell style
+        cellStyles[qTypeAddr] = {
+          font: {
+            bold: false,
+            color: { rgb: textColor },
+            sz: fontSize - 1,
+          },
+          fill: {
+            fgColor: { rgb: bgColor },
+          },
+          alignment: {
+            horizontal: "center",
+            vertical: "center",
+          },
+          border: {
+            top: { style: "thin", color: { rgb: "CBD5E1" } },
+            left: { style: "thin", color: { rgb: "CBD5E1" } },
+            bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+            right: { style: "thin", color: { rgb: "CBD5E1" } },
+          },
+        };
+
+        // Answer cell style
+        cellStyles[ansAddr] = {
+          font: {
+            italic: true,
+            color: { rgb: "475569" },
+            sz: fontSize,
+          },
+          fill: {
+            fgColor: { rgb: "FFFFFF" },
+          },
+          alignment: {
+            horizontal: "left",
+            vertical: "center",
+            wrapText: true,
+          },
+          border: {
+            top: { style: "thin", color: { rgb: "CBD5E1" } },
+            left: { style: "thin", color: { rgb: "CBD5E1" } },
+            bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+            right: { style: "thin", color: { rgb: "CBD5E1" } },
+          },
+        };
+
+        if (pair.ans.hyperlink) {
+          addLink(rowIdx, col + 3, pair.ans.hyperlink, pair.ans.display);
         }
 
-        if (p.ans.hyperlink) {
-          addLink(rIdx, col + 1, p.ans.hyperlink, p.ans.display);
-          console.log(
-            `     🔗 Hyperlink at row ${rIdx}, col ${col + 1}: ${p.ans.display}`
-          );
-        }
-        col += 2;
+        col += 4;
       });
 
-      // Style the section title cell in the first column
+      // Style the section title cell
       if (row[0]) {
         const sectionAddr = XLSX.utils.encode_cell({ r: rows.length, c: 0 });
         cellStyles[sectionAddr] = {
@@ -577,7 +649,7 @@ function buildResponsesSheetContent(
             sz: 12,
           },
           fill: {
-            fgColor: { rgb: "DBEAFE" }, // Light blue background
+            fgColor: { rgb: "DBEAFE" },
           },
           alignment: {
             horizontal: "left",
@@ -597,22 +669,32 @@ function buildResponsesSheetContent(
       totalRows++;
       sectionRowCount++;
     });
-
-    console.log(
-      `   ✅ Section "${section.title}" completed: ${sectionRowCount} rows`
-    );
   });
 
-  console.log(`\n🎯 FINAL SUMMARY:`);
-  console.log(`   - Total data rows: ${totalRows}`);
-  console.log(`   - Total hyperlinks: ${links.length}`);
-  console.log(`   - Header styles: ${Object.keys(headerStyle).length} cells`);
-  console.log(`   - Cell styles: ${Object.keys(cellStyles).length} cells`);
-  console.log(
-    `   - Data structure: ${rows.length} rows x ${rows[0]?.length || 0} columns`
-  );
+  // Calculate column widths
+  const columnWidths = [
+    { wch: 25 }, // Section
+  ];
 
-  return { data: rows, links, headerStyle, cellStyles };
+  // For each question pair block, add 4 columns
+  for (let i = 0; i < maxPairs; i++) {
+    columnWidths.push({ wch: 12 }); // Question No.
+    columnWidths.push({ wch: 35 }); // Question
+    columnWidths.push({ wch: 10 }); // Type
+    columnWidths.push({ wch: 30 }); // Answer
+  }
+
+  console.log(`\n✅ FINAL SUMMARY:`);
+  console.log(`   - Total data rows: ${totalRows}`);
+  console.log(`   - Total columns: ${1 + maxPairs * 4}`);
+
+  return {
+    data: rows,
+    links,
+    headerStyle,
+    cellStyles,
+    columnWidths,
+  };
 }
 
 function applyHyperlinks(sheet: XLSX.WorkSheet, links: HyperlinkEntry[]): void {
@@ -624,7 +706,6 @@ function applyHyperlinks(sheet: XLSX.WorkSheet, links: HyperlinkEntry[]): void {
     cellObject.t = "s";
     cellObject.l = { Target: target, Tooltip: display };
 
-    // Preserve existing styles when adding hyperlinks
     if (existingCell && existingCell.s) {
       cellObject.s = existingCell.s;
     }
@@ -633,33 +714,31 @@ function applyHyperlinks(sheet: XLSX.WorkSheet, links: HyperlinkEntry[]): void {
   });
 }
 
-// ▼▼▼ MAIN EXPORT FUNCTION - RESPONSES ONLY ▼▼▼
+// Update the main export function
 export function generateResponseExcelReport(
   responses: ResponseData | ResponseData[],
   form: FormData,
   fileName?: string,
-  type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'default'
+  type?: "yes-only" | "no-only" | "na-only" | "both" | "default"
 ): void {
   const workbook = utils.book_new();
-  
-  // Handle single response or array of responses
+
   const responsesArray = Array.isArray(responses) ? responses : [responses];
-  
+
   if (responsesArray.length === 0) {
     console.error("No responses to export");
     return;
   }
 
-  // Build nested form structure
   const nestedForm = buildNestedForm(form);
 
-  // Process each response
   responsesArray.forEach((response, index) => {
     const {
       data: responsesData,
       links: responsesLinks,
       headerStyle,
       cellStyles,
+      columnWidths,
     } = buildResponsesSheetContent(response, nestedForm, type);
 
     const responsesSheet = XLSX.utils.aoa_to_sheet(responsesData);
@@ -688,32 +767,33 @@ export function generateResponseExcelReport(
       responsesSheet[address].s = cellStyles[address];
     });
 
-    responsesSheet["!cols"] = Array(20).fill({ wch: 25 });
+    // Apply column widths
+    responsesSheet["!cols"] = columnWidths;
+
     applyHyperlinks(responsesSheet, responsesLinks);
-    
-    // Use response ID or index for sheet name if multiple responses
-    const sheetName = responsesArray.length > 1 
-      ? `Response ${index + 1}` 
-      : "Responses";
-      
+
+    const sheetName =
+      responsesArray.length > 1 ? `Response ${index + 1}` : "Responses";
+
     utils.book_append_sheet(workbook, responsesSheet, sheetName);
   });
 
-  // Save file
-  const finalFileName = fileName || `${form.title.replace(/\s+/g, "_")}_${
-    new Date().toISOString().split("T")[0]
-  }.xlsx`;
+  const finalFileName =
+    fileName ||
+    `${form.title.replace(/\s+/g, "_")}_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
 
   writeFile(workbook, finalFileName);
 
-  console.log("✅ Excel file generated with styled responses");
+  console.log("✅ Excel file generated with hierarchical question structure");
 }
 
 // ▼▼▼ EMAIL VERSION (returns Blob) ▼▼▼
 export function createExcelWorkbook(
   response: ResponseData,
   form: FormData,
-  type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'default'
+  type?: "yes-only" | "no-only" | "na-only" | "both" | "default"
 ): Blob {
   const workbook = utils.book_new();
 
@@ -724,6 +804,7 @@ export function createExcelWorkbook(
     links: responsesLinks,
     headerStyle,
     cellStyles,
+    columnWidths,
   } = buildResponsesSheetContent(response, nestedForm, type);
 
   const responsesSheet = XLSX.utils.aoa_to_sheet(responsesData);
@@ -751,7 +832,7 @@ export function createExcelWorkbook(
     responsesSheet[address].s = cellStyles[address];
   });
 
-  responsesSheet["!cols"] = Array(20).fill({ wch: 25 });
+  responsesSheet["!cols"] = columnWidths;
   applyHyperlinks(responsesSheet, responsesLinks);
   XLSX.utils.book_append_sheet(workbook, responsesSheet, "Responses");
 

@@ -892,6 +892,124 @@ class ApiClient {
       throw error;
     }
   }
+
+  // Form Invite Management
+  async uploadInvites(formId: string, formData: FormData) {
+    const url = `${this.baseUrl}/forms/${formId}/invites/upload`;
+
+    const headers: Record<string, string> = {};
+
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    // Don't set Content-Type for FormData - browser will set it automatically with boundary
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    const data: ApiResponse<any> = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new ApiError(response.status, data, data.message);
+    }
+
+    return data;
+  }
+
+  async sendInvites(
+    formId: string,
+    data: { emails: Array<{ email: string; phone?: string }> }
+  ) {
+    const response = await this.request<any>(`/forms/${formId}/invites/send`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+
+    // Your backend returns {success: true, message: '...', data: {...}}
+    // The this.request() method already extracts the 'data' field
+    // So 'response' here IS the data object
+    return {
+      success: true, // Manually add this back
+      message: "Invites processed successfully",
+      data: response, // response contains {total, successful, failed, results, failures}
+    };
+  }
+
+  async getInviteStats(formId: string) {
+    return this.request<{
+      form: any;
+      invites: {
+        total: number;
+        sent: number;
+        responded: number;
+        expired: number;
+        responseRate: number;
+      };
+      responses: {
+        total: number;
+        invited: number;
+        public: number;
+      };
+    }>(`/forms/${formId}/invites/stats`);
+  }
+
+  async getFormInvites(
+    formId: string,
+    options?: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      status?: string;
+      dateFilter?: string;
+      startDate?: string;
+      endDate?: string;
+      sortBy?: string;
+      sortOrder?: string;
+    }
+  ) {
+    const query = new URLSearchParams();
+
+    if (options) {
+      Object.entries(options).forEach(([key, value]) => {
+        if (value !== undefined && value !== "") {
+          query.append(key, value.toString());
+        }
+      });
+    }
+
+    const endpoint = `/forms/${formId}/invites${
+      query.toString() ? `?${query.toString()}` : ""
+    }`;
+    const url = `${this.baseUrl}${endpoint}`;
+
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(url, {
+      headers,
+    });
+
+    const data: ApiResponse<any> = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new ApiError(
+        response.status,
+        data,
+        data.message || "Failed to fetch invites"
+      );
+    }
+
+    return data.data;
+  }
 }
 
 // Create and export a singleton instance

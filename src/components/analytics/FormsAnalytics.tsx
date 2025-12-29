@@ -1,4 +1,10 @@
-import React, { useState, useMemo, useRef, useEffect, ChangeEvent } from "react";
+import React, {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  ChangeEvent,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import {
   FileText,
@@ -27,9 +33,14 @@ import {
 import { useForms, useResponses, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
 import { useNotification } from "../../context/NotificationContext";
-import { parseFormWorkbook, downloadFormImportTemplate } from "../../utils/exportUtils";
+import {
+  parseFormWorkbook,
+  downloadFormImportTemplate,
+} from "../../utils/exportUtils";
 import AnswerTemplateImport from "../AnswerTemplateImport";
 import type { Question as FormQuestion } from "../../types";
+import { Mail, MessageCircle } from "lucide-react";
+import EmailInviteModal from "../EmailInviteModal";
 
 interface FormItem {
   _id: string;
@@ -64,13 +75,20 @@ export default function FormsAnalytics() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [isImporting, setIsImporting] = useState(false);
   const [isAnswerTemplateOpen, setIsAnswerTemplateOpen] = useState(false);
-  const [previewFormData, setPreviewFormData] = useState<FormQuestion | null>(null);
+  const [previewFormData, setPreviewFormData] = useState<FormQuestion | null>(
+    null
+  );
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isSavingForm, setIsSavingForm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const { data: formsData, loading, error, execute: refetchForms } = useForms(!isAnswerTemplateOpen);
+  const {
+    data: formsData,
+    loading,
+    error,
+    execute: refetchForms,
+  } = useForms(!isAnswerTemplateOpen);
 
   const { data: responsesData, loading: responsesLoading } = useResponses();
 
@@ -100,19 +118,17 @@ export default function FormsAnalytics() {
   );
 
   const locationMutation = useMutation(
-    ({
-      id,
-      locationEnabled,
-    }: {
-      id: string;
-      locationEnabled: boolean;
-    }) => apiClient.updateFormLocationEnabled(id, locationEnabled),
+    ({ id, locationEnabled }: { id: string; locationEnabled: boolean }) =>
+      apiClient.updateFormLocationEnabled(id, locationEnabled),
     {
       onSuccess: () => {
         refetchForms();
       },
       onError: (error: any) => {
-        showError(error.message || "Failed to update location setting", "Error");
+        showError(
+          error.message || "Failed to update location setting",
+          "Error"
+        );
       },
     }
   );
@@ -120,11 +136,85 @@ export default function FormsAnalytics() {
   const forms = formsData?.forms || [];
   const parentForms = forms.filter((form: FormItem) => !form.parentFormId);
   const totalForms = parentForms.length;
-  
-  console.log('DEBUG: Total forms from API:', forms.length);
-  console.log('DEBUG: Parent forms (no parentFormId):', parentForms.length);
-  console.log('DEBUG: Child forms (with parentFormId):', forms.filter((f: FormItem) => f.parentFormId).length);
-  console.log('DEBUG: All forms data:', forms.map((f: FormItem) => ({ id: f._id || f.id, title: f.title, parentFormId: f.parentFormId })));
+
+  const [emailInviteModal, setEmailInviteModal] = useState<{
+    open: boolean;
+    formId: string | null;
+    formTitle: string;
+  }>({ open: false, formId: null, formTitle: "" });
+
+  const [whatsappInviteModal, setWhatsappInviteModal] = useState<{
+    open: boolean;
+    formId: string | null;
+    formTitle: string;
+  }>({ open: false, formId: null, formTitle: "" });
+
+  const [inviteCounts, setInviteCounts] = useState<Record<string, number>>({});
+
+  // Add these functions with your other handlers
+  const openEmailInviteModal = (formId: string) => {
+    const form = forms.find((f) => f.id === formId || f._id === formId);
+    if (form) {
+      setEmailInviteModal({
+        open: true,
+        formId,
+        formTitle: form.title,
+      });
+    }
+  };
+
+  const openWhatsAppInviteModal = (formId: string) => {
+    const form = forms.find((f) => f.id === formId || f._id === formId);
+    if (form) {
+      setWhatsappInviteModal({
+        open: true,
+        formId,
+        formTitle: form.title,
+      });
+    }
+  };
+
+  useEffect(() => {
+    const fetchInviteCounts = async () => {
+      try {
+        const counts: Record<string, number> = {};
+
+        // Loop through forms and get invite stats
+        for (const form of forms) {
+          const formId = form.id || form._id;
+          if (formId) {
+            const response = await apiClient.getInviteStats(formId);
+            if (response.success) {
+              counts[formId] = response.data.invites?.total || 0;
+            }
+          }
+        }
+
+        setInviteCounts(counts);
+      } catch (error) {
+        console.error("Failed to fetch invite counts:", error);
+      }
+    };
+
+    if (forms.length > 0) {
+      fetchInviteCounts();
+    }
+  }, [forms]);
+
+  console.log("DEBUG: Total forms from API:", forms.length);
+  console.log("DEBUG: Parent forms (no parentFormId):", parentForms.length);
+  console.log(
+    "DEBUG: Child forms (with parentFormId):",
+    forms.filter((f: FormItem) => f.parentFormId).length
+  );
+  console.log(
+    "DEBUG: All forms data:",
+    forms.map((f: FormItem) => ({
+      id: f._id || f.id,
+      title: f.title,
+      parentFormId: f.parentFormId,
+    }))
+  );
   const activeFormsCount = parentForms.filter(
     (form: FormItem) => form.isActive === true
   ).length;
@@ -167,35 +257,32 @@ export default function FormsAnalytics() {
   }, [responsesData]);
 
   const groupedForms = useMemo(() => {
-    const result = filteredForms.reduce(
-      (acc, form) => {
-        const key = form.parentFormId || form.id || form._id;
-        if (!key) {
-          return acc;
-        }
-
-        if (!acc[key]) {
-          acc[key] = {
-            parent: form.parentFormId ? null : form,
-            children: [],
-          };
-        }
-
-        if (form.parentFormId) {
-          const parentKey = form.parentFormId;
-          acc[parentKey] = acc[parentKey] || {
-            parent: null,
-            children: [],
-          };
-          acc[parentKey].children.push(form);
-        } else {
-          acc[key].parent = form;
-        }
-
+    const result = filteredForms.reduce((acc, form) => {
+      const key = form.parentFormId || form.id || form._id;
+      if (!key) {
         return acc;
-      },
-      {} as Record<string, { parent: FormItem | null; children: FormItem[] }>
-    );
+      }
+
+      if (!acc[key]) {
+        acc[key] = {
+          parent: form.parentFormId ? null : form,
+          children: [],
+        };
+      }
+
+      if (form.parentFormId) {
+        const parentKey = form.parentFormId;
+        acc[parentKey] = acc[parentKey] || {
+          parent: null,
+          children: [],
+        };
+        acc[parentKey].children.push(form);
+      } else {
+        acc[key].parent = form;
+      }
+
+      return acc;
+    }, {} as Record<string, { parent: FormItem | null; children: FormItem[] }>);
 
     Object.values(result).forEach((group) => {
       const parent = group.parent;
@@ -305,7 +392,9 @@ export default function FormsAnalytics() {
     downloadFormImportTemplate();
   };
 
-  const handleFileInputChange = async (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileInputChange = async (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -328,7 +417,7 @@ export default function FormsAnalytics() {
         isVisible: parsed.isVisible ?? true,
         followUpQuestions: parsed.followUpQuestions || [],
       } as FormQuestion;
-      
+
       setPreviewFormData(formPayload);
       setIsPreviewOpen(true);
     } catch (error: any) {
@@ -631,6 +720,31 @@ export default function FormsAnalytics() {
                   <div className="flex items-center">
                     <Users className="w-3 h-3 mr-1" />
                     {responseCount} responses
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEmailInviteModal(formId);
+                      }}
+                      title="Send Email Invites"
+                      className="p-1.5 rounded-lg hover:bg-blue-100 transition-colors group relative"
+                    >
+                      <Mail className="w-4 h-4 text-blue-600 group-hover:text-blue-700" />
+                      {inviteCounts[formId] > 0 && (
+                        <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                          {inviteCounts[formId]}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openWhatsAppInviteModal(formId);
+                      }}
+                      title="Send WhatsApp Invites"
+                      className="p-1.5 rounded-lg hover:bg-green-100 transition-colors group"
+                    >
+                      <MessageCircle className="w-4 h-4 text-green-600 group-hover:text-green-700" />
+                    </button>
                   </div>
                   <div className="flex items-center gap-3">
                     {/* 3-dot menu */}
@@ -747,7 +861,9 @@ export default function FormsAnalytics() {
                       }`}
                     >
                       <MapPin className="w-3 h-3" />
-                      {isLocationEnabled ? "Location Enabled" : "Location Disabled"}
+                      {isLocationEnabled
+                        ? "Location Enabled"
+                        : "Location Disabled"}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -1075,7 +1191,7 @@ export default function FormsAnalytics() {
                       Sections
                     </label>
                     <p className="text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg font-medium">
-                      {(previewFormData.sections?.length || 0)} section(s)
+                      {previewFormData.sections?.length || 0} section(s)
                     </p>
                   </div>
                   <div>
@@ -1083,68 +1199,80 @@ export default function FormsAnalytics() {
                       Total Questions
                     </label>
                     <p className="text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 p-3 rounded-lg font-medium">
-                      {(previewFormData.sections?.reduce((sum, s) => sum + (s.questions?.length || 0), 0) || 0)} question(s)
+                      {previewFormData.sections?.reduce(
+                        (sum, s) => sum + (s.questions?.length || 0),
+                        0
+                      ) || 0}{" "}
+                      question(s)
                     </p>
                   </div>
                 </div>
 
-                {previewFormData.sections && previewFormData.sections.length > 0 && (
-                  <div>
-                    <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-3">
-                      Sections & Questions
-                    </label>
-                    <div className="space-y-3 max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
-                      {previewFormData.sections.map((section, idx) => (
-                        <div
-                          key={idx}
-                          className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700"
-                        >
-                          <div className="mb-3">
-                            <label className="text-xs font-medium text-primary-600 dark:text-primary-400 block mb-1">
-                              Section {idx + 1} Title
-                            </label>
-                            <input
-                              type="text"
-                              value={section.title || ""}
-                              onChange={(e) => {
-                                const updatedSections = [...(previewFormData.sections || [])];
-                                updatedSections[idx] = {
-                                  ...updatedSections[idx],
-                                  title: e.target.value,
-                                };
-                                setPreviewFormData({
-                                  ...previewFormData,
-                                  sections: updatedSections,
-                                });
-                              }}
-                              className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500"
-                            />
+                {previewFormData.sections &&
+                  previewFormData.sections.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-primary-700 dark:text-primary-300 mb-3">
+                        Sections & Questions
+                      </label>
+                      <div className="space-y-3 max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800">
+                        {previewFormData.sections.map((section, idx) => (
+                          <div
+                            key={idx}
+                            className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700"
+                          >
+                            <div className="mb-3">
+                              <label className="text-xs font-medium text-primary-600 dark:text-primary-400 block mb-1">
+                                Section {idx + 1} Title
+                              </label>
+                              <input
+                                type="text"
+                                value={section.title || ""}
+                                onChange={(e) => {
+                                  const updatedSections = [
+                                    ...(previewFormData.sections || []),
+                                  ];
+                                  updatedSections[idx] = {
+                                    ...updatedSections[idx],
+                                    title: e.target.value,
+                                  };
+                                  setPreviewFormData({
+                                    ...previewFormData,
+                                    sections: updatedSections,
+                                  });
+                                }}
+                                className="w-full px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-primary-500"
+                              />
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                              <p className="font-medium">
+                                Questions ({section.questions?.length || 0}):
+                              </p>
+                              {section.questions &&
+                              section.questions.length > 0 ? (
+                                <ul className="space-y-1 ml-2">
+                                  {section.questions.map((q, qIdx) => (
+                                    <li
+                                      key={qIdx}
+                                      className="text-xs text-gray-600 dark:text-gray-400 flex items-start"
+                                    >
+                                      <span className="mr-2">•</span>
+                                      <span className="break-words">
+                                        {q.text || `Question ${qIdx + 1}`}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="text-xs text-gray-500 ml-2">
+                                  No questions
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                            <p className="font-medium">
-                              Questions ({section.questions?.length || 0}):
-                            </p>
-                            {section.questions && section.questions.length > 0 ? (
-                              <ul className="space-y-1 ml-2">
-                                {section.questions.map((q, qIdx) => (
-                                  <li
-                                    key={qIdx}
-                                    className="text-xs text-gray-600 dark:text-gray-400 flex items-start"
-                                  >
-                                    <span className="mr-2">•</span>
-                                    <span className="break-words">{q.text || `Question ${qIdx + 1}`}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="text-xs text-gray-500 ml-2">No questions</p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
               </div>
 
               <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -1177,6 +1305,14 @@ export default function FormsAnalytics() {
           </div>
         </div>
       )}
+      <EmailInviteModal
+        isOpen={emailInviteModal.open}
+        onClose={() =>
+          setEmailInviteModal((prev) => ({ ...prev, open: false }))
+        }
+        formId={emailInviteModal.formId || ""}
+        formTitle={emailInviteModal.formTitle}
+      />
     </div>
   );
 }
