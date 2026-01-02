@@ -133,6 +133,7 @@ export default function QuestionRenderer({
             question={question}
             value={value}
             onChange={onChange}
+            readOnly={readOnly}
           />
         );
 
@@ -142,6 +143,7 @@ export default function QuestionRenderer({
             question={question}
             value={value}
             onChange={onChange}
+            readOnly={readOnly}
           />
         );
 

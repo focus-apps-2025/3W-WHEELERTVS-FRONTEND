@@ -1,8 +1,13 @@
 import type { Question, Response } from "../types";
 import type { FollowUpQuestion, Section } from "../types/forms";
 import * as XLSX from "xlsx";
+import XLSX_STYLE from "xlsx-js-style"; // Import xlsx-style for styling
+import { utils } from "xlsx";
 
-const { utils, writeFile, read } = XLSX;
+// Create a combined utils object
+const { utils: styleUtils, writeFile } = XLSX_STYLE;
+const { utils: baseUtils, read } = XLSX;
+
 // Add this interface at the top of your file
 interface FormRowData {
   [key: string]: string | undefined;
@@ -690,6 +695,52 @@ export async function loadSampleFormData(): Promise<
 }
 
 export function downloadFormImportTemplate() {
+  // Color definitions
+  const COLORS = {
+    MAIN: { fgColor: { rgb: "000000" } }, // Black for main headers
+    FU_DARK: { fgColor: { rgb: "0000FF" } }, // Dark Blue
+    FU_MEDIUM: { fgColor: { rgb: "6666FF" } }, // Medium Blue
+    FU_LIGHT: { fgColor: { rgb: "CCCCFF" } }, // Light Blue
+    FU_DARK_GREEN: { fgColor: { rgb: "008000" } }, // Dark Green
+    FU_MEDIUM_GREEN: { fgColor: { rgb: "66B266" } }, // Medium Green
+    FU_LIGHT_GREEN: { fgColor: { rgb: "CCE5CC" } }, // Light Green
+  };
+
+  // Helper function to get color for other FU groups
+  function getColorForFULevel(fuNumber, level) {
+    const baseColors = {
+      "1": { dark: "0000FF", medium: "6666FF", light: "CCCCFF" },
+      "2": { dark: "008000", medium: "66B266", light: "CCE5CC" },
+      "3": { dark: "800080", medium: "B266B2", light: "E5CCE5" }, // Purple
+      "4": { dark: "FF6600", medium: "FF9966", light: "FFCC99" }, // Orange
+      "5": { dark: "FF0000", medium: "FF6666", light: "FFCCCC" }, // Red
+    };
+
+    const colorHex =
+      baseColors[fuNumber]?.[
+        level === 1 ? "dark" : level === 2 ? "medium" : "light"
+      ] || "000000";
+
+    return { fgColor: { rgb: colorHex } };
+  }
+
+  // Helper function to get contrasting text color
+  function getContrastTextColor(hexColor) {
+    // Remove # if present
+    hexColor = hexColor.replace("#", "");
+
+    // Convert hex to RGB
+    const r = parseInt(hexColor.substr(0, 2), 16);
+    const g = parseInt(hexColor.substr(2, 2), 16);
+    const b = parseInt(hexColor.substr(4, 2), 16);
+
+    // Calculate luminance
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+    // Return black or white based on luminance
+    return luminance > 0.5 ? "000000" : "FFFFFF";
+  }
+
   const mainHeaders = [
     "Form Title",
     "Form Description",
@@ -1248,10 +1299,64 @@ export function downloadFormImportTemplate() {
 
   worksheet["!cols"] = headerArray.map(() => ({ wch: 25 }));
 
-  // Apply cell merging based on Section Merging column
-  if (!worksheet["!merges"]) {
-    worksheet["!merges"] = [];
-  }
+  // Apply styling to header row (row 1)
+  const HEADER_ROW = 1; // Excel is 1-indexed, row 1 is header
+
+  headerArray.forEach((header, colIndex) => {
+    const cellAddress = utils.encode_cell({ r: HEADER_ROW - 1, c: colIndex });
+
+    if (!worksheet[cellAddress]) {
+      worksheet[cellAddress] = {};
+    }
+
+    // Default to main header color
+    let color = COLORS.MAIN;
+
+    // Check for follow-up headers and apply appropriate colors
+    if (header.includes("FU")) {
+      const fuMatch = header.match(/^FU(\d+)(?:\.(\d+)(?:\.(\d+))?)?/);
+
+      if (fuMatch) {
+        const [, level1, level2, level3] = fuMatch;
+
+        if (level3) {
+          // Level 3 headers (e.g., FU1.1.1)
+          color =
+            level1 === "1"
+              ? COLORS.FU_LIGHT
+              : level1 === "2"
+              ? COLORS.FU_LIGHT_GREEN
+              : getColorForFULevel(level1, 3);
+        } else if (level2) {
+          // Level 2 headers (e.g., FU1.1)
+          color =
+            level1 === "1"
+              ? COLORS.FU_MEDIUM
+              : level1 === "2"
+              ? COLORS.FU_MEDIUM_GREEN
+              : getColorForFULevel(level1, 2);
+        } else {
+          // Level 1 headers (e.g., FU1)
+          color =
+            level1 === "1"
+              ? COLORS.FU_DARK
+              : level1 === "2"
+              ? COLORS.FU_DARK_GREEN
+              : getColorForFULevel(level1, 1);
+        }
+      }
+    }
+    worksheet[cellAddress].s = {
+      fill: {
+        patternType: "solid",
+        ...color,
+      },
+      font: {
+        bold: true,
+        color: { rgb: getContrastTextColor(color.fgColor.rgb) },
+      },
+    };
+  });
 
   templateData.forEach((row, idx) => {
     const mergeInstructions = row["Section Merging"];

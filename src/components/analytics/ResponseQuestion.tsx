@@ -15,12 +15,15 @@ import type { Question, Response } from "../../types";
 import ChartTypeSelector, { ChartType } from "./ChartTypeSelector";
 import MultiSelectDropdown from "./MultiSelectDropdown";
 
+// Add feedback types to supported chart types
 const CHART_SUPPORTED_TYPES = new Set([
   "radio",
   "yesNoNA",
   "checkbox",
   "radio-image",
   "search-select",
+  "slider-feedback",
+  "emoji-star-feedback",
 ]);
 
 ChartJS.register(
@@ -73,17 +76,21 @@ export default function ResponseQuestion({
 
   const sectionGroupedQuestions = getSectionGroupedQuestions();
 
+  // Check if there's a Feedback Section
+  const isFeedbackSection = sectionGroupedQuestions?.some(
+    (section) => section.sectionTitle === "Feedback Section"
+  );
+
   const getMainQuestions = (questions: any[]) => {
-    return questions.filter(
-      (q: any) => !q.parentId && !q.showWhen?.questionId
-    );
+    return questions.filter((q: any) => !q.parentId && !q.showWhen?.questionId);
   };
 
   const getFollowUpQuestions = (questions: any[], mainQuestionId?: string) => {
     return questions.filter((q: any) => {
       if (mainQuestionId) {
         return (
-          q.parentId === mainQuestionId || q.showWhen?.questionId === mainQuestionId
+          q.parentId === mainQuestionId ||
+          q.showWhen?.questionId === mainQuestionId
         );
       }
       return q.parentId || q.showWhen?.questionId;
@@ -244,6 +251,118 @@ export default function ResponseQuestion({
     return distribution;
   };
 
+  // Update the categorizeFeedbackResponse function for star ratings:
+  const categorizeFeedbackResponse = (
+    questionType: string,
+    responseValue: any
+  ) => {
+    if (!responseValue && responseValue !== 0) return null;
+
+    // For slider-feedback (0-10)
+    if (questionType === "slider-feedback") {
+      const numValue = parseInt(responseValue);
+      if (isNaN(numValue)) return null;
+
+      if (numValue >= 9 && numValue <= 10) return "Promoter";
+      if (numValue >= 5 && numValue <= 8) return "Passive";
+      if (numValue >= 0 && numValue < 5) return "Detractor";
+      return null;
+    }
+
+    // For emoji-star-feedback (1-5 stars)
+    if (questionType === "emoji-star-feedback") {
+      // Convert star emojis to numeric count
+      let starCount = 0;
+
+      if (typeof responseValue === "string") {
+        // Count star emojis
+        starCount = (responseValue.match(/⭐/g) || []).length;
+
+        // Also check for numeric strings that might represent star counts
+        if (starCount === 0) {
+          const numValue = parseInt(responseValue);
+          if (!isNaN(numValue) && numValue >= 1 && numValue <= 5) {
+            starCount = numValue;
+          }
+        }
+      } else if (typeof responseValue === "number") {
+        starCount = responseValue;
+      } else {
+        starCount = parseInt(responseValue);
+      }
+
+      if (starCount === 0 || isNaN(starCount)) return null;
+
+      if (starCount <= 2) return "Poor";
+      if (starCount <= 4) return "Good";
+      if (starCount === 5) return "Excellent";
+      return null;
+    }
+
+    return null;
+  };
+
+  // Also add a debug function to see what responses are actually being received:
+  const debugResponses = (questionId: string, q: any) => {
+    const responses = getQuestionResponses(q.id);
+    console.log(
+      `Debug responses for ${q.type} question "${q.text}":`,
+      responses
+    );
+    console.log(`Total responses: ${responses.length}`);
+    console.log(
+      `Response values:`,
+      responses.map((r) => ({
+        raw: r,
+        type: typeof r,
+        category: categorizeFeedbackResponse(q.type, r),
+      }))
+    );
+  };
+  const getFeedbackResponseDistribution = (q: any) => {
+    const questionResponses = getQuestionResponses(q.id);
+    const distribution: Record<string, number> = {};
+
+    questionResponses.forEach((response) => {
+      if (Array.isArray(response)) {
+        response.forEach((value) => {
+          const category = categorizeFeedbackResponse(q.type, value);
+          if (category) {
+            distribution[category] = (distribution[category] || 0) + 1;
+          }
+        });
+      } else {
+        const category = categorizeFeedbackResponse(q.type, response);
+        if (category) {
+          distribution[category] = (distribution[category] || 0) + 1;
+        }
+      }
+    });
+
+    return distribution;
+  };
+
+  // Calculate NPS Score
+  const calculateNPSScore = (questionId: string) => {
+    const questionResponses = getQuestionResponses(questionId);
+    let promoterCount = 0;
+    let detractorCount = 0;
+    let totalResponses = 0;
+
+    questionResponses.forEach((response) => {
+      const numValue = parseInt(response);
+      if (!isNaN(numValue)) {
+        totalResponses++;
+        if (numValue >= 9 && numValue <= 10) promoterCount++;
+        if (numValue >= 0 && numValue <= 6) detractorCount++;
+      }
+    });
+
+    if (totalResponses === 0) return 0;
+    const npsScore = ((promoterCount - detractorCount) / totalResponses) * 100;
+    return Math.round(npsScore);
+  };
+
   const chartColors = [
     "rgba(59, 130, 246, 0.8)", // blue-500
     "rgba(16, 185, 129, 0.8)", // green-500
@@ -252,7 +371,220 @@ export default function ResponseQuestion({
     "rgba(147, 51, 234, 0.8)", // purple-600
   ];
 
-  const renderQuestionChart = (q: Question["followUpQuestions"][0]) => {
+  // Colors for feedback categories
+  const feedbackColors = {
+    // NPS categories
+    Promoter: "rgba(16, 185, 129, 0.8)", // green
+    Passive: "rgba(217, 119, 6, 0.8)", // yellow
+    Detractor: "rgba(239, 68, 68, 0.8)", // red
+
+    // Star rating categories
+    Excellent: "rgba(16, 185, 129, 0.8)", // green
+    Good: "rgba(59, 130, 246, 0.8)", // blue
+    Poor: "rgba(239, 68, 68, 0.8)", // red
+  };
+
+  const renderFeedbackQuestionChart = (q: any) => {
+    const distribution = getFeedbackResponseDistribution(q);
+
+    // Determine labels based on question type
+    let labels = [];
+    if (q.type === "slider-feedback") {
+      labels = ["Promoter", "Passive", "Detractor"];
+    } else if (q.type === "emoji-star-feedback") {
+      labels = ["Poor", "Good", "Excellent"];
+    }
+
+    // Get data for each label
+    const dataValues = labels.map((label) => distribution[label] || 0);
+
+    // Check if we have any data to show
+    const totalResponses = dataValues.reduce((a, b) => a + b, 0);
+
+    if (totalResponses === 0) {
+      // No responses in any category, show a message
+      return (
+        <div className="h-[200px] flex items-center justify-center">
+          <div className="text-center">
+            <svg
+              className="w-12 h-12 mx-auto text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1}
+                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              No categorized responses available
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    const data = {
+      labels: labels,
+      datasets: [
+        {
+          data: dataValues,
+          backgroundColor: labels.map(
+            (label) => feedbackColors[label as keyof typeof feedbackColors]
+          ),
+          borderColor: "rgba(255, 255, 255, 0.1)",
+          borderWidth: 1,
+        },
+      ],
+    };
+
+    const chartType = chartPreferences[q.id] || "bar";
+
+    const baseOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom" as const,
+          labels: {
+            padding: 15,
+            font: {
+              size: 11,
+            },
+            color: "rgb(107, 114, 128)",
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: (context: any) => {
+              const value = context.raw;
+              const total = dataValues.reduce((a, b) => a + b, 0);
+              const percentage =
+                total > 0 ? ((value / total) * 100).toFixed(1) : "0";
+              return `${value} responses (${percentage}%)`;
+            },
+          },
+        },
+      },
+    };
+
+    const options =
+      chartType === "pie"
+        ? {
+            ...baseOptions,
+            plugins: {
+              ...baseOptions.plugins,
+              datalabels: {
+                formatter: (value: number, ctx: any) => {
+                  // FIX: Don't show label if value is 0
+                  if (value === 0) return "";
+
+                  const total = ctx.chart.data.datasets[0].data.reduce(
+                    (a: number, b: number) => a + b,
+                    0
+                  );
+                  const percentage =
+                    total > 0 ? ((value / total) * 100).toFixed(1) : "0";
+                  return `${percentage}% (${value})`;
+                },
+                color: "white",
+                font: { size: 10 },
+              },
+            },
+          }
+        : {
+            ...baseOptions,
+            indexAxis: "y" as const,
+            plugins: {
+              ...baseOptions.plugins,
+              legend: {
+                display: false,
+              },
+              datalabels: {
+                anchor: "center",
+                align: "center",
+                formatter: (value: number, ctx: any) => {
+                  // FIX: Don't show label if value is 0
+                  if (value === 0) return "";
+
+                  const total = ctx.chart.data.datasets[0].data.reduce(
+                    (a: number, b: number) => a + b,
+                    0
+                  );
+                  const percentage =
+                    total > 0 ? ((value / total) * 100).toFixed(1) : "0";
+                  return `${percentage}% (${value})`;
+                },
+                color: "white",
+                font: { size: 10 },
+              },
+            },
+            layout: {
+              padding: {
+                right: 40,
+              },
+            },
+            scales: {
+              x: {
+                beginAtZero: true,
+                grid: {
+                  color: "rgba(107, 114, 128, 0.1)",
+                },
+                ticks: {
+                  color: "rgb(107, 114, 128)",
+                  font: {
+                    size: 10,
+                  },
+                  // FIX: Remove decimal values by using integer step size
+                  stepSize: 1,
+                  callback: function (value: any) {
+                    // Return integer values only
+                    if (Number.isInteger(value)) {
+                      return value;
+                    }
+                    return "";
+                  },
+                },
+              },
+              y: {
+                grid: {
+                  display: false,
+                },
+                ticks: {
+                  color: "rgb(107, 114, 128)",
+                  font: {
+                    size: 10,
+                  },
+                },
+              },
+            },
+          };
+
+    return (
+      <div className="h-[200px]">
+        {chartType === "pie" ? (
+          <Pie data={data} options={options} />
+        ) : (
+          <Bar data={data} options={options} />
+        )}
+      </div>
+    );
+  };
+
+  // Also update the regular renderQuestionChart function to remove zero labels:
+  const renderQuestionChart = (q: any) => {
+    // If it's a feedback question in Feedback Section, use special rendering
+    if (
+      isFeedbackSection &&
+      ["slider-feedback", "emoji-star-feedback"].includes(q.type)
+    ) {
+      return renderFeedbackQuestionChart(q);
+    }
+
+    // Regular chart rendering for other questions
     if (!q.options || !CHART_SUPPORTED_TYPES.has(q.type)) return null;
 
     const distribution = getResponseDistribution(q.id);
@@ -297,7 +629,8 @@ export default function ResponseQuestion({
                 (a: number, b: number) => a + b,
                 0
               );
-              const percentage = ((value / total) * 100).toFixed(1);
+              const percentage =
+                total > 0 ? ((value / total) * 100).toFixed(1) : "0";
               return `${value} responses (${percentage}%)`;
             },
           },
@@ -312,12 +645,16 @@ export default function ResponseQuestion({
             plugins: {
               ...baseOptions.plugins,
               datalabels: {
-                formatter: (value, ctx) => {
+                formatter: (value: number, ctx: any) => {
+                  // FIX: Don't show label if value is 0
+                  if (value === 0) return "";
+
                   const total = ctx.chart.data.datasets[0].data.reduce(
-                    (a, b) => a + b,
+                    (a: number, b: number) => a + b,
                     0
                   );
-                  const percentage = ((value / total) * 100).toFixed(1);
+                  const percentage =
+                    total > 0 ? ((value / total) * 100).toFixed(1) : "0";
                   return `${percentage}% (${value})`;
                 },
                 color: "white",
@@ -336,12 +673,16 @@ export default function ResponseQuestion({
               datalabels: {
                 anchor: "center",
                 align: "center",
-                formatter: (value, ctx) => {
+                formatter: (value: number, ctx: any) => {
+                  // FIX: Don't show label if value is 0
+                  if (value === 0) return "";
+
                   const total = ctx.chart.data.datasets[0].data.reduce(
-                    (a, b) => a + b,
+                    (a: number, b: number) => a + b,
                     0
                   );
-                  const percentage = ((value / total) * 100).toFixed(1);
+                  const percentage =
+                    total > 0 ? ((value / total) * 100).toFixed(1) : "0";
                   return `${percentage}% (${value})`;
                 },
                 color: "white",
@@ -363,6 +704,15 @@ export default function ResponseQuestion({
                   color: "rgb(107, 114, 128)",
                   font: {
                     size: 10,
+                  },
+                  // FIX: Remove decimal values for regular charts too
+                  stepSize: 1,
+                  callback: function (value: any) {
+                    // Return integer values only
+                    if (Number.isInteger(value)) {
+                      return value;
+                    }
+                    return "";
                   },
                 },
               },
@@ -391,6 +741,8 @@ export default function ResponseQuestion({
     );
   };
 
+  // Also update the regular renderQuestionChart function to remove decimals:
+
   const handleChartTypeChange = (questionId: string, type: ChartType) => {
     setChartPreferences((prev) => ({
       ...prev,
@@ -398,7 +750,7 @@ export default function ResponseQuestion({
     }));
   };
 
-  const renderTextQuestionSummary = (q: Question["followUpQuestions"][0]) => {
+  const renderTextQuestionSummary = (q: any) => {
     const responses = getQuestionResponses(q.id);
     const responseCount = responses.length;
 
@@ -407,131 +759,6 @@ export default function ResponseQuestion({
         <span className="text-sm font-medium text-blue-900 dark:text-blue-200">
           Total Responses: {responseCount}
         </span>
-      </div>
-    );
-  };
-
-  const renderFollowUpCards = (followUps: FollowUpQuestion[]) => {
-    if (followUps.length === 0) {
-      return (
-        <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-          No follow-up responses available
-        </div>
-      );
-    }
-
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {followUps.map((fq) => {
-          const shouldRenderChart =
-            Array.isArray(fq.options) &&
-            fq.options.length > 0 &&
-            CHART_SUPPORTED_TYPES.has(fq.type);
-          const responses = getQuestionResponses(fq.id);
-          const responseCount = responses.length;
-          const stats = getCorrectWrongStats(fq);
-
-          return (
-            <div
-              key={fq.id}
-              className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl border-2 border-blue-200 dark:border-blue-700 shadow-sm p-6 flex flex-col h-full"
-            >
-              <div className="flex justify-between items-start mb-4 gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="inline-flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full">
-                      →
-                    </span>
-                    <h5 className="text-lg font-medium text-gray-900 dark:text-white">
-                      {fq.text}
-                    </h5>
-                  </div>
-                  {fq.description && (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                      {fq.description}
-                    </p>
-                  )}
-
-                  {(fq.correctAnswer ||
-                    (fq.correctAnswers && fq.correctAnswers.length > 0)) && (
-                    <div className="mt-2">
-                      <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                        Correct Answer
-                        {fq.correctAnswers && fq.correctAnswers.length > 1
-                          ? "s"
-                          : ""}
-                        :{" "}
-                        {fq.correctAnswers && fq.correctAnswers.length > 0
-                          ? fq.correctAnswers.join(", ")
-                          : fq.correctAnswer}
-                      </p>
-                    </div>
-                  )}
-
-                  {stats && (
-                    <div className="mt-3 flex items-center space-x-4">
-                      <div className="flex items-center space-x-2">
-                        <div className="flex items-center bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full">
-                          <svg
-                            className="w-4 h-4 text-green-600 dark:text-green-400 mr-1"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          <span className="text-sm font-semibold text-green-700 dark:text-green-300">
-                            {stats.correctCount} Correct
-                          </span>
-                        </div>
-                        <div className="flex items-center bg-red-100 dark:bg-red-900 px-3 py-1 rounded-full">
-                          <svg
-                            className="w-4 h-4 text-red-600 dark:text-red-400 mr-1"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                          <span className="text-sm font-semibold text-red-700 dark:text-red-300">
-                            {stats.wrongCount} Wrong
-                          </span>
-                        </div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
-                          (
-                          {((stats.correctCount / stats.total) * 100).toFixed(1)}% accuracy)
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {responseCount} responses
-                  </span>
-                  {shouldRenderChart && (
-                    <ChartTypeSelector
-                      value={chartPreferences[fq.id] || "bar"}
-                      onChange={(type) => handleChartTypeChange(fq.id, type)}
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div className="flex-1">
-                {shouldRenderChart
-                  ? renderQuestionChart(fq)
-                  : renderTextQuestionSummary(fq)}
-              </div>
-            </div>
-          );
-        })}
       </div>
     );
   };
@@ -563,7 +790,10 @@ export default function ResponseQuestion({
     };
   };
 
-  const overallStats = useMemo(() => getOverallStats(), [allQuestions, filteredResponses]);
+  const overallStats = useMemo(
+    () => getOverallStats(),
+    [allQuestions, filteredResponses]
+  );
 
   // Render overview chart showing all questions
   const renderOverviewChart = () => {
@@ -841,297 +1071,333 @@ export default function ResponseQuestion({
 
       {sectionGroupedQuestions ? (
         <div className="space-y-8">
-          {sectionGroupedQuestions.map((section, sectionIndex) => (
-            <div key={section.sectionId} className="space-y-4">
-              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-4 shadow-md">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xl font-bold text-white flex items-center">
-                    <svg
-                      className="w-6 h-6 mr-2"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h12a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6z" />
-                    </svg>
-                    {section.sectionTitle}
-                  </h4>
-                </div>
-              </div>
+          {sectionGroupedQuestions.map((section, sectionIndex) => {
+            const isThisFeedbackSection =
+              section.sectionTitle === "Feedback Section";
 
-              <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {getMainQuestions(section.questions).map((q) => {
-                    const shouldRenderChart =
-                      Array.isArray(q.options) &&
-                      q.options.length > 0 &&
-                      CHART_SUPPORTED_TYPES.has(q.type);
-                    const responses = getQuestionResponses(q.id);
-                    const responseCount = responses.length;
-                    const stats = getCorrectWrongStats(q);
-                    const followUps = getFollowUpQuestions(section.questions, q.id);
-
-                    return (
-                      <div
-                        key={q.id}
-                        className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 flex flex-col h-full"
+            return (
+              <div key={section.sectionId} className="space-y-4">
+                <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-4 shadow-md">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xl font-bold text-white flex items-center">
+                      <svg
+                        className="w-6 h-6 mr-2"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
                       >
-                      <div className="flex justify-between items-start mb-4 gap-4">
-                        <div className="flex-1">
-                          <h5 className="text-lg font-medium text-gray-900 dark:text-white">
-                            {q.text}
-                          </h5>
-                          {q.description && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                              {q.description}
-                            </p>
-                          )}
+                        <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h12a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6z" />
+                      </svg>
+                      {section.sectionTitle}
+                    </h4>
+                  </div>
+                </div>
 
-                          {(q.correctAnswer ||
-                            (q.correctAnswers && q.correctAnswers.length > 0)) && (
-                            <div className="mt-2">
-                              <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                                Correct Answer
-                                {q.correctAnswers && q.correctAnswers.length > 1
-                                  ? "s"
-                                  : ""}
-                                :{" "}
-                                {q.correctAnswers && q.correctAnswers.length > 0
-                                  ? q.correctAnswers.join(", ")
-                                  : q.correctAnswer}
-                              </p>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {getMainQuestions(section.questions).map((q) => {
+                      // For Feedback Section questions, check if they are feedback types
+                      // For other sections, check regular chart support
+                      const shouldRenderChart = isThisFeedbackSection
+                        ? ["slider-feedback", "emoji-star-feedback"].includes(
+                            q.type
+                          )
+                        : Array.isArray(q.options) &&
+                          q.options.length > 0 &&
+                          CHART_SUPPORTED_TYPES.has(q.type);
+
+                      const responses = getQuestionResponses(q.id);
+                      const responseCount = responses.length;
+                      const stats = getCorrectWrongStats(q);
+                      const followUps = getFollowUpQuestions(
+                        section.questions,
+                        q.id
+                      );
+
+                      return (
+                        <div
+                          key={q.id}
+                          className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 flex flex-col h-full"
+                        >
+                          <div className="flex justify-between items-start mb-4 gap-4">
+                            <div className="flex-1">
+                              <h5 className="text-lg font-medium text-gray-900 dark:text-white">
+                                {q.text}
+                              </h5>
+                              {q.description && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                  {q.description}
+                                </p>
+                              )}
+
+                              {/* Show NPS Score for slider-feedback in Feedback Section */}
+                              {isThisFeedbackSection &&
+                                q.type === "slider-feedback" && (
+                                  <div className="mt-2">
+                                    <p className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                                      NPS Score: {calculateNPSScore(q.id)}
+                                    </p>
+                                  </div>
+                                )}
+
+                              {(q.correctAnswer ||
+                                (q.correctAnswers &&
+                                  q.correctAnswers.length > 0)) && (
+                                <div className="mt-2">
+                                  <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                                    Correct Answer
+                                    {q.correctAnswers &&
+                                    q.correctAnswers.length > 1
+                                      ? "s"
+                                      : ""}
+                                    :{" "}
+                                    {q.correctAnswers &&
+                                    q.correctAnswers.length > 0
+                                      ? q.correctAnswers.join(", ")
+                                      : q.correctAnswer}
+                                  </p>
+                                </div>
+                              )}
+
+                              {stats && (
+                                <div className="mt-3 flex items-center space-x-4">
+                                  <div className="flex items-center space-x-2">
+                                    <div className="flex items-center bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full">
+                                      <svg
+                                        className="w-4 h-4 text-green-600 dark:text-green-400 mr-1"
+                                        fill="currentColor"
+                                        viewBox="0 0 20 20"
+                                      >
+                                        <path
+                                          fillRule="evenodd"
+                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                          clipRule="evenodd"
+                                        />
+                                      </svg>
+                                      <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                                        {stats.correctCount} Correct
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center bg-red-100 dark:bg-red-900 px-3 py-1 rounded-full">
+                                      <svg
+                                        className="w-4 h-4 text-red-600 dark:text-red-400 mr-1"
+                                        fill="currentColor"
+                                        viewBox="0 0 20 20"
+                                      >
+                                        <path
+                                          fillRule="evenodd"
+                                          d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                          clipRule="evenodd"
+                                        />
+                                      </svg>
+                                      <span className="text-sm font-semibold text-red-700 dark:text-red-300">
+                                        {stats.wrongCount} Wrong
+                                      </span>
+                                    </div>
+                                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                                      (
+                                      {(
+                                        (stats.correctCount / stats.total) *
+                                        100
+                                      ).toFixed(1)}
+                                      % accuracy)
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <span className="text-sm text-gray-500 dark:text-gray-400">
+                                {responseCount} responses
+                              </span>
+                              {shouldRenderChart && (
+                                <ChartTypeSelector
+                                  value={chartPreferences[q.id] || "bar"}
+                                  onChange={(type) =>
+                                    handleChartTypeChange(q.id, type)
+                                  }
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex-1">
+                            {shouldRenderChart
+                              ? renderQuestionChart(q)
+                              : renderTextQuestionSummary(q)}
+                          </div>
+
+                          {followUps.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                              <button
+                                onClick={() =>
+                                  openFollowUpModal(q.text, followUps)
+                                }
+                                className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                              >
+                                <svg
+                                  className="w-4 h-4"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M12 5v14m7-7H5"
+                                  />
+                                </svg>
+                                View Follow-ups ({followUps.length})
+                              </button>
                             </div>
                           )}
-
-                          {stats && (
-                            <div className="mt-3 flex items-center space-x-4">
-                              <div className="flex items-center space-x-2">
-                                <div className="flex items-center bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full">
-                                  <svg
-                                    className="w-4 h-4 text-green-600 dark:text-green-400 mr-1"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>
-                                  <span className="text-sm font-semibold text-green-700 dark:text-green-300">
-                                    {stats.correctCount} Correct
-                                  </span>
-                                </div>
-                                <div className="flex items-center bg-red-100 dark:bg-red-900 px-3 py-1 rounded-full">
-                                  <svg
-                                    className="w-4 h-4 text-red-600 dark:text-red-400 mr-1"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                      clipRule="evenodd"
-                                    />
-                                  </svg>
-                                  <span className="text-sm font-semibold text-red-700 dark:text-red-300">
-                                    {stats.wrongCount} Wrong
-                                  </span>
-                                </div>
-                                <div className="text-sm text-gray-600 dark:text-gray-400">
-                                  (
-                                  {((stats.correctCount / stats.total) * 100).toFixed(
-                                    1
-                                  )}
-                                  % accuracy)
-                                </div>
-                              </div>
-                            </div>
-                          )}
                         </div>
-                        <div className="flex items-center space-x-4">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                            {responseCount} responses
-                          </span>
-                          {shouldRenderChart && (
-                            <ChartTypeSelector
-                              value={chartPreferences[q.id] || "bar"}
-                              onChange={(type) => handleChartTypeChange(q.id, type)}
-                            />
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex-1">
-                        {shouldRenderChart ? renderQuestionChart(q) : renderTextQuestionSummary(q)}
-                      </div>
-
-                      {followUps.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                          <button
-                            onClick={() => openFollowUpModal(q.text, followUps)}
-                            className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                          >
-                            <svg
-                              className="w-4 h-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 5v14m7-7H5"
-                              />
-                            </svg>
-                            View Follow-ups ({followUps.length})
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {getMainQuestions(allQuestions).map((q) => {
-            const shouldRenderChart =
-              Array.isArray(q.options) &&
-              q.options.length > 0 &&
-              CHART_SUPPORTED_TYPES.has(q.type);
-            const responses = getQuestionResponses(q.id);
-            const responseCount = responses.length;
-            const stats = getCorrectWrongStats(q);
-            const followUps = getFollowUpQuestions(allQuestions, q.id);
+              const shouldRenderChart =
+                Array.isArray(q.options) &&
+                q.options.length > 0 &&
+                CHART_SUPPORTED_TYPES.has(q.type);
+              const responses = getQuestionResponses(q.id);
+              const responseCount = responses.length;
+              const stats = getCorrectWrongStats(q);
+              const followUps = getFollowUpQuestions(allQuestions, q.id);
 
-            return (
-              <div
-                key={q.id}
-                className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 flex flex-col h-full"
-              >
-                <div className="flex justify-between items-start mb-4 gap-4">
-                  <div className="flex-1">
-                    <h5 className="text-lg font-medium text-gray-900 dark:text-white">
-                      {q.text}
-                    </h5>
-                    {q.description && (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        {q.description}
-                      </p>
-                    )}
-
-                    {(q.correctAnswer ||
-                      (q.correctAnswers && q.correctAnswers.length > 0)) && (
-                      <div className="mt-2">
-                        <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                          Correct Answer
-                          {q.correctAnswers && q.correctAnswers.length > 1
-                            ? "s"
-                            : ""}
-                          :{" "}
-                          {q.correctAnswers && q.correctAnswers.length > 0
-                            ? q.correctAnswers.join(", ")
-                            : q.correctAnswer}
+              return (
+                <div
+                  key={q.id}
+                  className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 flex flex-col h-full"
+                >
+                  <div className="flex justify-between items-start mb-4 gap-4">
+                    <div className="flex-1">
+                      <h5 className="text-lg font-medium text-gray-900 dark:text-white">
+                        {q.text}
+                      </h5>
+                      {q.description && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                          {q.description}
                         </p>
-                      </div>
-                    )}
+                      )}
 
-                    {stats && (
-                      <div className="mt-3 flex items-center space-x-4">
-                        <div className="flex items-center space-x-2">
-                          <div className="flex items-center bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full">
-                            <svg
-                              className="w-4 h-4 text-green-600 dark:text-green-400 mr-1"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            <span className="text-sm font-semibold text-green-700 dark:text-green-300">
-                              {stats.correctCount} Correct
-                            </span>
-                          </div>
-                          <div className="flex items-center bg-red-100 dark:bg-red-900 px-3 py-1 rounded-full">
-                            <svg
-                              className="w-4 h-4 text-red-600 dark:text-red-400 mr-1"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            <span className="text-sm font-semibold text-red-700 dark:text-red-300">
-                              {stats.wrongCount} Wrong
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">
-                            (
-                            {((stats.correctCount / stats.total) * 100).toFixed(
-                              1
-                            )}
-                            % accuracy)
+                      {(q.correctAnswer ||
+                        (q.correctAnswers && q.correctAnswers.length > 0)) && (
+                        <div className="mt-2">
+                          <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                            Correct Answer
+                            {q.correctAnswers && q.correctAnswers.length > 1
+                              ? "s"
+                              : ""}
+                            :{" "}
+                            {q.correctAnswers && q.correctAnswers.length > 0
+                              ? q.correctAnswers.join(", ")
+                              : q.correctAnswer}
+                          </p>
+                        </div>
+                      )}
+
+                      {stats && (
+                        <div className="mt-3 flex items-center space-x-4">
+                          <div className="flex items-center space-x-2">
+                            <div className="flex items-center bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full">
+                              <svg
+                                className="w-4 h-4 text-green-600 dark:text-green-400 mr-1"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                                {stats.correctCount} Correct
+                              </span>
+                            </div>
+                            <div className="flex items-center bg-red-100 dark:bg-red-900 px-3 py-1 rounded-full">
+                              <svg
+                                className="w-4 h-4 text-red-600 dark:text-red-400 mr-1"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="text-sm font-semibold text-red-700 dark:text-red-300">
+                                {stats.wrongCount} Wrong
+                              </span>
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400">
+                              (
+                              {(
+                                (stats.correctCount / stats.total) *
+                                100
+                              ).toFixed(1)}
+                              % accuracy)
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-4">
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {responseCount} responses
-                    </span>
-                    {shouldRenderChart && (
-                      <ChartTypeSelector
-                        value={chartPreferences[q.id] || "bar"}
-                        onChange={(type) => handleChartTypeChange(q.id, type)}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex-1">
-                  {shouldRenderChart ? renderQuestionChart(q) : renderTextQuestionSummary(q)}
-                </div>
-
-                {followUps.length > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <button
-                      onClick={() => openFollowUpModal(q.text, followUps)}
-                      className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 5v14m7-7H5"
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {responseCount} responses
+                      </span>
+                      {shouldRenderChart && (
+                        <ChartTypeSelector
+                          value={chartPreferences[q.id] || "bar"}
+                          onChange={(type) => handleChartTypeChange(q.id, type)}
                         />
-                      </svg>
-                      View Follow-ups ({followUps.length})
-                    </button>
+                      )}
+                    </div>
                   </div>
-                )}
-              </div>
-            );
+
+                  <div className="flex-1">
+                    {shouldRenderChart
+                      ? renderQuestionChart(q)
+                      : renderTextQuestionSummary(q)}
+                  </div>
+
+                  {followUps.length > 0 && (
+                    <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                      <button
+                        onClick={() => openFollowUpModal(q.text, followUps)}
+                        className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 5v14m7-7H5"
+                          />
+                        </svg>
+                        View Follow-ups ({followUps.length})
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
             })}
           </div>
-
 
           {getMainQuestions(allQuestions).length === 0 && (
             <p className="lg:col-span-2 text-center text-gray-500 dark:text-gray-400 py-4">
@@ -1163,8 +1429,18 @@ export default function ResponseQuestion({
                 onClick={closeFollowUpModal}
                 className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>

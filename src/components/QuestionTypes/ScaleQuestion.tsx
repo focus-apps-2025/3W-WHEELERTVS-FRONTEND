@@ -5,12 +5,14 @@ interface ScaleQuestionProps {
   question: FollowUpQuestion;
   value: string;
   onChange: (value: string) => void;
+  readOnly?: boolean;
 }
 
 export default function ScaleQuestion({
   question,
   value,
   onChange,
+  readOnly = false,
 }: ScaleQuestionProps) {
   const min = question.min || 0;
   const max = question.max || 10;
@@ -28,8 +30,11 @@ export default function ScaleQuestion({
         max={max}
         step={step}
         value={value || min}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full"
+        onChange={(e) => !readOnly && onChange(e.target.value)}
+        disabled={readOnly}
+        className={`w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none cursor-pointer accent-blue-600 ${
+          readOnly ? 'opacity-50 cursor-not-allowed' : ''
+        }`}
       />
       <div className="text-center text-lg font-medium text-gray-700 dark:text-gray-300">
         {value || min}
