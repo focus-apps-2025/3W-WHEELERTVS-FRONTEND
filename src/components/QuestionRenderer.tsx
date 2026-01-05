@@ -12,6 +12,7 @@ import ParagraphInput from "./QuestionTypes/ParagraphInput";
 import SliderFeedback from "./QuestionTypes/SliderFeedback";
 import EmojiStarFeedback from "./QuestionTypes/EmojiStarFeedback";
 import EmojiReactionFeedback from "./QuestionTypes/EmojiReactionFeedback";
+import ProductNPSBuckets from "./forms/ProductNPSBuckets";
 
 interface QuestionRendererProps {
   question: FollowUpQuestion;
@@ -52,6 +53,28 @@ export default function QuestionRenderer({
             required={question.required}
             readOnly={readOnly}
           />
+        );
+
+      case "select":
+        return (
+          <select
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            required={question.required}
+            disabled={readOnly}
+            className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${
+              readOnly
+                ? "bg-gray-100 cursor-not-allowed"
+                : "bg-white focus:ring-2 focus:ring-blue-500"
+            }`}
+          >
+            <option value="">Select an option...</option>
+            {question.options?.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
         );
 
       case "yesNoNA":
@@ -174,6 +197,15 @@ export default function QuestionRenderer({
             value={value}
             onChange={onChange}
             readOnly={readOnly}
+          />
+        );
+
+      case "productNPSTGWBuckets":
+        return (
+          <ProductNPSBuckets
+            value={value}
+            onChange={onChange}
+            disabled={readOnly}
           />
         );
 

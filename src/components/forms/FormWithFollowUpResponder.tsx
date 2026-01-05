@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import ProductNPSBuckets from "./ProductNPSBuckets";
 import {
   Save,
   AlertCircle,
@@ -408,6 +409,21 @@ export const FormWithFollowUpResponder: React.FC<
           />
         )}
 
+        {(question.type === "search-select" || question.type === "select") && (question as Question).options && (
+          <select
+            value={value || ""}
+            onChange={(e) => handleInputChange(question.id, e.target.value)}
+            className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-900 text-primary-600"
+          >
+            <option value="">Select an option</option>
+            {(question as Question).options!.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        )}
+
         {question.type === "email" && (
           <input
             type="email"
@@ -434,6 +450,13 @@ export const FormWithFollowUpResponder: React.FC<
             value={value || ""}
             onChange={(e) => handleInputChange(question.id, e.target.value)}
             className="w-full p-3 border border-primary-200 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-white dark:bg-gray-900 text-primary-600"
+          />
+        )}
+
+        {(question.type === "productNPSTGWBuckets") && (
+          <ProductNPSBuckets
+            value={value}
+            onChange={(newValue) => handleInputChange(question.id, newValue)}
           />
         )}
 

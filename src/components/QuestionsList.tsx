@@ -36,6 +36,7 @@ export default function QuestionsList({
     { value: "rating", label: "Rating" },
     { value: "scale", label: "Linear Scale" },
     { value: "radio-image", label: "Image Choice" },
+    { value: "productNPSTGWBuckets", label: "Product NPS TGW Buckets" },
   ];
 
   const fileTypeOptions = [
@@ -271,7 +272,13 @@ export default function QuestionsList({
   };
 
   const needsOptions = (type: QuestionType) => {
-    return ["radio", "checkbox", "radio-image", "search-select"].includes(type);
+    return [
+      "radio",
+      "checkbox",
+      "radio-image",
+      "search-select",
+      "productNPSTGWBuckets",
+    ].includes(type);
   };
 
   const mainQuestions = questions.filter((q) => !q.showWhen);

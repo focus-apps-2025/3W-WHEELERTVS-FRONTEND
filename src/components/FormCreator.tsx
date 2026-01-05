@@ -29,6 +29,14 @@ import { questionsApi } from "../api/storage";
 import { useNotification } from "../context/NotificationContext";
 import { useAuth } from "../context/AuthContext";
 import { NestedFollowUpRenderer } from "./NestedFollowUpRenderer";
+import {
+  getLevel1Options,
+  getLevel2Options,
+  getLevel3Options,
+  getLevel4Options,
+  getLevel5Options,
+  getLevel6Options,
+} from "../config/npsHierarchy";
 import ChildFormsManager from "./forms/ChildFormsManager";
 import { SectionBranchingConfig } from "./forms/SectionBranchingConfig";
 import { FormRoutingConfig } from "./forms/FormRoutingConfig";
@@ -82,6 +90,19 @@ interface Question {
     isOtherOption?: boolean;
   }>;
   suggestion?: string;
+  hierarchyLevels?: Array<{
+    levelNumber: number;
+    name: string;
+    enabled: boolean;
+  }>;
+  selectedHierarchyValues?: {
+    level1?: string;
+    level2?: string;
+    level3?: string;
+    level4?: string;
+    level5?: string;
+    level6?: string;
+  };
 }
 
 interface ShowWhen {
@@ -3268,6 +3289,11 @@ export default function FormCreator() {
       label: "Dropdown",
       description: "Choose from dropdown list",
     },
+    {
+      value: "search-select",
+      label: "Search/Filter Dropdown",
+      description: "Dropdown with search and filter functionality",
+    },
     { value: "email", label: "Email", description: "Email address input" },
     { value: "number", label: "Number", description: "Numeric input only" },
     { value: "date", label: "Date", description: "Date picker" },
@@ -3290,6 +3316,11 @@ export default function FormCreator() {
       value: "emoji-reaction-feedback",
       label: "Emoji Reaction Feedback",
       description: "Emoji reactions (sad to laugh)",
+    },
+    {
+      value: "productNPSTGWBuckets",
+      label: "Product NPS TGW Buckets",
+      description: "6-level hierarchical complaint categorization: L1 (Groups) → L2 (Sub-issues) → L3 (Questions) → L4 (Answers) → L5 (Details) → L6 (Final Options)",
     },
   ];
 
@@ -4160,6 +4191,145 @@ export default function FormCreator() {
                                   </div>
                                 </div>
 
+                                {(question.type === "productNPSTGWBuckets") && (
+                                  <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <h4 className="font-semibold text-blue-900 dark:text-blue-100">Hierarchy Levels (Cascading)</h4>
+                                      <span className="text-xs font-medium text-blue-700 dark:text-blue-300">Up to 6 levels</span>
+                                    </div>
+                                    <div className="space-y-3">
+                                      {(() => {
+                                        const level1Options = getLevel1Options();
+                                        let selectedValues = question.selectedHierarchyValues || {};
+                                        
+                                        if (!selectedValues.level1 && level1Options.length > 0) {
+                                          const defaultLevel1 = level1Options[0];
+                                          const level2Options = getLevel2Options(defaultLevel1);
+                                          selectedValues = {
+                                            level1: defaultLevel1,
+                                            level2: level2Options.length > 0 ? level2Options[0] : undefined,
+                                          };
+                                        }
+                                        
+                                        const defaultLabels = [
+                                          "Complaint Groups",
+                                          "Sub-complaints",
+                                          "Probing Questions",
+                                          "Initial Answers",
+                                          "Secondary Details",
+                                          "Final Options"
+                                        ];
+
+                                        const handleLevelChange = (levelNum: number, value: string) => {
+                                          const newValues = { ...selectedValues };
+                                          newValues[`level${levelNum}` as keyof typeof selectedValues] = value;
+                                          
+                                          for (let i = levelNum + 1; i <= 6; i++) {
+                                            newValues[`level${i}` as keyof typeof selectedValues] = undefined;
+                                          }
+                                          
+                                          updateQuestion(section.id, question.id, { selectedHierarchyValues: newValues });
+                                        };
+
+                                        return (
+                                          <>
+                                            {/* Level 1 */}
+                                            <div>
+                                              <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">L1: {defaultLabels[0]}</label>
+                                              <select
+                                                value={selectedValues.level1 || ""}
+                                                onChange={(e) => handleLevelChange(1, e.target.value)}
+                                                className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
+                                              >
+                                                <option value="">Select Level 1</option>
+                                                {getLevel1Options().map((opt: string) => (
+                                                  <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+
+                                            {/* Level 2 */}
+                                            <div>
+                                              <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">L2: {defaultLabels[1]}</label>
+                                              <select
+                                                value={selectedValues.level2 || ""}
+                                                onChange={(e) => handleLevelChange(2, e.target.value)}
+                                                className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
+                                              >
+                                                <option value="">Select Level 2</option>
+                                                {getLevel2Options(selectedValues.level1 || "").map((opt: string) => (
+                                                  <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+
+                                            {/* Level 3 */}
+                                            <div>
+                                              <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">L3: {defaultLabels[2]}</label>
+                                              <select
+                                                value={selectedValues.level3 || ""}
+                                                onChange={(e) => handleLevelChange(3, e.target.value)}
+                                                className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
+                                              >
+                                                <option value="">Select Level 3</option>
+                                                {getLevel3Options(selectedValues.level1 || "", selectedValues.level2 || "").map((opt: string) => (
+                                                  <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+
+                                            {/* Level 4 */}
+                                            <div>
+                                              <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">L4: {defaultLabels[3]}</label>
+                                              <select
+                                                value={selectedValues.level4 || ""}
+                                                onChange={(e) => handleLevelChange(4, e.target.value)}
+                                                className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
+                                              >
+                                                <option value="">Select Level 4</option>
+                                                {getLevel4Options(selectedValues.level1 || "", selectedValues.level2 || "", selectedValues.level3 || "").map((opt: string) => (
+                                                  <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+
+                                            {/* Level 5 */}
+                                            <div>
+                                              <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">L5: {defaultLabels[4]}</label>
+                                              <select
+                                                value={selectedValues.level5 || ""}
+                                                onChange={(e) => handleLevelChange(5, e.target.value)}
+                                                className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
+                                              >
+                                                <option value="">Select Level 5</option>
+                                                {getLevel5Options(selectedValues.level1 || "", selectedValues.level2 || "", selectedValues.level3 || "", selectedValues.level4 || "").map((opt: string) => (
+                                                  <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+
+                                            {/* Level 6 */}
+                                            <div>
+                                              <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">L6: {defaultLabels[5]}</label>
+                                              <select
+                                                value={selectedValues.level6 || ""}
+                                                onChange={(e) => handleLevelChange(6, e.target.value)}
+                                                className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
+                                              >
+                                                <option value="">Select Level 6</option>
+                                                {getLevel6Options(selectedValues.level1 || "", selectedValues.level2 || "", selectedValues.level3 || "", selectedValues.level4 || "", selectedValues.level5 || "").map((opt: string) => (
+                                                  <option key={opt} value={opt}>{opt}</option>
+                                                ))}
+                                              </select>
+                                            </div>
+                                          </>
+                                        );
+                                      })()}
+                                    </div>
+                                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-3 italic">Select Level 1 first, then each subsequent level will show only available options based on your selection.</p>
+                                  </div>
+                                )}
+
                                 {question.type === "file" ? (
                                   <div className="mt-4">
                                     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
@@ -4310,7 +4480,8 @@ export default function FormCreator() {
                                 {(question.type === "radio" ||
                                   question.type === "yesNoNA" ||
                                   question.type === "checkbox" ||
-                                  question.type === "select") && (
+                                  question.type === "select" ||
+                                  question.type === "search-select") && (
                                   <div className="mt-5 p-4 bg-blue-50 rounded-lg border border-blue-200">
                                     <label className="block text-xs font-semibold text-blue-800 mb-3 uppercase tracking-wide">
                                       Options
@@ -4524,6 +4695,7 @@ export default function FormCreator() {
                                 {(question.type === "radio" ||
                                   question.type === "checkbox" ||
                                   question.type === "select" ||
+                                  question.type === "search-select" ||
                                   question.type === "yesNoNA") &&
                                   question.options &&
                                   question.options.length > 0 && (
@@ -4583,6 +4755,7 @@ export default function FormCreator() {
                                 {(question.type === "radio" ||
                                   question.type === "checkbox" ||
                                   question.type === "select" ||
+                                  question.type === "search-select" ||
                                   question.type === "yesNoNA") &&
                                   question.options &&
                                   question.options.length > 0 && (
@@ -4702,6 +4875,7 @@ export default function FormCreator() {
                                 {(question.type === "radio" ||
                                   question.type === "checkbox" ||
                                   question.type === "select" ||
+                                  question.type === "search-select" ||
                                   question.type === "yesNoNA") &&
                                   question.options &&
                                   question.options.length > 0 && (

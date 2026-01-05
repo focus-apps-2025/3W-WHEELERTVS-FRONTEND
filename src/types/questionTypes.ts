@@ -19,4 +19,5 @@ export type QuestionType =
   | "search-select"
   | "slider-feedback"
   | "emoji-star-feedback"
-  | "emoji-reaction-feedback";
+  | "emoji-reaction-feedback"
+  | "productNPSTGWBuckets";

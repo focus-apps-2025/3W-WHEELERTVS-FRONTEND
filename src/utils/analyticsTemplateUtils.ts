@@ -292,7 +292,8 @@ function validateAnswer(answer: unknown, question: QuestionWithMetadata): string
     }
   } else if (
     question.type === "multipleChoice" ||
-    question.type === "dropdown"
+    question.type === "dropdown" ||
+    question.type === "search-select"
   ) {
     if (question.options && question.options.length > 0) {
       const validOptions = question.options.map((opt) => opt.toLowerCase());

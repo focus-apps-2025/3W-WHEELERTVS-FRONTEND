@@ -368,6 +368,25 @@ export const FormWithSectionLinksResponder: React.FC<
                       </label>
                     ))}
                   </div>
+                ) : question.type === "search-select" || question.type === "select" ? (
+                  <select
+                    value={responses[question.id] || ""}
+                    onChange={(e) =>
+                      handleQuestionChange(question.id, e.target.value)
+                    }
+                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      validationErrors[question.id]
+                        ? "border-red-500"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    <option value="">Select an option...</option>
+                    {question.options?.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
                 ) : (
                   <input
                     type="text"

@@ -157,9 +157,34 @@ export function exportResponsesToExcel(
 
     allQuestions.forEach((questionItem) => {
       const answer = response.answers[questionItem.id];
-      const formattedAnswer = Array.isArray(answer)
-        ? answer.join(", ")
-        : answer ?? "";
+      let formattedAnswer = "";
+      
+      if (Array.isArray(answer)) {
+        formattedAnswer = answer.join(", ");
+      } else if (typeof answer === "object" && answer !== null) {
+        // Handle Product NPS Buckets (Hierarchy)
+        if (answer.level1 || answer.level2 || answer.level3) {
+          formattedAnswer = [
+            answer.level1,
+            answer.level2,
+            answer.level3,
+            answer.level4,
+            answer.level5,
+            answer.level6,
+          ]
+            .filter(Boolean)
+            .join(" > ");
+        } else {
+          try {
+            formattedAnswer = JSON.stringify(answer);
+          } catch (e) {
+            formattedAnswer = String(answer);
+          }
+        }
+      } else {
+        formattedAnswer = answer ?? "";
+      }
+      
       row[questionItem.text] = String(formattedAnswer);
     });
 
@@ -819,9 +844,9 @@ export function downloadFormImportTemplate() {
     "Mark which columns should be merged together (e.g., 1,2 means columns 1 and 2 merge; leave blank to not merge)",
     "The question text to ask",
     "Additional details about the question",
-    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA, file",
+    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, searchableselect, hierarchy, yesNoNA, file",
     "TRUE/FALSE - is this question required?",
-    "For multipleChoice/checkboxes/dropdown: option1,option2,option3 (comma-separated)",
+    "For multipleChoice/checkboxes/dropdown/searchableselect: option1,option2,option3 (comma-separated)",
     "Section branching: comma-separated section numbers for each option (e.g., 2,3,4 means option1→sec2, option2→sec3, option3→sec4; use 0 to skip)",
     "Suggestions or recommendations for this question",
     "Additional parameter 1 for custom question configuration",
@@ -1588,7 +1613,7 @@ function parseNewTemplateFormat(
       multiplechoice: "radio", // This should be "radio"
       longtext: "paragraph",
       longinput: "paragraph",
-      dropdown: "select", // This should be "select"
+      dropdown: "search-select", // Defaulting dropdown to search-select
       checkboxes: "checkbox",
       fileupload: "file",
       "file upload": "file",
@@ -1605,16 +1630,24 @@ function parseNewTemplateFormat(
       text: "text",
       radio: "radio", // Ensure radio stays radio
       paragraph: "paragraph",
-      select: "select", // Ensure select stays select
+      select: "search-select", // Map select to search-select for better UX
       checkbox: "checkbox",
       file: "file",
 
       // Add these mappings for common variations
       "multiple choice": "radio",
-      "drop down": "select",
-      "drop-down": "select",
+      "drop down": "search-select",
+      "drop-down": "search-select",
       "multi choice": "radio",
       "multi-choice": "radio",
+
+      // New types
+      "searchable select": "search-select",
+      "search-select": "search-select",
+      "searchableselect": "search-select",
+      "product nps buckets": "productNPSTGWBuckets",
+      "productnpstgwbuckets": "productNPSTGWBuckets",
+      "hierarchy": "productNPSTGWBuckets",
     };
 
     // First try exact match after normalization

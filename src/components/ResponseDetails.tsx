@@ -47,6 +47,21 @@ export default function ResponseDetails({
     }
 
     if (typeof answer === "object") {
+      // Special handling for Product NPS Buckets (Hierarchy)
+      if (answer.level1 || answer.level2 || answer.level3) {
+        const breadcrumb = [
+          answer.level1,
+          answer.level2,
+          answer.level3,
+          answer.level4,
+          answer.level5,
+          answer.level6,
+        ]
+          .filter(Boolean)
+          .join(" > ");
+        return <p className="text-gray-700 dark:text-gray-300 font-medium">{breadcrumb}</p>;
+      }
+
       return (
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">

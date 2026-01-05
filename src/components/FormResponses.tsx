@@ -176,6 +176,19 @@ export default function FormResponses() {
       }
 
       if (typeof answer === "object") {
+        // Special handling for Product NPS Buckets (Hierarchy)
+        if (answer.level1 || answer.level2 || answer.level3) {
+          return [
+            answer.level1,
+            answer.level2,
+            answer.level3,
+            answer.level4,
+            answer.level5,
+            answer.level6,
+          ]
+            .filter(Boolean)
+            .join(" > ");
+        }
         try {
           return JSON.stringify(answer, null, 2);
         } catch (error) {
