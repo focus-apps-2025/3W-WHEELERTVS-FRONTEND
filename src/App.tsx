@@ -27,12 +27,14 @@ import AllResponses from "./components/AllResponses";
 import DashboardNew from "./components/DashboardNew";
 import CustomerViewCarousel from "./components/CustomerViewCarousel";
 import TenantManagement from "./components/superadmin/TenantManagement";
+import GlobalFormManagement from "./components/superadmin/GlobalFormManagement";
 import AdminManagement from "./components/admin/AdminManagement";
 import LoginPage from "./components/auth/LoginPage";
 import NotificationContainer from "./components/ui/NotificationContainer";
 import Header from "./components/Header";
 import ResponseDetailsPage from "./components/ResponseDetailsPage";
 import InviteStatusPage from "./components/InviteStatusPage";
+import ErrorPage from "./components/ErrorPage";
 
 const ROUTE_PERMISSIONS = {
   DASHBOARD: "dashboard:view",
@@ -133,6 +135,7 @@ const router = createBrowserRouter(
   [
     {
       element: <RootShell />,
+      errorElement: <ErrorPage />,
       children: [
         { path: "/login", element: <LoginPage /> },
         { path: "/", element: <RootRedirect /> },
@@ -229,6 +232,12 @@ const router = createBrowserRouter(
         {
           path: "/superadmin/tenants",
           element: withAccessControl(<TenantManagement />, {
+            allowedRoles: ["superadmin"],
+          }),
+        },
+        {
+          path: "/superadmin/forms",
+          element: withAccessControl(<GlobalFormManagement />, {
             allowedRoles: ["superadmin"],
           }),
         },

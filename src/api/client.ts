@@ -227,8 +227,16 @@ class ApiClient {
   }
 
   // Forms
-  async getForms() {
-    return this.request<{ forms: any[] }>("/forms");
+  async getForms(params?: { isGlobal?: boolean; search?: string }) {
+    const query = new URLSearchParams();
+    if (params?.isGlobal !== undefined) {
+      query.set("isGlobal", params.isGlobal.toString());
+    }
+    if (params?.search) {
+      query.set("search", params.search);
+    }
+    const endpoint = `/forms${query.toString() ? `?${query.toString()}` : ""}`;
+    return this.request<{ forms: any[] }>(endpoint);
   }
 
   async getPublicForms(tenantSlug?: string) {
@@ -446,6 +454,10 @@ class ApiClient {
 
   async getFormAnalytics(formId: string) {
     return this.request<any>(`/analytics/form/${formId}`);
+  }
+
+  async getGlobalFormStats(formId: string) {
+    return this.request<{ stats: any[] }>(`/forms/${formId}/global-stats`);
   }
 
   async getUserAnalytics() {

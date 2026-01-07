@@ -139,6 +139,8 @@ export default function FormCreator() {
   const [showPreview, setShowPreview] = useState(false);
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string>("");
+  const [isGlobal, setIsGlobal] = useState<boolean>(false);
+  const [sharedWithTenants, setSharedWithTenants] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState<number>(0); // For multi-page navigation
   const [pageWindowStart, setPageWindowStart] = useState<number>(0);
   const [openOptionMenu, setOpenOptionMenu] = useState<string | null>(null); // Track which option's menu is open
@@ -191,6 +193,13 @@ export default function FormCreator() {
   const [parameters, setParameters] = useState<any[]>([]);
   const [tempParameters, setTempParameters] = useState<any[]>([]);
   const { showSuccess, showError, showConfirm } = useNotification();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get("isGlobal") === "true") {
+      setIsGlobal(true);
+    }
+  }, [location.search]);
 
   // Fetch tenants for superadmin
   useEffect(() => {
@@ -248,6 +257,14 @@ export default function FormCreator() {
           // Set the tenant ID from the loaded form
           if (backendForm.tenantId) {
             setSelectedTenantId(backendForm.tenantId);
+          }
+          
+          if (backendForm.isGlobal !== undefined) {
+            setIsGlobal(backendForm.isGlobal);
+          }
+          
+          if (backendForm.sharedWithTenants) {
+            setSharedWithTenants(backendForm.sharedWithTenants);
           }
 
           // Transform backend form to frontend format
@@ -770,17 +787,17 @@ export default function FormCreator() {
     }
 
     // Validate tenantId for superadmin
-    if (user?.role === "superadmin" && !selectedTenantId) {
+    if (user?.role === "superadmin" && !selectedTenantId && !isGlobal) {
       showError("Please select a tenant for this form", "Validation Error");
       return;
     }
 
     // Determine tenantId based on user role
     const tenantId =
-      user?.role === "superadmin" ? selectedTenantId : user?.tenantId;
+      user?.role === "superadmin" ? (isGlobal ? undefined : selectedTenantId) : user?.tenantId;
 
     // Validate tenantId exists
-    if (!tenantId) {
+    if (!tenantId && !isGlobal) {
       showError(
         "Unable to determine tenant. Please try logging in again.",
         "Validation Error"
@@ -884,6 +901,8 @@ export default function FormCreator() {
       ...form,
       // Include tenantId for form creation
       tenantId: tenantId,
+      isGlobal: isGlobal,
+      sharedWithTenants: sharedWithTenants,
       sections: form.sections.map((section) => {
         const allQuestions: Question[] = [];
 
@@ -963,7 +982,11 @@ export default function FormCreator() {
         }
 
         showSuccess("Form updated successfully", "Success");
-        navigate("/forms/analytics");
+        if (user?.role === "superadmin" && isGlobal) {
+          navigate("/superadmin/forms");
+        } else {
+          navigate("/forms/analytics");
+        }
       } else {
         // Create new form
         console.log("Creating new form...");
@@ -1009,10 +1032,14 @@ export default function FormCreator() {
         }
 
         showSuccess("Form created successfully", "Success");
-        setMode("list");
-        // Refresh forms list from backend
-        const formsResponse = await apiClient.getForms();
-        setForms(formsResponse.forms || []);
+        if (user?.role === "superadmin" && isGlobal) {
+          navigate("/superadmin/forms");
+        } else {
+          setMode("list");
+          // Refresh forms list from backend
+          const formsResponse = await apiClient.getForms();
+          setForms(formsResponse.forms || []);
+        }
       }
     } catch (error: any) {
       console.error("=== Error saving form ===");
@@ -3607,29 +3634,81 @@ export default function FormCreator() {
 
                 {/* Tenant Selector for SuperAdmin */}
                 {user?.role === "superadmin" && (
-                  <div>
-                    <label className="block text-sm font-medium text-primary-700 mb-2">
-                      Tenant *{" "}
-                      <span className="text-xs text-primary-500">
-                        (SuperAdmin Only)
-                      </span>
-                    </label>
-                    <select
-                      value={selectedTenantId}
-                      onChange={(e) => setSelectedTenantId(e.target.value)}
-                      className="input-field"
-                      required
-                    >
-                      <option value="">Select a tenant...</option>
-                      {tenants.map((tenant) => (
-                        <option key={tenant._id} value={tenant._id}>
-                          {tenant.name} ({tenant.companyName})
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1 text-xs text-primary-500">
-                      Select which tenant this form belongs to
-                    </p>
+                  <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="isGlobal"
+                        checked={isGlobal}
+                        onChange={(e) => setIsGlobal(e.target.checked)}
+                        className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      <label
+                        htmlFor="isGlobal"
+                        className="text-sm font-bold text-primary-900 dark:text-primary-100"
+                      >
+                        Make this a Global Form
+                      </label>
+                    </div>
+
+                    {!isGlobal ? (
+                      <div>
+                        <label className="block text-sm font-medium text-primary-700 mb-2">
+                          Primary Tenant *
+                        </label>
+                        <select
+                          value={selectedTenantId}
+                          onChange={(e) => setSelectedTenantId(e.target.value)}
+                          className="input-field"
+                          required={!isGlobal}
+                        >
+                          <option value="">Select a tenant...</option>
+                          {tenants.map((tenant) => (
+                            <option key={tenant._id} value={tenant._id}>
+                              {tenant.companyName} ({tenant.name})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-sm font-medium text-primary-700 mb-2">
+                          Assign to Tenants
+                        </label>
+                        <div className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto p-3 border-2 border-gray-200 dark:border-gray-700 rounded-lg">
+                          {tenants.map((tenant) => (
+                            <label
+                              key={tenant._id}
+                              className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md cursor-pointer transition-colors"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={sharedWithTenants.includes(tenant._id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSharedWithTenants((prev) => [
+                                      ...prev,
+                                      tenant._id,
+                                    ]);
+                                  } else {
+                                    setSharedWithTenants((prev) =>
+                                      prev.filter((id) => id !== tenant._id)
+                                    );
+                                  }
+                                }}
+                                className="rounded border-neutral-300 text-primary-600 focus:ring-primary-500"
+                              />
+                              <span className="text-sm text-gray-700 dark:text-gray-300">
+                                {tenant.companyName}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        <p className="mt-1 text-xs text-primary-500">
+                          {sharedWithTenants.length} tenants selected
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 

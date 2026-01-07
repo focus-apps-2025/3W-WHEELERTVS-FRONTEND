@@ -235,15 +235,23 @@ export default function DashboardNew() {
       
       const tenantForms = formsData.forms.filter((form: any) => {
         const formTenantId = form.tenantId || form.tenant?._id || form.tenant?.slug;
+        const sharedWithTenants = Array.isArray(form.sharedWithTenants) ? form.sharedWithTenants : [];
+        
         console.log(`Checking form "${form.title}":`);
         console.log(`  Form tenantId: ${form.tenantId}`);
         console.log(`  Form tenant._id: ${form.tenant?._id}`);
         console.log(`  Form tenant.slug: ${form.tenant?.slug}`);
+        console.log(`  Shared with tenants:`, sharedWithTenants);
         console.log(`  Selected tenant._id: ${selectedTenant._id}`);
         console.log(`  Selected tenant.slug: ${selectedTenant.slug}`);
         
-        const matches = formTenantId === selectedTenant._id || formTenantId === selectedTenant.slug;
-        console.log(`  Matches: ${matches}`);
+        const isDirectMatch = formTenantId === selectedTenant._id || formTenantId === selectedTenant.slug;
+        const isSharedMatch = sharedWithTenants.some((t: any) => 
+          (t._id || t) === selectedTenant._id || t === selectedTenant.slug
+        );
+        
+        const matches = isDirectMatch || isSharedMatch;
+        console.log(`  Matches: ${matches} (Direct: ${isDirectMatch}, Shared: ${isSharedMatch})`);
         return matches;
       });
       
@@ -571,6 +579,7 @@ export default function DashboardNew() {
                     <p className="text-xs">tenantId: {form.tenantId || 'null'}</p>
                     <p className="text-xs">tenant._id: {form.tenant?._id || 'null'}</p>
                     <p className="text-xs">tenant.slug: {form.tenant?.slug || 'null'}</p>
+                    <p className="text-xs">shared: {JSON.stringify(form.sharedWithTenants || [])}</p>
                   </div>
                 ))}
               </div>

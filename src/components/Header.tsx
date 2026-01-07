@@ -71,6 +71,12 @@ export default function Header() {
       path: "/superadmin/tenants",
       description: "Manage all tenants and branches",
     },
+    {
+      title: "Global Forms",
+      icon: FileText,
+      path: "/superadmin/forms",
+      description: "Manage forms across all tenants",
+    },
   ];
 
   const tenantMenuItems: MenuItem[] = [

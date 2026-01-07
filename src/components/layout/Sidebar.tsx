@@ -68,6 +68,12 @@ export default function Sidebar() {
       path: "/superadmin/tenants",
       description: "Manage all tenants and branches",
     },
+    {
+      title: "Global Forms",
+      icon: FileText,
+      path: "/superadmin/forms",
+      description: "Manage and assign global forms",
+    },
     // {
     //   title: "System Settings",
     //   icon: Settings,
