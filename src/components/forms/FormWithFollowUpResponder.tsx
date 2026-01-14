@@ -83,7 +83,7 @@ export const FormWithFollowUpResponder: React.FC<
       setLoading(true);
       const response = await fetch(`/api/forms/${formId}`, {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
         },
       });
 
@@ -277,7 +277,7 @@ export const FormWithFollowUpResponder: React.FC<
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
         },
         body: JSON.stringify({
           questionId: formId,

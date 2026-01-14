@@ -10,6 +10,7 @@ import {
   X,
   ChevronRight,
   Mail,
+  MessageCircle,
   LogOut,
   Building2,
   Users,
@@ -110,6 +111,20 @@ export default function Sidebar() {
       path: "/forms/management",
       description: "Manage and organize service requests",
       permission: MODULE_PERMISSIONS.REQUEST_MANAGEMENT,
+    },
+    {
+      title: "Email System",
+      icon: Mail,
+      path: "/mail/test",
+      description: "Test and configure email notifications",
+      roles: ["admin"],
+    },
+    {
+      title: "WhatsApp System",
+      icon: MessageCircle,
+      path: "/whatsapp/test",
+      description: "Test and configure WhatsApp notifications",
+      roles: ["admin"],
     },
   ];
 

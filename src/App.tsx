@@ -19,6 +19,7 @@ import FormAnalyticsDashboard from "./components/analytics/FormAnalyticsDashboar
 import FormsManagementNew from "./components/FormsManagementNew";
 import Management from "./components/management/Management";
 import MailTest from "./components/MailTest";
+import WhatsAppTest from "./components/WhatsAppTest";
 import FormsList from "./components/FormsList";
 import FormCreator from "./components/FormCreator";
 import PreviewFormWrapper from "./components/PreviewFormWrapper";
@@ -190,6 +191,10 @@ const router = createBrowserRouter(
         {
           path: "/mail/test",
           element: withAuthenticatedLayout(<MailTest />),
+        },
+        {
+          path: "/whatsapp/test",
+          element: withAuthenticatedLayout(<WhatsAppTest />),
         },
         {
           path: "/forms",

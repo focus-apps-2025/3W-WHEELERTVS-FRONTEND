@@ -1022,6 +1022,47 @@ class ApiClient {
 
     return data.data;
   }
+
+  // WhatsApp Invite Management
+  async uploadWhatsAppInvites(formId: string, formData: FormData) {
+    const url = `${this.baseUrl}/forms/${formId}/invites/whatsapp/upload`;
+
+    const headers: Record<string, string> = {};
+
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+
+    const data: ApiResponse<any> = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new ApiError(response.status, data, data.message);
+    }
+
+    return data;
+  }
+
+  async sendWhatsAppInvites(
+    formId: string,
+    data: { phones: Array<{ phone: string; email?: string }> }
+  ) {
+    const response = await this.request<any>(`/forms/${formId}/invites/whatsapp/send`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+
+    return {
+      success: true,
+      message: "WhatsApp invites processed successfully",
+      data: response,
+    };
+  }
 }
 
 // Create and export a singleton instance

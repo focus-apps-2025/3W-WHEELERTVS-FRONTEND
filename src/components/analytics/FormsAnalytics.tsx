@@ -41,6 +41,7 @@ import AnswerTemplateImport from "../AnswerTemplateImport";
 import type { Question as FormQuestion } from "../../types";
 import { Mail, MessageCircle } from "lucide-react";
 import EmailInviteModal from "../EmailInviteModal";
+import WhatsAppInviteModal from "../WhatsAppInviteModal";
 
 interface FormItem {
   _id: string;
@@ -1312,6 +1313,14 @@ export default function FormsAnalytics() {
         }
         formId={emailInviteModal.formId || ""}
         formTitle={emailInviteModal.formTitle}
+      />
+      <WhatsAppInviteModal
+        isOpen={whatsappInviteModal.open}
+        onClose={() =>
+          setWhatsappInviteModal((prev) => ({ ...prev, open: false }))
+        }
+        formId={whatsappInviteModal.formId || ""}
+        formTitle={whatsappInviteModal.formTitle}
       />
     </div>
   );

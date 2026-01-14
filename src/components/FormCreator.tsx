@@ -134,12 +134,20 @@ export default function FormCreator() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const { user } = useAuth();
-  const [mode, setMode] = useState<"list" | "create">("list");
+  const [mode, setMode] = useState<"list" | "create">(
+    id ||
+      location.pathname.includes("/create") ||
+      location.pathname.includes("/edit")
+      ? "create"
+      : "list"
+  );
   const [forms, setForms] = useState<any[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState<string>("");
-  const [isGlobal, setIsGlobal] = useState<boolean>(false);
+  const [isGlobal, setIsGlobal] = useState<boolean>(
+    new URLSearchParams(location.search).get("isGlobal") === "true"
+  );
   const [sharedWithTenants, setSharedWithTenants] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState<number>(0); // For multi-page navigation
   const [pageWindowStart, setPageWindowStart] = useState<number>(0);
@@ -198,8 +206,15 @@ export default function FormCreator() {
     const params = new URLSearchParams(location.search);
     if (params.get("isGlobal") === "true") {
       setIsGlobal(true);
+      setMode("create");
+    } else if (
+      location.pathname.includes("/create") ||
+      location.pathname.includes("/edit") ||
+      id
+    ) {
+      setMode("create");
     }
-  }, [location.search]);
+  }, [location.search, location.pathname, id]);
 
   // Fetch tenants for superadmin
   useEffect(() => {
@@ -419,10 +434,18 @@ export default function FormCreator() {
           });
         }
       } else {
-        setMode("list");
+        // If we are on /create or /edit path, ensure we are in create mode
+        if (
+          location.pathname.includes("/create") ||
+          location.pathname.includes("/edit")
+        ) {
+          setMode("create");
+        } else {
+          setMode("list");
+        }
       }
     }
-  }, [id, location.state]);
+  }, [id, location.state, location.pathname]);
 
   useEffect(() => {
     setSectionWeightageDrafts((prev) => {
@@ -982,11 +1005,7 @@ export default function FormCreator() {
         }
 
         showSuccess("Form updated successfully", "Success");
-        if (user?.role === "superadmin" && isGlobal) {
-          navigate("/superadmin/forms");
-        } else {
-          navigate("/forms/analytics");
-        }
+        navigate("/superadmin/forms");
       } else {
         // Create new form
         console.log("Creating new form...");
@@ -1032,14 +1051,7 @@ export default function FormCreator() {
         }
 
         showSuccess("Form created successfully", "Success");
-        if (user?.role === "superadmin" && isGlobal) {
-          navigate("/superadmin/forms");
-        } else {
-          setMode("list");
-          // Refresh forms list from backend
-          const formsResponse = await apiClient.getForms();
-          setForms(formsResponse.forms || []);
-        }
+        navigate("/superadmin/forms");
       }
     } catch (error: any) {
       console.error("=== Error saving form ===");
@@ -3503,58 +3515,41 @@ export default function FormCreator() {
     <div className="w-full overflow-auto bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       {/* Header */}
       <div className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50 w-full">
-        <div className="px-4 sm:px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="w-full px-4 sm:px-6 py-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate("/forms/analytics")}
-                className="p-2 hover:bg-blue-50 dark:hover:bg-gray-800 rounded-lg transition-colors group"
-              >
-                <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600" />
-              </button>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
-                  {id ? "✏️ Edit Form" : "✨ Create New Form"}
-                </h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Build amazing forms with ease
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+                    {id ? "Edit Form" : "Create New Form"}
+                  </h1>
+                </div>
+                <p className="text-sm text-gray-500 font-medium">
+                  Design and deploy powerful service forms
                 </p>
               </div>
             </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => navigate("/forms/analytics")}
-                className="px-5 py-2.5 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-800 transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={loadSampleData}
-                className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-              >
-                <FileText className="w-5 h-5" />
-                Load Sample Data
-              </button>
-              <button
-                onClick={handleExportTemplate}
-                title="Export form template to Excel"
-                className="px-5 py-2.5 bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
-              >
-                <Download className="w-5 h-5" />
-                Export Template
-              </button>
-              <div className="relative">
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mr-2">
                 <button
-                  title="Import form template from Excel"
-                  className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-cyan-700 hover:from-cyan-700 hover:to-cyan-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                  onClick={handleExportTemplate}
+                  className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
+                <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
+                <button
                   onClick={(e) => {
                     const input = e.currentTarget
                       .nextElementSibling as HTMLInputElement;
                     input?.click();
                   }}
+                  className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
                 >
-                  <Upload className="w-5 h-5" />
-                  Import Template
+                  <Upload className="w-4 h-4" />
+                  Import
                 </button>
                 <input
                   type="file"
@@ -3563,20 +3558,30 @@ export default function FormCreator() {
                   className="hidden"
                 />
               </div>
+
               <button
                 onClick={() => setShowParameterModal(true)}
-                title="Create parameters for this form"
-                className="px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                className="px-4 py-2.5 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm rounded-xl hover:border-primary-500 hover:text-primary-600 transition-all flex items-center gap-2 shadow-sm"
               >
-                <Plus className="w-5 h-5" />
-                Create Parameters
+                <Plus className="w-4 h-4" />
+                Parameters
               </button>
+
+              <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block" />
+
+              <button
+                onClick={() => navigate("/forms/analytics")}
+                className="px-5 py-2.5 text-gray-500 hover:text-gray-900 dark:hover:text-white font-bold text-sm transition-colors"
+              >
+                Cancel
+              </button>
+
               <button
                 onClick={handleSave}
-                className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                className="px-8 py-3 bg-primary-600 text-white font-black text-sm rounded-xl shadow-[0_10px_20px_rgba(30,58,138,0.2)] hover:shadow-primary-600/30 hover:bg-primary-700 transition-all active:scale-95 flex items-center gap-2"
               >
-                <Save className="w-5 h-5" />
-                Save Form
+                <Save className="w-4 h-4" />
+                {id ? "Update Changes" : "Save & Publish"}
               </button>
             </div>
           </div>
