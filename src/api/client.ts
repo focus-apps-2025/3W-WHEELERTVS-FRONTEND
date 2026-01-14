@@ -604,7 +604,7 @@ class ApiClient {
 
       xhr.open(
         "POST",
-        "https://api.cloudinary.com/v1_1/dsfi2hwoq/image/upload"
+        "https://api.cloudinary.com/v1_1/dc5gup0x4/image/upload"
       );
       xhr.send(formData);
     });
@@ -1052,10 +1052,13 @@ class ApiClient {
     formId: string,
     data: { phones: Array<{ phone: string; email?: string }> }
   ) {
-    const response = await this.request<any>(`/forms/${formId}/invites/whatsapp/send`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
+    const response = await this.request<any>(
+      `/forms/${formId}/invites/whatsapp/send`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      }
+    );
 
     return {
       success: true,
