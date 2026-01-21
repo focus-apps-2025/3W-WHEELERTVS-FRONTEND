@@ -118,6 +118,7 @@ interface SectionAnalyticsProps {
     sections?: Section[];
   };
   responses: Response[];
+  openSectionId?: string | null;
 }
 interface QuestionDetailsModalProps {
   question: any;
@@ -542,6 +543,7 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
 export default function SectionAnalytics({
   question,
   responses,
+  openSectionId,
 }: SectionAnalyticsProps) {
   const sections: Section[] = question.sections || [];
   const [selectedQuestion, setSelectedQuestion] = useState<{
@@ -798,11 +800,39 @@ export default function SectionAnalytics({
     };
   }, [isDropdownOpen]);
 
+  useEffect(() => {
+    if (openSectionId) {
+      // 1. Ensure it's selected if we have a selection filter
+      if (
+        selectedSectionIds.length > 0 &&
+        !selectedSectionIds.includes(openSectionId)
+      ) {
+        setSelectedSectionIds((prev) => [...prev, openSectionId]);
+      }
+
+      // 2. Expand it (only one at a time)
+      setExpandedSections({ [openSectionId]: true });
+
+      // 3. Scroll to it
+      setTimeout(() => {
+        const element = document.getElementById(
+          `section-analytics-${openSectionId}`
+        );
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+    }
+  }, [openSectionId, selectedSectionIds.length]);
+
   const toggleSection = (sectionId: string) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [sectionId]: !prev[sectionId],
-    }));
+    setExpandedSections((prev) => {
+      // If it's already open, close it. If not, open only this one and close others.
+      if (prev[sectionId]) {
+        return {};
+      }
+      return { [sectionId]: true };
+    });
   };
 
   const toggleQualityBreakdown = (sectionId: string) => {

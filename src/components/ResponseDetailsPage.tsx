@@ -199,6 +199,7 @@ export default function ResponseDetailsPage() {
   const [showMainParamsImages, setShowMainParamsImages] = useState<Record<string, boolean>>({});
   const [showSectionsPDFModal, setShowSectionsPDFModal] = useState(false);
   const [downloadingSectionsPDF, setDownloadingSectionsPDF] = useState(false);
+  const [autoOpenSectionId, setAutoOpenSectionId] = useState<string | null>(null);
  
 
 
@@ -233,6 +234,15 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
       setViewMode(location.state.viewMode);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    if (autoOpenSectionId) {
+      const element = document.getElementById(`section-detail-${autoOpenSectionId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  }, [autoOpenSectionId]);
 
   const fetchResponseDetails = async () => {
     try {
@@ -1090,6 +1100,22 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
     return sectionSummaryRows.reduce((total, row) => total + row.weightage, 0);
   }, [sectionSummaryRows]);
 
+  const summaryTotals = useMemo(() => {
+    return sectionSummaryRows.reduce(
+      (acc, row) => ({
+        total: acc.total + row.total,
+        yes: acc.yes + (row.yes || 0),
+        no: acc.no + (row.no || 0),
+        na: acc.na + (row.na || 0),
+        weightage: acc.weightage + row.weightage,
+        yesWeighted: acc.yesWeighted + row.yesWeighted,
+        noWeighted: acc.noWeighted + row.noWeighted,
+        naWeighted: acc.naWeighted + row.naWeighted,
+      }),
+      { total: 0, yes: 0, no: 0, na: 0, weightage: 0, yesWeighted: 0, noWeighted: 0, naWeighted: 0 }
+    );
+  }, [sectionSummaryRows]);
+
   const weightedPercentageChartData = useMemo(() => {
     return {
       labels: sectionSummaryRows.map((row) => formatSectionLabel(row.title)),
@@ -1922,10 +1948,21 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-900">
                       {sectionSummaryRows.map((row) => (
-                        <tr key={row.id} className="group hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all duration-300 bg-white dark:bg-gray-900">
+                        <tr 
+                          key={row.id} 
+                          onClick={() => {
+                            if (!redistributionMode) {
+                              setAutoOpenSectionId(null);
+                              setTimeout(() => setAutoOpenSectionId(row.id), 10);
+                            }
+                          }}
+                          className="group hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-700 dark:hover:to-gray-600 transition-all duration-300 bg-white dark:bg-gray-900 cursor-pointer"
+                        >
                           <td className="px-6 py-5 font-bold text-gray-900 dark:text-gray-100 flex items-center">
                             <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
-                            {row.title}
+                            <span className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 transition-colors">
+                              {row.title}
+                            </span>
                           </td>
                           <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
                             {row.total}
@@ -2035,226 +2072,205 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                           )}
                         </tr>
                       ))}
-                      {editingAllWeightages && (
-                        <tr>
-                          <td colSpan={8} className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={async () => {
-                                  setSavingWeightage(true);
-                                  try {
-                                    const formId = form._id || form.id;
-                                    if (!formId) throw new Error("Form ID not found");
-                                    
-                                    const batchTotal = sectionSummaryRows.reduce((sum, row) => {
-                                      const val = parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0;
-                                      return sum + val;
-                                    }, 0);
-                                    
-                                    if (Math.abs(batchTotal - 100) > 0.1) {
-                                      throw new Error(`Total weightage must be exactly 100%. Current: ${batchTotal.toFixed(1)}%`);
-                                    }
-                                    
-                                    const updatedSections = form.sections?.map((section: any) => {
-                                      const row = sectionSummaryRows.find(r => r.id === section.id);
-                                      if (row && weightageValues[row.id] !== undefined) {
-                                        return { 
-                                          ...section, 
-                                          weightage: parseFloat(weightageValues[row.id]) || 0 
-                                        };
-                                      }
-                                      return section;
-                                    }) || [];
-                                    
-                                    const formDataToUpdate = { ...form, sections: updatedSections };
-                                    delete formDataToUpdate._id;
-                                    delete formDataToUpdate.__v;
-                                    delete formDataToUpdate.createdAt;
-                                    delete formDataToUpdate.updatedAt;
-                                    
-                                    await apiClient.updateForm(formId, formDataToUpdate);
-                                    
-                                    setForm({ ...form, sections: updatedSections });
-                                    setEditingAllWeightages(false);
-                                    setAddWeightMode(false);
-                                    setWeightageValues({});
-                                    
-                                    showSuccess("All weightages saved successfully!");
-                                  } catch (error) {
-                                    console.error("Failed to save weightages:", error);
-                                    showError(error instanceof Error ? error.message : "Failed to save weightages");
-                                  } finally {
-                                    setSavingWeightage(false);
-                                  }
-                                }}
-                                disabled={savingWeightage}
-                                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-1"
-                              >
-                                {savingWeightage ? (
-                                  <>
-                                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                    Saving...
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    Save All
-                                  </>
-                                )}
-                              </button>
-                              
-                              <button
-                                onClick={() => {
-                                  setEditingAllWeightages(false);
-                                  setWeightageValues({});
-                                  if (calculateTotalWeightage === 0) {
-                                    setAddWeightMode(false);
-                                  }
-                                }}
-                                className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                      {showWeightageColumns && (
-                        <tr className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 border-t-2 border-blue-200 dark:border-blue-700">
-                          <td colSpan={4} className="px-6 py-4 font-bold text-gray-900 dark:text-gray-100 text-right">
-                            {redistributionMode ? "Current Balance:" : "Total Weightage:"}
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full font-bold ${redistributionMode ? (Math.abs(weightageBalance) < 0.1 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400') : (Math.abs(calculateTotalWeightage - 100) < 0.1 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400')}`}>
-                              {redistributionMode ? `${weightageBalance.toFixed(1)}%` : `${calculateTotalWeightage.toFixed(1)}%`}
-                              {redistributionMode && Math.abs(weightageBalance) >= 0.1 && (
-                                <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.998-.833-2.732 0L4.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                </svg>
-                              )}
-                            </span>
-                          </td>
-                          <td colSpan={3} className="px-6 py-4">
-                            <div className="flex items-center justify-between">
-                              <span className={redistributionMode ? (Math.abs(weightageBalance) < 0.1 ? "text-green-600 dark:text-green-400 font-medium" : "text-yellow-600 dark:text-yellow-400 font-medium") : (Math.abs(calculateTotalWeightage - 100) < 0.1 ? "text-green-600 dark:text-green-400 font-medium" : "text-yellow-600 dark:text-yellow-400 font-medium")}>
-                                {redistributionMode ? (
-                                  Math.abs(weightageBalance) < 0.1 ?
-                                    '✓ Ready to save' :
-                                    `Adjust by ${Math.abs(weightageBalance).toFixed(1)}% to reach 100%`
-                                ) : (
-                                  Math.abs(calculateTotalWeightage - 100) < 0.1 ?
-                                    '✓ Weightage distribution complete' :
-                                    (addWeightMode ?
-                                      `⚠️ Need ${(100 - calculateTotalWeightage).toFixed(1)}% more to reach 100%` :
-                                      'Weightage not fully distributed')
-                                )}
+
+                      {/* Total Row */}
+                      <tr className="bg-gray-50 dark:bg-gray-800/50 font-bold border-t-2 border-gray-300 dark:border-gray-600">
+                        <td className="px-6 py-5 text-gray-900 dark:text-gray-100 flex items-center">
+                          <div className="w-3 h-3 bg-indigo-600 rounded-full mr-3"></div>
+                          <span>TOTAL</span>
+                        </td>
+                        <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                          {summaryTotals.total}
+                        </td>
+                        <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                          {summaryTotals.yes} ({summaryTotals.total > 0 ? ((summaryTotals.yes / summaryTotals.total) * 100).toFixed(1) : 0}%)
+                        </td>
+                        <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                          {summaryTotals.no} ({summaryTotals.total > 0 ? ((summaryTotals.no / summaryTotals.total) * 100).toFixed(1) : 0}%)
+                        </td>
+                        <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                          {summaryTotals.na} ({summaryTotals.total > 0 ? ((summaryTotals.na / summaryTotals.total) * 100).toFixed(1) : 0}%)
+                        </td>
+                        {showWeightageColumns && (
+                          <>
+                            <td className="px-6 py-5 text-center font-bold">
+                              <span className={`inline-flex items-center justify-center px-3 py-1 rounded-full font-bold ${redistributionMode ?
+                                (Math.abs(weightageBalance) < 0.1 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400') :
+                                (Math.abs(summaryTotals.weightage - 100) < 0.1 ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400')
+                                }`}>
+                                {redistributionMode ? `${weightageBalance.toFixed(1)}%` : `${summaryTotals.weightage.toFixed(1)}%`}
                               </span>
+                            </td>
+                            <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                              {summaryTotals.yesWeighted.toFixed(1)}
+                            </td>
+                            <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                              {summaryTotals.noWeighted.toFixed(1)}
+                            </td>
+                            <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                              {summaryTotals.naWeighted.toFixed(1)}
+                            </td>
+                          </>
+                        )}
+                      </tr>
 
-                              {redistributionMode && (
-                                <div className="flex items-center gap-2 ml-4">
-                                  <button
-                                    onClick={() => {
-                                      const resetValues: Record<string, string> = {};
-                                      sectionSummaryRows.forEach(row => {
-                                        resetValues[row.id] = row.weightage.toString();
-                                      });
-                                      setTempWeightageValues(resetValues);
-                                      const total = sectionSummaryRows.reduce((sum, row) => sum + row.weightage, 0);
-                                      setWeightageBalance(100 - total);
-                                    }}
-                                    className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1"
-                                    title="Reset to original values"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                    Reset
-                                  </button>
+                      {/* Consolidated Status Message and Action Buttons Row */}
+                      {(redistributionMode || editingAllWeightages) && (
+                        <tr className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
+                          <td colSpan={showWeightageColumns ? 9 : 5} className="px-6 py-4">
+                            <div className="flex flex-col md:flex-row items-center justify-center gap-6">
+                              {/* Status Message */}
+                              <div className="flex items-center gap-2">
+                                {redistributionMode ? (
+                                  <span className={`text-sm font-medium ${Math.abs(weightageBalance) < 0.1 ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400"}`}>
+                                    {Math.abs(weightageBalance) < 0.1 ?
+                                      '✓ Ready to save' :
+                                      `Adjust by ${Math.abs(weightageBalance).toFixed(1)}% to reach 100%`}
+                                  </span>
+                                ) : (
+                                  <span className={`text-sm font-medium ${Math.abs(sectionSummaryRows.reduce((sum, row) => sum + (parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0), 0) - 100) < 0.1 ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400"}`}>
+                                    {Math.abs(sectionSummaryRows.reduce((sum, row) => sum + (parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0), 0) - 100) < 0.1 ?
+                                      '✓ Total is 100%' :
+                                      `Current Total: ${sectionSummaryRows.reduce((sum, row) => sum + (parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0), 0).toFixed(1)}% (Must be 100%)`}
+                                  </span>
+                                )}
+                              </div>
 
-                                  <button
-                                    onClick={() => {
-                                      setRedistributionMode(false);
-                                      const originalValues: Record<string, string> = {};
-                                      sectionSummaryRows.forEach(row => {
-                                        originalValues[row.id] = row.weightage.toString();
-                                      });
-                                      setTempWeightageValues(originalValues);
-                                      setWeightageBalance(0);
-                                    }}
-                                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                                    title="Cancel redistribution"
-                                  >
-                                    Cancel
-                                  </button>
+                              {/* Action Buttons */}
+                              <div className="flex items-center gap-3">
+                                {redistributionMode ? (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        const resetValues: Record<string, string> = {};
+                                        sectionSummaryRows.forEach(row => {
+                                          resetValues[row.id] = row.weightage.toString();
+                                        });
+                                        setTempWeightageValues(resetValues);
+                                        setWeightageBalance(0);
+                                      }}
+                                      className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1"
+                                      title="Reset to original values"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                      </svg>
+                                      Reset
+                                    </button>
 
-                                  <button
-                                    onClick={async () => {
-                                      setSavingWeightage(true);
-                                      try {
-                                        const formId = form._id || form.id;
-                                        if (!formId) throw new Error("Form ID not found");
-                                        
-                                        const total = Object.values(tempWeightageValues).reduce((sum, val) => {
-                                          return sum + (parseFloat(val) || 0);
-                                        }, 0);
-                                        
-                                        if (Math.abs(total - 100) > 0.1) {
-                                          throw new Error(`Total weightage must be exactly 100%. Current: ${total.toFixed(1)}%`);
-                                        }
-                                        
-                                        const updatedSections = form.sections?.map((section: any) => {
-                                          const row = sectionSummaryRows.find(r => r.id === section.id);
-                                          if (row && tempWeightageValues[row.id] !== undefined) {
-                                            return { 
-                                              ...section, 
-                                              weightage: parseFloat(tempWeightageValues[row.id]) || 0 
-                                            };
-                                          }
-                                          return section;
-                                        }) || [];
-                                        
-                                        const formDataToUpdate = { ...form, sections: updatedSections };
-                                        delete formDataToUpdate._id;
-                                        delete formDataToUpdate.__v;
-                                        delete formDataToUpdate.createdAt;
-                                        delete formDataToUpdate.updatedAt;
-                                        
-                                        await apiClient.updateForm(formId, formDataToUpdate);
-                                        
-                                        setForm({ ...form, sections: updatedSections });
+                                    <button
+                                      onClick={() => {
                                         setRedistributionMode(false);
                                         setTempWeightageValues({});
-                                        
-                                        showSuccess("Weightages updated successfully!");
-                                      } catch (error) {
-                                        console.error("Failed to save weightages:", error);
-                                        showError(error instanceof Error ? error.message : "Failed to save weightages");
-                                      } finally {
-                                        setSavingWeightage(false);
-                                      }
-                                    }}
-                                    disabled={savingWeightage || Math.abs(weightageBalance) >= 0.1}
-                                    className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-1"
-                                    title={Math.abs(weightageBalance) >= 0.1 ? "Balance weightage to 100% first" : "Save changes"}
-                                  >
-                                    {savingWeightage ? (
-                                      <>
-                                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                        Saving...
-                                      </>
-                                    ) : (
-                                      <>
-                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        Save
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
-                              )}
+                                        setWeightageBalance(0);
+                                      }}
+                                      className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+
+                                    <button
+                                      onClick={async () => {
+                                        if (Math.abs(weightageBalance) >= 0.1) return;
+                                        setSavingWeightage(true);
+                                        try {
+                                          const formId = form?._id || form?.id;
+                                          if (!formId) throw new Error("Form ID not found");
+
+                                          const updatedSections = form?.sections?.map((section: any) => {
+                                            const row = sectionSummaryRows.find(r => r.id === section.id);
+                                            if (row && tempWeightageValues[row.id] !== undefined) {
+                                              return {
+                                                ...section,
+                                                weightage: parseFloat(tempWeightageValues[row.id]) || 0
+                                              };
+                                            }
+                                            return section;
+                                          }) || [];
+
+                                          const formDataToUpdate = { ...form, sections: updatedSections };
+                                          delete (formDataToUpdate as any)._id;
+                                          delete (formDataToUpdate as any).__v;
+                                          delete (formDataToUpdate as any).createdAt;
+                                          delete (formDataToUpdate as any).updatedAt;
+
+                                          await apiClient.updateForm(formId, formDataToUpdate);
+                                          setForm({ ...form, sections: updatedSections } as Form);
+                                          setRedistributionMode(false);
+                                          setTempWeightageValues({});
+                                          setWeightageBalance(0);
+                                          showSuccess("Weightages redistributed successfully!");
+                                        } catch (error) {
+                                          console.error("Failed to save weightages:", error);
+                                          showError("Failed to redistribute weightages");
+                                        } finally {
+                                          setSavingWeightage(false);
+                                        }
+                                      }}
+                                      disabled={Math.abs(weightageBalance) >= 0.1 || savingWeightage}
+                                      className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                      {savingWeightage ? "Saving..." : "Save Redistribution"}
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        setEditingAllWeightages(false);
+                                        setWeightageValues({});
+                                        if (calculateTotalWeightage === 0) setAddWeightMode(false);
+                                      }}
+                                      className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                                    >
+                                      Cancel
+                                    </button>
+
+                                    <button
+                                      onClick={async () => {
+                                        const batchTotal = sectionSummaryRows.reduce((sum, row) => sum + (parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0), 0);
+                                        if (Math.abs(batchTotal - 100) > 0.1) return;
+
+                                        setSavingWeightage(true);
+                                        try {
+                                          const formId = form?._id || form?.id;
+                                          if (!formId) throw new Error("Form ID not found");
+
+                                          const updatedSections = form?.sections?.map((section: any) => {
+                                            const row = sectionSummaryRows.find(r => r.id === section.id);
+                                            if (row && weightageValues[row.id] !== undefined) {
+                                              return {
+                                                ...section,
+                                                weightage: parseFloat(weightageValues[row.id]) || 0
+                                              };
+                                            }
+                                            return section;
+                                          }) || [];
+
+                                          const formDataToUpdate = { ...form, sections: updatedSections };
+                                          delete (formDataToUpdate as any)._id;
+                                          delete (formDataToUpdate as any).__v;
+                                          await apiClient.updateForm(formId, formDataToUpdate);
+
+                                          setForm({ ...form, sections: updatedSections } as Form);
+                                          setEditingAllWeightages(false);
+                                          setAddWeightMode(false);
+                                          setWeightageValues({});
+                                          showSuccess("All weightages saved successfully!");
+                                        } catch (error) {
+                                          showError("Failed to save weightages");
+                                        } finally {
+                                          setSavingWeightage(false);
+                                        }
+                                      }}
+                                      disabled={savingWeightage || Math.abs(sectionSummaryRows.reduce((sum, row) => sum + (parseFloat(weightageValues[row.id] || row.weightage.toString()) || 0), 0) - 100) > 0.1}
+                                      className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-1"
+                                    >
+                                      {savingWeightage ? "Saving..." : "Save All"}
+                                    </button>
+                                  </>
+                                )}
+                              </div>
                             </div>
                           </td>
                         </tr>
@@ -2404,7 +2420,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                 };
 
                 return (
-                  <div key={section.id} className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-800">
+                  <div key={section.id} id={`section-detail-${section.id}`} className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-800">
                     <div className="mb-4">
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                         {section.title || "Section"} - Yes/No/N/A Analysis

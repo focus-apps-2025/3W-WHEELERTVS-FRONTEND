@@ -638,7 +638,7 @@ export default function DashboardNew() {
                   </div>
                   <div className="text-right">
                     <p className="text-gray-600 dark:text-gray-400 text-xs">
-                      Promoters
+                      YES
                     </p>
                     <p className="text-lg font-bold" style={{ color: "#1e3a8a" }}>
                       {promoterPercentage}%
@@ -652,7 +652,7 @@ export default function DashboardNew() {
                       <div className="w-full h-full flex items-center justify-center py-2" style={{ maxHeight: "160px" }}>
                         <Doughnut
                           data={{
-                            labels: ["Promoters", "Detractors", "Neutral"],
+                            labels: ["YES", "NO", "N/A"],
                             datasets: [
                               {
                                 data: [stats.yesCount, stats.noCount, stats.naCount],
@@ -691,19 +691,19 @@ export default function DashboardNew() {
                       <div className="mt-2 flex justify-center gap-4">
                         <div className="flex flex-col items-center">
                           <p className="text-xs font-bold text-gray-900 dark:text-white">{stats.yesCount}</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Promoters</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">YES</p>
                           <Smile className="w-4 h-4 mt-0.5" style={{ color: "#1e3a8a" }} />
                           <p className="text-xs font-semibold mt-0.5" style={{ color: "#1e3a8a" }}>{stats.total > 0 ? ((stats.yesCount / stats.total) * 100).toFixed(1) : '0'}%</p>
                         </div>
                         <div className="flex flex-col items-center">
                           <p className="text-xs font-bold text-gray-900 dark:text-white">{stats.noCount}</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Detractors</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">NO</p>
                           <Frown className="w-4 h-4 mt-0.5" style={{ color: "#93c5fd" }} />
                           <p className="text-xs font-semibold mt-0.5" style={{ color: "#93c5fd" }}>{stats.total > 0 ? ((stats.noCount / stats.total) * 100).toFixed(1) : '0'}%</p>
                         </div>
                         <div className="flex flex-col items-center">
                           <p className="text-xs font-bold text-gray-900 dark:text-white">{stats.naCount}</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">Neutral</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">N/A</p>
                           <Meh className="w-4 h-4 mt-0.5" style={{ color: "#2563eb" }} />
                           <p className="text-xs font-semibold mt-0.5" style={{ color: "#2563eb" }}>{stats.total > 0 ? ((stats.naCount / stats.total) * 100).toFixed(1) : '0'}%</p>
                         </div>
