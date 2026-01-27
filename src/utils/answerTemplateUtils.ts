@@ -106,7 +106,7 @@ function parseNumber(value: unknown) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-export function generateAnswerTemplate(form: Question) {
+/*export function generateAnswerTemplate(form: Question) {
   console.log("🔄 Generating answer template...");
 
   if (!form.sections || form.sections.length === 0) {
@@ -139,30 +139,91 @@ export function generateAnswerTemplate(form: Question) {
       section.title || "Untitled Section"
     }`;
 
-    console.log(`   📁 Section ${sectionIndex + 1}: "${section.title}"`);
+    console.log(`\n   📁 Section ${sectionIndex + 1}: "${section.title}"`);
+    
+    // IMPORTANT: Check if section.questions exists
+    if (!section.questions || !Array.isArray(section.questions)) {
+      console.warn(`   ⚠️ Section has no questions array, skipping...`);
+      return;
+    }
+    
     console.log(
       `      Total questions in section.questions: ${section.questions.length}`
     );
 
-    // First, identify all questions in this section
-    const allQuestionsInSection = section.questions;
+    // DEBUG: Log all questions in this section
+    console.log(`      🔍 All questions in section:`);
+    section.questions.forEach((q, idx) => {
+      if (q) {
+        console.log(`        ${idx + 1}. ID: ${q.id}, Text: "${q.text?.substring(0, 50)}..."`);
+        console.log(`           Parent ID: ${q.parentId || 'none'}, ShowWhen: ${q.showWhen?.questionId || 'none'}`);
+        console.log(`           Has nested follow-ups: ${q.followUpQuestions?.length || 0}`);
+      }
+    });
 
-    // Find main questions (those without parentId or showWhen)
-    const mainQuestions = allQuestionsInSection.filter(
-      (q) => !q.parentId && !q.showWhen?.questionId
+    // IMPORTANT FIX: Find main questions in a smarter way
+    const mainQuestions: FollowUpQuestion[] = [];
+    
+    // Method 1: First check for questions without parentId or showWhen
+    const questionsWithoutParent = section.questions.filter(
+      (q) => q && !q.parentId && !q.showWhen?.questionId
     );
-
-    console.log(`      Main questions found: ${mainQuestions.length}`);
-    console.log(
-      `      Follow-up questions: ${
-        allQuestionsInSection.length - mainQuestions.length
-      }`
+    
+    console.log(`      Found ${questionsWithoutParent.length} questions without parent/showWhen`);
+    
+    // Method 2: Check for questions that are NOT referenced as follow-ups by any other question
+    const allQuestionIds = new Set(section.questions.map(q => q?.id).filter(Boolean));
+    const referencedAsFollowUp = new Set<string>();
+    
+    section.questions.forEach(q => {
+      if (q?.showWhen?.questionId) {
+        referencedAsFollowUp.add(q.showWhen.questionId);
+      }
+      if (q?.parentId) {
+        referencedAsFollowUp.add(q.parentId);
+      }
+      // Also check nested follow-ups
+      if (q?.followUpQuestions) {
+        q.followUpQuestions.forEach(fq => {
+          if (fq?.id) {
+            referencedAsFollowUp.add(q.id); // Parent is referenced
+          }
+        });
+      }
+    });
+    
+    // Questions that are NOT referenced as follow-ups are likely main questions
+    const notReferencedQuestions = section.questions.filter(
+      q => q && !referencedAsFollowUp.has(q.id)
     );
+    
+    console.log(`      Found ${notReferencedQuestions.length} questions not referenced as follow-ups`);
+    
+    // COMBINE both methods to get main questions
+    const combinedMainQuestions = [...new Set([
+      ...questionsWithoutParent,
+      ...notReferencedQuestions
+    ].filter(Boolean))];
+    
+    // Remove duplicates by ID
+    const uniqueMainQuestions = combinedMainQuestions.filter((q, index, self) =>
+      index === self.findIndex((t) => t.id === q.id)
+    );
+    
+    console.log(`      Combined main questions found: ${uniqueMainQuestions.length}`);
+    
+    // If no main questions found, use first question as main
+    if (uniqueMainQuestions.length === 0 && section.questions.length > 0) {
+      console.warn(`      ⚠️ No main questions identified, using first question as main`);
+      uniqueMainQuestions.push(section.questions[0]);
+    }
 
     const rowsForSection: PreparedRow[] = [];
 
     // Process each main question
-    mainQuestions.forEach((mainQuestion, mainIndex) => {
+    uniqueMainQuestions.forEach((mainQuestion, mainIndex) => {
+      if (!mainQuestion) return;
+
       const mainQuestionNumber = `Q${mainIndex + 1}`;
 
       // Create labels and question numbers for all questions (main + follow-ups)
@@ -193,29 +254,80 @@ export function generateAnswerTemplate(form: Question) {
         depth: 0,
       });
 
-      console.log(`     Main Question ${mainQuestionNumber}: "${mainLabel}"`);
+      console.log(`\n     🔷 Main Question ${mainQuestionNumber}: "${mainLabel.substring(0, 50)}..."`);
 
-      // Recursive function to find and organize follow-ups
-      const findAndOrganizeFollowUps = (
-        parentQuestionId: string,
-        prefix: string,
-        depth: number
-      ): number => {
-        // Find direct follow-ups of this parent
-        const directFollowUps = allQuestionsInSection.filter((q) => {
-          const parentId = q.parentId || q.showWhen?.questionId;
-          return parentId === parentQuestionId;
-        });
-
-        console.log(
-          `       Found ${directFollowUps.length} direct follow-ups for ${parentQuestionId}`
+      // FIXED: Collect ALL follow-ups including from imported forms
+      const processedQuestionIds = new Set<string>();
+      processedQuestionIds.add(mainQuestion.id);
+      
+      let fuCounter = 0;
+      
+      // Function to find ALL follow-ups of a question
+      const findAllFollowUps = (parentQuestionId: string): FollowUpQuestion[] => {
+        const followUps: FollowUpQuestion[] = [];
+        
+        // 1. Check for flat follow-ups (showWhen or parentId)
+        const flatFollowUps = section.questions.filter(q => 
+          q && (q.showWhen?.questionId === parentQuestionId || q.parentId === parentQuestionId)
         );
-
-        let childIndex = 1;
-
-        directFollowUps.forEach((followUp) => {
-          const followUpQuestionNumber = `${prefix}.${childIndex}`;
-          const followUpLabel = followUp.text || "Follow-up";
+        
+        // 2. Check for nested follow-ups in the parent question itself
+        const parentQuestion = section.questions.find(q => q.id === parentQuestionId);
+        const nestedFollowUps = parentQuestion?.followUpQuestions || [];
+        
+        // Combine and remove duplicates
+        const allFoundFollowUps = [...flatFollowUps, ...nestedFollowUps];
+        const uniqueFollowUps = allFoundFollowUps.filter((q, index, self) =>
+          index === self.findIndex((t) => t?.id === q?.id)
+        );
+        
+        return uniqueFollowUps.filter(Boolean);
+      };
+      
+      // Recursive function to build follow-up tree
+      const buildFollowUpTree = (
+        parentQuestionId: string,
+        parentNumber: string, // e.g., "Q1" or "FU1" or "FU1.1"
+        depth: number,
+        isFirstLevel: boolean = true
+      ) => {
+        const followUps = findAllFollowUps(parentQuestionId);
+        
+        // Filter out already processed questions
+        const newFollowUps = followUps.filter(fq => !processedQuestionIds.has(fq.id));
+        
+        if (newFollowUps.length === 0) return;
+        
+        console.log(`       Depth ${depth}: Found ${newFollowUps.length} follow-ups for ${parentNumber}`);
+        
+        // Sort by order if available
+        newFollowUps.sort((a, b) => (a.order || 0) - (b.order || 0));
+        
+        // Process each follow-up
+        newFollowUps.forEach((followUp, index) => {
+          if (processedQuestionIds.has(followUp.id)) return;
+          
+          processedQuestionIds.add(followUp.id);
+          
+          // Generate FU numbering
+          let followUpQuestionNumber: string;
+          
+          if (isFirstLevel) {
+            // First-level follow-ups: FU1, FU2, FU3, etc.
+            fuCounter++;
+            followUpQuestionNumber = `FU${fuCounter}`;
+          } else if (parentNumber.startsWith('FU')) {
+            // Nested follow-ups: FU1.1, FU1.2, FU1.1.1, etc.
+            const parts = parentNumber.split('.');
+            parts.push((index + 1).toString());
+            followUpQuestionNumber = parts.join('.');
+          } else {
+            // Fallback
+            fuCounter++;
+            followUpQuestionNumber = `FU${fuCounter}`;
+          }
+          
+          const followUpLabel = followUp.text || "Follow-up Question";
           const followUpType = followUp.type || "text";
           const followUpOptions = followUp.options
             ? followUp.options.join("|")
@@ -231,97 +343,94 @@ export function generateAnswerTemplate(form: Question) {
             depth: depth,
           });
 
-          console.log(
-            `         Added follow-up ${followUpQuestionNumber}: "${followUpLabel}"`
-          );
+          console.log(`         ➕ ${followUpQuestionNumber}: "${followUpLabel.substring(0, 40)}..."`);
 
-          childIndex++;
-
-          // Recursively find nested follow-ups
-          findAndOrganizeFollowUps(
-            followUp.id,
-            followUpQuestionNumber,
-            depth + 1
-          );
+          // Recursively process this follow-up's own follow-ups
+          buildFollowUpTree(followUp.id, followUpQuestionNumber, depth + 1, false);
         });
-
-        return childIndex - 1; // Return count of children
       };
-
-      // Find and organize all follow-ups for this main question
-      console.log(
-        `     Finding follow-ups for ${mainQuestionNumber} (ID: ${mainQuestion.id})...`
-      );
-      findAndOrganizeFollowUps(mainQuestion.id, mainQuestionNumber, 1);
+      
+      // Start building follow-up tree from main question
+      buildFollowUpTree(mainQuestion.id, mainQuestionNumber, 1, true);
+      
+      // DEBUG: Show what was collected
+      console.log(`     📊 Collected ${allQuestions.length} questions for ${mainQuestionNumber}:`);
+      allQuestions.forEach((q, idx) => {
+        const prefix = idx === 0 ? "Main" : `FU ${idx}`;
+        console.log(`       ${prefix}. ${q.questionNumber}: "${q.label.substring(0, 40)}..." (Depth: ${q.depth})`);
+      });
 
       rowsForSection.push({
         mainQuestionNumber,
         mainQuestion: mainQuestion,
         allQuestions,
       });
-
-      console.log(
-        `     Total questions for ${mainQuestionNumber}: ${allQuestions.length}`
-      );
     });
 
     console.log(`      Total rows in section: ${rowsForSection.length}`);
-
     preparedSections.push({ title: sectionTitle, rows: rowsForSection });
   });
 
-  // Calculate MAXIMUM number of follow-ups across ALL rows (including nested)
+  // Calculate MAXIMUM number of follow-ups across ALL rows
   let maxFollowUpsPerRow = 0;
   preparedSections.forEach((section) => {
     section.rows.forEach((row) => {
-      const totalFollowUps = row.allQuestions.length - 1; // Subtract 1 for main question
+      const totalFollowUps = row.allQuestions.length - 1;
+      console.log(`   ${row.mainQuestionNumber}: ${totalFollowUps} follow-ups`);
+      
       if (totalFollowUps > maxFollowUpsPerRow) {
         maxFollowUpsPerRow = totalFollowUps;
       }
     });
   });
 
-  console.log(`📊 Layout: Max ${maxFollowUpsPerRow} follow-ups per row`);
+  // FIX: Ensure we have enough columns for all follow-ups
+  if (maxFollowUpsPerRow < 1) maxFollowUpsPerRow = 1;
+  if (maxFollowUpsPerRow > 200) {
+    console.warn(`⚠️  Very high follow-up count: ${maxFollowUpsPerRow}. Limiting to 200.`);
+    maxFollowUpsPerRow = 200;
+  }
+  
+  console.log(`\n📊 FINAL CALCULATION: Max ${maxFollowUpsPerRow} follow-ups per row`);
 
   // Build Excel data array with new structure
   const data: Array<Array<string | number>> = [];
 
-  // HEADER ROW
+  // HEADER ROW - SIMPLIFIED
   const headerRow: Array<string | number> = [
     "Section",
     "Question No.",
     "Question",
     "Type",
     "Options",
+    "Trigger Option",
     "Answer",
   ];
 
-  // Add headers for follow-ups (each with its own Question No. column)
+  // Add headers for follow-ups
   for (let i = 0; i < maxFollowUpsPerRow; i++) {
-    headerRow.push(`Q No.`);
+    headerRow.push(`FU No.`);
     headerRow.push(`Follow-up Question`);
     headerRow.push(`Type`);
     headerRow.push(`Options`);
+    headerRow.push(`Trigger`);
     headerRow.push(`Answer`);
   }
 
   data.push(headerRow);
-  console.log(`📋 Header row (${headerRow.length} columns):`, headerRow);
 
   // BODY ROWS
   preparedSections.forEach((section) => {
-    console.log(`📋 Processing section: "${section.title}"`);
+    console.log(`\n📋 Processing section: "${section.title}"`);
     let firstRowInSection = true;
 
     section.rows.forEach((row, rowIndex) => {
-      console.log(
-        `   Row ${rowIndex + 1}: ${
-          row.allQuestions.length
-        } questions (1 main + ${row.allQuestions.length - 1} follow-ups)`
-      );
+      const totalFollowUps = row.allQuestions.length - 1;
+      console.log(`   Row ${rowIndex + 1}: ${row.allQuestions.length} questions (1 main + ${totalFollowUps} follow-ups)`);
 
+      // Create row with exact number of columns needed
       const excelRow: Array<string | number> = new Array(
-        6 + maxFollowUpsPerRow * 5
+        7 + maxFollowUpsPerRow * 6
       ).fill("");
 
       excelRow[0] = firstRowInSection ? section.title : "";
@@ -329,43 +438,46 @@ export function generateAnswerTemplate(form: Question) {
 
       // Main question data
       const mainQuestion = row.allQuestions[0];
-      excelRow[1] = mainQuestion.questionNumber; // Question No.
-      excelRow[2] = mainQuestion.label; // Question
-      excelRow[3] = mainQuestion.type; // Type
-      excelRow[4] = mainQuestion.options; // Options
-      excelRow[5] = ""; // Answer
-
-      console.log(
-        `     Main Question: ${mainQuestion.questionNumber} "${mainQuestion.label}"`
-      );
+      excelRow[1] = mainQuestion.questionNumber;
+      excelRow[2] = mainQuestion.label;
+      excelRow[3] = mainQuestion.type;
+      excelRow[4] = mainQuestion.options;
+      excelRow[5] = ""; // Trigger Option (empty for main question)
+      excelRow[6] = ""; // Answer
 
       // Fill follow-up columns
-      for (let i = 0; i < row.allQuestions.length - 1; i++) {
+      for (let i = 0; i < totalFollowUps; i++) {
+        if (i >= maxFollowUpsPerRow) {
+          console.warn(`⚠️  WARNING: Row has ${totalFollowUps} follow-ups, but only ${maxFollowUpsPerRow} will fit in Excel`);
+          break;
+        }
+        
         const followUp = row.allQuestions[i + 1];
-        const columnOffset = 6 + i * 5; // Starting column for follow-up groups
+        const columnOffset = 7 + i * 6;
 
-        // Add question number for follow-up
-        excelRow[columnOffset] = followUp.questionNumber; // Q No.
+        excelRow[columnOffset] = followUp.questionNumber;
+        
+        // Add indentation
+        const indent = "  ".repeat(followUp.depth - 1);
+        excelRow[columnOffset + 1] = `${indent}${followUp.label}`;
+        excelRow[columnOffset + 2] = followUp.type;
+        excelRow[columnOffset + 3] = followUp.options;
+        
+        // Get trigger value from the follow-up question
+        const triggerValue = followUp.question?.showWhen?.value || 
+                            (followUp.question?.parentId ? "Yes" : "Yes");
+        excelRow[columnOffset + 4] = triggerValue;
+        
+        excelRow[columnOffset + 5] = ""; // Answer
 
-        // Add indentation based on depth for better readability
-        const indent = "  ".repeat(followUp.depth);
-        excelRow[columnOffset + 1] = `${indent}${followUp.label}`; // Follow-up Question
-        excelRow[columnOffset + 2] = followUp.type; // Type
-        excelRow[columnOffset + 3] = followUp.options; // Options
-        excelRow[columnOffset + 4] = ""; // Answer
-
-        console.log(
-          `     Follow-up ${i + 1}: ${followUp.questionNumber} "${
-            followUp.label
-          }" (Depth ${followUp.depth})`
-        );
+        console.log(`     Added ${followUp.questionNumber} at column ${columnOffset}`);
       }
 
       data.push(excelRow);
     });
   });
 
-  console.log(`📋 Generated ${data.length} rows of data`);
+  console.log(`\n📋 Generated ${data.length - 1} data rows in Excel`);
 
   const worksheet = utils.aoa_to_sheet(data);
 
@@ -376,7 +488,7 @@ export function generateAnswerTemplate(form: Question) {
       worksheet[cellAddress] = { t: "s", v: headerRow[colIndex] || "" };
     }
     worksheet[cellAddress].s = {
-      font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+      font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
       fill: { fgColor: { rgb: "1D4ED8" } },
       alignment: { horizontal: "center", vertical: "center", wrapText: true },
       border: {
@@ -399,7 +511,7 @@ export function generateAnswerTemplate(form: Question) {
         worksheet[cellAddress] = { t: "s", v: row[0] };
       }
       worksheet[cellAddress].s = {
-        font: { bold: true, color: { rgb: "1E40AF" }, sz: 12 },
+        font: { bold: true, color: { rgb: "1E40AF" }, sz: 11 },
         fill: { fgColor: { rgb: "DBEAFE" } },
         alignment: { horizontal: "left", vertical: "center", wrapText: true },
         border: {
@@ -412,13 +524,13 @@ export function generateAnswerTemplate(form: Question) {
     }
 
     // Style main question cells
-    for (let colIndex = 1; colIndex <= 4; colIndex++) {
+    for (let colIndex = 1; colIndex <= 5; colIndex++) { // Up to Trigger Option
       const cellAddress = utils.encode_cell({ r: rowIndex, c: colIndex });
       if (!worksheet[cellAddress]) {
         worksheet[cellAddress] = { t: "s", v: row[colIndex] };
       }
       worksheet[cellAddress].s = {
-        font: { bold: true, color: { rgb: "000000" }, sz: 11 },
+        font: { bold: true, color: { rgb: "000000" }, sz: 10 },
         fill: { fgColor: { rgb: "FFFFFF" } },
         alignment: { horizontal: "left", vertical: "center", wrapText: true },
         border: {
@@ -432,25 +544,27 @@ export function generateAnswerTemplate(form: Question) {
 
     // Style Answer cells function
     const styleAnswerCell = (columnIndex: number) => {
+      if (columnIndex >= row.length) return;
+      
       const cellAddress = utils.encode_cell({ r: rowIndex, c: columnIndex });
       if (!worksheet[cellAddress]) {
         worksheet[cellAddress] = { t: "s", v: row[columnIndex] || "" };
       }
       worksheet[cellAddress].s = {
-        font: { color: { rgb: "000000" }, sz: 11 },
-        fill: { fgColor: { rgb: "FFFFFF" } },
+        font: { color: { rgb: "000000" }, sz: 10 },
+        fill: { fgColor: { rgb: "FEF3C7" } }, // Light yellow for answer cells
         alignment: { horizontal: "left", vertical: "center", wrapText: true },
         border: {
-          top: { style: "medium", color: { rgb: "3B82F6" } },
-          left: { style: "medium", color: { rgb: "3B82F6" } },
-          bottom: { style: "medium", color: { rgb: "3B82F6" } },
-          right: { style: "medium", color: { rgb: "3B82F6" } },
+          top: { style: "medium", color: { rgb: "F59E0B" } },
+          left: { style: "medium", color: { rgb: "F59E0B" } },
+          bottom: { style: "medium", color: { rgb: "F59E0B" } },
+          right: { style: "medium", color: { rgb: "F59E0B" } },
         },
       };
     };
 
     // Style main answer cell
-    styleAnswerCell(5);
+    styleAnswerCell(6);
 
     // Style follow-up cells
     for (
@@ -458,25 +572,26 @@ export function generateAnswerTemplate(form: Question) {
       followUpIndex < maxFollowUpsPerRow;
       followUpIndex++
     ) {
-      const baseColumnOffset = 6 + followUpIndex * 5;
+      const baseColumnOffset = 7 + followUpIndex * 6;
 
       if (row[baseColumnOffset]) {
         // Only style if there's data
-        // Style follow-up question number cell
-        const qNoCell = utils.encode_cell({ r: rowIndex, c: baseColumnOffset });
-        if (!worksheet[qNoCell]) {
-          worksheet[qNoCell] = { t: "s", v: row[baseColumnOffset] || "" };
+        
+        // Style FU number cell
+        const fuNoCell = utils.encode_cell({ r: rowIndex, c: baseColumnOffset });
+        if (!worksheet[fuNoCell]) {
+          worksheet[fuNoCell] = { t: "s", v: row[baseColumnOffset] || "" };
         }
 
-        const qNoText = row[baseColumnOffset]?.toString() || "";
-        const isNested = qNoText.split(".").length > 2; // Check if it's like Q1.1.1
+        const fuNoText = row[baseColumnOffset]?.toString() || "";
+        const isNested = fuNoText.split(".").length > 1; // Check if it's like FU1.1
 
-        worksheet[qNoCell].s = {
+        worksheet[fuNoCell].s = {
           font: {
-            color: { rgb: isNested ? "6B7280" : "4B5563" },
-            sz: isNested ? 10 : 11,
+            color: { rgb: isNested ? "6B7280" : "FFFFFF" }, // Red for FU, gray for nested
+            sz: isNested ? 9 : 10,
           },
-          fill: { fgColor: { rgb: isNested ? "F9FAFB" : "FFFFFF" } },
+          fill: { fgColor: { rgb: isNested ? "F9FAFB" : "2B2C5A" } },
           alignment: { horizontal: "left", vertical: "center", wrapText: true },
           border: {
             top: { style: "thin", color: { rgb: "E5E7EB" } },
@@ -497,15 +612,14 @@ export function generateAnswerTemplate(form: Question) {
             v: row[baseColumnOffset + 1] || "",
           };
         }
+        
         const questionText = row[baseColumnOffset + 1]?.toString() || "";
-        const indentLevel =
-          (questionText.match(/^(\s+)/)?.[0]?.length || 0) / 2;
+        const indentLevel = (questionText.match(/^(\s+)/)?.[0]?.length || 0) / 2;
 
         worksheet[questionCell].s = {
           font: {
             color: { rgb: indentLevel > 0 ? "6B7280" : "374151" },
-            sz: indentLevel > 0 ? 10 : 11,
-            italic: indentLevel > 0,
+            sz: indentLevel > 0 ? 9 : 10,
           },
           fill: { fgColor: { rgb: indentLevel > 0 ? "F9FAFB" : "FFFFFF" } },
           alignment: { horizontal: "left", vertical: "center", wrapText: true },
@@ -517,8 +631,35 @@ export function generateAnswerTemplate(form: Question) {
           },
         };
 
+        // Style trigger cell
+        const triggerCell = utils.encode_cell({
+          r: rowIndex,
+          c: baseColumnOffset + 4,
+        });
+        if (!worksheet[triggerCell]) {
+          worksheet[triggerCell] = {
+            t: "s",
+            v: row[baseColumnOffset + 4] || "",
+          };
+        }
+        worksheet[triggerCell].s = {
+          font: {
+            color: { rgb: "DC2626" },
+            sz: 9,
+            italic: true,
+          },
+          fill: { fgColor: { rgb: "FEE2E2" } },
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          border: {
+            top: { style: "thin", color: { rgb: "E5E7EB" } },
+            left: { style: "thin", color: { rgb: "E5E7EB" } },
+            bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+            right: { style: "thin", color: { rgb: "E5E7EB" } },
+          },
+        };
+
         // Style follow-up answer cell
-        styleAnswerCell(baseColumnOffset + 4);
+        styleAnswerCell(baseColumnOffset + 5);
       }
     }
   }
@@ -529,16 +670,18 @@ export function generateAnswerTemplate(form: Question) {
     { wch: 12 }, // Question No. (main)
     { wch: 35 }, // Question (main)
     { wch: 10 }, // Type (main)
-    { wch: 15 }, // Options (main)
+    { wch: 20 }, // Options (main)
+    { wch: 12 }, // Trigger Option (main)
     { wch: 30 }, // Answer (main)
   ];
 
   for (let i = 0; i < maxFollowUpsPerRow; i++) {
-    columnWidths.push({ wch: 12 }); // Q No. (follow-up)
+    columnWidths.push({ wch: 12 }); // FU No.
     columnWidths.push({ wch: 30 }); // Follow-up Question
-    columnWidths.push({ wch: 10 }); // Type (follow-up)
-    columnWidths.push({ wch: 15 }); // Options (follow-up)
-    columnWidths.push({ wch: 30 }); // Answer (follow-up)
+    columnWidths.push({ wch: 10 }); // Type
+    columnWidths.push({ wch: 20 }); // Options
+    columnWidths.push({ wch: 8 }); // Trigger
+    columnWidths.push({ wch: 30 }); // Answer
   }
 
   worksheet["!cols"] = columnWidths;
@@ -553,23 +696,745 @@ export function generateAnswerTemplate(form: Question) {
   writeFile(workbook, fileName);
 
   console.log(`✅ Template saved as: ${fileName}`);
-  console.log(`📊 Total questions in template: ${data.length - 1}`);
-  console.log(`🎯 Each follow-up has its own Question Number column`);
-  console.log(
-    `🔢 Question numbering format: Q1, Q1.1, Q1.1.1, Q1.1.2, Q1.2, etc.`
-  );
-  console.log(`💡 Nested questions are properly numbered and indented`);
+  console.log(`📊 Total rows in template: ${data.length - 1}`);
+  console.log(`🎯 Numbering format: Q1, FU1, FU2, FU1.1, FU1.2, FU1.1.1, etc.`);
+  console.log(`📈 Maximum follow-up columns: ${maxFollowUpsPerRow}`);
+  console.log(`🔢 Trigger options shown for follow-ups`);
+  console.log(`📋 NO Question ID columns (simplified template)`);
 
   return fileName;
 }
+*/
 
-// Also update parseAnswerWorkbook to handle the new format
+export function generateAnswerTemplate(form: Question) {
+  console.log("🔄 Generating answer template...");
+
+  // DEEP DEBUG: Log the entire form structure
+  console.log("🔍 DEEP DEBUG: Full form structure");
+  console.log("====================================");
+  
+  form.sections?.forEach((section: Section, sectionIndex: number) => {
+    console.log(`\n📁 Section ${sectionIndex + 1}: "${section.title}"`);
+    console.log(`   Section ID: ${section.id}`);
+    console.log(`   Total questions: ${section.questions?.length || 0}`);
+    
+    if (!section.questions || !Array.isArray(section.questions)) {
+      console.log("   ⚠️ No questions array in this section!");
+      return;
+    }
+    
+    // Log each question in detail
+    section.questions.forEach((question: FollowUpQuestion, qIndex: number) => {
+      console.log(`\n   Q${qIndex + 1}:`);
+      console.log(`     ID: ${question.id}`);
+      console.log(`     Text: "${question.text?.substring(0, 50)}..."`);
+      console.log(`     Type: ${question.type}`);
+      console.log(`     Has followUpQuestions array: ${Array.isArray(question.followUpQuestions)}`);
+      console.log(`     followUpQuestions count: ${question.followUpQuestions?.length || 0}`);
+      console.log(`     parentId: ${question.parentId || 'none'}`);
+      console.log(`     showWhen: ${question.showWhen ? JSON.stringify(question.showWhen) : 'none'}`);
+      console.log(`     order: ${question.order || 'none'}`);
+      
+      // Log nested follow-ups if they exist
+      if (question.followUpQuestions && question.followUpQuestions.length > 0) {
+        console.log(`     Nested follow-ups:`);
+        question.followUpQuestions.forEach((fq, fqIndex) => {
+          console.log(`       FU${fqIndex + 1}: ID=${fq.id}, Text="${fq.text?.substring(0, 30)}..."`);
+          console.log(`           showWhen: ${fq.showWhen ? JSON.stringify(fq.showWhen) : 'none'}`);
+        });
+      }
+    });
+  });
+  console.log("====================================\n");
+
+  if (!form.sections || form.sections.length === 0) {
+    throw new Error("Form has no sections");
+  }
+
+  // Prepare all sections with grouped questions
+  type PreparedRow = {
+    mainQuestionNumber: string;
+    mainQuestion: FollowUpQuestion;
+    allQuestions: Array<{
+      label: string;
+      questionNumber: string;
+      question: FollowUpQuestion;
+      type: string;
+      options: string;
+      id: string;
+      depth: number;
+      source: string; // For debugging: 'main', 'flat', 'nested'
+    }>;
+  };
+  type PreparedSection = { title: string; rows: PreparedRow[] };
+
+  const preparedSections: PreparedSection[] = [];
+
+  console.log(`📋 Processing ${form.sections.length} sections...`);
+
+  // Process ALL sections
+  form.sections.forEach((section: Section, sectionIndex: number) => {
+    const sectionTitle = `Section ${sectionIndex + 1}: ${
+      section.title || "Untitled Section"
+    }`;
+
+    console.log(`\n   📁 Section ${sectionIndex + 1}: "${section.title}"`);
+    
+    if (!section.questions || !Array.isArray(section.questions)) {
+      console.warn(`   ⚠️ Section has no questions array, skipping...`);
+      return;
+    }
+    
+    console.log(
+      `      Total raw questions in section: ${section.questions.length}`
+    );
+
+    // FLATTEN ALL questions (including nested ones)
+    // FIXED: Better flattening with debug info
+const flattenedQuestions: FollowUpQuestion[] = [];
+const processedIds = new Set<string>();
+
+const flattenQuestion = (q: FollowUpQuestion, parentId?: string, level: number = 0) => {
+  if (!q || !q.id || processedIds.has(q.id)) return;
+  
+  processedIds.add(q.id);
+  
+  // Create a copy with parent info
+  const questionCopy = {
+    ...q,
+    parentId: parentId || q.parentId,
+    _level: level // For debugging
+  };
+  
+  flattenedQuestions.push(questionCopy);
+  
+  console.log(`        Flattened L${level}: ${q.id} - "${q.text?.substring(0, 30)}..."`);
+  
+  // Recursively flatten nested follow-ups
+  if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+    console.log(`          Has ${q.followUpQuestions.length} nested follow-ups`);
+    q.followUpQuestions.forEach((fq, fqIndex) => {
+      flattenQuestion(fq, q.id, level + 1);
+    });
+  }
+};
+
+// Flatten all questions
+console.log(`      🔍 Flattening all questions:`);
+section.questions.forEach((q, idx) => {
+  console.log(`        Root Q${idx + 1}: ${q.id} - "${q.text?.substring(0, 30)}..."`);
+  flattenQuestion(q, undefined, 0);
+});
+
+console.log(`      Total flattened questions: ${flattenedQuestions.length}`);
+    
+    // Create a map of all questions by ID for easy lookup
+    const questionsById = new Map<string, FollowUpQuestion>();
+    flattenedQuestions.forEach(q => {
+      if (q.id) {
+        questionsById.set(q.id, q);
+      }
+    });
+    
+    // DEBUG: Show all flattened questions
+    console.log(`      🔍 Flattened questions:`);
+    flattenedQuestions.forEach((q, idx) => {
+      const parentInfo = q.parentId ? `(Parent: ${q.parentId})` : 
+                        q.showWhen?.questionId ? `(ShowWhen: ${q.showWhen.questionId})` : '';
+      console.log(`        ${idx + 1}. ${q.id}: "${q.text?.substring(0, 30)}..." ${parentInfo}`);
+    });
+
+    // FIND MAIN QUESTIONS
+    // Strategy: Questions that are NOT children of any other question
+    const childQuestionIds = new Set<string>();
+    
+    flattenedQuestions.forEach(q => {
+      if (q.parentId) {
+        childQuestionIds.add(q.id);
+      }
+      if (q.showWhen?.questionId) {
+        childQuestionIds.add(q.id);
+      }
+    });
+    
+    // Main questions are those NOT in childQuestionIds
+    const mainQuestions = flattenedQuestions.filter(q => !childQuestionIds.has(q.id));
+    
+    console.log(`\n      🔍 Main questions identified: ${mainQuestions.length}`);
+    mainQuestions.forEach((q, idx) => {
+      console.log(`        Main ${idx + 1}: ${q.id} - "${q.text?.substring(0, 40)}..."`);
+    });
+    
+    // If no main questions found, use the first question
+    if (mainQuestions.length === 0 && flattenedQuestions.length > 0) {
+      console.warn(`      ⚠️ No main questions identified, using first question as main`);
+      mainQuestions.push(flattenedQuestions[0]);
+    }
+
+    const rowsForSection: PreparedRow[] = [];
+
+    // Process each main question
+    // Process each main question
+// Process each main question
+// Process each main question
+mainQuestions.forEach((mainQuestion, mainIndex) => {
+  if (!mainQuestion) return;
+
+  const mainQuestionNumber = `Q${mainIndex + 1}`;
+
+  // Create labels and question numbers for all questions (main + follow-ups)
+  const allQuestions: Array<{
+    label: string;
+    questionNumber: string;
+    question: FollowUpQuestion;
+    type: string;
+    options: string;
+    id: string;
+    depth: number;
+    source: string;
+  }> = [];
+
+  // Add main question
+  const mainLabel = mainQuestion.text || "Untitled Question";
+  const mainType = mainQuestion.type || "text";
+  const mainOptions = mainQuestion.options
+    ? mainQuestion.options.join("|")
+    : "";
+
+  allQuestions.push({
+    label: mainLabel,
+    questionNumber: mainQuestionNumber,
+    question: mainQuestion,
+    type: mainType,
+    options: mainOptions,
+    id: mainQuestion.id,
+    depth: 0,
+    source: 'main'
+  });
+
+  console.log(`\n     🔷 Processing Main Question ${mainQuestionNumber}: "${mainLabel.substring(0, 50)}..."`);
+
+  // Track ALL processed question IDs to avoid duplicates
+  const processedQuestionIds = new Set<string>();
+  processedQuestionIds.add(mainQuestion.id);
+  
+  // Map to store question numbers for quick lookup
+  const questionNumberMap = new Map<string, string>();
+  questionNumberMap.set(mainQuestion.id, mainQuestionNumber);
+  
+  // Global counters for each level
+  const levelCounters: Map<number, number> = new Map();
+  
+  // Recursive function to build proper hierarchy
+  const buildHierarchy = (
+    parentQuestion: FollowUpQuestion,
+    parentQuestionNumber: string,
+    currentDepth: number,
+    isFirstLevel: boolean = true
+  ) => {
+    if (!parentQuestion) return;
+    
+    // Get or initialize counter for this depth
+    if (!levelCounters.has(currentDepth)) {
+      levelCounters.set(currentDepth, 0);
+    }
+    
+    // Find ALL children of this parent
+    const children: FollowUpQuestion[] = [];
+    const childIds = new Set<string>();
+    
+    // Method 1: Find by showWhen.questionId
+    flattenedQuestions.forEach(q => {
+      if (q.showWhen?.questionId === parentQuestion.id && 
+          !processedQuestionIds.has(q.id) && 
+          !childIds.has(q.id)) {
+        
+        // For option-based follow-ups, check trigger value matches parent's selection
+        if (parentQuestion.options && q.showWhen?.value) {
+          // Only include if the parent has this option
+          if (parentQuestion.options.includes(q.showWhen.value)) {
+            children.push(q);
+            childIds.add(q.id);
+          }
+        } else {
+          children.push(q);
+          childIds.add(q.id);
+        }
+      }
+    });
+    
+    // Method 2: Find by parentId
+    flattenedQuestions.forEach(q => {
+      if (q.parentId === parentQuestion.id && 
+          !processedQuestionIds.has(q.id) && 
+          !childIds.has(q.id)) {
+        children.push(q);
+        childIds.add(q.id);
+      }
+    });
+    
+    // Method 3: Check nested followUpQuestions array
+    if (parentQuestion.followUpQuestions) {
+      parentQuestion.followUpQuestions.forEach(fq => {
+        if (!processedQuestionIds.has(fq.id) && !childIds.has(fq.id)) {
+          children.push(fq);
+          childIds.add(fq.id);
+        }
+      });
+    }
+    
+    if (children.length === 0) return;
+    
+    console.log(`       Depth ${currentDepth}: Found ${children.length} children for ${parentQuestionNumber}`);
+    
+    // Sort children
+    children.sort((a, b) => {
+      // First try by order
+      if (a.order !== undefined && b.order !== undefined) {
+        return a.order - b.order;
+      }
+      
+      // For option-based follow-ups, maintain option order
+      if (parentQuestion.options && a.showWhen?.value && b.showWhen?.value) {
+        const indexA = parentQuestion.options.indexOf(a.showWhen.value);
+        const indexB = parentQuestion.options.indexOf(b.showWhen.value);
+        if (indexA !== -1 && indexB !== -1) {
+          return indexA - indexB;
+        }
+      }
+      
+      return 0;
+    });
+    
+    // Process children
+    children.forEach((child, childIndex) => {
+      if (processedQuestionIds.has(child.id)) {
+        console.warn(`       ⚠️ Skipping duplicate: ${child.id}`);
+        return;
+      }
+      
+      processedQuestionIds.add(child.id);
+      
+      // Generate question number
+      let questionNumber: string;
+      
+      if (isFirstLevel) {
+        // First-level follow-ups: FU1, FU2, FU3, etc.
+        const counter = (levelCounters.get(currentDepth) || 0) + 1;
+        levelCounters.set(currentDepth, counter);
+        questionNumber = `FU${counter}`;
+      } else {
+        // Nested follow-ups: FU1.1, FU1.2, FU1.1.1, etc.
+        const counter = (levelCounters.get(currentDepth) || 0) + 1;
+        levelCounters.set(currentDepth, counter);
+        questionNumber = `${parentQuestionNumber}.${counter}`;
+      }
+      
+      questionNumberMap.set(child.id, questionNumber);
+      
+      allQuestions.push({
+        label: child.text || "Follow-up Question",
+        questionNumber: questionNumber,
+        question: child,
+        type: child.type || "text",
+        options: child.options ? child.options.join("|") : "",
+        id: child.id,
+        depth: currentDepth,
+        source: child.id.includes('_synth_') ? 'synthetic' : 'existing'
+      });
+      
+      console.log(`         ${questionNumber}: "${child.text?.substring(0, 40)}..." (trigger: ${child.showWhen?.value || 'none'})`);
+      
+      // Recursively process this child's children
+      buildHierarchy(child, questionNumber, currentDepth + 1, false);
+    });
+  };
+  
+  // SPECIAL CASE: If main question has options but no follow-ups found, create synthetic ones
+  if (mainQuestion.options && mainQuestion.options.length > 0) {
+    // First, try to build normal hierarchy
+    buildHierarchy(mainQuestion, mainQuestionNumber, 1, true);
+    
+    // Check if we got follow-ups for all options
+    const optionsWithFollowUps = new Set<string>();
+    
+    allQuestions.slice(1).forEach(q => {
+      if (q.question.showWhen?.value) {
+        optionsWithFollowUps.add(q.question.showWhen.value);
+      }
+    });
+    
+    // Create synthetic follow-ups for missing options
+    if (optionsWithFollowUps.size < mainQuestion.options.length) {
+      console.log(`     Creating synthetic follow-ups for missing options...`);
+      
+      let syntheticCounter = allQuestions.length - 1; // Start after existing follow-ups
+      
+      mainQuestion.options.forEach((option, optionIndex) => {
+        if (!optionsWithFollowUps.has(option)) {
+          syntheticCounter++;
+          const questionNumber = `FU${syntheticCounter}`;
+          const cleanOption = option.replace(/\r\n/g, ' ').trim();
+          
+          const syntheticFollowUp: FollowUpQuestion = {
+            id: `${mainQuestion.id}_synth_${optionIndex}`,
+            text: `${cleanOption} details`,
+            type: "text",
+            showWhen: {
+              questionId: mainQuestion.id,
+              value: option
+            }
+          };
+          
+          allQuestions.push({
+            label: syntheticFollowUp.text || `${cleanOption} details`,
+            questionNumber: questionNumber,
+            question: syntheticFollowUp,
+            type: syntheticFollowUp.type || "text",
+            options: "",
+            id: syntheticFollowUp.id,
+            depth: 1,
+            source: 'synthetic'
+          });
+          
+          console.log(`       ${questionNumber}: Synthetic for "${cleanOption}"`);
+        }
+      });
+    }
+  } else {
+    // Normal case: Build hierarchy
+    buildHierarchy(mainQuestion, mainQuestionNumber, 1, true);
+  }
+  
+  // DEBUG: Show final structure
+  console.log(`\n     📊 FINAL STRUCTURE for ${mainQuestionNumber}:`);
+  console.log(`       Total questions: ${allQuestions.length}`);
+  
+  allQuestions.forEach((q, idx) => {
+    const indent = "  ".repeat(q.depth);
+    console.log(`       ${indent}${q.questionNumber}: "${q.label.substring(0, 40)}..."`);
+  });
+  
+  // Verify no duplicates
+  const uniqueIds = new Set(allQuestions.map(q => q.id));
+  if (uniqueIds.size !== allQuestions.length) {
+    console.error(`       ❌ DUPLICATES FOUND: ${allQuestions.length - uniqueIds.size} duplicates`);
+    
+    const idCounts: Map<string, number> = new Map();
+    allQuestions.forEach(q => {
+      idCounts.set(q.id, (idCounts.get(q.id) || 0) + 1);
+    });
+    
+    idCounts.forEach((count, id) => {
+      if (count > 1) {
+        console.error(`         ID ${id}: appears ${count} times`);
+      }
+    });
+  }
+
+  rowsForSection.push({
+    mainQuestionNumber,
+    mainQuestion: mainQuestion,
+    allQuestions,
+  });
+});
+
+
+    console.log(`      Total rows in section: ${rowsForSection.length}`);
+    preparedSections.push({ title: sectionTitle, rows: rowsForSection });
+  });
+
+  // Calculate MAXIMUM number of follow-ups across ALL rows
+  let maxFollowUpsPerRow = 0;
+  preparedSections.forEach((section) => {
+    section.rows.forEach((row) => {
+      const totalFollowUps = row.allQuestions.length - 1;
+      console.log(`   ${row.mainQuestionNumber}: ${totalFollowUps} follow-ups`);
+      
+      if (totalFollowUps > maxFollowUpsPerRow) {
+        maxFollowUpsPerRow = totalFollowUps;
+      }
+    });
+  });
+
+  // Ensure reasonable limits
+  if (maxFollowUpsPerRow < 1) maxFollowUpsPerRow = 1;
+  if (maxFollowUpsPerRow > 200) {
+    console.warn(`⚠️  Very high follow-up count: ${maxFollowUpsPerRow}. Limiting to 200.`);
+    maxFollowUpsPerRow = 200;
+  }
+  
+  console.log(`\n📊 FINAL: Max ${maxFollowUpsPerRow} follow-ups per row`);
+
+  // Build Excel data
+  const data: Array<Array<string | number>> = [];
+
+  // HEADER ROW
+  const headerRow: Array<string | number> = [
+    "Section",
+    "Question No.",
+    "Question",
+    "Type",
+    "Options",
+    "Trigger Option",
+    "Answer",
+  ];
+
+  for (let i = 0; i < maxFollowUpsPerRow; i++) {
+    headerRow.push(`FU No.`);
+    headerRow.push(`Follow-up Question`);
+    headerRow.push(`Type`);
+    headerRow.push(`Options`);
+    headerRow.push(`Trigger`);
+    headerRow.push(`Answer`);
+  }
+
+  data.push(headerRow);
+
+  // BODY ROWS
+  preparedSections.forEach((section) => {
+    console.log(`\n📋 Processing section: "${section.title}"`);
+    let firstRowInSection = true;
+
+    section.rows.forEach((row, rowIndex) => {
+      const totalFollowUps = row.allQuestions.length - 1;
+      console.log(`   Row ${rowIndex + 1}: ${row.allQuestions.length} questions (1 main + ${totalFollowUps} follow-ups)`);
+
+      const excelRow: Array<string | number> = new Array(
+        7 + maxFollowUpsPerRow * 6
+      ).fill("");
+
+      excelRow[0] = firstRowInSection ? section.title : "";
+      firstRowInSection = false;
+
+      // Main question
+      const mainQuestion = row.allQuestions[0];
+      excelRow[1] = mainQuestion.questionNumber;
+      excelRow[2] = mainQuestion.label;
+      excelRow[3] = mainQuestion.type;
+      excelRow[4] = mainQuestion.options;
+      excelRow[5] = "";
+      excelRow[6] = "";
+
+      // Follow-ups
+      for (let i = 0; i < totalFollowUps; i++) {
+        if (i >= maxFollowUpsPerRow) {
+          console.warn(`⚠️  Row has ${totalFollowUps} follow-ups, but only ${maxFollowUpsPerRow} will fit`);
+          break;
+        }
+        
+        const followUp = row.allQuestions[i + 1];
+        const columnOffset = 7 + i * 6;
+
+        excelRow[columnOffset] = followUp.questionNumber;
+        
+        // Add indentation
+        const indent = "  ".repeat(followUp.depth - 1);
+        excelRow[columnOffset + 1] = `${indent}${followUp.label}`;
+        excelRow[columnOffset + 2] = followUp.type;
+        excelRow[columnOffset + 3] = followUp.options;
+        
+        // Get trigger value
+        const triggerValue = followUp.question?.showWhen?.value || 
+                           (followUp.question?.parentId ? "Yes" : "Yes");
+        excelRow[columnOffset + 4] = triggerValue;
+        
+        excelRow[columnOffset + 5] = "";
+
+        console.log(`     Added ${followUp.questionNumber} (source: ${followUp.source})`);
+      }
+
+      data.push(excelRow);
+    });
+  });
+
+  console.log(`\n📋 Generated ${data.length - 1} data rows`);
+
+  // Create worksheet
+  const worksheet = utils.aoa_to_sheet(data);
+
+  // Apply styling (same as before)
+  for (let colIndex = 0; colIndex < headerRow.length; colIndex++) {
+    const cellAddress = utils.encode_cell({ r: 0, c: colIndex });
+    if (!worksheet[cellAddress]) {
+      worksheet[cellAddress] = { t: "s", v: headerRow[colIndex] || "" };
+    }
+    worksheet[cellAddress].s = {
+      font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 },
+      fill: { fgColor: { rgb: "1D4ED8" } },
+      alignment: { horizontal: "center", vertical: "center", wrapText: true },
+      border: {
+        top: { style: "thin", color: { rgb: "000000" } },
+        left: { style: "thin", color: { rgb: "000000" } },
+        bottom: { style: "thin", color: { rgb: "000000" } },
+        right: { style: "thin", color: { rgb: "000000" } },
+      },
+    };
+  }
+
+  // Style data rows (same as before, but simplified)
+  for (let rowIndex = 1; rowIndex < data.length; rowIndex++) {
+    const row = data[rowIndex];
+
+    // Section header
+    if (row[0]) {
+      const cellAddress = utils.encode_cell({ r: rowIndex, c: 0 });
+      if (!worksheet[cellAddress]) {
+        worksheet[cellAddress] = { t: "s", v: row[0] };
+      }
+      worksheet[cellAddress].s = {
+        font: { bold: true, color: { rgb: "1E40AF" }, sz: 11 },
+        fill: { fgColor: { rgb: "DBEAFE" } },
+        alignment: { horizontal: "left", vertical: "center", wrapText: true },
+        border: {
+          top: { style: "thin", color: { rgb: "93C5FD" } },
+          left: { style: "thin", color: { rgb: "93C5FD" } },
+          bottom: { style: "thin", color: { rgb: "93C5FD" } },
+          right: { style: "thin", color: { rgb: "93C5FD" } },
+        },
+      };
+    }
+
+    // Main question cells
+    for (let colIndex = 1; colIndex <= 5; colIndex++) {
+      const cellAddress = utils.encode_cell({ r: rowIndex, c: colIndex });
+      if (!worksheet[cellAddress]) {
+        worksheet[cellAddress] = { t: "s", v: row[colIndex] };
+      }
+      worksheet[cellAddress].s = {
+        font: { bold: true, color: { rgb: "000000" }, sz: 10 },
+        fill: { fgColor: { rgb: "FFFFFF" } },
+        alignment: { horizontal: "left", vertical: "center", wrapText: true },
+        border: {
+          top: { style: "thin", color: { rgb: "E2E8F0" } },
+          left: { style: "thin", color: { rgb: "E2E8F0" } },
+          bottom: { style: "thin", color: { rgb: "E2E8F0" } },
+          right: { style: "thin", color: { rgb: "E2E8F0" } },
+        },
+      };
+    }
+
+    // Style Answer cells
+    const styleAnswerCell = (columnIndex: number) => {
+      if (columnIndex >= row.length) return;
+      
+      const cellAddress = utils.encode_cell({ r: rowIndex, c: columnIndex });
+      if (!worksheet[cellAddress]) {
+        worksheet[cellAddress] = { t: "s", v: row[columnIndex] || "" };
+      }
+      worksheet[cellAddress].s = {
+        font: { color: { rgb: "000000" }, sz: 10 },
+        fill: { fgColor: { rgb: "FEF3C7" } },
+        alignment: { horizontal: "left", vertical: "center", wrapText: true },
+        border: {
+          top: { style: "medium", color: { rgb: "F59E0B" } },
+          left: { style: "medium", color: { rgb: "F59E0B" } },
+          bottom: { style: "medium", color: { rgb: "F59E0B" } },
+          right: { style: "medium", color: { rgb: "F59E0B" } },
+        },
+      };
+    };
+
+    // Style main answer cell
+    styleAnswerCell(6);
+
+    // Style follow-up cells
+    for (let followUpIndex = 0; followUpIndex < maxFollowUpsPerRow; followUpIndex++) {
+      const baseColumnOffset = 7 + followUpIndex * 6;
+
+      if (row[baseColumnOffset]) {
+        // Style FU number
+        const fuNoCell = utils.encode_cell({ r: rowIndex, c: baseColumnOffset });
+        if (!worksheet[fuNoCell]) {
+          worksheet[fuNoCell] = { t: "s", v: row[baseColumnOffset] || "" };
+        }
+
+        const fuNoText = row[baseColumnOffset]?.toString() || "";
+        const isNested = fuNoText.split(".").length > 1;
+
+        worksheet[fuNoCell].s = {
+          font: {
+            color: { rgb: isNested ? "6B7280" : "DC2626" },
+            sz: isNested ? 9 : 10,
+          },
+          fill: { fgColor: { rgb: isNested ? "F9FAFB" : "FEE2E2" } },
+          alignment: { horizontal: "left", vertical: "center", wrapText: true },
+          border: {
+            top: { style: "thin", color: { rgb: "E5E7EB" } },
+            left: { style: "thin", color: { rgb: "E5E7EB" } },
+            bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+            right: { style: "thin", color: { rgb: "E5E7EB" } },
+          },
+        };
+
+        // Style trigger cell
+        const triggerCell = utils.encode_cell({ r: rowIndex, c: baseColumnOffset + 4 });
+        if (!worksheet[triggerCell]) {
+          worksheet[triggerCell] = { t: "s", v: row[baseColumnOffset + 4] || "" };
+        }
+        worksheet[triggerCell].s = {
+          font: { color: { rgb: "DC2626" }, sz: 9, italic: true },
+          fill: { fgColor: { rgb: "FEE2E2" } },
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
+          border: {
+            top: { style: "thin", color: { rgb: "E5E7EB" } },
+            left: { style: "thin", color: { rgb: "E5E7EB" } },
+            bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+            right: { style: "thin", color: { rgb: "E5E7EB" } },
+          },
+        };
+
+        // Style follow-up answer cell
+        styleAnswerCell(baseColumnOffset + 5);
+      }
+    }
+  }
+
+  // Set column widths
+  const columnWidths = [
+    { wch: 25 }, // Section
+    { wch: 12 }, // Question No.
+    { wch: 35 }, // Question
+    { wch: 10 }, // Type
+    { wch: 20 }, // Options
+    { wch: 12 }, // Trigger Option
+    { wch: 30 }, // Answer
+  ];
+
+  for (let i = 0; i < maxFollowUpsPerRow; i++) {
+    columnWidths.push({ wch: 12 }); // FU No.
+    columnWidths.push({ wch: 30 }); // Follow-up Question
+    columnWidths.push({ wch: 10 }); // Type
+    columnWidths.push({ wch: 20 }); // Options
+    columnWidths.push({ wch: 8 }); // Trigger
+    columnWidths.push({ wch: 30 }); // Answer
+  }
+
+  worksheet["!cols"] = columnWidths;
+
+  const workbook = utils.book_new();
+  utils.book_append_sheet(workbook, worksheet, "Answer Template");
+
+  const fileName = `${(form.title || "form")
+    .replace(/[^a-z0-9]+/gi, "-")
+    .toLowerCase()}-answer-template.xlsx`;
+
+  writeFile(workbook, fileName);
+
+  console.log(`\n✅ Template saved as: ${fileName}`);
+  console.log(`📊 Total rows: ${data.length - 1}`);
+  console.log(`🎯 Numbering: Q1, FU1, FU2, FU1.1, FU1.2, etc.`);
+  console.log(`📈 Max follow-ups per row: ${maxFollowUpsPerRow}`);
+
+  return fileName;
+}
+// Updated parser for the new format
 export async function parseAnswerWorkbook(
   file: File,
   form: Question,
   onProgress?: (current: number, total: number, message: string) => void
 ): Promise<ParsedAnswers> {
-  console.log("🔄 Parsing answer workbook USING QUESTION IDs...");
+  console.log("🔄 Parsing answer workbook...");
 
   const { read } = await import("xlsx");
   const buffer = await file.arrayBuffer();
@@ -595,37 +1460,17 @@ export async function parseAnswerWorkbook(
   const headerRow = rawData[0];
   console.log("📋 Header row:", headerRow);
 
-  // Validate this is our new format with Question IDs
-  if (
-    !headerRow ||
-    !Array.isArray(headerRow) ||
-    headerRow[3] !== "Question ID"
-  ) {
-    throw new Error(
-      "Invalid Excel format. Please use the latest template with Question IDs."
-    );
-  }
-
   // Skip header row
   const answerRows = rawData.slice(1);
   const answers: ParsedAnswers = {};
 
   onProgress?.(0, answerRows.length, "Starting to parse answers...");
 
-  console.log("📋 Parsing answers using Question IDs (perfect mapping)...");
+  console.log("📋 Parsing answers...");
 
   let parsedCount = 0;
-  let emptyAnswerCount = 0;
-
-  // Column indices for NEW format:
-  // 0: Section
-  // 1: Question No.
-  // 2: Main Question
-  // 3: Question ID (MAIN)
-  // 4: Type
-  // 5: Options
-  // 6: Answer (MAIN)
-  // 7+: Follow-up groups (5 columns each)
+  let matchedCount = 0;
+  let unmatchedCount = 0;
 
   answerRows.forEach((row, rowIndex) => {
     if (!Array.isArray(row)) {
@@ -633,119 +1478,81 @@ export async function parseAnswerWorkbook(
       return;
     }
 
-    // DEBUG: Show row data
     console.log(`\n🔍 Row ${rowIndex + 2}:`);
-    console.log(`   Main Question ID: "${row[3]}"`);
-    console.log(`   Main Answer: "${row[6]}"`);
 
-    // Process MAIN question
-    const mainQuestionId = row[3]?.toString().trim() || "";
+    // Process MAIN question (column 2)
+    const mainQuestionText = row[2]?.toString().trim() || "";
     const mainAnswerValue = row[6]?.toString().trim() || "";
 
-    // ONLY process if we have BOTH a valid question ID AND a non-empty answer
-    if (mainQuestionId && mainAnswerValue) {
-      // Validate the question ID exists in the form
-      let questionExists = false;
+    if (mainQuestionText && mainAnswerValue) {
+      // Find matching question by text
+      let matchedQuestion: FollowUpQuestion | undefined;
       form.sections.forEach((section) => {
         section.questions.forEach((q) => {
-          if (q.id === mainQuestionId) {
-            questionExists = true;
+          if (q.text === mainQuestionText && !q.showWhen?.questionId) {
+            matchedQuestion = q;
           }
         });
       });
 
-      if (questionExists) {
-        answers[mainQuestionId] = mainAnswerValue;
+      if (matchedQuestion) {
+        answers[matchedQuestion.id] = mainAnswerValue;
         parsedCount++;
-        console.log(`   ✅ Main: ID ${mainQuestionId} = "${mainAnswerValue}"`);
+        matchedCount++;
+        console.log(`   ✅ Main: "${mainQuestionText}" = "${mainAnswerValue}"`);
       } else {
-        console.log(`   ❌ Invalid Question ID: ${mainQuestionId}`);
+        unmatchedCount++;
+        console.log(`   ❓ No match found for: "${mainQuestionText}"`);
       }
-    } else if (mainQuestionId && !mainAnswerValue) {
-      emptyAnswerCount++;
-      console.log(`   ⏭️  Main: ID ${mainQuestionId} - Skipped (empty answer)`);
     }
 
     // Process FOLLOW-UP questions
     let followUpIndex = 0;
     let columnIndex = 7; // Start of first follow-up group
 
-    // Each follow-up group has 5 columns:
-    // 0: Follow-up text
-    // 1: Question ID (FOLLOW-UP)
-    // 2: Type
-    // 3: Options
-    // 4: Answer
+    // Each follow-up group has 6 columns
+    while (columnIndex + 5 < row.length && row[columnIndex]) {
+      const followUpText = row[columnIndex + 1]?.toString().trim() || "";
+      const followUpAnswer = row[columnIndex + 5]?.toString().trim() || "";
+      const fuNumber = row[columnIndex]?.toString().trim() || "";
 
-    while (columnIndex + 4 < row.length) {
-      const followUpId = row[columnIndex + 1]?.toString().trim() || "";
-      const followUpAnswer = row[columnIndex + 4]?.toString().trim() || "";
-
-      console.log(
-        `   Follow-up ${
-          followUpIndex + 1
-        }: ID "${followUpId}", Answer "${followUpAnswer}"`
-      );
-
-      // ONLY process if we have BOTH a valid question ID AND a non-empty answer
-      if (followUpId && followUpAnswer) {
-        // Validate the question ID exists in the form
-        let followUpExists = false;
+      if (followUpText && followUpAnswer) {
+        // Remove indentation from follow-up text
+        const cleanFollowUpText = followUpText.replace(/^\s+/, '');
+        
+        // Find matching follow-up by text
+        let matchedFollowUp: FollowUpQuestion | undefined;
         form.sections.forEach((section) => {
           section.questions.forEach((q) => {
-            if (q.id === followUpId) {
-              followUpExists = true;
+            if (q.text === cleanFollowUpText) {
+              matchedFollowUp = q;
             }
           });
         });
 
-        if (followUpExists) {
-          answers[followUpId] = followUpAnswer;
+        if (matchedFollowUp) {
+          answers[matchedFollowUp.id] = followUpAnswer;
           parsedCount++;
-          console.log(
-            `     ✅ Follow-up: ID ${followUpId} = "${followUpAnswer}"`
-          );
+          matchedCount++;
+          console.log(`     ✅ Follow-up ${fuNumber}: "${cleanFollowUpText.substring(0, 30)}..." = "${followUpAnswer}"`);
         } else {
-          console.log(`     ❌ Invalid Follow-up ID: ${followUpId}`);
+          unmatchedCount++;
+          console.log(`     ❓ No match found for: "${cleanFollowUpText}"`);
         }
-      } else if (followUpId && !followUpAnswer) {
-        emptyAnswerCount++;
-        console.log(
-          `     ⏭️  Follow-up: ID ${followUpId} - Skipped (empty answer)`
-        );
       }
 
       followUpIndex++;
-      columnIndex += 5; // Move to next follow-up group
+      columnIndex += 6; // Move to next follow-up group
     }
   });
 
   console.log(`\n📊 PARSING COMPLETE:`);
   console.log(`   ✅ Successfully parsed: ${parsedCount} answers`);
-  console.log(`   ⏭️  Skipped (empty): ${emptyAnswerCount} questions`);
+  console.log(`   ✓ Text matches: ${matchedCount}`);
+  console.log(`   ✗ Unmatched questions: ${unmatchedCount}`);
   console.log(
     `   📋 Total answers ready for submission: ${Object.keys(answers).length}`
   );
-
-  // Show what was actually parsed
-  console.log("\n🔍 ANSWERS TO BE SUBMITTED:");
-  Object.entries(answers).forEach(([questionId, answer], index) => {
-    // Find question text for display
-    let questionText = "Unknown";
-    form.sections.forEach((section) => {
-      section.questions.forEach((q) => {
-        if (q.id === questionId) {
-          questionText = q.text || "Unknown";
-        }
-      });
-    });
-    console.log(
-      `   ${index + 1}. ${questionId}: "${questionText.substring(
-        0,
-        50
-      )}..." = "${answer}"`
-    );
-  });
 
   onProgress?.(
     answerRows.length,

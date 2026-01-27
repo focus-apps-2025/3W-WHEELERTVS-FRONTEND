@@ -15,7 +15,7 @@ const API_BASE_URL = (() => {
   console.log(
     `🔗 API Base URL: ${baseUrl} (Environment: ${
       isLocal ? "Local" : "Production"
-    })`
+    })`,
   );
   return baseUrl;
 })();
@@ -28,7 +28,11 @@ interface ApiResponse<T> {
 0.0;
 
 class ApiError extends Error {
-  constructor(public status: number, public response: any, message?: string) {
+  constructor(
+    public status: number,
+    public response: any,
+    message?: string,
+  ) {
     super(message || "API Error");
     this.name = "ApiError";
   }
@@ -55,7 +59,7 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
@@ -83,7 +87,7 @@ class ApiClient {
         if (data.errors && Array.isArray(data.errors)) {
           const errorDetails = data.errors
             .map((err: any) =>
-              typeof err === "string" ? err : `${err.field}: ${err.message}`
+              typeof err === "string" ? err : `${err.field}: ${err.message}`,
             )
             .join(", ");
           errorMessage = `${errorMessage}: ${errorDetails}`;
@@ -96,7 +100,7 @@ class ApiClient {
         if (data.errors && Array.isArray(data.errors)) {
           const errorDetails = data.errors
             .map((err: any) =>
-              typeof err === "string" ? err : `${err.field}: ${err.message}`
+              typeof err === "string" ? err : `${err.field}: ${err.message}`,
             )
             .join(", ");
           errorMessage = `${errorMessage}: ${errorDetails}`;
@@ -144,7 +148,7 @@ class ApiClient {
       {
         method: "POST",
         body: JSON.stringify(credentials),
-      }
+      },
     );
 
     this.setToken(data.token);
@@ -328,7 +332,7 @@ class ApiClient {
       {
         method: "POST",
         body: JSON.stringify({ childFormId }),
-      }
+      },
     );
   }
 
@@ -356,14 +360,14 @@ class ApiClient {
   // Responses
   async getResponses() {
     return this.request<{ responses: any[]; pagination?: any }>(
-      "/responses?limit=1000"
+      "/responses?limit=1000",
     );
   }
 
   async getFormResponses(formId: string, options?: { analytics?: boolean }) {
     const query = options?.analytics ? "?analytics=true" : "";
     return this.request<{ responses: any[] }>(
-      `/responses/form/${formId}${query}`
+      `/responses/form/${formId}${query}`,
     );
   }
 
@@ -437,7 +441,7 @@ class ApiClient {
       `${this.baseUrl}/responses/form/${formId}/export?format=${format}`,
       {
         headers,
-      }
+      },
     );
 
     if (!response.ok) {
@@ -502,7 +506,7 @@ class ApiClient {
 
   async getUsersByRole(roleId: string) {
     return this.request<{ users: any[]; role: any; pagination: any }>(
-      `/roles/${roleId}/users`
+      `/roles/${roleId}/users`,
     );
   }
 
@@ -517,7 +521,7 @@ class ApiClient {
       total: number;
       timeRemaining?: number;
       speed?: number;
-    }) => void
+    }) => void,
   ) {
     // Validate file size (10MB limit)
     const maxSize = 10 * 1024 * 1024; // 10MB
@@ -525,89 +529,146 @@ class ApiClient {
       throw new ApiError(
         400,
         null,
-        `File size (${(file.size / 1024 / 1024).toFixed(
-          2
-        )}MB) exceeds maximum limit of 10MB`
+        `File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds maximum limit of 10MB`,
       );
     }
 
-    return new Promise((resolve, reject) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("upload_preset", "focus_forms_unsigned");
-      formData.append("folder", `focus_forms/${category}`);
+    try {
+      // STEP 1: Get presigned URL from your backend
+      console.log("Requesting presigned URL for:", file.name);
 
-      if (associatedId) {
-        formData.append("tags", `associatedId_${associatedId}`);
+      // Normalize category (fix for 'form' vs 'forms' issue)
+      const normalizedCategory = category === "form" ? "forms" : category;
+
+      console.log("Original category:", category);
+      console.log("Normalized category:", normalizedCategory);
+
+      // Use the baseUrl from ApiClient
+      const presignedEndpoint = "/upload/presigned-url";
+
+      // ✅ FIX: Define uploadApiUrl here where it's accessible
+      const uploadApiUrl = `${this.baseUrl}${presignedEndpoint}`;
+      console.log("Upload API URL:", uploadApiUrl);
+
+      // Prepare headers
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      if (this.token) {
+        headers["Authorization"] = `Bearer ${this.token}`;
       }
 
-      const xhr = new XMLHttpRequest();
-      const startTime = Date.now();
-
-      xhr.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable && onProgress) {
-          const percentage = Math.round((event.loaded / event.total) * 100);
-          const elapsed = Date.now() - startTime;
-          const speed = event.loaded / (elapsed / 1000); // bytes per second
-          const remaining = (event.total - event.loaded) / speed;
-          const timeRemaining = isFinite(remaining)
-            ? Math.round(remaining)
-            : undefined;
-
-          onProgress({
-            percentage,
-            loaded: event.loaded,
-            total: event.total,
-            timeRemaining,
-            speed,
-          });
-        }
+      const presignedResponse = await fetch(uploadApiUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          filename: file.name,
+          fileType: file.type,
+          category: normalizedCategory,
+          ...(associatedId && { associatedId }),
+        }),
       });
 
-      xhr.addEventListener("load", () => {
-        try {
-          const data = JSON.parse(xhr.responseText);
+      if (!presignedResponse.ok) {
+        const errorText = await presignedResponse.text();
+        console.error(
+          "Presigned URL request failed:",
+          presignedResponse.status,
+          errorText,
+        );
+        throw new ApiError(
+          presignedResponse.status,
+          null,
+          "Failed to get upload URL",
+        );
+      }
 
-          if (xhr.status >= 200 && xhr.status < 300) {
+      const presignedData = await presignedResponse.json();
+
+      if (!presignedData.success) {
+        throw new ApiError(
+          500,
+          presignedData,
+          presignedData.error || "Invalid response from server",
+        );
+      }
+
+      const { uploadUrl, key, publicUrl } = presignedData;
+      console.log("Received presigned URL for S3 upload");
+
+      // STEP 2: Upload directly to S3 using XMLHttpRequest
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        const startTime = Date.now();
+
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable && onProgress) {
+            const percentage = Math.round((event.loaded / event.total) * 100);
+            const elapsed = Date.now() - startTime;
+            const speed = event.loaded / (elapsed / 1000);
+            const remaining = (event.total - event.loaded) / speed;
+            const timeRemaining = isFinite(remaining)
+              ? Math.round(remaining)
+              : undefined;
+
+            onProgress({
+              percentage,
+              loaded: event.loaded,
+              total: event.total,
+              timeRemaining,
+              speed,
+            });
+          }
+        });
+
+        xhr.addEventListener("load", () => {
+          console.log("S3 upload response status:", xhr.status);
+
+          if (xhr.status === 200) {
+            // Success! Return the CloudFront URL
             resolve({
-              url: data.secure_url,
+              url: publicUrl,
               file: {
-                url: data.secure_url,
-                filename: data.public_id,
+                url: publicUrl,
+                filename: key,
                 originalName: file.name,
                 size: file.size,
+                s3Key: key,
+                uploadedAt: new Date().toISOString(),
               },
             });
           } else {
+            console.error("S3 upload failed:", xhr.status, xhr.responseText);
             reject(
               new ApiError(
                 xhr.status,
-                data,
-                data.error?.message || "Upload failed"
-              )
+                null,
+                `S3 upload failed with status ${xhr.status}`,
+              ),
             );
           }
-        } catch (error) {
-          reject(
-            new ApiError(xhr.status, null, "Invalid response from server")
-          );
-        }
-      });
+        });
 
-      xhr.addEventListener("error", () => {
-        reject(new ApiError(0, null, "Network error during upload"));
-      });
+        xhr.addEventListener("error", () => {
+          reject(new ApiError(0, null, "Network error during S3 upload"));
+        });
 
-      xhr.addEventListener("abort", () => {
-        reject(new ApiError(0, null, "Upload was cancelled"));
-      });
+        xhr.addEventListener("abort", () => {
+          reject(new ApiError(0, null, "Upload was cancelled"));
+        });
 
-      xhr.open(
-        "POST",
-        "https://api.cloudinary.com/v1_1/dc5gup0x4/image/upload"
-      );
-      xhr.send(formData);
-    });
+        // Upload directly to S3
+        xhr.open("PUT", uploadUrl);
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.send(file);
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      throw new ApiError(500, null, `Upload failed: ${error.message}`);
+    }
   }
 
   resolveUploadedFileUrl(uploadResult: any) {
@@ -715,7 +776,7 @@ class ApiClient {
   // Tenants (SuperAdmin only)
   async getTenants(search: string = "", status: string = "all") {
     return this.request<{ tenants: any[]; total: number }>(
-      `/tenants?search=${search}&status=${status}`
+      `/tenants?search=${search}&status=${status}`,
     );
   }
 
@@ -760,7 +821,7 @@ class ApiClient {
       lastName: string;
       email: string;
       password: string;
-    }
+    },
   ) {
     return this.request<{
       admin: {
@@ -828,7 +889,7 @@ class ApiClient {
       name: string;
       type: "main" | "followup";
       formId: string;
-    }
+    },
   ) {
     return this.request<{ parameter: any }>(`/parameters/${id}`, {
       method: "PUT",
@@ -890,7 +951,7 @@ class ApiClient {
         throw new Error(
           errorData.details ||
             errorData.error ||
-            `PDF generation failed: ${response.statusText}`
+            `PDF generation failed: ${response.statusText}`,
         );
       }
 
@@ -898,7 +959,7 @@ class ApiClient {
     } catch (error: any) {
       if (error.name === "AbortError") {
         throw new Error(
-          "PDF generation timed out (120s). The document may be too large. Try with fewer sections or images."
+          "PDF generation timed out (120s). The document may be too large. Try with fewer sections or images.",
         );
       }
       throw error;
@@ -934,7 +995,7 @@ class ApiClient {
 
   async sendInvites(
     formId: string,
-    data: { emails: Array<{ email: string; phone?: string }> }
+    data: { emails: Array<{ email: string; phone?: string }> },
   ) {
     const response = await this.request<any>(`/forms/${formId}/invites/send`, {
       method: "POST",
@@ -981,7 +1042,7 @@ class ApiClient {
       endDate?: string;
       sortBy?: string;
       sortOrder?: string;
-    }
+    },
   ) {
     const query = new URLSearchParams();
 
@@ -1016,7 +1077,7 @@ class ApiClient {
       throw new ApiError(
         response.status,
         data,
-        data.message || "Failed to fetch invites"
+        data.message || "Failed to fetch invites",
       );
     }
 
@@ -1050,14 +1111,14 @@ class ApiClient {
 
   async sendWhatsAppInvites(
     formId: string,
-    data: { phones: Array<{ phone: string; email?: string }> }
+    data: { phones: Array<{ phone: string; email?: string }> },
   ) {
     const response = await this.request<any>(
       `/forms/${formId}/invites/whatsapp/send`,
       {
         method: "POST",
         body: JSON.stringify(data),
-      }
+      },
     );
 
     return {

@@ -719,7 +719,7 @@ export async function loadSampleFormData(): Promise<
   return parseNewTemplateFormat(sampleData as FormRowData[], []);
 }
 
-export function downloadFormImportTemplate() {
+export function downloadNestedFormImportTemplate() {
   // Color definitions
   const COLORS = {
     MAIN: { fgColor: { rgb: "000000" } }, // Black for main headers
@@ -1487,6 +1487,425 @@ export function downloadFormImportTemplate() {
   utils.book_append_sheet(workbook, parametersWorksheet, "Parameters");
   utils.book_append_sheet(workbook, worksheet, "Form Template");
   writeFile(workbook, "form-import-template-nested-followups.xlsx");
+}
+
+export function downloadFormImportTemplate() {
+  // Color definitions
+  const COLORS = {
+    MAIN: { fgColor: { rgb: "000000" } }, // Black for main headers
+    FU_DARK: { fgColor: { rgb: "0041C2" } }, // Dark Blue for follow-ups
+  };
+
+  // Helper function to get contrasting text color
+  function getContrastTextColor(hexColor) {
+    // Remove # if present
+    hexColor = hexColor.replace("#", "");
+
+    // Convert hex to RGB
+    const r = parseInt(hexColor.substr(0, 2), 16);
+    const g = parseInt(hexColor.substr(2, 2), 16);
+    const b = parseInt(hexColor.substr(4, 2), 16);
+
+    // Calculate luminance
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+
+    // Return black or white based on luminance
+    return luminance > 0.5 ? "000000" : "FFFFFF";
+  }
+
+  const mainHeaders = [
+    "Form Title",
+    "Form Description",
+    "Section Number",
+    "Section Title",
+    "Section Description",
+    "Section Weightage",
+    "Section Merging",
+    "Question",
+    "Question Description",
+    "Question Type",
+    "Required",
+    "Options",
+    "Branching",
+    "Suggestion",
+    "SubParam1",
+    "SubParam2",
+    "Allowed File Types",
+    "Correct Answer",
+    "Correct Answers",
+  ];
+
+  const followUpHeaders = [];
+
+  // Generate headers for UNLIMITED main follow-ups (1-99)
+  for (let fuIndex = 1; fuIndex <= 99; fuIndex++) {
+    followUpHeaders.push(
+      `FU${fuIndex}: Option`,
+      `FU${fuIndex}: Question Type`,
+      `FU${fuIndex}: Required`,
+      `FU${fuIndex}: SubParam1`,
+      `FU${fuIndex}: SubParam2`,
+      `FU${fuIndex}: Question Text`,
+      `FU${fuIndex}: Options`,
+      `FU${fuIndex}: Correct Answer`
+    );
+  }
+
+  const headers = [...mainHeaders, ...followUpHeaders];
+
+  const descriptions = [
+    "Name of the form",
+    "Overview/purpose of the form",
+    "Which section (1, 2, 3...)",
+    "Title of the section",
+    "Description of what this section covers",
+    "Percentage weight (0-100, must total 100% if used)",
+    "Mark which columns should be merged together (e.g., 1,2 means columns 1 and 2 merge; leave blank to not merge)",
+    "The question text to ask",
+    "Additional details about the question",
+    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA, file",
+    "TRUE/FALSE - is this question required?",
+    "For multipleChoice/checkboxes/dropdown: option1,option2,option3 (comma-separated)",
+    "Section branching: comma-separated section numbers for each option (e.g., 2,3,4 means option1→sec2, option2→sec3, option3→sec4; use 0 to skip)",
+    "Suggestions or recommendations for this question",
+    "Additional parameter 1 for custom question configuration",
+    "Additional parameter 2 for custom question configuration",
+    "For fileUpload: allowed file types (image,pdf,excel) - comma-separated",
+    "For quiz: correct answer value",
+    "For quiz: multiple correct answers separated by |",
+  ];
+
+  // Add descriptions for follow-up columns
+  for (let i = 1; i <= 99; i++) {
+    descriptions.push(
+      `Follow-up #${i}: Which option triggers this follow-up (must match main options)`,
+      `Follow-up #${i}: Question type`,
+      `Follow-up #${i}: Required (TRUE/FALSE)`,
+      `Follow-up #${i}: SubParam1`,
+      `Follow-up #${i}: SubParam2`,
+      `Follow-up #${i}: The follow-up question text`,
+      `Follow-up #${i}: Options (comma-separated)`,
+      `Follow-up #${i}: Correct answer (if quiz)`
+    );
+  }
+
+  const headerRow = headers.reduce((obj, header) => {
+    obj[header] = header;
+    return obj;
+  }, {} as Record<string, string>);
+
+  const descriptionRow = headers.reduce((obj, header, idx) => {
+    obj[header] = descriptions[idx];
+    return obj;
+  }, {} as Record<string, string>);
+
+  const separatorRow = headers.reduce((obj, header) => {
+    obj[header] = "";
+    return obj;
+  }, {} as Record<string, string>);
+
+  const templateData: Record<string, any>[] = [
+    headerRow,
+    descriptionRow,
+    separatorRow,
+  ];
+
+  const formTitle = "Follow-up Testing Form - Unlimited Main Follow-ups";
+  const formDesc =
+    "Test form with support for unlimited main level follow-up questions";
+
+  const rows = [
+    {
+      "Form Title": formTitle,
+      "Form Description": formDesc,
+      "Section Number": "1",
+      "Section Title": "Section 1: Basic Screening",
+      "Section Description":
+        "Initial qualification questions",
+      "Section Weightage": "30",
+      "Section Merging": "",
+      Question: "Are you 18 years or older?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      SubParam1: "Age Verification",
+      SubParam2: "Eligibility Check",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
+    },
+    {
+      "Section Number": "2",
+      "Section Title": "Section 2: Service Experience",
+      "Section Description":
+        "Questions about service experience with many follow-ups",
+      "Section Weightage": "40",
+      "Section Merging": "",
+      Question: "Are you satisfied with our service quality?",
+      "Question Type": "yesNoNA",
+      Required: "TRUE",
+      Options: "Yes,No,N/A",
+      SubParam1: "Satisfaction Rating",
+      SubParam2: "Quality Assessment",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
+      "FU1: Option": "Yes",
+      "FU1: Question Type": "shortText",
+      "FU1: Required": "TRUE",
+      "FU1: SubParam1": "Positive Feedback",
+      "FU1: SubParam2": "Highlight Success",
+      "FU1: Question Text": "Which aspect of our service would you highlight?",
+      "FU1: Options": "",
+      "FU1: Correct Answer": "",
+      "FU2: Option": "No",
+      "FU2: Question Type": "longText",
+      "FU2: Required": "TRUE",
+      "FU2: SubParam1": "Improvement Areas",
+      "FU2: SubParam2": "Critical Feedback",
+      "FU2: Question Text": "What specific improvements would you suggest?",
+      "FU2: Options": "",
+      "FU2: Correct Answer": "",
+      "FU3: Option": "N/A",
+      "FU3: Question Type": "longText",
+      "FU3: Required": "FALSE",
+      "FU3: SubParam1": "Not Applicable",
+      "FU3: SubParam2": "Optional Explanation",
+      "FU3: Question Text": "Why is this not applicable to your situation?",
+      "FU3: Options": "",
+      "FU3: Correct Answer": "",
+      // Can add FU4, FU5, ... up to FU99 here
+    },
+  ];
+
+  // Track section counts for merging
+  const sectionCounts: Record<string, number> = {};
+  const sectionFirstRow: Record<string, number> = {};
+
+  rows.forEach((row) => {
+    const sectionNum = row["Section Number"]?.toString().trim();
+    if (sectionNum) {
+      sectionCounts[sectionNum] = (sectionCounts[sectionNum] || 0) + 1;
+      if (!sectionFirstRow[sectionNum]) {
+        sectionFirstRow[sectionNum] = templateData.length + 3; // +3 for header, description, separator rows
+      }
+    }
+  });
+
+  rows.forEach((row: any) => {
+    const sectionNum = row["Section Number"]?.toString().trim();
+
+    // Build branching string
+    let branchingStr = "";
+    const branchingValues: (string | number)[] = [];
+
+    // Check if we have the old format (5 separate columns)
+    for (let i = 1; i <= 5; i++) {
+      const branchKey = `Branching: Option ${i} Section`;
+      if (row[branchKey]) {
+        branchingValues.push(row[branchKey]);
+      } else {
+        branchingValues.push(0);
+      }
+    }
+
+    // Only include if there's actual branching data
+    if (branchingValues.some((v) => v !== 0 && v !== "")) {
+      branchingStr = branchingValues.join(",");
+    }
+
+    const fullRow: Record<string, any> = {
+      "Form Title": row["Form Title"] || "",
+      "Form Description": row["Form Description"] || "",
+      "Section Number": row["Section Number"] || "",
+      "Section Title": row["Section Title"] || "",
+      "Section Description": row["Section Description"] || "",
+      "Section Merging": "",
+      Question: row.Question || "",
+      "Question Description": row["Question Description"] || "",
+      "Question Type": row["Question Type"] || "",
+      Required: row.Required || "FALSE",
+      Options: row.Options || "",
+      Branching: branchingStr,
+      Suggestion: row["Suggestion"] || "",
+      SubParam1: row.SubParam1 || "",
+      SubParam2: row.SubParam2 || "",
+      "Allowed File Types": row["Allowed File Types"] || "",
+      "Correct Answer": row["Correct Answer"] || "",
+      "Correct Answers": row["Correct Answers"] || "",
+    };
+
+    // Add merge instructions for section columns (3-6) when same section has multiple questions
+    if (sectionNum && sectionCounts[sectionNum] > 1) {
+      const currentRowNum = templateData.length + 3; // +3 for header rows
+      const firstRow = sectionFirstRow[sectionNum];
+      // Merge columns 3-6 (C-F: Section Number, Title, Description, Weightage)
+      fullRow["Section Merging"] = `C${firstRow}:F${
+        firstRow + sectionCounts[sectionNum] - 1
+      }`;
+    }
+
+    // Add follow-up columns dynamically (1-99)
+    for (let i = 1; i <= 99; i++) {
+      fullRow[`FU${i}: Option`] = row[`FU${i}: Option`] || "";
+      fullRow[`FU${i}: Question Type`] = row[`FU${i}: Question Type`] || "";
+      fullRow[`FU${i}: Required`] = row[`FU${i}: Required`] || "";
+      fullRow[`FU${i}: SubParam1`] = row[`FU${i}: SubParam1`] || "";
+      fullRow[`FU${i}: SubParam2`] = row[`FU${i}: SubParam2`] || "";
+      fullRow[`FU${i}: Question Text`] = row[`FU${i}: Question Text`] || "";
+      fullRow[`FU${i}: Options`] = row[`FU${i}: Options`] || "";
+      fullRow[`FU${i}: Correct Answer`] = row[`FU${i}: Correct Answer`] || "";
+    }
+
+    templateData.push(fullRow);
+  });
+
+  const headerArray = [...mainHeaders, ...followUpHeaders];
+
+  const worksheet = utils.json_to_sheet(templateData, {
+    header: headerArray,
+  });
+
+  worksheet["!cols"] = headerArray.map(() => ({ wch: 25 }));
+
+  // Apply styling to header row (row 1)
+  const HEADER_ROW = 1; // Excel is 1-indexed, row 1 is header
+
+  headerArray.forEach((header, colIndex) => {
+    const cellAddress = utils.encode_cell({ r: HEADER_ROW - 1, c: colIndex });
+
+    if (!worksheet[cellAddress]) {
+      worksheet[cellAddress] = {};
+    }
+
+    // Default to main header color
+    let color = COLORS.MAIN;
+
+    // Check for follow-up headers and apply blue color
+    if (header.includes("FU")) {
+      color = COLORS.FU_DARK;
+    }
+
+    worksheet[cellAddress].s = {
+      fill: {
+        patternType: "solid",
+        ...color,
+      },
+      font: {
+        bold: true,
+        color: { rgb: getContrastTextColor(color.fgColor.rgb) },
+      },
+    };
+  });
+
+  templateData.forEach((row) => {
+    const mergeInstructions = row["Section Merging"];
+    if (mergeInstructions && typeof mergeInstructions === "string") {
+      // Parse merge instructions like "C5:F10"
+      try {
+        if (!worksheet["!merges"]) worksheet["!merges"] = [];
+        worksheet["!merges"].push(utils.decode_range(mergeInstructions));
+      } catch (e) {
+        console.warn(`Failed to parse merge instruction: ${mergeInstructions}`);
+      }
+    }
+  });
+
+  // Add data validation for SubParam columns
+  // Calculate column indices dynamically
+  const mainSubParam1Col = utils.encode_col(mainHeaders.indexOf("SubParam1"));
+  const mainSubParam2Col = utils.encode_col(mainHeaders.indexOf("SubParam2"));
+  
+  // For follow-up SubParam columns, we need to calculate based on header position
+  const dataValidations: any[] = [
+    {
+      sqref: `${mainSubParam1Col}5:${mainSubParam1Col}1000`,
+      type: "list",
+      formula1: "=Parameters!$A$4:$A$1000",
+    },
+    {
+      sqref: `${mainSubParam2Col}5:${mainSubParam2Col}1000`,
+      type: "list",
+      formula1: "=Parameters!$A$4:$A$1000",
+    },
+  ];
+
+  // Add data validation for first 10 follow-ups (can be extended)
+  for (let fuIndex = 1; fuIndex <= 10; fuIndex++) {
+    const fuSubParam1Header = `FU${fuIndex}: SubParam1`;
+    const fuSubParam2Header = `FU${fuIndex}: SubParam2`;
+    
+    const fuSubParam1Index = headerArray.indexOf(fuSubParam1Header);
+    const fuSubParam2Index = headerArray.indexOf(fuSubParam2Header);
+    
+    if (fuSubParam1Index !== -1) {
+      const colLetter = utils.encode_col(fuSubParam1Index);
+      dataValidations.push({
+        sqref: `${colLetter}5:${colLetter}1000`,
+        type: "list",
+        formula1: "=Parameters!$A$4:$A$1000",
+      });
+    }
+    
+    if (fuSubParam2Index !== -1) {
+      const colLetter = utils.encode_col(fuSubParam2Index);
+      dataValidations.push({
+        sqref: `${colLetter}5:${colLetter}1000`,
+        type: "list",
+        formula1: "=Parameters!$A$4:$A$1000",
+      });
+    }
+  }
+
+  worksheet["!datavalidation"] = dataValidations;
+
+  // Create Parameters sheet
+  const parametersHeaders = ["Parameter Name", "Type"];
+  const parametersDescriptions = [
+    "Name of the parameter",
+    "Type: Main or Followup",
+  ];
+
+  const parametersHeaderRow = {
+    "Parameter Name": "Parameter Name",
+    Type: "Type",
+  };
+
+  const parametersDescriptionRow = {
+    "Parameter Name": parametersDescriptions[0],
+    Type: parametersDescriptions[1],
+  };
+
+  const parametersSeparatorRow = {
+    "Parameter Name": "",
+    Type: "",
+  };
+
+  const parametersSampleData = [
+    { "Parameter Name": "Eligibility", Type: "Main" },
+    { "Parameter Name": "Document Verification", Type: "Main" },
+    { "Parameter Name": "Service History", Type: "Main" },
+    { "Parameter Name": "Quality Assessment", Type: "Followup" },
+    { "Parameter Name": "Feedback Collection", Type: "Followup" },
+  ];
+
+  const parametersData = [
+    parametersHeaderRow,
+    parametersDescriptionRow,
+    parametersSeparatorRow,
+    ...parametersSampleData,
+  ];
+
+  const parametersWorksheet = utils.json_to_sheet(parametersData, {
+    header: parametersHeaders,
+  });
+
+  parametersWorksheet["!cols"] = parametersHeaders.map(() => ({ wch: 25 }));
+
+  const workbook = utils.book_new();
+  utils.book_append_sheet(workbook, parametersWorksheet, "Parameters");
+  utils.book_append_sheet(workbook, worksheet, "Form Template");
+  writeFile(workbook, "form-import-template-unlimited-followups.xlsx");
 }
 
 export async function parseFormWorkbook(file: File) {

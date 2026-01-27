@@ -29,19 +29,28 @@ import {
   MapPin,
   X,
   Save,
+  ChevronDown, // Add this import
 } from "lucide-react";
 import { useForms, useResponses, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
 import { useNotification } from "../../context/NotificationContext";
 import {
-  parseFormWorkbook,
   downloadFormImportTemplate,
+  downloadNestedFormImportTemplate,parseFormWorkbook // You'll need to create this function
 } from "../../utils/exportUtils";
 import AnswerTemplateImport from "../AnswerTemplateImport";
 import type { Question as FormQuestion } from "../../types";
 import { Mail, MessageCircle } from "lucide-react";
 import EmailInviteModal from "../EmailInviteModal";
 import WhatsAppInviteModal from "../WhatsAppInviteModal";
+
+// Add this interface for the dropdown options
+interface TemplateOption {
+  id: "flat" | "nested";
+  label: string;
+  description: string;
+}
+
 
 interface FormItem {
   _id: string;
@@ -81,8 +90,53 @@ export default function FormsAnalytics() {
   );
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isSavingForm, setIsSavingForm] = useState(false);
+   // Add these states for template dropdown
+  const [isTemplateDropdownOpen, setIsTemplateDropdownOpen] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateOption | null>(null);
+
+   const templateOptions: TemplateOption[] = [
+    {
+      id: "flat",
+      label: "Follow-up Only",
+      description: "Flat structure with unlimited main follow-ups (FU1-FU99)"
+    },
+    {
+      id: "nested",
+      label: "Nested Follow-up",
+      description: "Hierarchical structure with nested follow-ups (FU1.1, FU1.1.1)"
+    }
+  ];
+
+    useEffect(() => {
+    if (templateOptions.length > 0 && !selectedTemplate) {
+      setSelectedTemplate(templateOptions[0]);
+    }
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (templateDropdownRef.current && 
+          !templateDropdownRef.current.contains(event.target as Node) &&
+          menuRef.current && 
+          !menuRef.current.contains(event.target as Node)) {
+        setIsTemplateDropdownOpen(false);
+      }
+    };
+
+    if (isTemplateDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isTemplateDropdownOpen]);
+
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const templateDropdownRef = useRef<HTMLDivElement>(null); 
 
   const {
     data: formsData,
@@ -389,9 +443,35 @@ export default function FormsAnalytics() {
     });
   };
 
-  const handleExportTemplate = () => {
-    downloadFormImportTemplate();
+ const handleExportTemplate = (templateId?: "flat" | "nested") => {
+    const templateToUse = templateId || selectedTemplate?.id;
+    
+    if (templateToUse === "nested") {
+      // Call the nested template download function
+      // You'll need to create downloadNestedFormImportTemplate() in your exportUtils
+      downloadNestedFormImportTemplate(); // For now, using the existing one
+      showSuccess("Nested Follow-up template downloaded", "Success");
+    } else {
+      // Default to flat template
+      downloadFormImportTemplate();
+      showSuccess("Follow-up Only template downloaded", "Success");
+    }
+    
+    setIsTemplateDropdownOpen(false);
   };
+  
+   // Handle template selection
+  const handleTemplateSelect = (template: TemplateOption) => {
+    setSelectedTemplate(template);
+    handleExportTemplate(template.id);
+  };
+
+  // Toggle template dropdown
+  const toggleTemplateDropdown = () => {
+    setIsTemplateDropdownOpen(!isTemplateDropdownOpen);
+  };
+
+
 
   const handleFileInputChange = async (
     event: ChangeEvent<HTMLInputElement>
@@ -554,7 +634,7 @@ export default function FormsAnalytics() {
     );
   }
 
-  return (
+ return (
     <div className="p-6 space-y-6">
       <input
         ref={fileInputRef}
@@ -573,13 +653,68 @@ export default function FormsAnalytics() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
-          <button
-            onClick={handleExportTemplate}
-            className="btn-secondary flex items-center justify-center"
+          {/* Updated Template Download Button with Dropdown */}
+          <div 
+            className="relative"
+            ref={templateDropdownRef}
           >
-            <Download className="w-4 h-4 mr-2" />
-            Download Import Template
-          </button>
+            <button
+              onClick={toggleTemplateDropdown}
+              className="btn-secondary flex items-center justify-center min-w-[200px]"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              {selectedTemplate ? `Download ${selectedTemplate.label} Template` : "Download Import Template"}
+              <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isTemplateDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {/* Dropdown Menu */}
+            {isTemplateDropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-primary-200 py-2 z-50 animate-fadeIn">
+                <div className="px-4 py-2 border-b border-primary-100">
+                  <p className="text-xs font-medium text-primary-700">Select Template Type:</p>
+                </div>
+                
+                {templateOptions.map((template) => (
+                  <button
+                    key={template.id}
+                    onClick={() => handleTemplateSelect(template)}
+                    className={`w-full flex flex-col items-start px-4 py-3 text-left hover:bg-primary-50 transition-colors ${selectedTemplate?.id === template.id ? 'bg-primary-50 border-l-4 border-primary-600' : ''}`}
+                  >
+                    <div className="flex items-center w-full">
+                      <div className={`p-1.5 rounded-lg mr-3 ${selectedTemplate?.id === template.id ? 'bg-primary-100' : 'bg-primary-50'}`}>
+                        {template.id === "flat" ? (
+                          <Layers className="w-4 h-4 text-primary-600" />
+                        ) : (
+                          <Layers className="w-4 h-4 text-purple-600" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <div className="font-medium text-primary-800">
+                          {template.label}
+                        </div>
+                        <div className="text-xs text-primary-600 mt-0.5">
+                          {template.description}
+                        </div>
+                      </div>
+                      {selectedTemplate?.id === template.id && (
+                        <Check className="w-4 h-4 text-primary-600 ml-2" />
+                      )}
+                    </div>
+                  </button>
+                ))}
+                
+                <div className="px-4 py-2 border-t border-primary-100 mt-1">
+                  <p className="text-xs text-primary-500">
+                    {selectedTemplate?.id === "flat" 
+                      ? "Each question can have unlimited main-level follow-ups" 
+                      : "Supports hierarchical follow-up questions with nesting"}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Rest of your buttons remain the same */}
           <button
             onClick={handleImportClick}
             className="btn-secondary flex items-center justify-center"
