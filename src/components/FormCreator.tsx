@@ -11,6 +11,7 @@ import {
   BarChart3,
   Copy,
   MoreVertical,
+  Scissors,
   Users,
   Calendar,
   FileText,
@@ -2172,6 +2173,87 @@ export default function FormCreator() {
     updateSection(sectionId, { questions });
   };
 
+  // Split section at a specific question
+  const splitSectionAtQuestion = (sectionId: string, questionId: string) => {
+    const sectionIndex = form.sections.findIndex((s) => s.id === sectionId);
+    if (sectionIndex === -1) return;
+
+    const section = form.sections[sectionIndex];
+    const questionIndex = section.questions.findIndex(
+      (q) => q.id === questionId
+    );
+
+    if (questionIndex === -1) return;
+
+    // Split the questions: questions before the current one stay in the current section,
+    // questions from the current one onwards move to the new section.
+    const questionsForCurrentSection = section.questions.slice(0, questionIndex);
+    const questionsForNewSection = section.questions.slice(questionIndex);
+
+    if (questionsForNewSection.length === 0) return;
+
+    // Create the new section
+    const newSection: FormSection = {
+      id: crypto.randomUUID(),
+      title: `Section ${form.sections.length + 1}`,
+      description: "",
+      weightage: 0,
+      questions: questionsForNewSection,
+      isSubsection: false,
+    };
+
+    // Update the sections list
+    const updatedSections = [...form.sections];
+    // Update the current section's questions
+    updatedSections[sectionIndex] = {
+      ...section,
+      questions: questionsForCurrentSection,
+    };
+    // Insert the new section after the current one
+    updatedSections.splice(sectionIndex + 1, 0, newSection);
+
+    setForm((prev) => ({
+      ...prev,
+      sections: updatedSections,
+    }));
+
+    showSuccess("Section split successfully", "Success");
+  };
+
+  // Move section up
+  const moveSectionUp = (sectionId: string) => {
+    const sectionIndex = form.sections.findIndex((s) => s.id === sectionId);
+    if (sectionIndex <= 0) return;
+
+    const updatedSections = [...form.sections];
+    [updatedSections[sectionIndex - 1], updatedSections[sectionIndex]] = [
+      updatedSections[sectionIndex],
+      updatedSections[sectionIndex - 1],
+    ];
+
+    setForm((prev) => ({
+      ...prev,
+      sections: updatedSections,
+    }));
+  };
+
+  // Move section down
+  const moveSectionDown = (sectionId: string) => {
+    const sectionIndex = form.sections.findIndex((s) => s.id === sectionId);
+    if (sectionIndex === -1 || sectionIndex >= form.sections.length - 1) return;
+
+    const updatedSections = [...form.sections];
+    [updatedSections[sectionIndex], updatedSections[sectionIndex + 1]] = [
+      updatedSections[sectionIndex + 1],
+      updatedSections[sectionIndex],
+    ];
+
+    setForm((prev) => ({
+      ...prev,
+      sections: updatedSections,
+    }));
+  };
+
   const updateQuestion = (
     sectionId: string,
     questionId: string,
@@ -3020,13 +3102,12 @@ export default function FormCreator() {
 
     const question = section.questions.find((q) => q.id === questionId);
     if (!question || !question.options) return;
-    if (question.type === "yesNoNA") return;
 
     const updatedOptions = [...question.options];
     updatedOptions[optionIndex] = value;
 
     updateQuestion(sectionId, questionId, {
-      options: updatedOptions.filter((opt) => opt.trim() !== ""),
+      options: updatedOptions,
     });
   };
 
@@ -4149,6 +4230,17 @@ export default function FormCreator() {
                                   >
                                     <Copy className="w-5 h-5" />
                                   </button>
+                                  {/* Split into New Section */}
+                                  <button
+                                    onClick={() =>
+                                      splitSectionAtQuestion(section.id, question.id)
+                                    }
+                                    disabled={questionIndex === 0}
+                                    className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="Split into new section starting from this question"
+                                  >
+                                    <Scissors className="w-5 h-5" />
+                                  </button>
                                   {/* Delete */}
                                   <button
                                     onClick={() =>
@@ -4602,8 +4694,6 @@ export default function FormCreator() {
                                                 placeholder={`Option ${
                                                   index + 1
                                                 }`}
-                                                disabled={isYesNoNa}
-                                                readOnly={isYesNoNa}
                                               />
                                               {!isYesNoNa && (
                                                 <>
@@ -4636,7 +4726,7 @@ export default function FormCreator() {
                                                 </>
                                               )}
 
-                                              {!isYesNoNa && (
+                                              {(
                                                 <div className="relative">
                                                   <button
                                                     onClick={() =>

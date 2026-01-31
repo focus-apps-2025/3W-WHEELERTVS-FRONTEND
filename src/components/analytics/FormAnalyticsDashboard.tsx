@@ -465,29 +465,54 @@ const computeSectionPerformanceStats = (
           return;
         }
         if (question.type === "yesNoNA" && question.id) {
+          const options = question.options || [];
           responses.forEach((response) => {
-            const normalizedValues = extractYesNoValues(
-              response.answers?.[question.id]
-            );
-            const hasRecognizedValue = normalizedValues.some((value) =>
-              recognizedYesNoValues.includes(value)
-            );
-            if (!hasRecognizedValue) {
+            const answer = response.answers?.[question.id];
+            if (answer === null || answer === undefined || answer === "") {
               return;
             }
-            counts.total += 1;
-            if (normalizedValues.includes("yes")) {
-              counts.yes += 1;
-            }
-            if (normalizedValues.includes("no")) {
-              counts.no += 1;
-            }
-            if (
-              normalizedValues.includes("n/a") ||
-              normalizedValues.includes("na") ||
-              normalizedValues.includes("not applicable")
-            ) {
-              counts.na += 1;
+
+            const normalizedValues = extractYesNoValues(answer);
+
+            if (options.length >= 3) {
+              const yesOption = String(options[0]).toLowerCase().trim();
+              const noOption = String(options[1]).toLowerCase().trim();
+              const naOption = String(options[2]).toLowerCase().trim();
+
+              normalizedValues.forEach((val) => {
+                if (val === yesOption) {
+                  counts.yes += 1;
+                  counts.total += 1;
+                } else if (val === noOption) {
+                  counts.no += 1;
+                  counts.total += 1;
+                } else if (val === naOption) {
+                  counts.na += 1;
+                  counts.total += 1;
+                }
+              });
+            } else {
+              // Fallback to recognized values if options are not available
+              const hasRecognizedValue = normalizedValues.some((value) =>
+                recognizedYesNoValues.includes(value)
+              );
+              if (!hasRecognizedValue) {
+                return;
+              }
+              counts.total += 1;
+              if (normalizedValues.includes("yes")) {
+                counts.yes += 1;
+              }
+              if (normalizedValues.includes("no")) {
+                counts.no += 1;
+              }
+              if (
+                normalizedValues.includes("n/a") ||
+                normalizedValues.includes("na") ||
+                normalizedValues.includes("not applicable")
+              ) {
+                counts.na += 1;
+              }
             }
           });
         }
@@ -545,28 +570,55 @@ const getSectionYesNoStats = (
           return;
         }
 
-        const normalizedValues = extractYesNoValues(answers?.[question.id]);
-        const hasRecognizedValue = normalizedValues.some((value) =>
-          ["yes", "no", "n/a", "na", "not applicable"].includes(value)
-        );
-        if (!hasRecognizedValue) {
+        const answer = answers?.[question.id];
+        if (answer === null || answer === undefined || answer === "") {
           question.followUpQuestions?.forEach(processQuestion);
           return;
         }
 
-        counts.total += 1;
-        if (normalizedValues.includes("yes")) {
-          counts.yes += 1;
-        }
-        if (normalizedValues.includes("no")) {
-          counts.no += 1;
-        }
-        if (
-          normalizedValues.includes("n/a") ||
-          normalizedValues.includes("na") ||
-          normalizedValues.includes("not applicable")
-        ) {
-          counts.na += 1;
+        const normalizedValues = extractYesNoValues(answer);
+        const options = question.options || [];
+
+        if (options.length >= 3) {
+          const yesOption = String(options[0]).toLowerCase().trim();
+          const noOption = String(options[1]).toLowerCase().trim();
+          const naOption = String(options[2]).toLowerCase().trim();
+
+          normalizedValues.forEach((val) => {
+            if (val === yesOption) {
+              counts.yes += 1;
+              counts.total += 1;
+            } else if (val === noOption) {
+              counts.no += 1;
+              counts.total += 1;
+            } else if (val === naOption) {
+              counts.na += 1;
+              counts.total += 1;
+            }
+          });
+        } else {
+          const hasRecognizedValue = normalizedValues.some((value) =>
+            ["yes", "no", "n/a", "na", "not applicable"].includes(value)
+          );
+          if (!hasRecognizedValue) {
+            question.followUpQuestions?.forEach(processQuestion);
+            return;
+          }
+
+          counts.total += 1;
+          if (normalizedValues.includes("yes")) {
+            counts.yes += 1;
+          }
+          if (normalizedValues.includes("no")) {
+            counts.no += 1;
+          }
+          if (
+            normalizedValues.includes("n/a") ||
+            normalizedValues.includes("na") ||
+            normalizedValues.includes("not applicable")
+          ) {
+            counts.na += 1;
+          }
         }
 
         question.followUpQuestions?.forEach(processQuestion);
@@ -649,6 +701,41 @@ export default function FormAnalyticsDashboard() {
   const [selectedFormForModal, setSelectedFormForModal] = useState<Form | null>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [comparisonViewMode, setComparisonViewMode] = useState<"dashboard" | "responses">("dashboard");
+
+  const complianceLabels = useMemo(() => {
+    const defaultLabels = { yes: "Yes", no: "No", na: "N/A" };
+    let labels = { ...defaultLabels };
+    
+    if (form?.sections) {
+      for (const section of form.sections) {
+        if (section.questions) {
+          for (const question of section.questions) {
+            if (question.type === "yesNoNA" && question.options && question.options.length >= 2) {
+              const hasCustomLabels = 
+                question.options[0] !== "Yes" || 
+                question.options[1] !== "No" || 
+                (question.options[2] && question.options[2] !== "N/A");
+              
+              if (hasCustomLabels) {
+                return {
+                  yes: question.options[0] || "Yes",
+                  no: question.options[1] || "No",
+                  na: question.options[2] || "N/A"
+                };
+              }
+              
+              if (labels.yes === "Yes") {
+                labels.yes = question.options[0] || "Yes";
+                labels.no = question.options[1] || "No";
+                labels.na = question.options[2] || "N/A";
+              }
+            }
+          }
+        }
+      }
+    }
+    return labels;
+  }, [form]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1226,7 +1313,7 @@ export default function FormAnalyticsDashboard() {
       ),
       datasets: [
         {
-          label: "Yes",
+          label: complianceLabels.yes,
           data: visibleSectionStats.map((stat) =>
             calculatePercentage(stat.yes, stat.total)
           ),
@@ -1234,7 +1321,7 @@ export default function FormAnalyticsDashboard() {
           borderRadius: 4,
         },
         {
-          label: "No",
+          label: complianceLabels.no,
           data: visibleSectionStats.map((stat) =>
             calculatePercentage(stat.no, stat.total)
           ),
@@ -1242,7 +1329,7 @@ export default function FormAnalyticsDashboard() {
           borderRadius: 4,
         },
         {
-          label: "N/A",
+          label: complianceLabels.na,
           data: visibleSectionStats.map((stat) =>
             calculatePercentage(stat.na, stat.total)
           ),
@@ -1777,7 +1864,7 @@ export default function FormAnalyticsDashboard() {
                     {totalPieChartData.yes}%
                   </div>
                   <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    Yes
+                    {dynamicComplianceLabels.yes}
                   </div>
                   <div className="text-xs text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.yes})
@@ -1790,7 +1877,7 @@ export default function FormAnalyticsDashboard() {
                     {totalPieChartData.no}%
                   </div>
                   <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    No
+                    {dynamicComplianceLabels.no}
                   </div>
                   <div className="text-xs text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.no})
@@ -1803,7 +1890,7 @@ export default function FormAnalyticsDashboard() {
                     {totalPieChartData.na}%
                   </div>
                   <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    N/A
+                    {dynamicComplianceLabels.na}
                   </div>
                   <div className="text-xs text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.na})
@@ -2471,15 +2558,15 @@ export default function FormAnalyticsDashboard() {
                       <div className="flex items-center gap-3 text-xs">
                         <div className="flex items-center gap-1">
                           <div className="w-2 h-2 bg-green-500 rounded"></div>
-                          <span className="text-gray-600 dark:text-gray-400">Yes</span>
+                          <span className="text-gray-600 dark:text-gray-400">{complianceLabels.yes}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <div className="w-2 h-2 bg-red-500 rounded"></div>
-                          <span className="text-gray-600 dark:text-gray-400">No</span>
+                          <span className="text-gray-600 dark:text-gray-400">{complianceLabels.no}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <div className="w-2 h-2 bg-gray-400 rounded"></div>
-                          <span className="text-gray-600 dark:text-gray-400">N/A</span>
+                          <span className="text-gray-600 dark:text-gray-400">{complianceLabels.na}</span>
                         </div>
                       </div>
 
@@ -2546,9 +2633,9 @@ export default function FormAnalyticsDashboard() {
                               <tr>
                                 <th className="text-left px-4 py-3">Section</th>
                                 <th className="text-center px-3 py-3">Total</th>
-                                <th className="text-center px-3 py-3">Yes</th>
-                                <th className="text-center px-3 py-3">No</th>
-                                <th className="text-center px-3 py-3">N/A</th>
+                                <th className="text-center px-3 py-3">{complianceLabels.yes}</th>
+                                <th className="text-center px-3 py-3">{complianceLabels.no}</th>
+                                <th className="text-center px-3 py-3">{complianceLabels.na}</th>
 
                                 {/* Conditionally show weightage columns */}
                                 {showWeightageColumns && (
@@ -3124,6 +3211,7 @@ export default function FormAnalyticsDashboard() {
                   responses={filteredResponses}
                   sectionsStats={filteredSectionsStats}
                   openSectionId={autoOpenSectionId}
+                  complianceLabels={complianceLabels}
                 />
               </div>
             </div>
@@ -3175,9 +3263,9 @@ export default function FormAnalyticsDashboard() {
                         <tr className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 border-b-2 border-indigo-200 dark:border-indigo-700">
                           <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Question</th>
                           <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Total Responses</th>
-                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Yes</th>
-                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">No</th>
-                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">N/A</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">{complianceLabels.yes}</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">{complianceLabels.no}</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">{complianceLabels.na}</th>
                           <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white">Yes %</th>
                         </tr>
                       </thead>
@@ -3264,9 +3352,9 @@ export default function FormAnalyticsDashboard() {
                         <tr className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 border-b-2 border-indigo-200 dark:border-indigo-700">
                           <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Section Name</th>
                           <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Total</th>
-                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">Yes</th>
-                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">No</th>
-                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white">N/A</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">{complianceLabels.yes}</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">{complianceLabels.no}</th>
+                          <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white">{complianceLabels.na}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">

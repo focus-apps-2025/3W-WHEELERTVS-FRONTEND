@@ -653,7 +653,7 @@ export const MultipleChoiceFormBuilder: React.FC<
 
   const addOption = (sectionIndex: number, questionIndex: number) => {
     const question = formData.sections[sectionIndex].questions[questionIndex];
-    if (!question.options) return;
+    if (!question.options || question.type === "yesNoNA") return;
 
     const newOption = `Option ${question.options.length + 1}`;
 
@@ -687,8 +687,14 @@ export const MultipleChoiceFormBuilder: React.FC<
     optionIndex: number
   ) => {
     const question = formData.sections[sectionIndex].questions[questionIndex];
-    if (!question.options || question.options.length <= 2) {
-      setError("Minimum 2 options required");
+    if (
+      !question.options ||
+      question.options.length <= 2 ||
+      question.type === "yesNoNA"
+    ) {
+      if (question.type !== "yesNoNA") {
+        setError("Minimum 2 options required");
+      }
       return;
     }
 
@@ -1828,31 +1834,25 @@ export const MultipleChoiceFormBuilder: React.FC<
                                           className="space-y-2"
                                         >
                                           <div className="flex items-center space-x-2">
-                                            {question.type === "yesNoNA" ? (
-                                              <div className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium">
-                                                {option}
-                                              </div>
-                                            ) : (
-                                              <input
-                                                aria-label={`Option ${
-                                                  optionIndex + 1
-                                                }`}
-                                                type="text"
-                                                value={option}
-                                                onChange={(e) =>
-                                                  updateOption(
-                                                    sectionIndex,
-                                                    questionIndex,
-                                                    optionIndex,
-                                                    e.target.value
-                                                  )
-                                                }
-                                                placeholder={`Option ${
-                                                  optionIndex + 1
-                                                }`}
-                                                className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                              />
-                                            )}
+                                            <input
+                                              aria-label={`Option ${
+                                                optionIndex + 1
+                                              }`}
+                                              type="text"
+                                              value={option}
+                                              onChange={(e) =>
+                                                updateOption(
+                                                  sectionIndex,
+                                                  questionIndex,
+                                                  optionIndex,
+                                                  e.target.value
+                                                )
+                                              }
+                                              placeholder={`Option ${
+                                                optionIndex + 1
+                                              }`}
+                                              className="flex-1 p-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            />
 
                                             {question.options &&
                                               question.options.length > 2 &&

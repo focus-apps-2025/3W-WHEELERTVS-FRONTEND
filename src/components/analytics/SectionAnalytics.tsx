@@ -119,6 +119,11 @@ interface SectionAnalyticsProps {
   };
   responses: Response[];
   openSectionId?: string | null;
+  complianceLabels?: {
+    yes: string;
+    no: string;
+    na: string;
+  };
 }
 interface QuestionDetailsModalProps {
   question: any;
@@ -253,15 +258,29 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
     if (question.type === "yesNoNA") {
       const counts = { yes: 0, no: 0, na: 0 };
       questionResponses.forEach((qr) => {
-        const answer = String(qr.answer).toLowerCase();
-        if (answer.includes("yes")) counts.yes++;
-        else if (answer.includes("no")) counts.no++;
-        else if (
-          answer.includes("na") ||
-          answer.includes("n/a") ||
-          answer.includes("not applicable")
-        )
-          counts.na++;
+        const answer = String(qr.answer).toLowerCase().trim();
+        const options = (question as any).options || [];
+
+        // If it's a yesNoNA question, the first option is Yes, second is No, third is N/A
+        if (options.length >= 3) {
+          if (answer === String(options[0]).toLowerCase().trim()) {
+            counts.yes++;
+          } else if (answer === String(options[1]).toLowerCase().trim()) {
+            counts.no++;
+          } else if (answer === String(options[2]).toLowerCase().trim()) {
+            counts.na++;
+          }
+        } else {
+          // Fallback to string matching if options are missing
+          if (answer.includes("yes")) counts.yes++;
+          else if (answer.includes("no")) counts.no++;
+          else if (
+            answer.includes("na") ||
+            answer.includes("n/a") ||
+            answer.includes("not applicable")
+          )
+            counts.na++;
+        }
       });
       return { ...stats, counts };
     }
@@ -544,6 +563,7 @@ export default function SectionAnalytics({
   question,
   responses,
   openSectionId,
+  complianceLabels = { yes: "Yes", no: "No", na: "N/A" },
 }: SectionAnalyticsProps) {
   const sections: Section[] = question.sections || [];
   const [selectedQuestion, setSelectedQuestion] = useState<{
@@ -702,16 +722,31 @@ export default function SectionAnalytics({
             group.total++;
 
             const answerStr = String(answer).toLowerCase().trim();
-            if (answerStr.includes("yes") || answerStr === "y") {
-              group.yes++;
-            } else if (answerStr.includes("no") || answerStr === "n") {
-              group.no++;
-            } else if (
-              answerStr.includes("na") ||
-              answerStr.includes("n/a") ||
-              answerStr.includes("not applicable")
-            ) {
-              group.na++;
+            if (q.type === "yesNoNA" && q.options && q.options.length >= 3) {
+              if (answerStr === String(q.options[0]).toLowerCase().trim()) {
+                group.yes++;
+              } else if (
+                answerStr === String(q.options[1]).toLowerCase().trim()
+              ) {
+                group.no++;
+              } else if (
+                answerStr === String(q.options[2]).toLowerCase().trim()
+              ) {
+                group.na++;
+              }
+            } else {
+              // Standard behavior or fallback for non-yesNoNA questions
+              if (answerStr.includes("yes") || answerStr === "y") {
+                group.yes++;
+              } else if (answerStr.includes("no") || answerStr === "n") {
+                group.no++;
+              } else if (
+                answerStr.includes("na") ||
+                answerStr.includes("n/a") ||
+                answerStr.includes("not applicable")
+              ) {
+                group.na++;
+              }
             }
           }
         });
@@ -923,7 +958,7 @@ export default function SectionAnalytics({
       ),
       datasets: [
         {
-          label: "Yes %",
+          label: `${complianceLabels.yes} %`,
           data: sortedData.map((item) => {
             const total = item.yes + item.no + item.na;
             return total > 0 ? (item.yes / total) * 100 : 0;
@@ -934,7 +969,7 @@ export default function SectionAnalytics({
           borderRadius: 4,
         },
         {
-          label: "No %",
+          label: `${complianceLabels.no} %`,
           data: sortedData.map((item) => {
             const total = item.yes + item.no + item.na;
             return total > 0 ? (item.no / total) * 100 : 0;
@@ -945,7 +980,7 @@ export default function SectionAnalytics({
           borderRadius: 4,
         },
         {
-          label: "N/A %",
+          label: `${complianceLabels.na} %`,
           data: sortedData.map((item) => {
             const total = item.yes + item.no + item.na;
             return total > 0 ? (item.na / total) * 100 : 0;
@@ -1401,7 +1436,7 @@ export default function SectionAnalytics({
                                 >
                                   <Pie
                                     data={{
-                                      labels: ["Yes", "No", "N/A"],
+                                      labels: [complianceLabels.yes, complianceLabels.no, complianceLabels.na],
                                       datasets: [
                                         {
                                           data: [
@@ -1507,7 +1542,7 @@ export default function SectionAnalytics({
                                         {overallQuality.percentages.yes}%
                                       </div>
                                       <div className="text-sm font-semibold text-green-600 dark:text-green-400 mt-1">
-                                        Yes
+                                        {complianceLabels.yes}
                                       </div>
                                       <div className="text-xs text-green-500 dark:text-green-500 mt-1">
                                         {overallQuality.totalYes} responses
@@ -1521,7 +1556,7 @@ export default function SectionAnalytics({
                                         {overallQuality.percentages.no}%
                                       </div>
                                       <div className="text-sm font-semibold text-red-600 dark:text-red-400 mt-1">
-                                        No
+                                        {complianceLabels.no}
                                       </div>
                                       <div className="text-xs text-red-500 dark:text-red-500 mt-1">
                                         {overallQuality.totalNo} responses
@@ -1535,7 +1570,7 @@ export default function SectionAnalytics({
                                         {overallQuality.percentages.na}%
                                       </div>
                                       <div className="text-sm font-semibold text-gray-600 dark:text-gray-400 mt-1">
-                                        N/A
+                                        {complianceLabels.na}
                                       </div>
                                       <div className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                                         {overallQuality.totalNA} responses
@@ -1625,7 +1660,7 @@ export default function SectionAnalytics({
                                     ),
                                     datasets: [
                                       {
-                                        label: "Yes %",
+                                        label: `${complianceLabels.yes} %`,
                                         data: qualityBreakdown.map((item) => {
                                           const total =
                                             item.yes + item.no + item.na;
@@ -1646,7 +1681,7 @@ export default function SectionAnalytics({
                                         pointHoverRadius: 6,
                                       },
                                       {
-                                        label: "No %",
+                                        label: `${complianceLabels.no} %`,
                                         data: qualityBreakdown.map((item) => {
                                           const total =
                                             item.yes + item.no + item.na;
@@ -1667,7 +1702,7 @@ export default function SectionAnalytics({
                                         pointHoverRadius: 6,
                                       },
                                       {
-                                        label: "N/A %",
+                                        label: `${complianceLabels.na} %`,
                                         data: qualityBreakdown.map((item) => {
                                           const total =
                                             item.yes + item.no + item.na;
@@ -1734,12 +1769,12 @@ export default function SectionAnalytics({
                                               const total =
                                                 item.yes + item.no + item.na;
 
-                                              if (label === "Yes %") {
-                                                return `Yes: ${item.yes}/${total} (${value}%)`;
-                                              } else if (label === "No %") {
-                                                return `No: ${item.no}/${total} (${value}%)`;
-                                              } else if (label === "N/A %") {
-                                                return `N/A: ${item.na}/${total} (${value}%)`;
+                                              if (label === `${complianceLabels.yes} %`) {
+                                                return `${complianceLabels.yes}: ${item.yes}/${total} (${value}%)`;
+                                              } else if (label === `${complianceLabels.no} %`) {
+                                                return `${complianceLabels.no}: ${item.no}/${total} (${value}%)`;
+                                              } else if (label === `${complianceLabels.na} %`) {
+                                                return `${complianceLabels.na}: ${item.na}/${total} (${value}%)`;
                                               }
                                             }
 
@@ -1884,12 +1919,12 @@ export default function SectionAnalytics({
                                               const total =
                                                 item.yes + item.no + item.na;
 
-                                              if (label === "Yes %") {
-                                                return `Yes: ${item.yes}/${total} (${value}%)`;
-                                              } else if (label === "No %") {
-                                                return `No: ${item.no}/${total} (${value}%)`;
-                                              } else if (label === "N/A %") {
-                                                return `N/A: ${item.na}/${total} (${value}%)`;
+                                              if (label === `${complianceLabels.yes} %`) {
+                                                return `${complianceLabels.yes}: ${item.yes}/${total} (${value}%)`;
+                                              } else if (label === `${complianceLabels.no} %`) {
+                                                return `${complianceLabels.no}: ${item.no}/${total} (${value}%)`;
+                                              } else if (label === `${complianceLabels.na} %`) {
+                                                return `${complianceLabels.na}: ${item.na}/${total} (${value}%)`;
                                               }
                                             }
 

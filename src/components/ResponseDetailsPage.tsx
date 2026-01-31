@@ -151,8 +151,11 @@ type SectionStat = {
   yes: number;
   no: number;
   na: number;
+  correct: number;
+  wrong: number;
   total: number;
   weightage: number;
+  hasYesNo: boolean;
 };
 
 export default function ResponseDetailsPage() {
@@ -173,7 +176,7 @@ export default function ResponseDetailsPage() {
   const [exportingExcel, setExportingExcel] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [selectedPDFType, setSelectedPDFType] = useState<
-    "no-only" | "yes-only" | "both" | null
+    "no-only" | "yes-only" | "both" | "na-only" | "section" | "default" | "responses-view" | null
   >(null);
   const [editingResponse, setEditingResponse] = useState<Response | null>(null);
   const [editingForm, setEditingForm] = useState<Form | null>(null);
@@ -186,8 +189,6 @@ export default function ResponseDetailsPage() {
   const [showWeightageCheckbox, setShowWeightageCheckbox] = useState(true);
   const [editingAllWeightages, setEditingAllWeightages] = useState(false);
   const [weightageValues, setWeightageValues] = useState<Record<string, string>>({});
-  const [showDownloadOptions, setShowDownloadOptions] = useState(false);
-  const [showResponseDropdown, setShowResponseDropdown] = useState(false);
   const [showPDFTypeSelector, setShowPDFTypeSelector] = useState(false);
   const [savingWeightage, setSavingWeightage] = useState(false);
   const [redistributionMode, setRedistributionMode] = useState(false);
@@ -244,6 +245,44 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
     }
   }, [autoOpenSectionId]);
 
+  const complianceLabels = useMemo(() => {
+    const defaultLabels = { yes: "Yes", no: "No", na: "N/A" };
+    let labels = { ...defaultLabels };
+    
+    if (form?.sections) {
+      // First pass: look for any question that has non-default labels
+      for (const section of form.sections) {
+        if (section.questions) {
+          for (const q of section.questions) {
+            // Check for yesNoNA type and at least 2 options
+            if (q.type === "yesNoNA" && q.options && q.options.length >= 2) {
+              const hasCustomLabels = 
+                q.options[0] !== "Yes" || 
+                q.options[1] !== "No" || 
+                (q.options[2] && q.options[2] !== "N/A");
+              
+              if (hasCustomLabels) {
+                return {
+                  yes: q.options[0] || "Yes",
+                  no: q.options[1] || "No",
+                  na: q.options[2] || "N/A"
+                };
+              }
+              
+              // If we haven't found custom labels yet, store the first yesNoNA labels we find as fallback
+              if (labels.yes === "Yes") {
+                labels.yes = q.options[0] || "Yes";
+                labels.no = q.options[1] || "No";
+                labels.na = q.options[2] || "N/A";
+              }
+            }
+          }
+        }
+      }
+    }
+    return labels;
+  }, [form]);
+
   const fetchResponseDetails = async () => {
     try {
       setLoading(true);
@@ -261,15 +300,13 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
         throw new Error(`Response with ID "${id}" not found. Please check if the response exists.`);
       }
 
-      const formsData = await apiClient.getForms();
-      const formMap = formsData.forms.reduce((map: Record<string, any>, f: any) => {
-        if (f._id) map[f._id] = f;
-        if (f.id) map[f.id] = f;
-        return map;
-      }, {});
-
       const formIdentifier = selectedResponse.questionId || selectedResponse.formId;
-      const selectedForm = formMap[formIdentifier];
+      if (!formIdentifier) {
+        throw new Error("Missing form identifier for response");
+      }
+      
+      const formData = await apiClient.getForm(formIdentifier);
+      const selectedForm = formData.form;
 
       if (selectedForm?.sections) {
         selectedForm.sections.forEach((section: any) => {
@@ -421,7 +458,7 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
     }
   };
 
-  const handleDownloadPDF = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default') => {
+  const handleDownloadPDF = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default' | 'responses-view') => {
     if (!response || !form) return;
 
     setShowPDFTypeSelector(false);
@@ -448,118 +485,19 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
     }
   };
 
-const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default') => {
+const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default' | 'responses-view') => {
   if (!response || !form) return;
 
   setPdfDownloadProgress(0);
   setGeneratingPDF(true);
   
   try {
-    // For 'section' type, we need section data
-    let sectionQuestionStats: Record<string, any[]> = {};
-    let sectionMainParameters: Record<string, any[]> = {};
     const availableSections = form.sections || [];
 
-    if (form.sections && (type === 'both' || type === 'default' || type === 'section')) {
-      form.sections.forEach((section: any) => {
-        // Get the actual question stats for the current response
-        sectionQuestionStats[section.id] = getSectionYesNoQuestionStats(section.id);
-
-        const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
-        const mainParamsData: any[] = [];
-
-        // Process each main question in the section
-        sectionQuestions.forEach((mainQuestion: any) => {
-          // Find follow-ups with actual data for this main question
-          const followUpsWithData = mainQuestion.followUpQuestions?.filter((fq: any) => {
-            const answer = response.answers?.[fq.id];
-            return answer && typeof answer === 'object' && (
-              answer.remarks ||
-              answer.actionInitiated ||
-              answer.reasonForNotOK ||
-              answer.responsiblePerson ||
-              answer.review ||
-              answer.files
-            );
-          });
-
-          // If we have follow-ups with data, create parameter entries
-          if (followUpsWithData && followUpsWithData.length > 0) {
-            followUpsWithData.forEach((followUp: any) => {
-              const answer = response.answers?.[followUp.id] || {};
-
-              mainParamsData.push({
-                subParam1: mainQuestion.subParam1 || "No parameter set",
-                remarks: answer.remarks || '',
-                actionInitiated: answer.actionInitiated || '',
-                reasonForNotOK: answer.reasonForNotOK || '',
-                responsiblePerson: answer.responsiblePerson || '',
-                review: answer.review || '',
-                files: answer.files || []
-              });
-            });
-          } else {
-            // Add entry even if no follow-up data, but mark as empty
-            mainParamsData.push({
-              subParam1: mainQuestion.subParam1 || "No parameter set",
-              remarks: '',
-              actionInitiated: '',
-              reasonForNotOK: '',
-              responsiblePerson: '',
-              review: '',
-              files: []
-            });
-          }
-        });
-
-        sectionMainParameters[section.id] = mainParamsData;
-      });
-    }
-
-    // Add chart element IDs for capturing
-    const chartElementIds = [
-      'section-performance-chart',
-      ...availableSections.map((section: any) => `section-chart-${section.id}`)
-    ];
-
-    // Use the current filtered section stats
-    const currentSectionStats = filteredSectionStats;
-
-    // Prepare section summary rows for PDF
-    const pdfSectionSummaryRows = currentSectionStats.map((stat) => {
-      let weightage = stat.weightage;
-      if (typeof weightage === "string") {
-        weightage = parseFloat(weightage);
-      }
-      weightage = Number.isFinite(weightage) ? weightage : 0;
-      if (weightage > 1) {
-        weightage = weightage;
-      } else if (weightage > 0) {
-        weightage = weightage * 100;
-      }
-
-      const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
-      const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
-      const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
-      const yesWeighted = (yesPercent * weightage) / 100;
-      const noWeighted = (noPercent * weightage) / 100;
-      const naWeighted = (naPercent * weightage) / 100;
-
-      return {
-        id: stat.id,
-        title: stat.title,
-        total: stat.total,
-        yes: stat.yes,
-        no: stat.no,
-        na: stat.na,
-        weightage,
-        yesPercent,
-        yesWeighted,
-        noPercent,
-        noWeighted,
-        naPercent,
-        naWeighted,
-      };
+    // Prepare section question stats
+    const questionStats: Record<string, any[]> = {};
+    availableSections.forEach((section: any) => {
+      questionStats[section.id] = getSectionYesNoQuestionStats(section.id);
     });
 
     // Create PDF options
@@ -567,14 +505,11 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
       filename: `${form.title}_Report_${formatTimestamp(response.createdAt, 'file')}_${type || 'default'}.pdf`,
       formTitle: form.title,
       submittedDate: formatTimestamp(response.createdAt),
-      sectionStats: currentSectionStats,
-      sectionSummaryRows: pdfSectionSummaryRows,
+      sectionStats: sectionStats,
+      sectionQuestionStats: questionStats,
       form: form,
       response: response,
-      sectionQuestionStats: sectionQuestionStats,
-      sectionMainParameters: sectionMainParameters,
       availableSections: availableSections,
-      chartElementIds: chartElementIds,
       type: type // Add the type parameter
     };
 
@@ -666,7 +601,8 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
       if (!question) {
         return;
       }
-      if (question.type === "yesNoNA" && question.id) {
+      const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale"];
+      if (supportedTypes.includes(question.type) && question.id) {
         ids.add(question.id);
       }
       question.followUpQuestions?.forEach(processQuestion);
@@ -701,13 +637,138 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
     return [];
   }
 
+  const renderHighlightedAnswer = (value: any, question?: any, compact: boolean = false) => {
+    const isArray = Array.isArray(value);
+    const strValue = isArray ? value.join(", ") : String(value || "");
+    const normalized = strValue.trim().toLowerCase();
+    
+    let bgColor = "bg-white dark:bg-gray-700";
+    let textColor = "text-gray-900 dark:text-gray-100";
+    let borderColor = "border-gray-200 dark:border-gray-600";
+    let Icon = null;
+    
+    let isYes = normalized === "yes";
+    let isNo = normalized === "no";
+    let isNA = normalized === "n/a" || normalized === "na" || normalized === "not applicable";
+    
+    // For yesNoNA type, we should use the option position if available
+    if (question && question.type === "yesNoNA" && question.options && question.options.length >= 2) {
+      isYes = normalized === String(question.options[0]).toLowerCase();
+      isNo = normalized === String(question.options[1]).toLowerCase();
+      if (question.options.length >= 3) {
+        isNA = normalized === String(question.options[2]).toLowerCase();
+      }
+    }
+    
+    // Quiz logic
+    const isQuiz = question && (question.correctAnswer || (question.correctAnswers && question.correctAnswers.length > 0));
+    let isCorrect = false;
+    
+    if (isQuiz) {
+      if (question.correctAnswers && question.correctAnswers.length > 0) {
+        if (isArray) {
+          isCorrect = value.length === question.correctAnswers.length && 
+                      value.every((a: any) => question.correctAnswers!.some((ca: any) => String(ca).toLowerCase() === String(a).toLowerCase()));
+        } else {
+          isCorrect = question.correctAnswers.some((ca: any) => String(ca).toLowerCase() === normalized);
+        }
+      } else if (question.correctAnswer) {
+        isCorrect = String(question.correctAnswer).toLowerCase() === normalized;
+      }
+    }
+
+    if (isQuiz) {
+      if (isCorrect) {
+        bgColor = "bg-green-100 dark:bg-green-900/30";
+        textColor = "text-green-800 dark:text-green-300";
+        borderColor = "border-green-200 dark:border-green-800";
+        Icon = CheckCircle;
+      } else {
+        bgColor = "bg-red-100 dark:bg-red-900/30";
+        textColor = "text-red-800 dark:text-red-300";
+        borderColor = "border-red-200 dark:border-red-800";
+        Icon = XCircle;
+      }
+    } else if (isYes) {
+      bgColor = "bg-green-100 dark:bg-green-900/30";
+      textColor = "text-green-800 dark:text-green-300";
+      borderColor = "border-green-200 dark:border-green-800";
+      Icon = CheckCircle;
+    } else if (isNo) {
+      bgColor = "bg-red-100 dark:bg-red-900/30";
+      textColor = "text-red-800 dark:text-red-300";
+      borderColor = "border-red-200 dark:border-red-800";
+      Icon = XCircle;
+    } else if (isNA) {
+      bgColor = "bg-yellow-100 dark:bg-yellow-900/30";
+      textColor = "text-yellow-800 dark:text-yellow-300";
+      borderColor = "border-yellow-200 dark:border-yellow-800";
+      Icon = AlertTriangle;
+    }
+
+    const answerBox = (
+      <div 
+        className={`${compact ? 'w-full px-4 py-2' : 'flex-1 p-3'} ${bgColor} ${textColor} ${borderColor} rounded-lg border text-sm break-words font-medium flex items-center shadow-sm`}
+        style={{
+          boxShadow: isQuiz 
+            ? (isCorrect ? '0 4px 12px rgba(34, 197, 94, 0.4)' : '0 4px 12px rgba(239, 68, 68, 0.4)')
+            : (isYes ? '0 4px 12px rgba(34, 197, 94, 0.4)' : (isNo ? '0 4px 12px rgba(239, 68, 68, 0.4)' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)'))
+        }}
+      >
+        <div className="w-full">
+          {!compact && isQuiz && (
+            <div className="text-[10px] font-bold opacity-70 uppercase tracking-wider mb-1">
+              Customer Filled Answer
+            </div>
+          )}
+          <div className={`flex items-center gap-2 ${compact ? 'justify-center' : ''}`}>
+            {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+            <div className="flex-1">
+              {isImageUrl(strValue) ? (
+                <ImageLink text={strValue} />
+              ) : (
+                strValue
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    if (isQuiz && !compact) {
+      const correctAnswerDisplay = question.correctAnswers && question.correctAnswers.length > 0
+        ? question.correctAnswers.join(", ")
+        : String(question.correctAnswer || "");
+
+      return (
+        <div className="flex flex-row gap-3 w-full">
+          {/* Given Correct Answer - No color (Neutral) */}
+          <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm">
+            <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+              Given Correct Answer
+            </div>
+            <div className="font-medium text-gray-700 dark:text-gray-300">
+              {correctAnswerDisplay}
+            </div>
+          </div>
+
+          {/* Customer Filled Answer - Colored based on correctness */}
+          {answerBox}
+        </div>
+      );
+    }
+
+    return answerBox;
+  };
+
   function getSectionYesNoStats(
     form: Form,
     answers: Record<string, any>
   ): SectionStat[] {
     const stats =
       form.sections?.map((section: any) => {
-        const counts = { yes: 0, no: 0, na: 0, total: 0 };
+        const counts = { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 };
+        let hasYesNo = false;
         const weightageNumber = Number(section.weightage);
         const weightage = Number.isFinite(weightageNumber)
           ? weightageNumber
@@ -717,33 +778,91 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
           if (!question) {
             return;
           }
-          if (question.type !== "yesNoNA" || !question.id) {
+          const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale"];
+          if (!supportedTypes.includes(question.type) || !question.id) {
             question.followUpQuestions?.forEach(processQuestion);
             return;
           }
 
-          const normalizedValues = extractYesNoValues(answers?.[question.id]);
-          const hasRecognizedValue = normalizedValues.some((value) =>
-            ["yes", "no", "n/a", "na", "not applicable"].includes(value)
-          );
-          if (!hasRecognizedValue) {
-            question.followUpQuestions?.forEach(processQuestion);
-            return;
+          const isCompliance = question.type === "yesNoNA";
+          const isAccuracy = !isCompliance;
+
+          if (isCompliance) {
+            hasYesNo = true;
           }
+
+          const rawValue = answers?.[question.id];
+          const normalizedValues = extractYesNoValues(rawValue);
+          
+          // Check if it has any value (not null/undefined/empty string/empty array)
+          const hasValue = rawValue !== null && rawValue !== undefined && rawValue !== "" && 
+                          (!Array.isArray(rawValue) || rawValue.length > 0) &&
+                          (typeof rawValue !== 'object' || Object.keys(rawValue).length > 0);
 
           counts.total += 1;
-          if (normalizedValues.includes("yes")) {
-            counts.yes += 1;
+          
+          if (!hasValue) {
+            if (isCompliance) {
+              counts.no += 1;
+            } else {
+              counts.wrong += 1;
+            }
+            // For unanswered questions, we still check follow-ups 
+            question.followUpQuestions?.forEach(processQuestion);
+            return;
           }
-          if (normalizedValues.includes("no")) {
-            counts.no += 1;
-          }
-          if (
-            normalizedValues.includes("n/a") ||
-            normalizedValues.includes("na") ||
-            normalizedValues.includes("not applicable")
-          ) {
-            counts.na += 1;
+          
+          if (isAccuracy) {
+            const isNA = normalizedValues.some(v => ["n/a", "na", "not applicable"].includes(v));
+            if (isNA) {
+              counts.na += 1;
+            } else {
+              let isCorrect = false;
+              const isArray = Array.isArray(rawValue);
+              const strValue = isArray ? rawValue.join(", ") : String(rawValue || "");
+              const normalized = strValue.trim().toLowerCase();
+
+              if (question.correctAnswers && question.correctAnswers.length > 0) {
+                if (isArray) {
+                  isCorrect = rawValue.length === question.correctAnswers.length && 
+                              rawValue.every((a: any) => question.correctAnswers!.some((ca: any) => String(ca).toLowerCase() === String(a).toLowerCase()));
+                } else {
+                  isCorrect = question.correctAnswers.some((ca: any) => String(ca).toLowerCase() === normalized);
+                }
+              } else if (question.correctAnswer) {
+                isCorrect = String(question.correctAnswer).toLowerCase() === normalized;
+              } else {
+                // Fallback for accuracy questions without explicit correct answers:
+                // If it has a value and it's not "N/A", it's considered "Correct" (Answered)
+                isCorrect = true;
+              }
+
+              if (isCorrect) {
+                counts.correct += 1;
+              } else {
+                counts.wrong += 1;
+              }
+            }
+          } else if (isCompliance) {
+            const yesLabel = question.options?.[0]?.toLowerCase() || "yes";
+            const noLabel = question.options?.[1]?.toLowerCase() || "no";
+            const naLabel = question.options?.[2]?.toLowerCase() || "n/a";
+
+            if (normalizedValues.includes(yesLabel)) {
+              counts.yes += 1;
+            } else if (normalizedValues.includes(noLabel)) {
+              counts.no += 1;
+            } else if (
+              normalizedValues.includes(naLabel) ||
+              normalizedValues.includes("n/a") ||
+              normalizedValues.includes("na") ||
+              normalizedValues.includes("not applicable")
+            ) {
+              counts.na += 1;
+            } else {
+              // Default to yes if it has value but not recognized as no/na
+              counts.yes += 1;
+            }
           }
 
           question.followUpQuestions?.forEach(processQuestion);
@@ -761,8 +880,11 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
           yes: counts.yes,
           no: counts.no,
           na: counts.na,
+          correct: counts.correct,
+          wrong: counts.wrong,
           total: counts.total,
           weightage,
+          hasYesNo,
         };
       }) ?? [];
 
@@ -782,28 +904,88 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
       yes: number;
       no: number;
       na: number;
+      correct: number;
+      wrong: number;
       total: number;
+      hasYesNo: boolean;
+      isQuiz: boolean;
     }> = [];
 
     const processQuestion = (question: any) => {
       if (!question) return;
 
-      if (question.type === "yesNoNA" && question.id) {
-        const normalizedValues = extractYesNoValues(
-          response.answers?.[question.id]
-        );
-        const counts = { yes: 0, no: 0, na: 0, total: 0 };
+      const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale"];
+      if (supportedTypes.includes(question.type) && question.id) {
+        const rawValue = response.answers?.[question.id];
+        const normalizedValues = extractYesNoValues(rawValue);
+        const counts = { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 };
+        const isCompliance = question.type === "yesNoNA";
+        const isAccuracy = !isCompliance;
 
-        if (normalizedValues.length > 0) {
-          counts.total = 1;
-          if (normalizedValues.includes("yes")) counts.yes = 1;
-          if (normalizedValues.includes("no")) counts.no = 1;
-          if (
-            normalizedValues.includes("n/a") ||
-            normalizedValues.includes("na") ||
-            normalizedValues.includes("not applicable")
-          )
-            counts.na = 1;
+        const hasValue = rawValue !== null && rawValue !== undefined && rawValue !== "" && 
+                        (!Array.isArray(rawValue) || rawValue.length > 0) &&
+                        (typeof rawValue !== 'object' || Object.keys(rawValue).length > 0);
+
+        counts.total = 1;
+
+        if (!hasValue) {
+          if (isCompliance) {
+            counts.no = 1;
+          } else {
+            counts.wrong = 1;
+          }
+        } else {
+          if (isAccuracy) {
+            const isNA = normalizedValues.some(v => ["n/a", "na", "not applicable"].includes(v));
+            if (isNA) {
+              counts.na = 1;
+            } else {
+              let isCorrect = false;
+              const isArray = Array.isArray(rawValue);
+              const strValue = isArray ? rawValue.join(", ") : String(rawValue || "");
+              const normalized = strValue.trim().toLowerCase();
+
+              if (question.correctAnswers && question.correctAnswers.length > 0) {
+                if (isArray) {
+                  isCorrect = rawValue.length === question.correctAnswers.length && 
+                              rawValue.every((a: any) => question.correctAnswers!.some((ca: any) => String(ca).toLowerCase() === String(a).toLowerCase()));
+                } else {
+                  isCorrect = question.correctAnswers.some((ca: any) => String(ca).toLowerCase() === normalized);
+                }
+              } else if (question.correctAnswer) {
+                isCorrect = String(question.correctAnswer).toLowerCase() === normalized;
+              } else {
+                // Fallback for accuracy questions without explicit correct answers:
+                // If it has a value and it's not "N/A", it's considered "Correct" (Answered)
+                isCorrect = true;
+              }
+
+              if (isCorrect) {
+                counts.correct = 1;
+              } else {
+                counts.wrong = 1;
+              }
+            }
+          } else if (isCompliance) {
+            const yesLabel = question.options?.[0]?.toLowerCase() || "yes";
+            const noLabel = question.options?.[1]?.toLowerCase() || "no";
+            const naLabel = question.options?.[2]?.toLowerCase() || "n/a";
+
+            if (normalizedValues.includes(yesLabel)) {
+              counts.yes = 1;
+            } else if (normalizedValues.includes(noLabel)) {
+              counts.no = 1;
+            } else if (
+              normalizedValues.includes(naLabel) ||
+              normalizedValues.includes("n/a") ||
+              normalizedValues.includes("na") ||
+              normalizedValues.includes("not applicable")
+            ) {
+              counts.na = 1;
+            } else {
+              counts.yes = 1;
+            }
+          }
         }
 
         questionStats.push({
@@ -814,6 +996,8 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
             question.text ||
             `Question ${question.id}`,
           subParam1: question.subParam1,
+          hasYesNo: isCompliance,
+          isQuiz: isAccuracy,
           ...counts,
         });
       }
@@ -832,7 +1016,11 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
         yes: number;
         no: number;
         na: number;
+        correct: number;
+        wrong: number;
         total: number;
+        hasYesNo: boolean;
+        isQuiz: boolean;
       }
     > = new Map();
 
@@ -843,7 +1031,11 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
         existing.yes += stat.yes;
         existing.no += stat.no;
         existing.na += stat.na;
+        existing.correct += stat.correct;
+        existing.wrong += stat.wrong;
         existing.total += stat.total;
+        if (stat.hasYesNo) existing.hasYesNo = true;
+        if (stat.isQuiz) existing.isQuiz = true;
       } else {
         groupedStats.set(key, { ...stat });
       }
@@ -925,7 +1117,8 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
     () =>
       sectionStats.filter(
         (stat) =>
-          stat.yes > 0 || stat.no > 0 || stat.na > 0 || stat.weightage > 0
+          stat.total > 0 ||
+          stat.weightage > 0
       ),
     [sectionStats]
   );
@@ -934,57 +1127,92 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
     const calculatePercentage = (value: number, total: number) =>
       total ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
 
+    const datasets = [
+      {
+        label: "Correct",
+        data: filteredSectionStats.map((stat) =>
+          calculatePercentage(stat.correct, stat.total)
+        ),
+        borderColor: "#10b981",
+        backgroundColor: "rgba(16, 185, 129, 0.25)",
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: "#10b981",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+        pointHoverRadius: 6,
+        tension: 0.4,
+      },
+      {
+        label: "Wrong",
+        data: filteredSectionStats.map((stat) =>
+          calculatePercentage(stat.wrong, stat.total)
+        ),
+        borderColor: "#ef4444",
+        backgroundColor: "rgba(239, 68, 68, 0.25)",
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: "#ef4444",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+        pointHoverRadius: 6,
+        tension: 0.4,
+      },
+      {
+        label: complianceLabels.yes,
+        data: filteredSectionStats.map((stat) =>
+          calculatePercentage(stat.yes, stat.total)
+        ),
+        borderColor: "#1d4ed8",
+        backgroundColor: "rgba(29, 78, 216, 0.25)",
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: "#1d4ed8",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+        pointHoverRadius: 6,
+        tension: 0.4,
+      },
+      {
+        label: complianceLabels.no,
+        data: filteredSectionStats.map((stat) =>
+          calculatePercentage(stat.no, stat.total)
+        ),
+        borderColor: "#3b82f6",
+        backgroundColor: "rgba(59, 130, 246, 0.25)",
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: "#3b82f6",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+        pointHoverRadius: 6,
+        tension: 0.4,
+      },
+    ];
+
+    if (filteredSectionStats.some(stat => stat.na > 0)) {
+      datasets.push({
+        label: complianceLabels.na,
+        data: filteredSectionStats.map((stat) =>
+          calculatePercentage(stat.na, stat.total)
+        ),
+        borderColor: "#93c5fd",
+        backgroundColor: "rgba(147, 197, 253, 0.25)",
+        borderWidth: 2,
+        pointRadius: 4,
+        pointBackgroundColor: "#93c5fd",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+        pointHoverRadius: 6,
+        tension: 0.4,
+      });
+    }
+
     return {
       labels: filteredSectionStats.map((stat) =>
         formatSectionLabel(stat.title)
       ),
-      datasets: [
-        {
-          label: "Yes",
-          data: filteredSectionStats.map((stat) =>
-            calculatePercentage(stat.yes, stat.total)
-          ),
-          borderColor: "#1d4ed8",
-          backgroundColor: "rgba(29, 78, 216, 0.25)",
-          borderWidth: 2,
-          pointRadius: 4,
-          pointBackgroundColor: "#1d4ed8",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-          pointHoverRadius: 6,
-          tension: 0.4,
-        },
-        {
-          label: "No",
-          data: filteredSectionStats.map((stat) =>
-            calculatePercentage(stat.no, stat.total)
-          ),
-          borderColor: "#3b82f6",
-          backgroundColor: "rgba(59, 130, 246, 0.25)",
-          borderWidth: 2,
-          pointRadius: 4,
-          pointBackgroundColor: "#3b82f6",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-          pointHoverRadius: 6,
-          tension: 0.4,
-        },
-        {
-          label: "N/A",
-          data: filteredSectionStats.map((stat) =>
-            calculatePercentage(stat.na, stat.total)
-          ),
-          borderColor: "#93c5fd",
-          backgroundColor: "rgba(147, 197, 253, 0.25)",
-          borderWidth: 2,
-          pointRadius: 4,
-          pointBackgroundColor: "#93c5fd",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-          pointHoverRadius: 6,
-          tension: 0.4,
-        },
-      ],
+      datasets,
     };
   }, [filteredSectionStats]);
 
@@ -1073,6 +1301,9 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
         const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
         const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
         const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
+        const correctPercent = stat.total ? (stat.correct / stat.total) * 100 : 0;
+        const wrongPercent = stat.total ? (stat.wrong / stat.total) * 100 : 0;
+        
         const yesWeighted = (yesPercent * weightage) / 100;
         const noWeighted = (noPercent * weightage) / 100;
         const naWeighted = (naPercent * weightage) / 100;
@@ -1084,6 +1315,8 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
           yes: stat.yes,
           no: stat.no,
           na: stat.na,
+          correct: stat.correct,
+          wrong: stat.wrong,
           weightage,
           yesPercent,
           yesWeighted,
@@ -1091,6 +1324,10 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
           noWeighted,
           naPercent,
           naWeighted,
+          correctPercent,
+          wrongPercent,
+          hasYesNo: stat.hasYesNo,
+          hasQuiz: stat.correct > 0 || stat.wrong > 0 || stat.total > 0 && !stat.hasYesNo, // If total > 0 and no yes/no, it might be quiz
         };
       }),
     [filteredSectionStats]
@@ -1107,59 +1344,71 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
         yes: acc.yes + (row.yes || 0),
         no: acc.no + (row.no || 0),
         na: acc.na + (row.na || 0),
+        correct: acc.correct + (row.correct || 0),
+        wrong: acc.wrong + (row.wrong || 0),
         weightage: acc.weightage + row.weightage,
         yesWeighted: acc.yesWeighted + row.yesWeighted,
         noWeighted: acc.noWeighted + row.noWeighted,
         naWeighted: acc.naWeighted + row.naWeighted,
+        hasAnyYesNo: acc.hasAnyYesNo || row.hasYesNo,
+        hasAnyQuiz: acc.hasAnyQuiz || row.hasQuiz || (row.correct + row.wrong > 0),
       }),
-      { total: 0, yes: 0, no: 0, na: 0, weightage: 0, yesWeighted: 0, noWeighted: 0, naWeighted: 0 }
+      { total: 0, yes: 0, no: 0, na: 0, correct: 0, wrong: 0, weightage: 0, yesWeighted: 0, noWeighted: 0, naWeighted: 0, hasAnyYesNo: false, hasAnyQuiz: false }
     );
   }, [sectionSummaryRows]);
 
   const weightedPercentageChartData = useMemo(() => {
+    const datasets = [
+      {
+        label: complianceLabels.yes,
+        data: sectionSummaryRows.map((row) =>
+          parseFloat(row.yesWeighted.toFixed(1))
+        ),
+        borderColor: "#1d4ed8",
+        backgroundColor: "rgba(29, 78, 216, 0.1)",
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: "#1d4ed8",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+      },
+      {
+        label: complianceLabels.no,
+        data: sectionSummaryRows.map((row) =>
+          parseFloat(row.noWeighted.toFixed(1))
+        ),
+        borderColor: "#3b82f6",
+        backgroundColor: "rgba(59, 130, 246, 0.1)",
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: "#3b82f6",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+      },
+    ];
+
+    if (sectionSummaryRows.some(row => row.na > 0)) {
+      datasets.push({
+        label: complianceLabels.na,
+        data: sectionSummaryRows.map((row) =>
+          parseFloat(row.naWeighted.toFixed(1))
+        ),
+        borderColor: "#93c5fd",
+        backgroundColor: "rgba(147, 197, 253, 0.1)",
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: "#93c5fd",
+        pointBorderColor: "#fff",
+        pointBorderWidth: 2,
+      });
+    }
+
     return {
       labels: sectionSummaryRows.map((row) => formatSectionLabel(row.title)),
-      datasets: [
-        {
-          data: sectionSummaryRows.map((row) =>
-            parseFloat(row.yesWeighted.toFixed(1))
-          ),
-          borderColor: "#1d4ed8",
-          backgroundColor: "rgba(29, 78, 216, 0.1)",
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointBackgroundColor: "#1d4ed8",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-        },
-        {
-          data: sectionSummaryRows.map((row) =>
-            parseFloat(row.noWeighted.toFixed(1))
-          ),
-          borderColor: "#3b82f6",
-          backgroundColor: "rgba(59, 130, 246, 0.1)",
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointBackgroundColor: "#3b82f6",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-        },
-        {
-          data: sectionSummaryRows.map((row) =>
-            parseFloat(row.naWeighted.toFixed(1))
-          ),
-          borderColor: "#93c5fd",
-          backgroundColor: "rgba(147, 197, 253, 0.1)",
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointBackgroundColor: "#93c5fd",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-        },
-      ],
+      datasets,
     };
   }, [sectionSummaryRows]);
 
@@ -1414,7 +1663,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
             </button>
 
             {viewMode === "responses" && (
-              <button
+                <button
                 onClick={() => handleExportExcel()}
                 disabled={exportingExcel}
                 className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1429,12 +1678,12 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                 <span className="hidden sm:inline">
                   {exportingExcel ? "Exporting..." : "Excel"}
                 </span>
-              </button>
+                </button>
             )}
 
             {viewMode === "dashboard" && (
               <div className="relative pdf-type-selector">
-  <button
+                <button
     onClick={(e) => {
       e.stopPropagation();
       setShowPDFTypeSelector(!showPDFTypeSelector);
@@ -1470,7 +1719,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
         )}
       </>
     )}
-  </button>
+                </button>
 
   {showPDFTypeSelector && !generatingPDF && (
     <div className="absolute top-full mt-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
@@ -1478,29 +1727,29 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
         <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
           Response Types
         </div>
-        <button
+                <button
           onClick={(e) => {
             e.stopPropagation();
             setShowPDFTypeSelector(false);
             handleDownloadPDF('yes-only');
           }}
           className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors duration-150"
-        >
+                >
           <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
           <span>Yes Responses (Type 1)</span>
-        </button>
-        <button
+                </button>
+                <button
           onClick={(e) => {
             e.stopPropagation();
             setShowPDFTypeSelector(false);
             handleDownloadPDF('no-only');
           }}
           className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
-        >
+                >
           <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
           <span>No Responses (Type 2)</span>
-        </button>
-        <button
+                </button>
+                <button
           onClick={(e) => {
             e.stopPropagation();
             setShowPDFTypeSelector(false);
@@ -1510,31 +1759,43 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
         >
           <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
           <span>N/A Responses (Type 3)</span>
-        </button>
+                </button>
         <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-        <button
+            <button
           onClick={(e) => {
             e.stopPropagation();
             setShowPDFTypeSelector(false);
             handleDownloadPDF('both');
           }}
           className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
-        >
+            >
           <FileCheck className="w-4 h-4 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
           <span>All Response Types (Type 4)</span>
-        </button>
+            </button>
         <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-        <button
+            <button
           onClick={(e) => {
             e.stopPropagation();
             setShowPDFTypeSelector(false);
             handleDownloadPDF('section');
           }}
           className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors duration-150"
-        >
+            >
           <BarChart3 className="w-4 h-4 text-purple-600 dark:text-purple-400 mr-2 flex-shrink-0" />
           <span>View Sections</span>
-        </button>
+            </button>
+        <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+            <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPDFTypeSelector(false);
+            handleDownloadPDF('responses-view');
+          }}
+          className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/20 transition-colors duration-150"
+            >
+          <FileText className="w-4 h-4 text-cyan-600 dark:text-cyan-400 mr-2 flex-shrink-0" />
+          <span>Responses Detail</span>
+            </button>
       </div>
     </div>
   )}
@@ -1565,12 +1826,19 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-0.5">
-                          Overall Score
+                          {summaryTotals.correct + summaryTotals.wrong > 0 ? "Accuracy Score" : "Overall Score"}
                         </p>
                         <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
                           {(() => {
-                            const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
-                            const totalYes = filteredSectionStats.reduce((sum, stat) => sum + stat.yes, 0);
+                            const totalQuestions = summaryTotals.total;
+                            const totalCorrect = summaryTotals.correct;
+                            const totalYes = summaryTotals.yes;
+                            
+                            // If it's strictly a quiz form (no hasAnyYesNo), use accuracy
+                            if (!summaryTotals.hasAnyYesNo && summaryTotals.correct + summaryTotals.wrong > 0) {
+                              return totalQuestions > 0 ? ((totalCorrect / totalQuestions) * 100).toFixed(1) : "0.0";
+                            }
+                            // Otherwise use combined yes/correct rate
                             return totalQuestions > 0 ? ((totalYes / totalQuestions) * 100).toFixed(1) : "0.0";
                           })()}%
                         </p>
@@ -1627,26 +1895,57 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                             const totalNo = filteredSectionStats.reduce((sum, stat) => sum + stat.no, 0);
                             const totalNA = filteredSectionStats.reduce((sum, stat) => sum + stat.na, 0);
                             const totalAnswered = totalYes + totalNo + totalNA;
+                            const totalCorrect = filteredSectionStats.reduce((sum, stat) => sum + stat.correct, 0);
+                            const totalWrong = filteredSectionStats.reduce((sum, stat) => sum + stat.wrong, 0);
                             const yesPercent = totalAnswered > 0 ? ((totalYes / totalAnswered) * 100).toFixed(1) : "0.0";
                             const noPercent = totalAnswered > 0 ? ((totalNo / totalAnswered) * 100).toFixed(1) : "0.0";
                             const naPercent = totalAnswered > 0 ? ((totalNA / totalAnswered) * 100).toFixed(1) : "0.0";
+                            const correctPercent = totalAnswered > 0 ? ((totalCorrect / totalAnswered) * 100).toFixed(1) : "0.0";
+                            const wrongPercent = totalAnswered > 0 ? ((totalWrong / totalAnswered) * 100).toFixed(1) : "0.0";
 
                             return (
                               <>
-                                <div className="text-center p-1.5 bg-green-100/60 dark:bg-green-900/20 rounded-md">
-                                  <p className="text-xs font-semibold text-green-700 dark:text-green-400 uppercase">Yes</p>
-                                  <p className="text-sm font-bold text-green-800 dark:text-green-300">{totalYes}</p>
-                                  <p className="text-xs text-green-700 dark:text-green-400">{yesPercent}%</p>
-                                </div>
-                                <div className="text-center p-1.5 bg-red-100/60 dark:bg-red-900/20 rounded-md">
-                                  <p className="text-xs font-semibold text-red-700 dark:text-red-400 uppercase">No</p>
-                                  <p className="text-sm font-bold text-red-800 dark:text-red-300">{totalNo}</p>
-                                  <p className="text-xs text-red-700 dark:text-red-400">{noPercent}%</p>
-                                </div>
-                                <div className="text-center p-1.5 bg-yellow-100/60 dark:bg-yellow-900/20 rounded-md">
-                                  <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 uppercase">N/A</p>
-                                  <p className="text-sm font-bold text-yellow-800 dark:text-yellow-300">{totalNA}</p>
-                                  <p className="text-xs text-yellow-700 dark:text-yellow-400">{naPercent}%</p>
+                                {summaryTotals.hasAnyYesNo && (
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div className="text-center p-1.5 bg-green-100/60 dark:bg-green-900/20 rounded-md">
+                                      <p className="text-[10px] font-bold text-green-700 dark:text-green-400 uppercase tracking-tight">{complianceLabels.yes}</p>
+                                      <p className="text-sm font-bold text-green-800 dark:text-green-300">{totalYes}</p>
+                                      <p className="text-[10px] text-green-700 dark:text-green-400 font-medium">{yesPercent}%</p>
+                                    </div>
+                                    <div className="text-center p-1.5 bg-red-100/60 dark:bg-red-900/20 rounded-md">
+                                      <p className="text-[10px] font-bold text-red-700 dark:text-red-400 uppercase tracking-tight">{complianceLabels.no}</p>
+                                      <p className="text-sm font-bold text-red-800 dark:text-red-300">{totalNo}</p>
+                                      <p className="text-[10px] text-red-700 dark:text-red-400 font-medium">{noPercent}%</p>
+                                    </div>
+                                    <div className="text-center p-1.5 bg-yellow-100/60 dark:bg-yellow-900/20 rounded-md">
+                                      <p className="text-[10px] font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-tight">{complianceLabels.na}</p>
+                                      <p className="text-sm font-bold text-yellow-800 dark:text-yellow-300">{totalNA}</p>
+                                      <p className="text-[10px] text-yellow-700 dark:text-yellow-400 font-medium">{naPercent}%</p>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Accuracy Section */}
+                                <div className="col-span-3 mt-1.5 pt-1.5 border-t border-green-200 dark:border-green-800/50">
+                                  <p className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase mb-1 flex items-center gap-1">
+                                    <Zap className="w-2.5 h-2.5" /> Accuracy Statistics
+                                  </p>
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="flex items-center justify-between p-1.5 bg-emerald-100/50 dark:bg-emerald-900/20 rounded border border-emerald-200 dark:border-emerald-800/40">
+                                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">Correct</span>
+                                      <div className="text-right">
+                                        <p className="text-xs font-bold text-emerald-800 dark:text-emerald-200 leading-none">{totalCorrect}</p>
+                                        <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold">{correctPercent}%</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center justify-between p-1.5 bg-rose-100/50 dark:bg-rose-900/20 rounded border border-rose-200 dark:border-rose-800/40">
+                                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase">Wrong</span>
+                                      <div className="text-right">
+                                        <p className="text-xs font-bold text-rose-800 dark:text-rose-200 leading-none">{totalWrong}</p>
+                                        <p className="text-[9px] text-rose-600 dark:text-rose-400 font-bold">{wrongPercent}%</p>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                               </>
                             );
@@ -1720,12 +2019,14 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                                       {question.text || question.label || question.id}
                                     </p>
                                   </div>
-                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                  <div className="mt-1">
                                     {answer !== undefined && answer !== null && answer !== '' 
-                                      ? (Array.isArray(answer) ? answer.join(', ') : String(answer))
+                                      ? (Array.isArray(answer) 
+                                          ? <div className="space-y-1 text-sm font-medium text-gray-900 dark:text-gray-100">{answer.join(', ')}</div>
+                                          : <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{String(answer)}</div>)
                                       : <span className="text-gray-400 italic text-xs">No answer</span>
                                     }
-                                  </p>
+                                  </div>
                                 </div>
                               );
                             })}
@@ -1756,7 +2057,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                           Dealer Code
                         </p>
                         <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
-                          {String(response.answers.dealerCode)}
+                          {renderHighlightedAnswer(response.answers.dealerCode)}
                         </p>
                       </div>
                     )}
@@ -1766,7 +2067,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                           Location
                         </p>
                         <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
-                          {String(response.answers.location)}
+                          {renderHighlightedAnswer(response.answers.location)}
                         </p>
                       </div>
                     )}
@@ -1776,7 +2077,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                           Auditor Date
                         </p>
                         <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
-                          {String(response.answers.auditorDate)}
+                          {renderHighlightedAnswer(response.answers.auditorDate)}
                         </p>
                       </div>
                     )}
@@ -1786,7 +2087,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                           Auditor Name
                         </p>
                         <p className="text-sm font-medium text-gray-900 dark:text-white break-words">
-                          {String(response.answers.auditorName)}
+                          {renderHighlightedAnswer(response.answers.auditorName)}
                         </p>
                       </div>
                     )}
@@ -1919,28 +2220,42 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                         <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
                           Total
                         </th>
-                        <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                          Yes
-                        </th>
-                        <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                          No
-                        </th>
-                        <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                          N/A
-                        </th>
+                        {summaryTotals.hasAnyQuiz && (
+                          <>
+                            <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24 text-green-600 dark:text-green-400">
+                              Correct
+                            </th>
+                            <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24 text-red-600 dark:text-red-400">
+                              Wrong
+                            </th>
+                          </>
+                        )}
+                        {summaryTotals.hasAnyYesNo && (
+                          <>
+                            <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                              {complianceLabels.yes}
+                            </th>
+                            <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                              {complianceLabels.no}
+                            </th>
+                            <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
+                              {complianceLabels.na}
+                            </th>
+                          </>
+                        )}
                         {showWeightageColumns && (
                           <>
                             <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-20">
                               Weightage
                             </th>
                             <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                              Yes % × Weightage
+                              {complianceLabels.yes} (%)
                             </th>
                             <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                              No % × Weightage
+                              {complianceLabels.no} (%)
                             </th>
                             <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24">
-                              N/A % × Weightage
+                              {complianceLabels.na} (%)
                             </th>
                           </>
                         )}
@@ -1967,15 +2282,29 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                           <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
                             {row.total}
                           </td>
-                          <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                            {row.yes} ({row.yesPercent.toFixed(1)}%)
-                          </td>
-                          <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                            {row.no} ({row.noPercent.toFixed(1)}%)
-                          </td>
-                          <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
-                            {row.na} ({row.naPercent.toFixed(1)}%)
-                          </td>
+                          {summaryTotals.hasAnyQuiz && (
+                            <>
+                              <td className="px-6 py-5 text-green-600 dark:text-green-400 font-bold">
+                                {row.hasQuiz ? `${row.correct} (${row.correctPercent.toFixed(1)}%)` : "-"}
+                              </td>
+                              <td className="px-6 py-5 text-red-600 dark:text-red-400 font-bold">
+                                {row.hasQuiz ? `${row.wrong} (${row.wrongPercent.toFixed(1)}%)` : "-"}
+                              </td>
+                            </>
+                          )}
+                          {summaryTotals.hasAnyYesNo && (
+                            <>
+                              <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                {row.hasYesNo ? `${row.yes} (${row.yesPercent.toFixed(1)}%)` : "-"}
+                              </td>
+                              <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                {row.hasYesNo ? `${row.no} (${row.noPercent.toFixed(1)}%)` : "-"}
+                              </td>
+                              <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
+                                {row.hasYesNo ? `${row.na} (${row.naPercent.toFixed(1)}%)` : "-"}
+                              </td>
+                            </>
+                          )}
                           {showWeightageColumns && (
                             <>
                               <td className="px-6 py-5 text-gray-700 dark:text-gray-300 font-medium">
@@ -2082,15 +2411,29 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                         <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
                           {summaryTotals.total}
                         </td>
-                        <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
-                          {summaryTotals.yes} ({summaryTotals.total > 0 ? ((summaryTotals.yes / summaryTotals.total) * 100).toFixed(1) : 0}%)
-                        </td>
-                        <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
-                          {summaryTotals.no} ({summaryTotals.total > 0 ? ((summaryTotals.no / summaryTotals.total) * 100).toFixed(1) : 0}%)
-                        </td>
-                        <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
-                          {summaryTotals.na} ({summaryTotals.total > 0 ? ((summaryTotals.na / summaryTotals.total) * 100).toFixed(1) : 0}%)
-                        </td>
+                        {summaryTotals.hasAnyQuiz && (
+                          <>
+                            <td className="px-6 py-5 text-green-600 dark:text-green-400 font-bold">
+                              {summaryTotals.correct} ({summaryTotals.total > 0 ? ((summaryTotals.correct / summaryTotals.total) * 100).toFixed(1) : 0}%)
+                            </td>
+                            <td className="px-6 py-5 text-red-600 dark:text-red-400 font-bold">
+                              {summaryTotals.wrong} ({summaryTotals.total > 0 ? ((summaryTotals.wrong / summaryTotals.total) * 100).toFixed(1) : 0}%)
+                            </td>
+                          </>
+                        )}
+                        {summaryTotals.hasAnyYesNo && (
+                          <>
+                            <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                              {summaryTotals.yes} ({summaryTotals.total > 0 ? ((summaryTotals.yes / summaryTotals.total) * 100).toFixed(1) : 0}%)
+                            </td>
+                            <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                              {summaryTotals.no} ({summaryTotals.total > 0 ? ((summaryTotals.no / summaryTotals.total) * 100).toFixed(1) : 0}%)
+                            </td>
+                            <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                              {summaryTotals.na} ({summaryTotals.total > 0 ? ((summaryTotals.na / summaryTotals.total) * 100).toFixed(1) : 0}%)
+                            </td>
+                          </>
+                        )}
                         {showWeightageColumns && (
                           <>
                             <td className="px-6 py-5 text-center font-bold">
@@ -2117,7 +2460,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                       {/* Consolidated Status Message and Action Buttons Row */}
                       {(redistributionMode || editingAllWeightages) && (
                         <tr className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
-                          <td colSpan={showWeightageColumns ? 9 : 5} className="px-6 py-4">
+                          <td colSpan={4 + (summaryTotals.hasAnyYesNo ? 3 : 0) + (showWeightageColumns ? 4 : 0)} className="px-6 py-4">
                             <div className="flex flex-col md:flex-row items-center justify-center gap-6">
                               {/* Status Message */}
                               <div className="flex items-center gap-2">
@@ -2293,15 +2636,15 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                         <div className="flex flex-row justify-center gap-1 bg-white/50 dark:bg-gray-700/50 rounded-md px-1 py-0.5">
                           <div className="flex items-center space-x-0.5">
                             <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                            <span className="text-[7px] font-medium text-gray-700 dark:text-gray-300">Y×W</span>
+                            <span className="text-[7px] font-medium text-gray-700 dark:text-gray-300">{complianceLabels.yes[0]}×W</span>
                           </div>
                           <div className="flex items-center space-x-0.5">
                             <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                            <span className="text-[7px] font-medium text-gray-700 dark:text-gray-300">N×W</span>
+                            <span className="text-[7px] font-medium text-gray-700 dark:text-gray-300">{complianceLabels.no[0]}×W</span>
                           </div>
                           <div className="flex items-center space-x-0.5">
                             <div className="w-1.5 h-1.5 bg-purple-500 rounded-full"></div>
-                            <span className="text-[7px] font-medium text-gray-700 dark:text-gray-300">NA×W</span>
+                            <span className="text-[7px] font-medium text-gray-700 dark:text-gray-300">{complianceLabels.na[0] === "N" ? "NA" : complianceLabels.na[0]}×W</span>
                           </div>
                         </div>
                       </div>
@@ -2317,16 +2660,24 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                       </h3>
                       <div className="flex gap-1 bg-white/50 dark:bg-gray-700/50 rounded-md px-1.5 py-1 flex-row">
                         <div className="flex items-center space-x-0.5">
+                          <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">Correct</span>
+                        </div>
+                        <div className="flex items-center space-x-0.5">
+                          <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">Wrong</span>
+                        </div>
+                        <div className="flex items-center space-x-0.5">
                           <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">Yes</span>
+                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">{complianceLabels.yes}</span>
                         </div>
                         <div className="flex items-center space-x-0.5">
                           <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
-                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">No</span>
+                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">{complianceLabels.no}</span>
                         </div>
                         <div className="flex items-center space-x-0.5">
                           <div className="w-1.5 h-1.5 bg-blue-300 rounded-full"></div>
-                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">N/A</span>
+                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">{complianceLabels.na}</span>
                         </div>
                       </div>
                     </div>
@@ -2353,14 +2704,22 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                 const questionStats = getSectionYesNoQuestionStats(section.id);
                 if (questionStats.length === 0) return null;
 
+                const hasAnyYesNoInSection = questionStats.some(q => q.hasYesNo);
+                const yesNoStats = questionStats.filter(q => q.hasYesNo && !q.isQuiz);
+                const quizStats = questionStats.filter(q => q.isQuiz);
+                // Also handle other types that might not be either but have stats
+                const otherStats = questionStats.filter(q => !q.hasYesNo && !q.isQuiz);
+
                 const sectionTotals = questionStats.reduce(
                   (totals, stat) => ({
                     yes: totals.yes + stat.yes,
                     no: totals.no + stat.no,
                     na: totals.na + stat.na,
+                    correct: totals.correct + stat.correct,
+                    wrong: totals.wrong + stat.wrong,
                     total: totals.total + stat.total,
                   }),
-                  { yes: 0, no: 0, na: 0, total: 0 }
+                  { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 }
                 );
 
                 const sectionPercentages = {
@@ -2376,15 +2735,59 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                     sectionTotals.total > 0
                       ? ((sectionTotals.na / sectionTotals.total) * 100).toFixed(1)
                       : "0.0",
+                  correct:
+                    sectionTotals.total > 0
+                      ? ((sectionTotals.correct / sectionTotals.total) * 100).toFixed(1)
+                      : "0.0",
+                  wrong:
+                    sectionTotals.total > 0
+                      ? ((sectionTotals.wrong / sectionTotals.total) * 100).toFixed(1)
+                      : "0.0",
                 };
 
+                const hasYesNo = yesNoStats.length > 0;
+                const hasQuiz = quizStats.length > 0;
+
+                const labels: string[] = [];
+                const data: number[] = [];
+                const colors: string[] = [];
+
+                if (hasYesNo && hasQuiz) {
+                  labels.push("Correct", "Wrong", complianceLabels.yes, complianceLabels.no);
+                  data.push(sectionTotals.correct, sectionTotals.wrong, sectionTotals.yes, sectionTotals.no);
+                  colors.push("#10b981", "#ef4444", "#1e40af", "#3b82f6");
+                  if (sectionTotals.na > 0) {
+                    labels.push(complianceLabels.na);
+                    data.push(sectionTotals.na);
+                    colors.push("#93c5fd");
+                  }
+                } else if (hasYesNo) {
+                  labels.push(complianceLabels.yes, complianceLabels.no);
+                  data.push(sectionTotals.yes, sectionTotals.no);
+                  colors.push("#1e40af", "#3b82f6");
+                  if (sectionTotals.na > 0) {
+                    labels.push(complianceLabels.na);
+                    data.push(sectionTotals.na);
+                    colors.push("#93c5fd");
+                  }
+                } else {
+                  labels.push("Correct", "Wrong");
+                  data.push(sectionTotals.correct, sectionTotals.wrong);
+                  colors.push("#16a34a", "#dc2626");
+                  if (sectionTotals.na > 0) {
+                    labels.push(complianceLabels.na);
+                    data.push(sectionTotals.na);
+                    colors.push("#94a3b8");
+                  }
+                }
+
                 const chartData = {
-                  labels: ["Yes", "No", "N/A"],
+                  labels,
                   datasets: [
                     {
-                      data: [sectionTotals.yes, sectionTotals.no, sectionTotals.na],
-                      backgroundColor: ["#1e40af", "#3b82f6", "#93c5fd"],
-                      borderColor: ["#1e40af", "#3b82f6", "#93c5fd"],
+                      data,
+                      backgroundColor: colors,
+                      borderColor: colors,
                       borderWidth: 2,
                     },
                   ],
@@ -2400,12 +2803,15 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                         color: document.documentElement.classList.contains("dark")
                           ? "#d1d5db"
                           : "#374151",
+                        boxWidth: 10,
+                        padding: 10,
+                        font: { size: 10 }
                       },
                     },
                     tooltip: {
                       callbacks: {
                         label: (context: any) => {
-                          const total = sectionTotals.yes + sectionTotals.no + sectionTotals.na;
+                          const total = sectionTotals.total;
                           const value =
                             typeof context.parsed === "number"
                               ? context.parsed
@@ -2423,10 +2829,14 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                   <div key={section.id} id={`section-detail-${section.id}`} className="bg-white dark:bg-gray-900 p-5 rounded-xl border border-gray-200 dark:border-gray-800">
                     <div className="mb-4">
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                        {section.title || "Section"} - Yes/No/N/A Analysis
+                        {section.title || "Section"} - {(hasAnyYesNoInSection && quizStats.length > 0) ? "Compliance & Accuracy Analysis" : hasAnyYesNoInSection ? "Compliance Analysis" : "Accuracy Analysis"}
                       </h3>
                       <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        Question-wise breakdown of yes/no/n/a responses with overall section summary
+                        {(hasAnyYesNoInSection && quizStats.length > 0)
+                          ? `Question-wise breakdown of compliance (${complianceLabels.yes}/${complianceLabels.no}) and accuracy (Correct/Wrong) with section summary`
+                          : hasAnyYesNoInSection
+                            ? `Question-wise breakdown of compliance (${complianceLabels.yes}/${complianceLabels.no}/${complianceLabels.na}) with overall section summary`
+                            : "Question-wise breakdown of quiz accuracy with overall section summary"}
                       </p>
                     </div>
 
@@ -2461,25 +2871,44 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                                 ),
                                 datasets: [
                                   {
-                                    label: "Yes",
+                                    label: "Correct",
+                                    data: questionStats.map((stat) => stat.correct),
+                                    backgroundColor: "#10b981",
+                                    borderColor: "#10b981",
+                                    borderWidth: 1,
+                                    hidden: !hasQuiz,
+                                  },
+                                  {
+                                    label: "Wrong",
+                                    data: questionStats.map((stat) => stat.wrong),
+                                    backgroundColor: "#ef4444",
+                                    borderColor: "#ef4444",
+                                    borderWidth: 1,
+                                    hidden: !hasQuiz,
+                                  },
+                                  {
+                                    label: complianceLabels.yes,
                                     data: questionStats.map((stat) => stat.yes),
                                     backgroundColor: "#1e40af",
                                     borderColor: "#1e40af",
                                     borderWidth: 1,
+                                    hidden: !hasYesNo,
                                   },
                                   {
-                                    label: "No",
+                                    label: complianceLabels.no,
                                     data: questionStats.map((stat) => stat.no),
                                     backgroundColor: "#3b82f6",
                                     borderColor: "#3b82f6",
                                     borderWidth: 1,
+                                    hidden: !hasYesNo,
                                   },
                                   {
-                                    label: "N/A",
+                                    label: complianceLabels.na,
                                     data: questionStats.map((stat) => stat.na),
                                     backgroundColor: "#93c5fd",
                                     borderColor: "#93c5fd",
                                     borderWidth: 1,
+                                    hidden: !hasYesNo || sectionTotals.na === 0,
                                   },
                                 ],
                               }}
@@ -2506,161 +2935,126 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                         </div>
                       </div>
 
-                      {/* Question Breakdown Table */}
-                      <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
-                        <div className="bg-gray-100 dark:bg-gray-700 px-4 py-2.5">
-                          <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
-                            <BarChart3 className="w-4 h-4 mr-2" />
-                            Question Breakdown
-                          </h4>
+                      {/* Compliance Analysis Table (Yes/No/NA) */}
+                      {hasAnyYesNoInSection && (
+                        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden mb-4">
+                          <div className="bg-blue-50 dark:bg-blue-900/20 px-4 py-2.5 border-b border-blue-100 dark:border-blue-800">
+                            <h4 className="text-sm font-semibold text-blue-900 dark:text-blue-100 flex items-center">
+                              <CheckCircle className="w-4 h-4 mr-2" />
+                              Compliance Analysis ({complianceLabels.yes}/{complianceLabels.no}/{complianceLabels.na})
+                            </h4>
+                          </div>
+                          <div className="overflow-auto max-h-60">
+                            <table className="w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
+                              <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider w-[40%]">
+                                    Parameter
+                                  </th>
+                                  <th className="px-3 py-2 text-center font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wider w-[20%]">
+                                    {complianceLabels.yes}
+                                  </th>
+                                  <th className="px-3 py-2 text-center font-semibold text-blue-500 dark:text-blue-400 uppercase tracking-wider w-[20%]">
+                                    {complianceLabels.no}
+                                  </th>
+                                  <th className="px-3 py-2 text-center font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[20%]">
+                                    {complianceLabels.na}
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                                {questionStats.filter(q => q.hasYesNo).map((stat, index) => {
+                                  const total = stat.yes + stat.no + stat.na;
+                                  const yesPercent = total > 0 ? ((stat.yes / total) * 100).toFixed(1) : 0;
+                                  const noPercent = total > 0 ? ((stat.no / total) * 100).toFixed(1) : 0;
+                                  const naPercent = total > 0 ? ((stat.na / total) * 100).toFixed(1) : 0;
+                                  return (
+                                    <tr key={stat.id} className={index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/50 dark:bg-gray-800/30"}>
+                                      <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
+                                        {stat.subParam1 || stat.title}
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <div className="flex flex-col items-center">
+                                          <span className={`font-bold ${stat.yes > 0 ? "text-blue-700 dark:text-blue-400" : "text-gray-400"}`}>{stat.yes}</span>
+                                          {stat.yes > 0 && <span className="text-[10px] text-blue-600/70">{yesPercent}%</span>}
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <div className="flex flex-col items-center">
+                                          <span className={`font-bold ${stat.no > 0 ? "text-blue-500 dark:text-blue-400" : "text-gray-400"}`}>{stat.no}</span>
+                                          {stat.no > 0 && <span className="text-[10px] text-blue-500/70">{noPercent}%</span>}
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <div className="flex flex-col items-center">
+                                          <span className={`font-bold ${stat.na > 0 ? "text-gray-600 dark:text-gray-400" : "text-gray-400"}`}>{stat.na}</span>
+                                          {stat.na > 0 && <span className="text-[10px] text-gray-500/70">{naPercent}%</span>}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                        <div className="overflow-auto max-h-80">
-                          <table className="w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
-                            <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
-                              <tr>
-                                <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider w-[60%]">
-                                  Question & Parameters
-                                </th>
-                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider w-[13%]">
-                                  Yes
-                                </th>
-                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider w-[13%]">
-                                  No
-                                </th>
-                                <th className="px-3 py-2 text-center font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider w-[14%]">
-                                  N/A
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
-                              {questionStats.map((stat, index) => {
-                                const total = stat.yes + stat.no + stat.na;
-                                const yesPercent =
-                                  total > 0 ? ((stat.yes / total) * 100).toFixed(1) : 0;
-                                const noPercent =
-                                  total > 0 ? ((stat.no / total) * 100).toFixed(1) : 0;
-                                const naPercent =
-                                  total > 0 ? ((stat.na / total) * 100).toFixed(1) : 0;
-                                return (
-                                  <tr
-                                    key={stat.id}
-                                    className={`group hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-all duration-200 ${
-                                      index % 2 === 0
-                                        ? "bg-white dark:bg-gray-900"
-                                        : "bg-gray-50 dark:bg-gray-800/30"
-                                    }`}
-                                  >
-                                    <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
-                                      <div className="flex flex-col gap-1.5">
-                                        {stat.subParam1 ? (
-                                          <span
-                                            className="text-xs font-medium text-gray-900 dark:text-gray-100"
-                                            title={stat.title}
-                                          >
-                                            {stat.subParam1}
-                                          </span>
-                                        ) : (
-                                          <span
-                                            className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed"
-                                            title={stat.title}
-                                          >
-                                            {stat.title}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-gray-700 dark:text-gray-300 font-medium">
-                                      <div className="flex flex-col items-center gap-0.5">
-                                        <span
-                                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
-                                            stat.yes > 0
-                                              ? "bg-blue-700 text-white dark:bg-blue-900/40 dark:text-blue-300"
-                                              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                                          }`}
-                                        >
-                                          {stat.yes}
-                                        </span>
-                                        <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">
-                                          {yesPercent}%
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-gray-700 dark:text-gray-300 font-medium">
-                                      <div className="flex flex-col items-center gap-0.5">
-                                        <span
-                                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
-                                            stat.no > 0
-                                              ? "bg-blue-300 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
-                                              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                                          }`}
-                                        >
-                                          {stat.no}
-                                        </span>
-                                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-300">
-                                          {noPercent}%
-                                        </span>
-                                      </div>
-                                    </td>
-                                    <td className="px-3 py-2 text-center text-gray-700 dark:text-gray-300 font-medium">
-                                      <div className="flex flex-col items-center gap-0.5">
-                                        <span
-                                          className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold ${
-                                            stat.na > 0
-                                              ? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-100"
-                                              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-500"
-                                          }`}
-                                        >
-                                          {stat.na}
-                                        </span>
-                                        <span className="text-xs font-semibold text-blue-500 dark:text-blue-200">
-                                          {naPercent}%
-                                        </span>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                            <tfoot className="sticky bottom-0 z-10 bg-blue-50 dark:bg-blue-900/15 border-t-2 border-blue-200 dark:border-blue-800">
-                              <tr className="border-t border-blue-200 dark:border-blue-800">
-                                <td className="px-3 py-3 font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider text-xs">
-                                  Section Total
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <div className="flex flex-col items-center gap-0.5">
-                                    <span className="text-sm font-bold text-blue-700 dark:text-blue-300">
-                                      {sectionTotals.yes}
-                                    </span>
-                                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
-                                      {sectionPercentages.yes}%
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <div className="flex flex-col items-center gap-0.5">
-                                    <span className="text-sm font-bold text-blue-600 dark:text-blue-300">
-                                      {sectionTotals.no}
-                                    </span>
-                                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
-                                      {sectionPercentages.no}%
-                                    </span>
-                                  </div>
-                                </td>
-                                <td className="px-3 py-3 text-center">
-                                  <div className="flex flex-col items-center gap-0.5">
-                                    <span className="text-sm font-bold text-blue-500 dark:text-blue-200">
-                                      {sectionTotals.na}
-                                    </span>
-                                    <span className="text-xs font-semibold text-blue-500 dark:text-blue-300">
-                                      {sectionPercentages.na}%
-                                    </span>
-                                  </div>
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
+                      )}
+
+                      {/* Accuracy Analysis Table (Correct/Wrong) */}
+                      {questionStats.some(q => q.isQuiz) && (
+                        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
+                          <div className="bg-green-50 dark:bg-green-900/20 px-4 py-2.5 border-b border-green-100 dark:border-green-800">
+                            <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 flex items-center">
+                              <Award className="w-4 h-4 mr-2" />
+                              Accuracy Analysis (Correct/Wrong)
+                            </h4>
+                          </div>
+                          <div className="overflow-auto max-h-60">
+                            <table className="w-full divide-y divide-gray-200 dark:divide-gray-800 text-xs">
+                              <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
+                                <tr>
+                                  <th className="px-3 py-2 text-left font-semibold text-gray-700 dark:text-gray-200 uppercase tracking-wider w-[40%]">
+                                    Parameter
+                                  </th>
+                                  <th className="px-3 py-2 text-center font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider w-[30%]">
+                                    Correct
+                                  </th>
+                                  <th className="px-3 py-2 text-center font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider w-[30%]">
+                                    Wrong
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-200 dark:divide-gray-800 bg-white dark:bg-gray-900">
+                                {questionStats.filter(q => q.isQuiz).map((stat, index) => {
+                                  const total = stat.correct + stat.wrong;
+                                  const correctPercent = total > 0 ? ((stat.correct / total) * 100).toFixed(1) : 0;
+                                  const wrongPercent = total > 0 ? ((stat.wrong / total) * 100).toFixed(1) : 0;
+                                  return (
+                                    <tr key={stat.id} className={index % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/50 dark:bg-gray-800/30"}>
+                                      <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
+                                        {stat.subParam1 || stat.title}
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <div className="flex flex-col items-center">
+                                          <span className={`font-bold ${stat.correct > 0 ? "text-green-600 dark:text-green-400" : "text-gray-400"}`}>{stat.correct}</span>
+                                          {stat.correct > 0 && <span className="text-[10px] text-green-600/70">{correctPercent}%</span>}
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 text-center">
+                                        <div className="flex flex-col items-center">
+                                          <span className={`font-bold ${stat.wrong > 0 ? "text-red-600 dark:text-red-400" : "text-gray-400"}`}>{stat.wrong}</span>
+                                          {stat.wrong > 0 && <span className="text-[10px] text-red-600/70">{wrongPercent}%</span>}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
-                      </div>
+                      )}
+
                     </div>
 
                     {/* Main Parameters Table */}
@@ -2677,7 +3071,10 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                     sectionQuestions.forEach((q: any) => {
                       q.followUpQuestions.forEach((fq: any) => {
                         allFollowUpIds.add(fq.id);
-                        if (fq.answer && fq.answer !== "N/A" && fq.answer !== "n/a") {
+                        if (fq.answer && 
+                            fq.answer !== "N/A" && 
+                            fq.answer !== "n/a" && 
+                            String(fq.answer).toLowerCase() !== complianceLabels.na.toLowerCase()) {
                           followUpIdAnswerStatus.set(fq.id, true);
                         }
                       });
@@ -2807,7 +3204,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                                         if (answer !== undefined && answer !== null && answer !== "") {
                                           return {
                                             answer,
-                                            question: followUpFromMain?.title || "Question",
+                                            question: followUpFromMain,
                                           };
                                         }
                                         return null;
@@ -2821,7 +3218,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                                       >
                                         {answerQuestionPairs.length > 0 ? (
                                           <div className="flex flex-wrap gap-2">
-                                            {answerQuestionPairs.map((item, idx) => (
+                                            {answerQuestionPairs.map((item: any, idx) => (
                                               <div
                                                 key={idx}
                                                 className=""
@@ -2830,7 +3227,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                                                   {isImageUrl(String(item.answer)) ? (
                                                     <ImageLink text={String(item.answer)} showImage={showMainParamsImages[section.id] ?? true} />
                                                   ) : (
-                                                    <p>{item.answer}</p>
+                                                    String(item.answer)
                                                   )}
                                                 </div>
                                               </div>
@@ -2838,7 +3235,7 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                                           </div>
                                         ) : (
                                           <span className="text-gray-400 italic">
-                                            N/A
+                                            {complianceLabels.na}
                                           </span>
                                         )}
                                       </td>
@@ -2919,9 +3316,24 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
           )
         ) : (
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-              Form Responses
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                Form Responses
+              </h3>
+              <button
+                onClick={() => handleDownloadPDF('responses-view')}
+                disabled={generatingPDF}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: "#0891b2" }}
+              >
+                {generatingPDF ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4" />
+                )}
+                <span>{generatingPDF ? "Generating PDF..." : "Download as PDF"}</span>
+              </button>
+            </div>
             <div className="space-y-8">
               {form.sections?.map((section: any) => {
                 const sectionAnswers = Object.entries(response.answers).filter(([key]) => {
@@ -2937,76 +3349,93 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                       <div className="w-1 h-6 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
                       {section.title}
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {sectionAnswers.map(([key, value]) => {
-                        const question = questions[key];
-                        const isMainQuestion = question && !question.parentId && !question.showWhen?.questionId;
-                        
-                        return (
-                          <div
-                            key={key}
-                            className={`rounded-lg p-4 border transition-shadow ${
-                              isMainQuestion 
-                                ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-blue-200 dark:border-blue-700" 
-                                : "bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 border-gray-200 dark:border-gray-700"
-                            }`}
-                          >
-                            <div className="mb-3 flex flex-col gap-1.5">
-                              {question?.subParam1 && (
-                                <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-2 py-0.5 rounded font-semibold text-xs w-fit">
-                                  {question.subParam1}
-                                </span>
-                              )}
-                              <h5 
-                                className="font-semibold text-gray-900 dark:text-white text-sm line-clamp-2"
-                                title={question?.text || key}
+                    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-800">
+                          <tr>
+                            <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[40%]">
+                              Question
+                            </th>
+                            <th scope="col" className="px-6 py-4 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[60%]">
+                              Response
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                          {sectionAnswers.map(([key, value], idx) => {
+                            const question = questions[key];
+                            const isMainQuestion = question && !question.parentId && !question.showWhen?.questionId;
+                            const hasCorrectAnswer = !!(question?.correctAnswer || (question?.correctAnswers && question?.correctAnswers.length > 0));
+
+                            return (
+                              <tr 
+                                key={key} 
+                                className={`${idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors`}
                               >
-                                {question?.text || key}
-                              </h5>
-                              {question?.description && (
-                                <div 
-                                  className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-1"
-                                  title={question.description.replace(/<br\s*\/?>/gi, '\n')}
-                                  dangerouslySetInnerHTML={{ __html: question.description }}
-                                />
-                              )}
-                            </div>
-                            <div className="bg-white dark:bg-gray-700 rounded p-3 border border-gray-200 dark:border-gray-600">
-                              {Array.isArray(value) ? (
-                                <div className="space-y-1 text-sm">
-                                  {value.map((v, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="text-gray-900 dark:text-gray-100 flex items-start gap-2"
-                                    >
-                                      <div className="w-1.5 h-1.5 bg-indigo-600 dark:bg-indigo-400 rounded-full mt-1 flex-shrink-0" />
-                                      <div className="break-words">
-                                        {isImageUrl(String(v)) ? (
-                                          <ImageLink text={String(v)} />
+                                <td className="px-6 py-4">
+                                  <div className="flex flex-col gap-1.5">
+                                    {question?.subParam1 && (
+                                      <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-2 py-0.5 rounded font-semibold text-[10px] w-fit uppercase tracking-wider">
+                                        {question.subParam1}
+                                      </span>
+                                    )}
+                                    <div className="font-semibold text-gray-900 dark:text-white text-sm">
+                                      {question?.text || key}
+                                    </div>
+                                    {question?.description && (
+                                      <div 
+                                        className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2"
+                                        dangerouslySetInnerHTML={{ __html: question.description }}
+                                      />
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                  {hasCorrectAnswer ? (
+                                    <div className="flex items-center justify-center gap-4">
+                                      <div className="flex-1 flex justify-center">
+                                        <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm font-medium border border-green-100 dark:border-green-800/30">
+                                          {question.correctAnswers && question.correctAnswers.length > 0
+                                            ? question.correctAnswers.join(", ")
+                                            : String(question.correctAnswer || "")}
+                                        </div>
+                                      </div>
+                                      <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
+                                      <div className="flex-1 flex justify-center">
+                                        {Array.isArray(value) ? (
+                                          <div className="space-y-1">
+                                            {value.map((v, i) => (
+                                              <div key={i}>{renderHighlightedAnswer(v, question, true)}</div>
+                                            ))}
+                                          </div>
                                         ) : (
-                                          String(v)
+                                          renderHighlightedAnswer(value, question, true)
                                         )}
                                       </div>
                                     </div>
-                                  ))}
-                                </div>
-                              ) : typeof value === "object" ? (
-                                <pre className="text-gray-900 dark:text-gray-100 overflow-auto text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded max-h-24">
-                                  {JSON.stringify(value, null, 2)}
-                                </pre>
-                              ) : (
-                                <div className="text-gray-900 dark:text-gray-100 text-sm break-words">
-                                  {isImageUrl(String(value)) ? (
-                                    <ImageLink text={String(value)} />
                                   ) : (
-                                    String(value)
+                                    <div className="flex justify-center">
+                                      {Array.isArray(value) ? (
+                                        <div className="space-y-1">
+                                          {value.map((v, i) => (
+                                            <div key={i}>{renderHighlightedAnswer(v, question, true)}</div>
+                                          ))}
+                                        </div>
+                                      ) : typeof value === "object" ? (
+                                        <pre className="text-gray-900 dark:text-gray-100 overflow-auto text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded max-h-24">
+                                          {JSON.stringify(value, null, 2)}
+                                        </pre>
+                                      ) : (
+                                        renderHighlightedAnswer(value, question, true)
+                                      )}
+                                    </div>
                                   )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 );
@@ -3057,41 +3486,72 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                 const totalYes = filteredSectionStats.reduce((sum, stat) => sum + stat.yes, 0);
                 const totalNo = filteredSectionStats.reduce((sum, stat) => sum + stat.no, 0);
                 const totalNA = filteredSectionStats.reduce((sum, stat) => sum + stat.na, 0);
+                const totalCorrect = filteredSectionStats.reduce((sum, stat) => sum + stat.correct, 0);
+                const totalWrong = filteredSectionStats.reduce((sum, stat) => sum + stat.wrong, 0);
                 const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
 
                 const yesPercent = totalQuestions > 0 ? ((totalYes / totalQuestions) * 100).toFixed(1) : "0.0";
                 const noPercent = totalQuestions > 0 ? ((totalNo / totalQuestions) * 100).toFixed(1) : "0.0";
                 const naPercent = totalQuestions > 0 ? ((totalNA / totalQuestions) * 100).toFixed(1) : "0.0";
+                const correctPercent = totalQuestions > 0 ? ((totalCorrect / totalQuestions) * 100).toFixed(1) : "0.0";
+                const wrongPercent = totalQuestions > 0 ? ((totalWrong / totalQuestions) * 100).toFixed(1) : "0.0";
 
                 const radarData = {
                   labels: filteredSectionStats.map((stat) => stat.title),
                   datasets: [
                     {
-                      label: `Yes ${yesPercent}% (${totalYes})`,
+                      label: `Correct ${correctPercent}% (${totalCorrect})`,
+                      data: filteredSectionStats.map((stat) =>
+                        stat.total ? ((stat.correct / stat.total) * 100).toFixed(1) : 0
+                      ),
+                      borderColor: "#059669",
+                      backgroundColor: "rgba(5, 150, 105, 0.15)",
+                      borderWidth: 3,
+                      pointBackgroundColor: "#059669",
+                      pointBorderColor: "#fff",
+                      pointHoverRadius: 6,
+                    },
+                    {
+                      label: `Wrong ${wrongPercent}% (${totalWrong})`,
+                      data: filteredSectionStats.map((stat) =>
+                        stat.total ? ((stat.wrong / stat.total) * 100).toFixed(1) : 0
+                      ),
+                      borderColor: "#dc2626",
+                      backgroundColor: "rgba(220, 38, 38, 0.15)",
+                      borderWidth: 3,
+                      pointBackgroundColor: "#dc2626",
+                      pointBorderColor: "#fff",
+                      pointHoverRadius: 6,
+                    },
+                    {
+                      label: `${complianceLabels.yes} / Answered ${yesPercent}% (${totalYes})`,
                       data: filteredSectionStats.map((stat) =>
                         stat.total ? ((stat.yes / stat.total) * 100).toFixed(1) : 0
                       ),
                       borderColor: "#10b981",
-                      backgroundColor: "rgba(16, 185, 129, 0.1)",
+                      backgroundColor: "rgba(16, 185, 129, 0.05)",
                       borderWidth: 2,
+                      hidden: true,
                     },
                     {
-                      label: `No ${noPercent}% (${totalNo})`,
+                      label: `${complianceLabels.no} / Not Answered ${noPercent}% (${totalNo})`,
                       data: filteredSectionStats.map((stat) =>
                         stat.total ? ((stat.no / stat.total) * 100).toFixed(1) : 0
                       ),
                       borderColor: "#ef4444",
-                      backgroundColor: "rgba(239, 68, 68, 0.1)",
+                      backgroundColor: "rgba(239, 68, 68, 0.05)",
                       borderWidth: 2,
+                      hidden: true,
                     },
                     {
-                      label: `N/A ${naPercent}% (${totalNA})`,
+                      label: `${complianceLabels.na} ${naPercent}% (${totalNA})`,
                       data: filteredSectionStats.map((stat) =>
                         stat.total ? ((stat.na / stat.total) * 100).toFixed(1) : 0
                       ),
                       borderColor: "#f59e0b",
-                      backgroundColor: "rgba(245, 158, 11, 0.1)",
+                      backgroundColor: "rgba(245, 158, 11, 0.05)",
                       borderWidth: 2,
+                      hidden: true,
                     },
                   ],
                 };
@@ -3144,21 +3604,24 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                 if (!section) return null;
 
                 const questionStats = getSectionYesNoQuestionStats(sectionStat.id);
+                const hasAnyYesNoInSection = questionStats.some(q => q.hasYesNo);
                 const sectionTotals = {
                   yes: questionStats.reduce((sum, q) => sum + q.yes, 0),
                   no: questionStats.reduce((sum, q) => sum + q.no, 0),
                   na: questionStats.reduce((sum, q) => sum + q.na, 0),
+                  correct: questionStats.reduce((sum, q) => sum + q.correct, 0),
+                  wrong: questionStats.reduce((sum, q) => sum + q.wrong, 0),
                   total: questionStats.reduce((sum, q) => sum + q.total, 0),
                 };
 
                 const chartData = {
-                  labels: ["Yes", "No", "N/A"],
+                  labels: ["Correct", "Wrong", complianceLabels.yes, complianceLabels.no, complianceLabels.na],
                   datasets: [
                     {
-                      data: [sectionTotals.yes, sectionTotals.no, sectionTotals.na],
-                      backgroundColor: ["#1e40af", "#3b82f6", "#93c5fd"],
-                      borderColor: ["#1e40af", "#3b82f6", "#93c5fd"],
-                      borderWidth: 2,
+                      data: [sectionTotals.correct, sectionTotals.wrong, sectionTotals.yes, sectionTotals.no, sectionTotals.na],
+                      backgroundColor: ["#059669", "#dc2626", "#1e40af", "#3b82f6", "#93c5fd"],
+                      borderColor: ["#059669", "#dc2626", "#1e40af", "#3b82f6", "#93c5fd"],
+                      borderWidth: 1,
                     },
                   ],
                 };
@@ -3192,21 +3655,35 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                             ),
                             datasets: [
                               {
-                                label: "Yes",
+                                label: "Correct",
+                                data: questionStats.map((stat) => stat.correct),
+                                backgroundColor: "#059669",
+                                borderColor: "#059669",
+                                borderWidth: 1,
+                              },
+                              {
+                                label: "Wrong",
+                                data: questionStats.map((stat) => stat.wrong),
+                                backgroundColor: "#dc2626",
+                                borderColor: "#dc2626",
+                                borderWidth: 1,
+                              },
+                              {
+                                label: `${complianceLabels.yes} / Answered`,
                                 data: questionStats.map((stat) => stat.yes),
                                 backgroundColor: "#1e40af",
                                 borderColor: "#1e40af",
                                 borderWidth: 1,
                               },
                               {
-                                label: "No",
+                                label: `${complianceLabels.no} / Not Answered`,
                                 data: questionStats.map((stat) => stat.no),
                                 backgroundColor: "#3b82f6",
                                 borderColor: "#3b82f6",
                                 borderWidth: 1,
                               },
                               {
-                                label: "N/A",
+                                label: complianceLabels.na,
                                 data: questionStats.map((stat) => stat.na),
                                 backgroundColor: "#93c5fd",
                                 borderColor: "#93c5fd",

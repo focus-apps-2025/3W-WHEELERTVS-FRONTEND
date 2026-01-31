@@ -19,6 +19,7 @@ import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
 import { exportResponsesToExcel } from "../utils/exportUtils";
+import { exportResponseToPDF, exportAllResponsesToPDF } from "../utils/pdfExportUtils";
 import { Bar, Pie } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -434,6 +435,14 @@ export default function FormResponses() {
                   Export as Excel
                 </button>
                 <button
+                  onClick={() => form && exportAllResponsesToPDF(responses as any, form as any)}
+                  className="btn-secondary flex items-center"
+                  disabled={!form || responses.length === 0}
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Download as PDF
+                </button>
+                <button
                   onClick={() => setShowTableView(true)}
                   className="btn-tertiary flex items-center"
                   disabled={responses.length === 0}
@@ -710,15 +719,26 @@ export default function FormResponses() {
                     </button>
                   </div>
                 </div>
-                <button
-                  onClick={() => {
-                    setSelectedResponse(null);
-                    setSelectedStatus("");
-                  }}
-                  className="text-primary-500 hover:text-primary-700 ml-4"
-                >
-                  <X className="w-6 h-6" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() =>
+                      form && exportResponseToPDF(selectedResponse as any, form as any)
+                    }
+                    className="p-2 text-primary-600 hover:bg-primary-50 rounded-full transition-colors"
+                    title="Download as PDF"
+                  >
+                    <FileText className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedResponse(null);
+                      setSelectedStatus("");
+                    }}
+                    className="text-primary-500 hover:text-primary-700 ml-4"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
               </div>
             </div>
 

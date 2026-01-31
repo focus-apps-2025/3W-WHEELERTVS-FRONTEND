@@ -199,7 +199,7 @@ export default function AllResponses() {
   const [editingFormLoading, setEditingFormLoading] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
  // Add this line
-  const [selectedPDFType, setSelectedPDFType] = useState<'no-only' | 'yes-only' | 'both' | null>(null);
+  const [selectedPDFType, setSelectedPDFType] = useState<'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default' | 'responses-view' | null>(null);
 
   const [editingWeightage, setEditingWeightage] = useState<string | null>(null);
   const [weightageValue, setWeightageValue] = useState<string>("");
@@ -235,7 +235,7 @@ export default function AllResponses() {
   // const [showExcelResponseDropdown, setShowExcelResponseDropdown] = useState(false);
   // const [openViewDropdown, setOpenViewDropdown] = useState<string | null>(null);
 
-  const handlePDFTypeSelect = (type: 'no-only' | 'yes-only' | 'both') => {
+  const handlePDFTypeSelect = (type: 'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default' | 'responses-view') => {
   setSelectedPDFType(type);
   
   handleDownloadPDF(type);
@@ -498,7 +498,7 @@ export default function AllResponses() {
     }
   };
 
- const handleDownloadPDF = async (type?: 'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default') => {
+ const handleDownloadPDF = async (type?: 'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default' | 'responses-view') => {
   if (generatingPDF || !selectedResponse || !selectedForm) {
     return;
   }
@@ -647,7 +647,7 @@ export default function AllResponses() {
 
 // Helper function to get PDF type label
 // Helper function to get PDF type label
-const getPDFTypeLabel = (type: 'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default') => {
+const getPDFTypeLabel = (type: 'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default' | 'responses-view') => {
   switch (type) {
     case 'no-only':
       return 'NO Response Analysis';
@@ -659,6 +659,8 @@ const getPDFTypeLabel = (type: 'no-only' | 'yes-only' | 'both' | 'na-only' | 'se
       return 'BOTH YES, NO & N/A Response Analysis';
     case 'section':
       return 'Section Analysis';
+    case 'responses-view':
+      return 'Form Responses Detail';
     case 'default':
       return 'Full Analysis';
     default:
@@ -666,7 +668,7 @@ const getPDFTypeLabel = (type: 'no-only' | 'yes-only' | 'both' | 'na-only' | 'se
   }
 };
 
-const handleDropdownClick = (type: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section', e: React.MouseEvent) => {
+const handleDropdownClick = (type: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'responses-view', e: React.MouseEvent) => {
   e.stopPropagation();
   setShowDownloadOptions(false);
   setShowResponseDropdown(false);
@@ -869,7 +871,8 @@ const handleCancelWeightageEdit = () => {
         if (dealerQuestionId) {
           const answer = response.answers[dealerQuestionId];
           if (answer && hasAnswerValue(answer)) {
-            return renderAnswerDisplay(answer) as string;
+            const q = form.sections.flatMap(s => s.questions || []).find(q => q.id === dealerQuestionId);
+            return renderAnswerDisplay(answer, q) as string;
           }
         }
 
@@ -1565,6 +1568,90 @@ const handleCancelWeightageEdit = () => {
   };
 
   const renderAnswerDisplay = (value: any, question?: any): React.ReactNode => {
+    const renderHighlightedAnswer = (val: any) => {
+      const isArray = Array.isArray(val);
+      const strValue = isArray ? val.join(", ") : String(val || "");
+      const normalized = strValue.trim().toLowerCase();
+      
+      let bgColor = "";
+      let textColor = "";
+      let borderColor = "";
+      let Icon = null;
+      
+      let isYes = normalized === "yes";
+      let isNo = normalized === "no";
+      let isNA = normalized === "n/a" || normalized === "na" || normalized === "not applicable";
+
+      // For yesNoNA type, we should use the option position if available
+      if (question && question.type === "yesNoNA" && question.options && question.options.length >= 2) {
+        isYes = normalized === String(question.options[0]).toLowerCase().trim();
+        isNo = normalized === String(question.options[1]).toLowerCase().trim();
+        if (question.options.length >= 3) {
+          isNA = normalized === String(question.options[2]).toLowerCase().trim();
+        }
+      }
+      
+      // Quiz logic
+      const isQuiz = question && (question.correctAnswer || (question.correctAnswers && question.correctAnswers.length > 0));
+      let isCorrect = false;
+      
+      if (isQuiz) {
+        if (question.correctAnswers && question.correctAnswers.length > 0) {
+          if (isArray) {
+            isCorrect = val.length === question.correctAnswers.length && 
+                        val.every((a: any) => question.correctAnswers!.some((ca: any) => String(ca).toLowerCase() === String(a).toLowerCase()));
+          } else {
+            isCorrect = question.correctAnswers.some((ca: any) => String(ca).toLowerCase() === normalized);
+          }
+        } else if (question.correctAnswer) {
+          isCorrect = String(question.correctAnswer).toLowerCase() === normalized;
+        }
+      }
+
+      if (isQuiz) {
+        if (isCorrect) {
+          bgColor = "bg-green-100 dark:bg-green-900/30";
+          textColor = "text-green-800 dark:text-green-300";
+          borderColor = "border-green-200 dark:border-green-800";
+          Icon = CheckCircle;
+        } else {
+          bgColor = "bg-red-100 dark:bg-red-900/30";
+          textColor = "text-red-800 dark:text-red-300";
+          borderColor = "border-red-200 dark:border-red-800";
+          Icon = XCircle;
+        }
+      } else if (isYes) {
+        bgColor = "bg-green-100 dark:bg-green-900/30";
+        textColor = "text-green-800 dark:text-green-300";
+        borderColor = "border-green-200 dark:border-green-800";
+        Icon = CheckCircle;
+      } else if (isNo) {
+        bgColor = "bg-red-100 dark:bg-red-900/30";
+        textColor = "text-red-800 dark:text-red-300";
+        borderColor = "border-red-200 dark:border-red-800";
+        Icon = XCircle;
+      } else if (isNA) {
+        bgColor = "bg-yellow-100 dark:bg-yellow-900/30";
+        textColor = "text-yellow-800 dark:text-yellow-300";
+        borderColor = "border-yellow-200 dark:border-yellow-800";
+        Icon = AlertTriangle;
+      }
+
+      if (!isQuiz && !isYes && !isNo && !isNA) {
+        if (isImageUrl(strValue)) {
+          return <ImageLink text={strValue} />;
+        }
+        return strValue;
+      }
+
+      return (
+        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold border ${bgColor} ${textColor} ${borderColor}`}>
+          {Icon && <Icon className="w-3.5 h-3.5" />}
+          {isImageUrl(strValue) ? <ImageLink text={strValue} /> : strValue}
+        </span>
+      );
+    };
+
     const ensureAbsoluteFileSource = (input: string) => {
       if (!input) {
         return "";
@@ -1727,7 +1814,7 @@ const handleCancelWeightageEdit = () => {
       }
       const trimmed = value.trim();
       return trimmed ? (
-        trimmed
+        renderHighlightedAnswer(trimmed)
       ) : (
         <span className="text-primary-400">No response</span>
       );
@@ -1758,27 +1845,10 @@ const handleCancelWeightageEdit = () => {
           return <div className="space-y-3">{previews}</div>;
         }
       }
-      const first = value[0];
-      if (typeof first === "string" && first.startsWith("data:")) {
-        return (
-          <FilePreview
-            data={first}
-            fileName={question?.fileName || question?.name}
-          />
-        );
-      }
       return (
         <div className="flex flex-wrap gap-2">
           {value.map((item: any, index: number) => {
-            const itemStr = String(item);
-            if (isImageUrl(itemStr)) {
-              return (
-                <div key={index} className="inline-block">
-                  <ImageLink text={itemStr} />
-                </div>
-              );
-            }
-            return <span key={index} className="text-sm">{itemStr}</span>;
+            return <div key={index}>{renderHighlightedAnswer(item)}</div>;
           })}
         </div>
       );
@@ -1804,7 +1874,7 @@ const handleCancelWeightageEdit = () => {
       );
     }
 
-    return String(value);
+    return renderHighlightedAnswer(value);
   };
 
   const renderSectionTabs = (): React.ReactNode => {
@@ -3310,65 +3380,64 @@ const handleCancelWeightageEdit = () => {
                 {viewMode === "dashboard" ? (
                  <div className="flex items-center download-container">
   {showDownloadOptions && (
-    <div className="flex items-center gap-2">
-      {/* Responses Dropdown */}
-      <div className="relative responses-dropdown">
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowResponseDropdown(!showResponseDropdown);
-          }}
-          className="flex items-center px-3 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/30 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all duration-200 shadow-sm hover:shadow-md"
-        >
-          <span>Responses</span>
-          <ChevronDown className={`w-3 h-3 ml-1.5 transition-transform duration-200 ${showResponseDropdown ? 'rotate-180' : ''}`} />
-        </button>
-        
-        {/* Dropdown Menu */}
-        {showResponseDropdown && (
-  <div className="absolute left-0 top-full mt-2 w-48 bg-gradient-to-b from-white to-blue-50/50 dark:from-gray-800 dark:to-blue-900/20 rounded-lg shadow-xl border border-blue-200 dark:border-blue-800/50 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-    <div className="py-1">
+    <div className="flex items-center gap-1.5 animate-in slide-in-from-right-2 duration-300 mr-2">
+      {/* Type 1 - Yes */}
       <button
         onClick={(e) => handleDropdownClick('yes-only', e)}
-        className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors duration-150"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-all duration-200"
+        title="Yes Responses Only"
       >
-        <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
-        <span>Yes Responses (Type 1)</span>
+        <CheckCircle className="w-3 h-3" />
+        <span>YES</span>
       </button>
+
+      {/* Type 2 - No */}
       <button
         onClick={(e) => handleDropdownClick('no-only', e)}
-        className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-all duration-200"
+        title="No Responses Only"
       >
-        <XCircle className="w-3 h-3 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
-        <span>No Responses (Type 2)</span>
+        <XCircle className="w-3 h-3" />
+        <span>NO</span>
       </button>
+
+      {/* Type 3 - N/A */}
       <button
         onClick={(e) => handleDropdownClick('na-only', e)}
-        className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors duration-150"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg hover:bg-yellow-100 transition-all duration-200"
+        title="N/A Responses Only"
       >
-        <AlertTriangle className="w-3 h-3 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
-        <span>N/A Responses (Type 3)</span>
+        <AlertTriangle className="w-3 h-3" />
+        <span>N/A</span>
       </button>
-      <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+
+      {/* Type 4 - All */}
       <button
         onClick={(e) => handleDropdownClick('both', e)}
-        className="flex items-center w-full px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-all duration-200"
+        title="All Responses"
       >
-        <FileText className="w-3 h-3 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
-        <span>All Response Types</span>
+        <FileText className="w-3 h-3" />
+        <span>ALL</span>
       </button>
-    </div>
-  </div>
-)}
-      </div>
       
       {/* Sections Button */}
       <button
         onClick={() => handleDownloadPDF('section')}
-        className="flex items-center mr-1.5 gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md hover:opacity-90"
-        style={{ backgroundColor: "#16a34a" }}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-all duration-200"
+        title="Section Analysis"
       >
-        Sections
+        <span>SECTIONS</span>
+      </button>
+
+      {/* Responses Button */}
+      <button
+        onClick={(e) => handleDropdownClick('responses-view', e)}
+        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-cyan-700 bg-cyan-50 border border-cyan-200 rounded-lg hover:bg-cyan-100 transition-all duration-200"
+        title="Form Responses Detail"
+      >
+        <FileText className="w-3 h-3" />
+        <span>RESPONSES</span>
       </button>
     </div>
   )}
@@ -3379,22 +3448,17 @@ const handleCancelWeightageEdit = () => {
       onClick={(e) => {
         e.stopPropagation();
         setShowDownloadOptions(!showDownloadOptions);
-        setShowResponseDropdown(false);
       }}
       disabled={generatingPDF}
-      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 ${showDownloadOptions ? 'rounded-r-xl' : 'rounded-lg'}`}
-      style={{ backgroundColor: "#16a34a" }}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed hover:opacity-90 ${showDownloadOptions ? 'bg-gray-600' : 'bg-[#16a34a]'}`}
     >
       {generatingPDF ? (
-        <div className="w-3 h-3 border-2 border-green-600 border-t-transparent rounded-full animate-spin" />
+        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
       ) : (
         <>
-          <FileText className="w-3 h-3" />
-          Download PDF
+          <Download className="w-3 h-3" />
+          <span>{showDownloadOptions ? 'Close' : 'Download PDF'}</span>
         </>
-      )}
-      {showDownloadOptions && (
-        <ChevronDown className="w-3 h-3 ml-0.5 transition-transform" />
       )}
     </button>
   </div>

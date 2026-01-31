@@ -1,5 +1,5 @@
 import React from "react";
-import { X, Mail } from "lucide-react";
+import { X, Mail, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import type { Question, Response } from "../types";
 import { formatTimestamp } from "../utils/dateUtils";
 import FilePreview from "./FilePreview";
@@ -21,11 +21,126 @@ export default function ResponseDetails({
 }: ResponseDetailsProps) {
   const { showInfo } = useNotification();
 
+  const renderHighlightedAnswer = (val: any, questionObj?: any) => {
+    const isArray = Array.isArray(val);
+    const strValue = isArray ? val.join(", ") : String(val || "");
+    const normalized = strValue.trim().toLowerCase();
+    
+    let bgColor = "";
+    let textColor = "";
+    let borderColor = "";
+    let Icon = null;
+    
+    const isYes = normalized === "yes";
+    const isNo = normalized === "no";
+    const isNA = normalized === "n/a" || normalized === "na" || normalized === "not applicable";
+    
+    // Quiz logic
+    const isQuiz = questionObj && (questionObj.correctAnswer || (questionObj.correctAnswers && questionObj.correctAnswers.length > 0));
+    let isCorrect = false;
+    
+    if (isQuiz) {
+      if (questionObj.correctAnswers && questionObj.correctAnswers.length > 0) {
+        if (isArray) {
+          isCorrect = val.length === questionObj.correctAnswers.length && 
+                      val.every((a: any) => questionObj.correctAnswers!.some((ca: any) => String(ca).toLowerCase() === String(a).toLowerCase()));
+        } else {
+          isCorrect = questionObj.correctAnswers.some((ca: any) => String(ca).toLowerCase() === normalized);
+        }
+      } else if (questionObj.correctAnswer) {
+        isCorrect = String(questionObj.correctAnswer).toLowerCase() === normalized;
+      }
+    }
+
+    if (isQuiz) {
+      if (isCorrect) {
+        bgColor = "bg-green-100 dark:bg-green-900/30";
+        textColor = "text-green-800 dark:text-green-300";
+        borderColor = "border-green-200 dark:border-green-800";
+        Icon = CheckCircle;
+      } else {
+        bgColor = "bg-red-100 dark:bg-red-900/30";
+        textColor = "text-red-800 dark:text-red-300";
+        borderColor = "border-red-200 dark:border-red-800";
+        Icon = XCircle;
+      }
+    } else if (isYes) {
+      bgColor = "bg-green-100 dark:bg-green-900/30";
+      textColor = "text-green-800 dark:text-green-300";
+      borderColor = "border-green-200 dark:border-green-800";
+      Icon = CheckCircle;
+    } else if (isNo) {
+      bgColor = "bg-red-100 dark:bg-red-900/30";
+      textColor = "text-red-800 dark:text-red-300";
+      borderColor = "border-red-200 dark:border-red-800";
+      Icon = XCircle;
+    } else if (isNA) {
+      bgColor = "bg-yellow-100 dark:bg-yellow-900/30";
+      textColor = "text-yellow-800 dark:text-yellow-300";
+      borderColor = "border-yellow-200 dark:border-yellow-800";
+      Icon = AlertTriangle;
+    }
+
+    if (isQuiz) {
+      const correctAnswerDisplay = questionObj.correctAnswers && questionObj.correctAnswers.length > 0
+        ? questionObj.correctAnswers.join(", ")
+        : String(questionObj.correctAnswer || "");
+
+      return (
+        <div className="flex flex-row gap-3 w-full my-1">
+          {/* Given Correct Answer - No color (Neutral) */}
+          <div className="flex-1 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm">
+            <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
+              Given Correct Answer
+            </div>
+            <div className="font-medium text-gray-700 dark:text-gray-300">
+              {correctAnswerDisplay}
+            </div>
+          </div>
+
+          {/* Customer Filled Answer - Colored based on correctness */}
+          <div className={`flex-1 ${bgColor} ${textColor} ${borderColor} rounded-lg p-3 border text-sm break-words font-medium flex items-center shadow-sm`}>
+            <div className="w-full">
+              <div className="text-[10px] font-bold opacity-70 uppercase tracking-wider mb-1">
+                Customer Filled Answer
+              </div>
+              <div className="flex items-center gap-2">
+                {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
+                <div className="flex-1">
+                  {isImageUrl(strValue) ? (
+                    <ImageLink text={strValue} />
+                  ) : (
+                    strValue
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (!isQuiz && !isYes && !isNo && !isNA) {
+      if (isImageUrl(strValue)) {
+        return <ImageLink text={strValue} />;
+      }
+      return strValue;
+    }
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold border ${bgColor} ${textColor} ${borderColor}`}>
+        {Icon && <Icon className="w-3.5 h-3.5" />}
+        {isImageUrl(strValue) ? <ImageLink text={strValue} /> : strValue}
+      </span>
+    );
+  };
+
   const handleSendToMail = () => {
     showInfo("This feature is coming soon!", "Coming Soon");
   };
 
-  const renderAnswer = (questionType: string, answer: any) => {
+  const renderAnswer = (q: any, answer: any) => {
+    const questionType = q.type;
     if (questionType === "file" || questionType === "radio-image") {
       return <FilePreview data={answer as string} />;
     }
@@ -35,11 +150,7 @@ export default function ResponseDetails({
         <ul className="list-disc list-inside space-y-2">
           {answer.map((item, index) => (
             <li key={index} className="text-gray-700 dark:text-gray-300">
-              {isImageUrl(String(item)) ? (
-                <ImageLink text={String(item)} />
-              ) : (
-                item
-              )}
+              {renderHighlightedAnswer(item, q)}
             </li>
           ))}
         </ul>
@@ -71,11 +182,7 @@ export default function ResponseDetails({
                   {key}:
                 </td>
                 <td className="py-2 text-gray-600 dark:text-gray-400">
-                  {isImageUrl(String(value)) ? (
-                    <ImageLink text={String(value)} />
-                  ) : (
-                    String(value)
-                  )}
+                  {renderHighlightedAnswer(value, q)}
                 </td>
               </tr>
             ))}
@@ -84,11 +191,7 @@ export default function ResponseDetails({
       );
     }
 
-    if (isImageUrl(String(answer))) {
-      return <ImageLink text={String(answer)} />;
-    }
-
-    return <p className="text-gray-700 dark:text-gray-300">{String(answer)}</p>;
+    return renderHighlightedAnswer(answer, q);
   };
 
   // Get all questions from sections or fallback to followUpQuestions
@@ -145,7 +248,7 @@ export default function ResponseDetails({
                     {q.text}
                   </h4>
                   <div className="text-gray-700 dark:text-gray-300">
-                    {renderAnswer(q.type, answer)}
+                    {renderAnswer(q, answer)}
                   </div>
                 </div>
               );

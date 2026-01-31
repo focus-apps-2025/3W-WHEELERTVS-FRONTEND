@@ -1,6 +1,7 @@
 import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
 import { apiClient } from "../api/client";
+import { formatTimestamp } from "./dateUtils";
 
 interface PDFOptions {
   filename: string;
@@ -12,12 +13,20 @@ interface PDFOptions {
     yes: number;
     no: number;
     na: number;
+    correct: number;
+    wrong: number;
     total: number;
     weightage: number;
   }>;
   sectionSummaryRows?: Array<{
     id: string;
     title: string;
+    total: number;
+    yes: number;
+    no: number;
+    na: number;
+    correct: number;
+    wrong: number;
     weightage: number;
     yesPercent: number;
     yesWeighted: number;
@@ -25,6 +34,10 @@ interface PDFOptions {
     noWeighted: number;
     naPercent: number;
     naWeighted: number;
+    correctPercent: number;
+    wrongPercent: number;
+    hasYesNo?: boolean;
+    hasQuiz?: boolean;
   }>;
   sectionQuestionStats?: Record<string, Array<any>>;
   sectionMainParameters?: Record<string, Array<any>>;
@@ -39,7 +52,322 @@ interface PDFOptions {
     | "na-only"
     | "section"
     | "default"
+    | "responses-view"
     | undefined; // Add this new parameter
+}
+
+function extractYesNoValues(value: any): string[] {
+  if (value === null || value === undefined) {
+    return [];
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized ? [normalized] : [];
+  }
+  if (typeof value === "boolean") {
+    return [value ? "yes" : "no"];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => extractYesNoValues(item));
+  }
+  if (typeof value === "object") {
+    return Object.values(value).flatMap((item) => extractYesNoValues(item));
+  }
+  return [];
+}
+
+function getSectionYesNoStats(form: any, answers: Record<string, any>): any[] {
+  if (!form || !form.sections) return [];
+
+  return form.sections.map((section: any) => {
+    const counts = { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 };
+    const weightage = Number(section.weightage) || 0;
+
+    const processQuestion = (question: any) => {
+      if (!question || !question.id) return;
+
+      const supportedTypes = [
+        "yesNoNA",
+        "radio",
+        "checkbox",
+        "search-select",
+        "radio-image",
+        "rating",
+        "scale",
+      ];
+      if (!supportedTypes.includes(question.type)) {
+        question.followUpQuestions?.forEach(processQuestion);
+        return;
+      }
+
+      const isCompliance = question.type === "yesNoNA";
+      const isAccuracy = !isCompliance;
+
+      const rawValue = answers?.[question.id];
+      const normalizedValues = extractYesNoValues(rawValue);
+      const hasValue =
+        rawValue !== null &&
+        rawValue !== undefined &&
+        rawValue !== "" &&
+        (!Array.isArray(rawValue) || rawValue.length > 0) &&
+        (typeof rawValue !== "object" || Object.keys(rawValue).length > 0);
+
+      counts.total += 1;
+
+      if (!hasValue) {
+        if (isCompliance) {
+          counts.no += 1;
+        } else {
+          counts.wrong += 1;
+        }
+      } else if (isAccuracy) {
+        let isCorrect = false;
+        const isArray = Array.isArray(rawValue);
+        const strValue = isArray ? rawValue.join(", ") : String(rawValue || "");
+        const normalized = strValue.trim().toLowerCase();
+
+        if (question.correctAnswers && question.correctAnswers.length > 0) {
+          if (isArray) {
+            isCorrect =
+              rawValue.length === question.correctAnswers.length &&
+              rawValue.every((a: any) =>
+                question.correctAnswers!.some(
+                  (ca: any) =>
+                    String(ca).toLowerCase() === String(a).toLowerCase()
+                )
+              );
+          } else {
+            isCorrect = question.correctAnswers.some(
+              (ca: any) => String(ca).toLowerCase() === normalized
+            );
+          }
+        } else if (question.correctAnswer) {
+          isCorrect = String(question.correctAnswer).toLowerCase() === normalized;
+        } else {
+          // Fallback for accuracy questions without explicit correct answers:
+          // If it has a value and it's not "N/A", it's considered "Correct" (Answered)
+          const isNA = normalizedValues.some((v) =>
+            ["n/a", "na", "not applicable"].includes(v)
+          );
+          isCorrect = !isNA;
+        }
+
+        if (isCorrect) {
+          counts.correct += 1;
+        } else {
+          counts.wrong += 1;
+        }
+      } else if (isCompliance) {
+        const options = question.options || [];
+        if (options.length >= 3) {
+          const yesOption = String(options[0]).toLowerCase().trim();
+          const noOption = String(options[1]).toLowerCase().trim();
+          const naOption = String(options[2]).toLowerCase().trim();
+
+          if (normalizedValues.includes(yesOption)) {
+            counts.yes += 1;
+          } else if (normalizedValues.includes(noOption)) {
+            counts.no += 1;
+          } else if (normalizedValues.includes(naOption)) {
+            counts.na += 1;
+          } else {
+            counts.yes += 1;
+          }
+        } else {
+          // Fallback to recognized values
+          if (normalizedValues.includes("yes")) {
+            counts.yes += 1;
+          } else if (normalizedValues.includes("no")) {
+            counts.no += 1;
+          } else if (
+            normalizedValues.includes("n/a") ||
+            normalizedValues.includes("na") ||
+            normalizedValues.includes("not applicable")
+          ) {
+            counts.na += 1;
+          } else {
+            counts.yes += 1;
+          }
+        }
+      }
+
+      question.followUpQuestions?.forEach(processQuestion);
+    };
+
+    section.questions?.forEach(processQuestion);
+
+    return {
+      id: section.id,
+      title: section.title || section.name,
+      ...counts,
+      weightage,
+    };
+  });
+}
+
+function getSectionYesNoQuestionStats(
+  section: any,
+  answers: Record<string, any>
+): any[] {
+  const questionStats: any[] = [];
+
+  const processQuestion = (question: any) => {
+    if (!question || !question.id) return;
+
+    const supportedTypes = [
+      "yesNoNA",
+      "radio",
+      "checkbox",
+      "search-select",
+      "radio-image",
+      "rating",
+      "scale",
+    ];
+    if (supportedTypes.includes(question.type)) {
+      const rawValue = answers?.[question.id];
+      const normalizedValues = extractYesNoValues(rawValue);
+      const counts = { yes: 0, no: 0, na: 0, total: 1, correct: 0, wrong: 0 };
+      const isCompliance = question.type === "yesNoNA";
+      const isAccuracy = !isCompliance;
+
+      const hasValue =
+        rawValue !== null &&
+        rawValue !== undefined &&
+        rawValue !== "" &&
+        (!Array.isArray(rawValue) || rawValue.length > 0) &&
+        (typeof rawValue !== "object" || Object.keys(rawValue).length > 0);
+
+      if (!hasValue) {
+        if (isCompliance) {
+          counts.no = 1;
+        } else {
+          counts.wrong = 1;
+        }
+      } else if (isAccuracy) {
+        let isCorrect = false;
+        const isArray = Array.isArray(rawValue);
+        const strValue = isArray ? rawValue.join(", ") : String(rawValue || "");
+        const normalized = strValue.trim().toLowerCase();
+
+        if (question.correctAnswers && question.correctAnswers.length > 0) {
+          if (isArray) {
+            isCorrect =
+              rawValue.length === question.correctAnswers.length &&
+              rawValue.every((a: any) =>
+                question.correctAnswers!.some(
+                  (ca: any) =>
+                    String(ca).toLowerCase() === String(a).toLowerCase()
+                )
+              );
+          } else {
+            isCorrect = question.correctAnswers.some(
+              (ca: any) => String(ca).toLowerCase() === normalized
+            );
+          }
+        } else if (question.correctAnswer) {
+          isCorrect = String(question.correctAnswer).toLowerCase() === normalized;
+        } else {
+          // Fallback for accuracy questions without explicit correct answers:
+          // If it has a value and it's not "N/A", it's considered "Correct" (Answered)
+          const isNA = normalizedValues.some((v) =>
+            ["n/a", "na", "not applicable"].includes(v)
+          );
+          isCorrect = !isNA;
+        }
+
+        if (isCorrect) {
+          counts.correct = 1;
+        } else {
+          counts.wrong = 1;
+        }
+      } else if (isCompliance) {
+        const options = question.options || [];
+        if (options.length >= 3) {
+          const yesOption = String(options[0]).toLowerCase().trim();
+          const noOption = String(options[1]).toLowerCase().trim();
+          const naOption = String(options[2]).toLowerCase().trim();
+
+          if (normalizedValues.includes(yesOption)) {
+            counts.yes = 1;
+          } else if (normalizedValues.includes(noOption)) {
+            counts.no = 1;
+          } else if (normalizedValues.includes(naOption)) {
+            counts.na = 1;
+          } else {
+            counts.yes = 1;
+          }
+        } else {
+          if (normalizedValues.includes("yes")) {
+            counts.yes = 1;
+          } else if (normalizedValues.includes("no")) {
+            counts.no = 1;
+          } else if (
+            normalizedValues.includes("n/a") ||
+            normalizedValues.includes("na") ||
+            normalizedValues.includes("not applicable")
+          ) {
+            counts.na = 1;
+          } else {
+            counts.yes = 1;
+          }
+        }
+      }
+
+      questionStats.push({
+        id: question.id,
+        title: question.text || question.title || question.label,
+        subParam1: question.subParam1,
+        hasYesNo: isCompliance,
+        isQuiz: isAccuracy,
+        ...counts,
+      });
+    }
+
+    question.followUpQuestions?.forEach(processQuestion);
+  };
+
+  section.questions?.forEach(processQuestion);
+  return questionStats;
+}
+
+export async function exportResponseToPDF(response: any, form: any): Promise<void> {
+  if (!response || !form) return;
+
+  const sectionStats = getSectionYesNoStats(form, response.answers || {});
+  const questionStats: Record<string, any[]> = {};
+
+  form.sections?.forEach((section: any) => {
+    questionStats[section.id] = getSectionYesNoQuestionStats(
+      section,
+      response.answers || {}
+    );
+  });
+
+  const filename = `${form.title || "Form"}_Response_${formatTimestamp(
+    response.createdAt,
+    "file"
+  )}.pdf`;
+
+  const options: PDFOptions = {
+    filename,
+    formTitle: form.title || "Form Response",
+    submittedDate: formatTimestamp(response.createdAt),
+    sectionStats,
+    sectionQuestionStats: questionStats,
+    form,
+    response,
+    availableSections: form.sections || [],
+  };
+
+  return generateAndDownloadPDF(options);
+}
+
+export async function exportAllResponsesToPDF(responses: any[], form: any): Promise<void> {
+  if (!responses || !responses.length || !form) return;
+
+  for (const response of responses) {
+    await exportResponseToPDF(response, form);
+  }
 }
 
 function formatQuestionNumberForDisplay(qNumber: string): string {
@@ -905,6 +1233,121 @@ function generateBothResponseAnalysis(
     availableSections
   );
   return limitCombinedResponseAnalysisSize(html, maxSize);
+}
+
+function generateResponsesViewAnalysis(form: any, response: any): string {
+  if (!form || !response || !response.answers) return "";
+
+  let html = "";
+  
+  const sections = form.sections || [];
+  
+  sections.forEach((section: any) => {
+    const questions = section.questions || [];
+    if (questions.length === 0) return;
+
+    html += `
+      <div style="margin-top: 30px; margin-bottom: 20px; page-break-inside: avoid;">
+        <h3 style="font-size: 16px; font-weight: 700; color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 5px; margin-bottom: 15px;">
+          ${section.title || "Section"}
+        </h3>
+        <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; font-size: 11px;">
+          <thead>
+            <tr style="background: #1e3a8a;">
+              <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: white; border: 1px solid #e2e8f0; width: 40%;">Question</th>
+              <th style="padding: 10px; text-align: center; font-size: 11px; font-weight: 600; color: white; border: 1px solid #e2e8f0; width: 60%;">Response</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    questions.forEach((question: any, idx: number) => {
+      const answer = response.answers[question.id];
+      const hasCorrectAnswer = !!(question.correctAnswer || (question.correctAnswers && question.correctAnswers.length > 0));
+      
+      const correctAnswerDisplay = hasCorrectAnswer 
+        ? (question.correctAnswers && question.correctAnswers.length > 0 ? question.correctAnswers.join(", ") : String(question.correctAnswer))
+        : "";
+        
+      const selectedAnswer = answer !== undefined 
+        ? (Array.isArray(answer) ? answer.join(", ") : String(answer)) 
+        : "Not Answered";
+      
+      const isArray = Array.isArray(answer);
+      const normalized = String(selectedAnswer || "").trim().toLowerCase();
+      
+      let isCorrect = false;
+      if (hasCorrectAnswer) {
+        if (question.correctAnswers && question.correctAnswers.length > 0) {
+          if (isArray) {
+            isCorrect = answer.length === question.correctAnswers.length && 
+                        answer.every((a: any) => question.correctAnswers!.some((ca: any) => String(ca).toLowerCase() === String(a).toLowerCase()));
+          } else {
+            isCorrect = question.correctAnswers.some((ca: any) => String(ca).toLowerCase() === normalized);
+          }
+        } else if (question.correctAnswer) {
+          isCorrect = String(question.correctAnswer).toLowerCase() === normalized;
+        }
+      }
+
+      const rowBgColor = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
+      
+      let answerColor = "#1e40af";
+      if (hasCorrectAnswer) {
+        answerColor = isCorrect ? "#059669" : "#dc2626";
+      } else {
+        const normalizedValue = String(selectedAnswer || "").trim().toLowerCase();
+        if (normalizedValue === "yes" || normalizedValue === "y") {
+          answerColor = "#059669";
+        } else if (normalizedValue === "no" || normalizedValue === "n") {
+          answerColor = "#dc2626";
+        } else if (normalizedValue === "n/a" || normalizedValue === "na" || normalizedValue === "not applicable") {
+          answerColor = "#ca8a04"; // Yellow/Orange
+        }
+      }
+      
+      if (hasCorrectAnswer) {
+        html += `
+          <tr style="background-color: ${rowBgColor};">
+            <td style="padding: 8px; border: 1px solid #e2e8f0; color: #1f2937; font-weight: 500; width: 40%;">
+              ${question.text || question.title || "Question"}
+            </td>
+            <td style="padding: 0; border: 1px solid #e2e8f0; width: 60%;">
+              <table style="width: 100%; border-collapse: collapse; margin: 0; border: none;">
+                <tr>
+                  <td style="padding: 8px; text-align: center; color: #059669; font-weight: 600; width: 50%; border-right: 1px solid #e2e8f0;">
+                    ${correctAnswerDisplay}
+                  </td>
+                  <td style="padding: 8px; text-align: center; color: ${answerColor}; font-weight: 600; width: 50%;">
+                    ${selectedAnswer}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        `;
+      } else {
+        html += `
+          <tr style="background-color: ${rowBgColor};">
+            <td style="padding: 8px; border: 1px solid #e2e8f0; color: #1f2937; font-weight: 500; width: 40%;">
+              ${question.text || question.title || "Question"}
+            </td>
+            <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color: ${answerColor}; font-weight: 600; width: 60%;">
+              ${selectedAnswer}
+            </td>
+          </tr>
+        `;
+      }
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  });
+
+  return html;
 }
 
 // Add this function at the top of your file
@@ -2272,21 +2715,25 @@ function generateFirstSectionContent(form: any, response: any): string {
 }
 
 function generateScoreSection(sectionStats: any[]): string {
-  const totalYes = sectionStats.reduce((sum, stat) => sum + stat.yes, 0);
-  const totalNo = sectionStats.reduce((sum, stat) => sum + stat.no, 0);
-  const totalNA = sectionStats.reduce((sum, stat) => sum + stat.na, 0);
-  const totalQuestions = sectionStats.reduce(
-    (sum, stat) => sum + stat.total,
-    0
-  );
+  const totalYes = sectionStats.reduce((sum, stat) => sum + (stat.yes || 0), 0);
+  const totalNo = sectionStats.reduce((sum, stat) => sum + (stat.no || 0), 0);
+  const totalNA = sectionStats.reduce((sum, stat) => sum + (stat.na || 0), 0);
+  const totalCorrect = sectionStats.reduce((sum, stat) => sum + (stat.correct || 0), 0);
+  const totalWrong = sectionStats.reduce((sum, stat) => sum + (stat.wrong || 0), 0);
+  
+  const totalCompliance = totalYes + totalNo + totalNA;
+  const totalAccuracy = totalCorrect + totalWrong;
+  const grandTotal = totalCompliance + totalAccuracy;
 
-  const yesPercentage =
-    totalQuestions > 0 ? (totalYes / totalQuestions) * 100 : 0;
-  const noPercentage =
-    totalQuestions > 0 ? (totalNo / totalQuestions) * 100 : 0;
-  const naPercentage =
-    totalQuestions > 0 ? (totalNA / totalQuestions) * 100 : 0;
-  const overallScore = yesPercentage;
+  const yesPercentage = totalCompliance > 0 ? (totalYes / totalCompliance) * 100 : 0;
+  const noPercentage = totalCompliance > 0 ? (totalNo / totalCompliance) * 100 : 0;
+  const naPercentage = totalCompliance > 0 ? (totalNA / totalCompliance) * 100 : 0;
+  
+  const correctPercentage = totalAccuracy > 0 ? (totalCorrect / totalAccuracy) * 100 : 0;
+  const wrongPercentage = totalAccuracy > 0 ? (totalWrong / totalAccuracy) * 100 : 0;
+
+  const hasAccuracy = totalAccuracy > 0;
+  const hasCompliance = totalCompliance > 0;
 
   return `
     <div style="border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; font-family: 'Segoe UI', sans-serif;">
@@ -2296,46 +2743,61 @@ function generateScoreSection(sectionStats: any[]): string {
         </h2>
       </div>
       <div style="padding: 20px;">
-        <div style="display: flex; align-items: center; gap: 40px;">
-          <div style="flex-shrink: 0; text-align: center; min-width: 140px;">
-            ${generatePieChartSVG(
-              yesPercentage,
-              noPercentage,
-              naPercentage,
-              overallScore
-            )}
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+          
+          ${hasCompliance ? `
+          <div style="display: flex; align-items: center; gap: 30px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
+            <div style="flex-shrink: 0; text-align: center; min-width: 120px;">
+              <div style="font-size: 11px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">COMPLIANCE</div>
+              ${generatePieChartSVG(yesPercentage, noPercentage, naPercentage, yesPercentage)}
+            </div>
+            <div style="flex: 1;">
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                <div style="text-align: center; padding: 10px; background: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0;">
+                  <div style="font-size: 14px; font-weight: 800; color: #166534;">${totalYes}</div>
+                  <div style="font-size: 10px; color: #166534; font-weight: 700;">Positive</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #166534;">${yesPercentage.toFixed(1)}%</div>
+                </div>
+                <div style="text-align: center; padding: 10px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
+                  <div style="font-size: 14px; font-weight: 800; color: #991b1b;">${totalNo}</div>
+                  <div style="font-size: 10px; color: #991b1b; font-weight: 700;">Issues</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #991b1b;">${noPercentage.toFixed(1)}%</div>
+                </div>
+                <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
+                  <div style="font-size: 14px; font-weight: 800; color: #475569;">${totalNA}</div>
+                  <div style="font-size: 10px; color: #475569; font-weight: 700;">N/A</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #475569;">${naPercentage.toFixed(1)}%</div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div style="flex: 1;">
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
-              <!-- Positive Responses -->
-              <div style="text-align: center; padding: 18px; background: #c7d2fe; border-radius: 10px; border: 1.5px solid rgba(35, 153, 96, 1);">
-                <div style="font-size: 18px; font-weight: 900; color: rgba(35, 153, 96, 1)">${totalYes}</div>
-                <div style="font-size: 12px; color: rgba(35, 153, 96, 1); font-weight: 700;">Positive</div>
-                <div style="font-size: 15px; font-weight: 700; color: rgba(35, 153, 96, 1);">${yesPercentage.toFixed(
-                  1
-                )}%</div>
-              </div>
-              <!-- Issues Identified -->
-              <div style="text-align: center; padding: 18px; background: #bfdbfe; border-radius: 10px; border: 1.5px solid rgba(215, 80, 68, 1);">
-                <div style="font-size: 18px; font-weight: 900; color: rgba(215, 80, 68, 1);">${totalNo}</div>
-                <div style="font-size: 12px; color: rgba(215, 80, 68, 1); font-weight: 700;">Issues</div>
-                <div style="font-size: 15px; font-weight: 700; color: rgba(215, 80, 68, 1);">${noPercentage.toFixed(
-                  1
-                )}%</div>
-              </div>
-              <!-- Not Applicable -->
-              <div style="text-align: center; padding: 18px; background: #dbeafe; border-radius: 10px; border: 1.5px solid #aeb1b5ff;">
-                <div style="font-size: 18px; font-weight: 900; color: #aeb1b5ff;">${totalNA}</div>
-                <div style="font-size: 12px; color: #aeb1b5ff; font-weight: 700;">N/A</div>
-                <div style="font-size: 15px; font-weight: 700; color: #aeb1b5ff;">${naPercentage.toFixed(
-                  1
-                )}%</div>
+          ` : ''}
+
+          ${hasAccuracy ? `
+          <div style="display: flex; align-items: center; gap: 30px;">
+            <div style="flex-shrink: 0; text-align: center; min-width: 120px;">
+              <div style="font-size: 11px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">ACCURACY</div>
+              ${generatePieChartSVG(correctPercentage, wrongPercentage, 0, correctPercentage)}
+            </div>
+            <div style="flex: 1;">
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                <div style="text-align: center; padding: 10px; background: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0;">
+                  <div style="font-size: 14px; font-weight: 800; color: #166534;">${totalCorrect}</div>
+                  <div style="font-size: 10px; color: #166534; font-weight: 700;">Correct</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #166534;">${correctPercentage.toFixed(1)}%</div>
+                </div>
+                <div style="text-align: center; padding: 10px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
+                  <div style="font-size: 14px; font-weight: 800; color: #991b1b;">${totalWrong}</div>
+                  <div style="font-size: 10px; color: #991b1b; font-weight: 700;">Wrong</div>
+                  <div style="font-size: 12px; font-weight: 700; color: #991b1b;">${wrongPercentage.toFixed(1)}%</div>
+                </div>
               </div>
             </div>
-            <!-- Total Questions -->
-            <div style="margin-top: 22px; padding-top: 12px; border-top: 1.5px solid #e5e7eb; text-align: center; font-size: 14px; font-weight: 700; color: #374151; letter-spacing: 0.5px; text-transform: uppercase;">
-              Total Questions: <span style="color: #2563eb; font-weight: 900; margin-left: 6px;">${totalQuestions}</span>
-            </div>
+          </div>
+          ` : ''}
+
+          <div style="margin-top: 5px; padding-top: 10px; border-top: 1.5px solid #e5e7eb; text-align: center; font-size: 13px; font-weight: 700; color: #374151;">
+            Total Parameters Evaluated: <span style="color: #1e3a8a; font-weight: 900; margin-left: 6px;">${grandTotal}</span>
           </div>
         </div>
       </div>
@@ -2383,14 +2845,16 @@ function generateSectionTables(
       const sectionTotals = hasQuestionStats
         ? questionStats.reduce(
             (totals: any, stat: any) => ({
-              yes: totals.yes + stat.yes,
-              no: totals.no + stat.no,
-              na: totals.na + stat.na,
-              total: totals.total + stat.total,
+              yes: totals.yes + (stat.yes || 0),
+              no: totals.no + (stat.no || 0),
+              na: totals.na + (stat.na || 0),
+              correct: totals.correct + (stat.correct || 0),
+              wrong: totals.wrong + (stat.wrong || 0),
+              total: totals.total + (stat.total || 0),
             }),
-            { yes: 0, no: 0, na: 0, total: 0 }
+            { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 }
           )
-        : { yes: 0, no: 0, na: 0, total: 0 };
+        : { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 };
 
       // Helper function to extract actual values from response
       const extractParameterData = (section: any) => {
@@ -2487,212 +2951,131 @@ function generateSectionTables(
 
       // Response Analysis Section - Show if we have question stats
       if (hasQuestionStats) {
-        const yesPercent =
-          sectionTotals.total > 0
-            ? (sectionTotals.yes / sectionTotals.total) * 100
-            : 0;
-        const noPercent =
-          sectionTotals.total > 0
-            ? (sectionTotals.no / sectionTotals.total) * 100
-            : 0;
-        const naPercent =
-          sectionTotals.total > 0
-            ? (sectionTotals.na / sectionTotals.total) * 100
-            : 0;
-
-        // Pagination logic - split questions into chunks of max 7
-        const questionsPerPage = 8;
-        const questionChunks = [];
-
-        for (let i = 0; i < questionStats.length; i += questionsPerPage) {
-          questionChunks.push(questionStats.slice(i, i + questionsPerPage));
-        }
-
-        // Generate content for each chunk
-        questionChunks.forEach((chunk, chunkIndex) => {
-          // For first chunk, create the main section with chart
-          if (chunkIndex === 0) {
-            html += `<div class="pdf-section ${
-              index > 0 ? "page-break-before" : ""
-            }" style="margin-bottom: 40px;">`;
-
-            const sectionDisplayName =
-              section.name ||
-              section.label ||
-              section.title ||
-              `Section ${index + 1}`;
-
-            html += `
-        <div style="font-size: 18px; font-weight: 700; color: #1e3a8a; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 2px solid #1e3a8a;"> 
-          ${sectionDisplayName} - Response Analysis
-        </div>
-        <p style="font-size: 12px; color: #64748b; margin-bottom: 20px;">
-          Detailed breakdown of responses with performance metrics & Page ${
-            chunkIndex + 1
-          } of ${questionChunks.length} - Questions ${
-              chunkIndex * questionsPerPage + 1
-            } to ${Math.min(
-              chunkIndex * questionsPerPage + questionsPerPage,
-              questionStats.length
-            )}
-        </p>
-
+        const complianceStats = questionStats.filter(q => q.hasYesNo);
+        const accuracyStats = questionStats.filter(q => q.isQuiz);
         
-        <!-- Chart and Question Parameter Table Side by Side -->
-        <div style="display: flex; gap: 20px; margin-bottom: 30px; align-items: flex-start;">
-          <!-- Chart Container (Left Side) -->
-          <div style="flex: 1; min-width: 300px;">
-            ${
-              chartImage
-                ? `
-              <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">
-                <div style="font-size: 14px; font-weight: 600; color: #1e3a8a; margin-bottom: 10px; text-align: center;">
+        const hasCompliance = complianceStats.length > 0;
+        const hasAccuracy = accuracyStats.length > 0;
+
+        html += `<div class="pdf-section ${
+          index > 0 ? "page-break-before" : ""
+        }" style="margin-bottom: 40px;">`;
+
+        const sectionDisplayName =
+          section.name ||
+          section.label ||
+          section.title ||
+          `Section ${index + 1}`;
+
+        html += `
+          <div style="font-size: 18px; font-weight: 700; color: #1e3a8a; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 2px solid #1e3a8a;"> 
+            ${sectionDisplayName} - Response Analysis
+          </div>
+        `;
+
+        // Chart Container
+        html += `
+          <div style="margin-bottom: 30px; text-align: center;">
+            ${chartImage ? `
+              <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; width: 100%; max-width: 500px;">
+                <div style="font-size: 14px; font-weight: 600; color: #1e3a8a; margin-bottom: 10px;">
                   Response Distribution
                 </div>
                 <img src="${chartImage}" style="width: 100%; height: auto; max-height: 250px; object-fit: contain;" alt="Response Distribution Chart" />
               </div>
-            `
-                : `
-              <div style="background: #f8fafc; padding: 40px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: center; color: #64748b;">
-                Chart not available
-              </div>
-            `
-            }
+            ` : ""}
           </div>
-          
-          <!-- Question Parameter Table (Right Side) -->
-          <div style="flex: 1; min-width: 300px;">
-      `;
-          }
-          // For subsequent chunks, create new page with centered table
-          else {
-            html += `
-        </div></div></div> <!-- Close previous containers properly -->
-        <div class="pdf-section page-break-before" style="margin-bottom: 40px;">
-          <div style="text-align: center; margin-bottom: 30px;">
-            <div style="font-size: 18px; font-weight: 700; color: #1e3a8a; margin-bottom: 8px;">
-              ${
-                section.name ||
-                section.label ||
-                section.title ||
-                `Section ${index + 1}`
-              } - Response Analysis (Continued)
-            </div>
-            <p style="font-size: 12px; color: #64748b;">
-              Page ${chunkIndex + 1} of ${questionChunks.length} - Questions ${
-              chunkIndex * questionsPerPage + 1
-            } to ${Math.min(
-              chunkIndex * questionsPerPage + questionsPerPage,
-              questionStats.length
-            )}
-            </p>
-          </div>
-          <!-- Centered table container -->
-          <div style="display: flex; justify-content: center;">
-            <div style="width: 100%; max-width: 800px;">
-      `;
-          }
+        `;
 
-          // Generate the table for current chunk
+        // Compliance Table
+        if (hasCompliance) {
           html += `
-      <table class="section-table" style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; font-size: 11px;">
-        <thead>
-          <tr style="background: #1e3a8a;">
-            <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: white; border: 1px solid #e2e8f0;">Question Parameter</th>
-            <th style="padding: 10px; text-align: center; font-size: 11px; font-weight: 600; color: white; border: 1px solid #e2e8f0;">Yes</th>
-            <th style="padding: 10px; text-align: center; font-size: 11px; font-weight: 600; color: white; border: 1px solid #e2e8f0;">No</th>
-            <th style="padding: 10px; text-align: center; font-size: 11px; font-weight: 600; color: white; border: 1px solid #e2e8f0;">N/A</th>
-            <th style="padding: 10px; text-align: center; font-size: 11px; font-weight: 600; color: white; border: 1px solid #e2e8f0;">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${chunk
-            .map((stat: any, localIndex: number) => {
-              const globalIndex = chunkIndex * questionsPerPage + localIndex;
-              const isMainQuestion =
-                !stat.subParam1?.toLowerCase().includes("follow-up") &&
-                !stat.subParam1?.toLowerCase().includes("followup") &&
-                !stat.subParam1?.toLowerCase().includes("additional") &&
-                !stat.subParam1?.toLowerCase().includes("sub-parameter");
+            <div style="margin-bottom: 25px;">
+              <div style="background: #eff6ff; padding: 8px 12px; border-radius: 6px 6px 0 0; border: 1px solid #bfdbfe; border-bottom: none;">
+                <h4 style="font-size: 13px; font-weight: 700; color: #1e40af; margin: 0;">Compliance Analysis (Yes/No/NA)</h4>
+              </div>
+              <table class="section-table" style="width: 100%; border-collapse: collapse; border: 1px solid #bfdbfe; font-size: 10px;">
+                <thead>
+                  <tr style="background: #1e40af;">
+                    <th style="padding: 8px; text-align: left; color: white; border: 1px solid #bfdbfe; width: 40%;">Parameter</th>
+                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bfdbfe; width: 20%;">Yes</th>
+                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bfdbfe; width: 20%;">No</th>
+                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bfdbfe; width: 20%;">N/A</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${complianceStats.map((stat, i) => {
+                    const total = (stat.yes || 0) + (stat.no || 0) + (stat.na || 0);
+                    const yesPct = total > 0 ? ((stat.yes / total) * 100).toFixed(1) : "0.0";
+                    const noPct = total > 0 ? ((stat.no / total) * 100).toFixed(1) : "0.0";
+                    const naPct = total > 0 ? ((stat.na / total) * 100).toFixed(1) : "0.0";
+                    const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
+                    return `
+                      <tr style="background: ${rowBg};">
+                        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: 600;">${stat.subParam1 || stat.title}</td>
+                        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
+                          <div style="font-weight: 700; color: #1e40af;">${stat.yes}</div>
+                          <div style="font-size: 8px; color: #64748b;">${yesPct}%</div>
+                        </td>
+                        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
+                          <div style="font-weight: 700; color: #1e40af;">${stat.no}</div>
+                          <div style="font-size: 8px; color: #64748b;">${noPct}%</div>
+                        </td>
+                        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
+                          <div style="font-weight: 700; color: #64748b;">${stat.na}</div>
+                          <div style="font-size: 8px; color: #64748b;">${naPct}%</div>
+                        </td>
+                      </tr>
+                    `;
+                  }).join("")}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }
 
-              const rowBgColor = globalIndex % 2 === 0 ? "#ffffff" : "#f8fafc";
-              const questionColor = isMainQuestion ? "#1e293b" : "#0369a1";
-              const fontWeight = isMainQuestion ? "600" : "500";
+        // Accuracy Table
+        if (hasAccuracy) {
+          html += `
+            <div style="margin-bottom: 25px;">
+              <div style="background: #f0fdf4; padding: 8px 12px; border-radius: 6px 6px 0 0; border: 1px solid #bbf7d0; border-bottom: none;">
+                <h4 style="font-size: 13px; font-weight: 700; color: #166534; margin: 0;">Accuracy Analysis (Correct/Wrong)</h4>
+              </div>
+              <table class="section-table" style="width: 100%; border-collapse: collapse; border: 1px solid #bbf7d0; font-size: 10px;">
+                <thead>
+                  <tr style="background: #166534;">
+                    <th style="padding: 8px; text-align: left; color: white; border: 1px solid #bbf7d0; width: 40%;">Parameter</th>
+                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bbf7d0; width: 30%;">Correct</th>
+                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bbf7d0; width: 30%;">Wrong</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${accuracyStats.map((stat, i) => {
+                    const total = (stat.correct || 0) + (stat.wrong || 0);
+                    const correctPct = total > 0 ? ((stat.correct / total) * 100).toFixed(1) : "0.0";
+                    const wrongPct = total > 0 ? ((stat.wrong / total) * 100).toFixed(1) : "0.0";
+                    const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
+                    return `
+                      <tr style="background: ${rowBg};">
+                        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: 600;">${stat.subParam1 || stat.title}</td>
+                        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
+                          <div style="font-weight: 700; color: #166534;">${stat.correct}</div>
+                          <div style="font-size: 8px; color: #64748b;">${correctPct}%</div>
+                        </td>
+                        <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
+                          <div style="font-weight: 700; color: #991b1b;">${stat.wrong}</div>
+                          <div style="font-size: 8px; color: #64748b;">${wrongPct}%</div>
+                        </td>
+                      </tr>
+                    `;
+                  }).join("")}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }
 
-              // Calculate percentages for this specific question
-
-              return `<tr class="table-row">
-              <td class="table-cell" style="padding: 8px; font-size: 10px; color: ${questionColor}; font-weight: ${fontWeight}; border: 1px solid #e2e8f0; background-color: ${rowBgColor};">
-                <div style="display: flex; align-items: center; gap: 4px;">
-                  <span title="${stat.subParam1 || "No parameter"}">${(
-                stat.subParam1 || "No parameter"
-              ).substring(0, 35)}${
-                (stat.subParam1 || "").length > 35 ? "..." : ""
-              }</span>
-                  ${
-                    !isMainQuestion
-                      ? '<span style="font-size: 8px; color: #0ea5e9; background: #f0f9ff; padding: 1px 4px; border-radius: 2px; border: 1px solid #bae6fd; font-weight: 500;">F</span>'
-                      : ""
-                  }
-                </div>
-              </td>
-              
-              <!-- Yes Column: Count + Percentage -->
-              <td class="table-cell" style="padding: 8px; text-align: center; border: 1px solid #e2e8f0; background-color: ${rowBgColor};">
-                <div style="font-weight: 700; color: #059669;">${stat.yes}</div>
-                <div style="font-size: 9px; color: #059669; font-weight: 600;">${yesPercent.toFixed(
-                  1
-                )}%</div>
-              </td>
-              
-              <!-- No Column: Count + Percentage -->
-              <td class="table-cell" style="padding: 8px; text-align: center; border: 1px solid #e2e8f0; background-color: ${rowBgColor};">
-                <div style="font-weight: 700; color: #dc2626;">${stat.no}</div>
-                <div style="font-size: 9px; color: #dc2626; font-weight: 600;">${noPercent.toFixed(
-                  1
-                )}%</div>
-              </td>
-              
-              <!-- N/A Column: Count + Percentage -->
-              <td class="table-cell" style="padding: 8px; text-align: center; border: 1px solid #e2e8f0; background-color: ${rowBgColor};">
-                <div style="font-weight: 700; color: #6b7280;">${stat.na}</div>
-                <div style="font-size: 9px; color: #6b7280; font-weight: 600;">${naPercent.toFixed(
-                  1
-                )}%</div>
-              </td>
-              
-              <!-- Total Column: Count + "Responses" label -->
-              <td class="table-cell" style="padding: 8px; text-align: center; border: 1px solid #e2e8f0; background-color: ${rowBgColor};">
-                <div style="font-weight: 700; color: #1e40af;">${
-                  stat.total
-                }</div>
-                <div style="font-size: 9px; color: #6b7280; font-weight: 600;">Responses</div>
-              </td>
-            </tr>`;
-            })
-            .join("")}
-        </tbody>
-      </table>
-      
-    `;
-
-          // Close containers properly for each chunk
-          if (chunkIndex === 0) {
-            // For first chunk, close the table container and flex container
-            html += `
-          </div>
-        </div>
-      </div> <!-- Close pdf-section -->
-      `;
-          } else {
-            // For subsequent chunks, close the centered containers and pdf-section
-            html += `
-          </div>
-        </div>
-      </div> <!-- Close pdf-section -->
-      `;
-          }
-        });
+        html += `</div>`; // Close pdf-section
       }
 
       // Parameters & Actions Section - Show if we have parameter data
@@ -2878,12 +3261,20 @@ interface PDFOptions {
     yes: number;
     no: number;
     na: number;
+    correct: number;
+    wrong: number;
     total: number;
     weightage: number;
   }>;
   sectionSummaryRows?: Array<{
     id: string;
     title: string;
+    total: number;
+    yes: number;
+    no: number;
+    na: number;
+    correct: number;
+    wrong: number;
     weightage: number;
     yesPercent: number;
     yesWeighted: number;
@@ -2891,6 +3282,10 @@ interface PDFOptions {
     noWeighted: number;
     naPercent: number;
     naWeighted: number;
+    correctPercent: number;
+    wrongPercent: number;
+    hasYesNo?: boolean;
+    hasQuiz?: boolean;
   }>;
   sectionQuestionStats?: Record<string, Array<any>>;
   sectionMainParameters?: Record<string, Array<any>>;
@@ -3062,6 +3457,8 @@ function getTypeColor(type: string): string {
       return "#1e3a8a";
     case "section":
       return "#7c3aed";
+    case "responses-view":
+      return "#0891b2";
     default:
       return "#1e3a8a";
   }
@@ -3079,6 +3476,8 @@ function getPDFTypeDisplayName(type: string): string {
       return "BOTH NO, YES & N/A Response Analysis";
     case "section":
       return "Section-wise Analysis Only";
+    case "responses-view":
+      return "Form Responses Detail";
     default:
       return "Standard Report";
   }
@@ -3094,6 +3493,8 @@ function getExclusionNote(type: string): string {
       return "NO, YES analysis and Section tables excluded in this N/A-only report";
     case "section":
       return "Individual response analysis tables (NO, YES, N/A) excluded in this section-only report";
+    case "responses-view":
+      return "Score analysis and detailed section tables excluded in this responses detail report";
     default:
       return "";
   }
@@ -3111,13 +3512,15 @@ function getPDFTypeSuffix(type: string): string {
       return "BOTH_Complete";
     case "section":
       return "Section_Only";
+    case "responses-view":
+      return "Responses_Detail";
     default:
       return "Standard";
   }
 }
 export async function generateAndDownloadPDF(
   options: PDFOptions,
-  type?: "no-only" | "yes-only" | "both" | "na-only" | "section" | "default",
+  type?: "no-only" | "yes-only" | "both" | "na-only" | "section" | "default" | "responses-view",
   onProgress?: ProgressCallback // Add this parameter
 ): Promise<void> {
   const pdfType = type || "default";
@@ -3457,13 +3860,12 @@ async function generateCompleteHTMLForServer(
     filename,
     formTitle,
     submittedDate,
-    sectionStats,
+    sectionStats = [],
     sectionQuestionStats = {},
     sectionMainParameters = {},
     availableSections = [],
     form,
     response,
-    chartElementIds = [],
   } = options;
 
   // 1. Capture chart images
@@ -3523,7 +3925,6 @@ async function generateCompleteHTMLForServer(
 
   // 4. Generate response analysis based on type
   let responseAnalysisHTML = "";
-  let responseAnalysisTitle = "";
 
   console.log(`🔍 Generating response analysis for type: ${type}`);
 
@@ -3535,7 +3936,6 @@ async function generateCompleteHTMLForServer(
         form?.sections || [],
         1000000
       );
-      responseAnalysisTitle = "NO Response Analysis Only";
       break;
     case "yes-only":
       responseAnalysisHTML = generateYesResponseAnalysis(
@@ -3544,7 +3944,6 @@ async function generateCompleteHTMLForServer(
         form?.sections || [],
         1000000
       );
-      responseAnalysisTitle = "YES Response Analysis Only";
       break;
     case "na-only":
       responseAnalysisHTML = generateNAResponseAnalysis(
@@ -3553,7 +3952,6 @@ async function generateCompleteHTMLForServer(
         form?.sections || [],
         1000000
       );
-      responseAnalysisTitle = "N/A Response Analysis Only";
       break;
     case "both":
       responseAnalysisHTML = generateBothResponseAnalysis(
@@ -3562,11 +3960,12 @@ async function generateCompleteHTMLForServer(
         form?.sections || [],
         1000000
       );
-      responseAnalysisTitle = "Combined Response Analysis (YES, NO & N/A)";
       break;
     case "section":
       responseAnalysisHTML = "";
-      responseAnalysisTitle = "Section-wise Analysis Only";
+      break;
+    case "responses-view":
+      responseAnalysisHTML = generateResponsesViewAnalysis(form, response);
       break;
     default:
       responseAnalysisHTML = generateNoResponseAnalysis(
@@ -3575,7 +3974,6 @@ async function generateCompleteHTMLForServer(
         form?.sections || [],
         1000000
       );
-      responseAnalysisTitle = "Response Analysis";
   }
 
   console.log(
@@ -3601,11 +3999,11 @@ async function generateCompleteHTMLForServer(
   console.log(`📋 Section tables generated: ${sectionTablesHTML.length} chars`);
 
   // 6. Generate section table for overview
-  let tableHTML = "";
   let tableHeaders = "";
   let tableRows = "";
 
   const hasWeightage = sectionStats.some((stat) => stat.weightage > 0);
+  const hasAccuracyOverall = sectionStats.some((stat) => stat.correct > 0 || stat.wrong > 0);
 
   if (sectionStats.length > 0) {
     tableHeaders = `
@@ -3614,6 +4012,10 @@ async function generateCompleteHTMLForServer(
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Yes</th>
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">No</th>
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">N/A</th>
+      ${hasAccuracyOverall ? `
+        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Correct</th>
+        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Wrong</th>
+      ` : ''}
       ${
         hasWeightage
           ? `
@@ -3626,12 +4028,16 @@ async function generateCompleteHTMLForServer(
 
     tableRows = sectionStats
       .map((section, index) => {
-        const yesPercent =
-          section.total > 0 ? (section.yes / section.total) * 100 : 0;
-        const noPercent =
-          section.total > 0 ? (section.no / section.total) * 100 : 0;
-        const naPercent =
-          section.total > 0 ? (section.na / section.total) * 100 : 0;
+        const totalCompliance = (section.yes || 0) + (section.no || 0) + (section.na || 0);
+        const totalAccuracy = (section.correct || 0) + (section.wrong || 0);
+        
+        const yesPercent = totalCompliance > 0 ? (section.yes / totalCompliance) * 100 : 0;
+        const noPercent = totalCompliance > 0 ? (section.no / totalCompliance) * 100 : 0;
+        const naPercent = totalCompliance > 0 ? (section.na / totalCompliance) * 100 : 0;
+        
+        const correctPercent = totalAccuracy > 0 ? (section.correct / totalAccuracy) * 100 : 0;
+        const wrongPercent = totalAccuracy > 0 ? (section.wrong / totalAccuracy) * 100 : 0;
+        
         const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
 
         return `
@@ -3640,28 +4046,30 @@ async function generateCompleteHTMLForServer(
             <div style="font-weight: 700;">${section.title}</div>
           </td>
           <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-            <div style="font-weight: 700; color: #1e40af;">${
-              section.total
-            }</div>
+            <div style="font-weight: 700; color: #1e40af;">${section.total}</div>
           </td>
           <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
             <div style="font-weight: 700; color: #059669;">${section.yes}</div>
-            <div style="font-size: 9px; color: #059669;">${yesPercent.toFixed(
-              1
-            )}%</div>
+            <div style="font-size: 9px; color: #059669;">${yesPercent.toFixed(1)}%</div>
           </td>
           <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
             <div style="font-weight: 700; color: #dc2626;">${section.no}</div>
-            <div style="font-size: 9px; color: #dc2626;">${noPercent.toFixed(
-              1
-            )}%</div>
+            <div style="font-size: 9px; color: #dc2626;">${noPercent.toFixed(1)}%</div>
           </td>
           <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
             <div style="font-weight: 700; color: #6b7280;">${section.na}</div>
-            <div style="font-size: 9px; color: #6b7280;">${naPercent.toFixed(
-              1
-            )}%</div>
+            <div style="font-size: 9px; color: #6b7280;">${naPercent.toFixed(1)}%</div>
           </td>
+          ${hasAccuracyOverall ? `
+            <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
+              <div style="font-weight: 700; color: #166534;">${section.correct || 0}</div>
+              <div style="font-size: 9px; color: #166534;">${correctPercent.toFixed(1)}%</div>
+            </td>
+            <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
+              <div style="font-weight: 700; color: #991b1b;">${section.wrong || 0}</div>
+              <div style="font-size: 9px; color: #991b1b;">${wrongPercent.toFixed(1)}%</div>
+            </td>
+          ` : ''}
           ${
             hasWeightage
               ? `
@@ -3678,15 +4086,6 @@ async function generateCompleteHTMLForServer(
       `;
       })
       .join("");
-
-    tableHTML = `
-      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; border: 1px solid #e2e8f0;">
-        <thead>
-          <tr>${tableHeaders}</tr>
-        </thead>
-        <tbody>${tableRows}</tbody>
-      </table>
-    `;
   }
 
   // 7. Create the complete HTML

@@ -245,15 +245,15 @@ export default function Section1Responses() {
     []
   );
 
-  function collectYesNoQuestionIds(form: Form): string[] {
-    const ids = new Set<string>();
+  function collectYesNoQuestions(form: Form): any[] {
+    const questions: any[] = [];
 
     const processQuestion = (question: any) => {
       if (!question) {
         return;
       }
       if (question.type === "yesNoNA" && question.id) {
-        ids.add(question.id);
+        questions.push(question);
       }
       question.followUpQuestions?.forEach(processQuestion);
     };
@@ -264,7 +264,7 @@ export default function Section1Responses() {
 
     form.followUpQuestions?.forEach(processQuestion);
 
-    return Array.from(ids);
+    return questions;
   }
 
   function extractYesNoValues(value: any): string[] {
@@ -291,23 +291,37 @@ export default function Section1Responses() {
     answers: Record<string, any>,
     form: Form
   ): { yes: number; total: number } | undefined {
-    const questionIds = collectYesNoQuestionIds(form);
-    if (!questionIds.length) {
+    const questions = collectYesNoQuestions(form);
+    if (!questions.length) {
       return undefined;
     }
 
     let yesCount = 0;
 
-    questionIds.forEach((questionId) => {
-      const normalizedValues = extractYesNoValues(answers?.[questionId]);
-      if (normalizedValues.includes("yes")) {
-        yesCount += 1;
+    questions.forEach((q) => {
+      const answer = answers?.[q.id];
+      if (answer === null || answer === undefined || answer === "") {
+        return;
+      }
+
+      const normalizedValues = extractYesNoValues(answer);
+      const options = q.options || [];
+
+      if (options.length >= 3) {
+        const yesOption = String(options[0]).toLowerCase().trim();
+        if (normalizedValues.includes(yesOption)) {
+          yesCount += 1;
+        }
+      } else {
+        if (normalizedValues.includes("yes")) {
+          yesCount += 1;
+        }
       }
     });
 
     return {
       yes: yesCount,
-      total: questionIds.length,
+      total: questions.length,
     };
   }
 
@@ -330,28 +344,55 @@ export default function Section1Responses() {
             return;
           }
 
-          const normalizedValues = extractYesNoValues(answers?.[question.id]);
-          const hasRecognizedValue = normalizedValues.some((value) =>
-            ["yes", "no", "n/a", "na", "not applicable"].includes(value)
-          );
-          if (!hasRecognizedValue) {
+          const answer = answers?.[question.id];
+          if (answer === null || answer === undefined || answer === "") {
             question.followUpQuestions?.forEach(processQuestion);
             return;
           }
 
-          counts.total += 1;
-          if (normalizedValues.includes("yes")) {
-            counts.yes += 1;
-          }
-          if (normalizedValues.includes("no")) {
-            counts.no += 1;
-          }
-          if (
-            normalizedValues.includes("n/a") ||
-            normalizedValues.includes("na") ||
-            normalizedValues.includes("not applicable")
-          ) {
-            counts.na += 1;
+          const normalizedValues = extractYesNoValues(answer);
+          const options = question.options || [];
+
+          if (options.length >= 3) {
+            const yesOption = String(options[0]).toLowerCase().trim();
+            const noOption = String(options[1]).toLowerCase().trim();
+            const naOption = String(options[2]).toLowerCase().trim();
+
+            normalizedValues.forEach((val) => {
+              if (val === yesOption) {
+                counts.yes += 1;
+                counts.total += 1;
+              } else if (val === noOption) {
+                counts.no += 1;
+                counts.total += 1;
+              } else if (val === naOption) {
+                counts.na += 1;
+                counts.total += 1;
+              }
+            });
+          } else {
+            const hasRecognizedValue = normalizedValues.some((value) =>
+              ["yes", "no", "n/a", "na", "not applicable"].includes(value)
+            );
+            if (!hasRecognizedValue) {
+              question.followUpQuestions?.forEach(processQuestion);
+              return;
+            }
+
+            counts.total += 1;
+            if (normalizedValues.includes("yes")) {
+              counts.yes += 1;
+            }
+            if (normalizedValues.includes("no")) {
+              counts.no += 1;
+            }
+            if (
+              normalizedValues.includes("n/a") ||
+              normalizedValues.includes("na") ||
+              normalizedValues.includes("not applicable")
+            ) {
+              counts.na += 1;
+            }
           }
 
           question.followUpQuestions?.forEach(processQuestion);

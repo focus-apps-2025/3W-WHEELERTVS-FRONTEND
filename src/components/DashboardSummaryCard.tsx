@@ -17,6 +17,7 @@ interface DashboardSummaryCardProps {
   submittedDate: string;
   onDownloadPDF: () => void;
   isGeneratingPDF: boolean;
+  complianceLabels?: { yes: string; no: string; na: string };
 }
 
 const DashboardSummaryCard: React.FC<DashboardSummaryCardProps> = ({
@@ -25,6 +26,7 @@ const DashboardSummaryCard: React.FC<DashboardSummaryCardProps> = ({
   submittedDate,
   onDownloadPDF,
   isGeneratingPDF,
+  complianceLabels = { yes: "Yes", no: "No", na: "N/A" },
 }) => {
   const totalQuestions = sectionStats.reduce((sum, stat) => sum + stat.total, 0);
   const totalYes = sectionStats.reduce((sum, stat) => sum + stat.yes, 0);
@@ -74,7 +76,7 @@ const DashboardSummaryCard: React.FC<DashboardSummaryCardProps> = ({
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-200 dark:border-gray-600 transform hover:scale-105 transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Yes Answers</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{complianceLabels.yes} Answers</p>
               <p className="text-2xl font-bold text-green-600 dark:text-green-400">
                 {totalYes}
               </p>
@@ -86,7 +88,7 @@ const DashboardSummaryCard: React.FC<DashboardSummaryCardProps> = ({
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-200 dark:border-gray-600 transform hover:scale-105 transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">No Answers</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{complianceLabels.no} Answers</p>
               <p className="text-2xl font-bold text-red-600 dark:text-red-400">
                 {totalNo}
               </p>
@@ -98,7 +100,7 @@ const DashboardSummaryCard: React.FC<DashboardSummaryCardProps> = ({
         <div className="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-lg border border-gray-200 dark:border-gray-600 transform hover:scale-105 transition-all duration-300">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">N/A Answers</p>
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{complianceLabels.na} Answers</p>
               <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
                 {totalNA}
               </p>

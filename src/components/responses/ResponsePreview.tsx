@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { X, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import type { Question, Response } from '../../types';
 import { formatTimestamp } from '../../utils/dateUtils';
 import ImageLink from '../ImageLink';
@@ -12,6 +12,51 @@ interface ResponsePreviewProps {
 }
 
 export default function ResponsePreview({ response, question, onClose }: ResponsePreviewProps) {
+  const renderHighlightedAnswer = (val: any) => {
+    const strValue = String(val);
+    const normalized = strValue.trim().toLowerCase();
+    
+    let bgColor = "";
+    let textColor = "";
+    let borderColor = "";
+    let Icon = null;
+    
+    const isYes = normalized === "yes";
+    const isNo = normalized === "no";
+    const isNA = normalized === "n/a" || normalized === "na" || normalized === "not applicable";
+    
+    if (isYes) {
+      bgColor = "bg-green-100 dark:bg-green-900/30";
+      textColor = "text-green-800 dark:text-green-300";
+      borderColor = "border-green-200 dark:border-green-800";
+      Icon = CheckCircle;
+    } else if (isNo) {
+      bgColor = "bg-red-100 dark:bg-red-900/30";
+      textColor = "text-red-800 dark:text-red-300";
+      borderColor = "border-red-200 dark:border-red-800";
+      Icon = XCircle;
+    } else if (isNA) {
+      bgColor = "bg-yellow-100 dark:bg-yellow-900/30";
+      textColor = "text-yellow-800 dark:text-yellow-300";
+      borderColor = "border-yellow-200 dark:border-yellow-800";
+      Icon = AlertTriangle;
+    }
+
+    if (!isYes && !isNo && !isNA) {
+      if (isImageUrl(strValue)) {
+        return <ImageLink text={strValue} />;
+      }
+      return strValue;
+    }
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold border ${bgColor} ${textColor} ${borderColor}`}>
+        {Icon && <Icon className="w-3.5 h-3.5" />}
+        {isImageUrl(strValue) ? <ImageLink text={strValue} /> : strValue}
+      </span>
+    );
+  };
+
   const allQuestions = question.sections.length > 0
     ? question.sections.flatMap(section => section.questions)
     : question.followUpQuestions;
@@ -20,11 +65,7 @@ export default function ResponsePreview({ response, question, onClose }: Respons
     if (Array.isArray(answer)) {
       return answer.map((item, idx) => (
         <div key={idx} className="flex items-center gap-2 mb-2">
-          {isImageUrl(String(item)) ? (
-            <ImageLink text={String(item)} />
-          ) : (
-            <span>{String(item)}</span>
-          )}
+          {renderHighlightedAnswer(item)}
         </div>
       ));
     }
@@ -34,20 +75,13 @@ export default function ResponsePreview({ response, question, onClose }: Respons
           {Object.entries(answer).map(([key, value]) => (
             <div key={key} className="flex items-start gap-2">
               <span className="font-medium text-gray-600 dark:text-gray-400">{key}:</span>
-              {isImageUrl(String(value)) ? (
-                <ImageLink text={String(value)} />
-              ) : (
-                <span>{String(value)}</span>
-              )}
+              {renderHighlightedAnswer(value)}
             </div>
           ))}
         </div>
       );
     }
-    if (isImageUrl(String(answer))) {
-      return <ImageLink text={String(answer)} />;
-    }
-    return <span>{String(answer)}</span>;
+    return renderHighlightedAnswer(answer);
   };
 
   return (
