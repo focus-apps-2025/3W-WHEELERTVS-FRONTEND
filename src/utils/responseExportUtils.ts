@@ -789,6 +789,63 @@ export function generateResponseExcelReport(
   console.log("✅ Excel file generated with hierarchical question structure");
 }
 
+export function generateResponseExcelBlob(
+  responses: ResponseData | ResponseData[],
+  form: FormData,
+  type?: "yes-only" | "no-only" | "na-only" | "both" | "default"
+): Blob {
+  const workbook = utils.book_new();
+  const responsesArray = Array.isArray(responses) ? responses : [responses];
+  const nestedForm = buildNestedForm(form);
+
+  responsesArray.forEach((response, index) => {
+    const {
+      data: responsesData,
+      links: responsesLinks,
+      headerStyle,
+      cellStyles,
+      columnWidths,
+    } = buildResponsesSheetContent(response, nestedForm, type);
+
+    const responsesSheet = XLSX.utils.aoa_to_sheet(responsesData);
+
+    Object.keys(headerStyle).forEach((address) => {
+      if (!responsesSheet[address]) responsesSheet[address] = { t: "s", v: "" };
+      responsesSheet[address].s = headerStyle[address];
+    });
+
+    Object.keys(cellStyles).forEach((address) => {
+      if (!responsesSheet[address]) {
+        const coord = XLSX.utils.decode_cell(address);
+        if (
+          coord.r < responsesData.length &&
+          coord.c < responsesData[coord.r].length
+        ) {
+          responsesSheet[address] = {
+            t: "s",
+            v: responsesData[coord.r][coord.c] || "",
+          };
+        } else {
+          responsesSheet[address] = { t: "s", v: "" };
+        }
+      }
+      responsesSheet[address].s = cellStyles[address];
+    });
+
+    responsesSheet["!cols"] = columnWidths;
+    applyHyperlinks(responsesSheet, responsesLinks);
+
+    const sheetName =
+      responsesArray.length > 1 ? `Response ${index + 1}` : "Responses";
+    utils.book_append_sheet(workbook, responsesSheet, sheetName);
+  });
+
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  return new Blob([excelBuffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+}
+
 // ▼▼▼ EMAIL VERSION (returns Blob) ▼▼▼
 export function createExcelWorkbook(
   response: ResponseData,

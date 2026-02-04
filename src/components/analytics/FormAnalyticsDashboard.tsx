@@ -808,6 +808,53 @@ export default function FormAnalyticsDashboard() {
     return Array.from(locations).sort();
   }, [responses]);
 
+  const quizQuestions = useMemo(() => {
+    if (!form?.sections) return [];
+    const allQs: any[] = [];
+    form.sections.forEach(section => {
+      if (section.questions) {
+        section.questions.forEach(q => {
+          if (q.correctAnswer !== undefined) {
+            allQs.push(q);
+          }
+          if (q.followUpQuestions) {
+            q.followUpQuestions.forEach(fq => {
+              if (fq.correctAnswer !== undefined) {
+                allQs.push(fq);
+              }
+            });
+          }
+        });
+      }
+    });
+    return allQs;
+  }, [form]);
+
+  const calculateScores = (response: Response) => {
+    let correct = 0;
+    let wrong = 0;
+
+    quizQuestions.forEach((q) => {
+      const answer = response.answers?.[q.id];
+      if (answer !== undefined && answer !== null && answer !== "") {
+        const answerStr = Array.isArray(answer)
+          ? answer.join(", ").toLowerCase()
+          : String(answer).toLowerCase();
+        const correctStr = Array.isArray(q.correctAnswer)
+          ? q.correctAnswer.join(", ").toLowerCase()
+          : String(q.correctAnswer).toLowerCase();
+
+        if (answerStr === correctStr) {
+          correct++;
+        } else {
+          wrong++;
+        }
+      }
+    });
+
+    return { correct, wrong };
+  };
+
   const filteredResponses = useMemo(() => {
     let result = responses;
 
@@ -2032,10 +2079,35 @@ export default function FormAnalyticsDashboard() {
     }
   };
 
+  const overallStats = useMemo(() => {
+    let totalCorrect = 0;
+    let totalWrong = 0;
+    
+    filteredResponses.forEach(response => {
+      const { correct, wrong } = calculateScores(response);
+      totalCorrect += correct;
+      totalWrong += wrong;
+    });
+
+    const totalQuestions = totalCorrect + totalWrong;
+    const averageAccuracy = totalQuestions > 0 
+      ? ((totalCorrect / totalQuestions) * 100).toFixed(1) 
+      : "0.0";
+
+    return {
+      totalQuizQuestions: quizQuestions.length,
+      totalCorrect,
+      totalWrong,
+      averageAccuracy
+    };
+  }, [filteredResponses, quizQuestions, calculateScores]);
+
   const handleExportToExcel = () => {
     try {
-      const headerRow: any[] = ["Timestamp"];
-      const columnInfo: Array<{ questionId: string; isFollowUp: boolean }> = [];
+      const headerRow: any[] = ["Timestamp", "Correct", "Wrong"];
+      const commonAnswerRow: any[] = ["Correct Answers", "-", "-"];
+      const columnInfo: Array<{ questionId: string; isFollowUp: boolean; correctAnswer?: any }> = [];
+      const totalQuizQuestions = quizQuestions.length;
 
       form?.sections?.forEach((section: Section) => {
         if (selectedResponsesSectionIds.includes(section.id)) {
@@ -2044,56 +2116,69 @@ export default function FormAnalyticsDashboard() {
             headerRow.push(q.text || "Question");
             columnInfo.push({
               questionId: q.id,
-              isFollowUp: !!isFollowUp
+              isFollowUp: !!isFollowUp,
+              correctAnswer: q.correctAnswer
             });
+            
+            // Prepare common answer row data
+            if (q.correctAnswer !== undefined) {
+              const corrStr = Array.isArray(q.correctAnswer) ? q.correctAnswer.join(", ") : String(q.correctAnswer);
+              commonAnswerRow.push(`Correct: ${corrStr}`);
+            } else {
+              commonAnswerRow.push("-");
+            }
           });
         }
       });
 
-      const wsData: any[][] = [headerRow];
+      const wsData: any[][] = [headerRow, commonAnswerRow];
       
       responses.forEach((response: Response) => {
+        const scores = calculateScores(response);
+        const correctPercent = totalQuizQuestions > 0 ? ((scores.correct / totalQuizQuestions) * 100).toFixed(1) : "0";
+        const wrongPercent = totalQuizQuestions > 0 ? ((scores.wrong / totalQuizQuestions) * 100).toFixed(1) : "0";
+
         const rowData: any[] = [
-          getResponseTimestamp(response) ? new Date(getResponseTimestamp(response)!).toLocaleString() : "-"
+          getResponseTimestamp(response) ? new Date(getResponseTimestamp(response)!).toLocaleString() : "-",
+          `${scores.correct} (${correctPercent}%)`,
+          `${scores.wrong} (${wrongPercent}%)`
         ];
 
         columnInfo.forEach(({ questionId }) => {
-          rowData.push(response.answers?.[questionId] ? String(response.answers[questionId]) : "-");
+          const answer = response.answers?.[questionId];
+          rowData.push(answer ? String(answer) : "-");
         });
 
         wsData.push(rowData);
       });
+
+      // Add Overall Quiz Statistics Summary Rows
+      const statsHeaderRow: any[] = ["Overall Quiz Statistics", "", "", ""];
+      const statsDataRow: any[] = [
+        `Quiz Questions: ${overallStats.totalQuizQuestions}`,
+        `Total Correct: ${overallStats.totalCorrect}`,
+        `Total Wrong: ${overallStats.totalWrong}`,
+        `Average Accuracy: ${overallStats.averageAccuracy}%`
+      ];
+
+      wsData.push([]); // Empty spacing row
+      const statsHeaderIdx = wsData.length;
+      wsData.push(statsHeaderRow);
+      const statsDataIdx = wsData.length;
+      wsData.push(statsDataRow);
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
       const headerFill = { fgColor: { rgb: "FF4F46E5" } };
       const headerFont = { color: { rgb: "FFFFFFFF" }, bold: true };
       
+      // Style Header Row
       for (let i = 0; i < headerRow.length; i++) {
         const cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
-        ws[cellRef].s = { fill: headerFill, font: headerFont, alignment: { horizontal: "center", vertical: "center", wrapText: true } };
-      }
-
-      for (let rowIdx = 1; rowIdx < wsData.length; rowIdx++) {
-        for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 1 });
-          const isFollowUp = columnInfo[colIdx]?.isFollowUp;
-          const bgColor = isFollowUp ? "FFE9D5FF" : "FFF3F4F6";
-          
-          ws[cellRef].s = {
-            fill: { fgColor: { rgb: bgColor } },
-            border: {
-              top: { style: "thin" },
-              left: { style: "thin" },
-              bottom: { style: "thin" },
-              right: { style: "thin" }
-            }
-          };
-        }
-
-        const timestampRef = XLSX.utils.encode_cell({ r: rowIdx, c: 0 });
-        ws[timestampRef].s = {
-          fill: { fgColor: { rgb: "FFF9FAFB" } },
+        ws[cellRef].s = { 
+          fill: headerFill, 
+          font: headerFont, 
+          alignment: { horizontal: "center", vertical: "center", wrapText: true },
           border: {
             top: { style: "thin" },
             left: { style: "thin" },
@@ -2103,7 +2188,108 @@ export default function FormAnalyticsDashboard() {
         };
       }
 
-      ws['!cols'] = [{ wch: 20 }, ...columnInfo.map(() => ({ wch: 25 }))];
+      // Style Common Answer Row
+      for (let i = 0; i < headerRow.length; i++) {
+        const cellRef = XLSX.utils.encode_cell({ r: 1, c: i });
+        ws[cellRef].s = {
+          fill: { fgColor: { rgb: "FFF3F4F6" } }, // Light gray background
+          font: { italic: true, bold: i === 0 },
+          alignment: { horizontal: i === 0 ? "left" : "center", vertical: "center", wrapText: true },
+          border: {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" }
+          }
+        };
+      }
+
+      // Style response rows
+      const lastResponseRowIdx = responses.length + 2;
+      for (let rowIdx = 2; rowIdx < lastResponseRowIdx; rowIdx++) {
+        const response = responses[rowIdx - 2];
+        
+        // Style Timestamp, Correct, Wrong columns
+        for (let colIdx = 0; colIdx < 3; colIdx++) {
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
+          let fgColor = "FFF9FAFB";
+          if (colIdx === 1) fgColor = "FFDCFCE7"; // Light green for Correct
+          if (colIdx === 2) fgColor = "FFFEE2E2"; // Light red for Wrong
+          
+          ws[cellRef].s = {
+            fill: { fgColor: { rgb: fgColor } },
+            font: { bold: colIdx > 0 },
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" }
+            }
+          };
+        }
+
+        // Style Question columns
+        for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 3 });
+          const info = columnInfo[colIdx];
+          const answer = response.answers?.[info.questionId];
+          
+          let bgColor = info.isFollowUp ? "FFE9D5FF" : "FFFFFFFF";
+          
+          if (info.correctAnswer !== undefined && answer !== undefined && answer !== null && answer !== "") {
+            const answerStr = Array.isArray(answer) ? answer.join(", ").toLowerCase() : String(answer).toLowerCase();
+            const correctStr = Array.isArray(info.correctAnswer) ? info.correctAnswer.join(", ").toLowerCase() : String(info.correctAnswer).toLowerCase();
+            bgColor = answerStr === correctStr ? "FFDCFCE7" : "FFFEE2E2";
+          }
+          
+          ws[cellRef].s = {
+            fill: { fgColor: { rgb: bgColor } },
+            alignment: { vertical: "center", wrapText: true },
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" }
+            }
+          };
+        }
+      }
+
+      // Style Stats Header Row
+      for (let i = 0; i < 4; i++) {
+        const cellRef = XLSX.utils.encode_cell({ r: statsHeaderIdx, c: i });
+        ws[cellRef].s = {
+          fill: { fgColor: { rgb: "FF4F46E5" } },
+          font: { color: { rgb: "FFFFFFFF" }, bold: true },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "medium" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" }
+          }
+        };
+      }
+
+      // Style Stats Data Row
+      for (let i = 0; i < 4; i++) {
+        const cellRef = XLSX.utils.encode_cell({ r: statsDataIdx, c: i });
+        ws[cellRef].s = {
+          fill: { fgColor: { rgb: "FFE0E7FF" } }, // Indigo 100
+          font: { bold: true, color: { rgb: "FF3730A3" } }, // Indigo 800
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "medium" },
+            right: { style: "thin" }
+          }
+        };
+      }
+
+
+      ws['!cols'] = [{ wch: 22 }, { wch: 10 }, { wch: 10 }, ...columnInfo.map(() => ({ wch: 35 }))];
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Responses");
@@ -3501,11 +3687,61 @@ export default function FormAnalyticsDashboard() {
                 </div>
                 
                 {selectedResponsesSectionIds.length > 0 ? (
-                  <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                  <>
+                    {/* Overall Quiz Statistics Summary Bar */}
+                    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-6">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                            <BarChart3 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Overall Quiz Statistics</p>
+                            <p className="text-lg font-bold text-gray-900 dark:text-white">Form Performance</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-wrap items-center gap-8">
+                          <div className="flex flex-col">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Quiz Questions</span>
+                            <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{overallStats.totalQuizQuestions}</span>
+                          </div>
+                          
+                          <div className="h-10 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
+                          
+                          <div className="flex flex-col">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total Correct</span>
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-xl font-bold text-green-600 dark:text-green-400">{overallStats.totalCorrect}</span>
+                              <CheckCircle className="w-3.5 h-3.5 text-green-500" />
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-col">
+                            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total Wrong</span>
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-xl font-bold text-red-600 dark:text-red-400">{overallStats.totalWrong}</span>
+                              <XCircle className="w-3.5 h-3.5 text-red-500" />
+                            </div>
+                          </div>
+                          
+                          <div className="h-10 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
+                          
+                          <div className="flex flex-col bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                            <span className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold uppercase">Average Accuracy</span>
+                            <span className="text-2xl font-black text-indigo-700 dark:text-indigo-300">{overallStats.averageAccuracy}%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
                     <table className="text-sm border-collapse">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-indigo-50 dark:bg-indigo-900/20">
-                          <td className="px-6 py-3"></td>
+                          <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
+                          <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
+                          <td colSpan={2} className="px-6 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">Performance</td>
                           {form?.sections?.map((section: Section) => {
                             const sectionQuestionsCount = section.questions?.length || 0;
                             return (
@@ -3521,6 +3757,8 @@ export default function FormAnalyticsDashboard() {
                         <tr className="bg-gray-100 dark:bg-gray-800">
                           <th className="sticky left-0 z-20 text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-100 dark:bg-gray-800">Actions</th>
                           <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">Timestamp</th>
+                          <th className="text-center px-4 py-3 font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">Correct</th>
+                          <th className="text-center px-4 py-3 font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">Wrong</th>
                           {form?.sections?.map((section: Section) => (
                             selectedResponsesSectionIds.includes(section.id) && (
                               section.questions?.map((q: any) => {
@@ -3545,6 +3783,32 @@ export default function FormAnalyticsDashboard() {
                                       />
                                     </div>
                                   </th>
+                                );
+                              })
+                            )
+                          ))}
+                        </tr>
+
+                        {/* Common Answer Row */}
+                        <tr className="bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-200 dark:border-amber-800">
+                          <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 sticky left-0 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">Correct Answer</td>
+                          <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
+                          <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
+                          <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
+                          {form?.sections?.map((section: Section) => (
+                            selectedResponsesSectionIds.includes(section.id) && (
+                              section.questions?.map((q: any) => {
+                                const isFollowUp = q.parentId || q.showWhen?.questionId;
+                                const hasCorrectAnswer = q.correctAnswer !== undefined;
+                                return (
+                                  <td key={`correct-${q.id}`} className={`px-4 py-3 text-xs font-bold border border-gray-200 dark:border-gray-700 ${isFollowUp ? 'bg-purple-50 dark:bg-purple-900/10' : ''} ${hasCorrectAnswer ? 'text-green-700 dark:text-green-400' : 'text-gray-400 italic'}`}>
+                                    {hasCorrectAnswer ? (
+                                      <div className="flex flex-col gap-1">
+                                        <span className="text-[10px] uppercase text-gray-500 opacity-70">Correct Answer:</span>
+                                        <span>{Array.isArray(q.correctAnswer) ? q.correctAnswer.join(", ") : String(q.correctAnswer)}</span>
+                                      </div>
+                                    ) : "-"}
+                                  </td>
                                 );
                               })
                             )
@@ -3616,13 +3880,64 @@ export default function FormAnalyticsDashboard() {
                               <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                                 {getResponseTimestamp(response) ? new Date(getResponseTimestamp(response)!).toLocaleString() : "-"}
                               </td>
+                              <td className="px-6 py-3 text-sm text-center font-bold text-green-600 dark:text-green-400 border border-gray-200 dark:border-gray-700">
+                                {(() => {
+                                  const { correct } = calculateScores(response);
+                                  const total = quizQuestions.length;
+                                  const percentage = total > 0 ? ((correct / total) * 100).toFixed(1) : "0.0";
+                                  return (
+                                    <div className="flex flex-col items-center">
+                                      <span>{correct}</span>
+                                      <span className="text-[10px] font-medium text-green-500 opacity-80">{percentage}%</span>
+                                    </div>
+                                  );
+                                })()}
+                              </td>
+                              <td className="px-6 py-3 text-sm text-center font-bold text-red-600 dark:text-red-400 border border-gray-200 dark:border-gray-700">
+                                {(() => {
+                                  const { wrong } = calculateScores(response);
+                                  const total = quizQuestions.length;
+                                  const percentage = total > 0 ? ((wrong / total) * 100).toFixed(1) : "0.0";
+                                  return (
+                                    <div className="flex flex-col items-center">
+                                      <span>{wrong}</span>
+                                      <span className="text-[10px] font-medium text-red-500 opacity-80">{percentage}%</span>
+                                    </div>
+                                  );
+                                })()}
+                              </td>
                               {form?.sections?.map((section: Section) => (
                                 selectedResponsesSectionIds.includes(section.id) && (
                                   section.questions?.map((q: any) => {
                                     const isFollowUp = q.parentId || q.showWhen?.questionId;
                                     const isEditing = editingResponseId === response.id;
+                                    const hasCorrectAnswer = q.correctAnswer !== undefined;
+                                    const answer = response.answers?.[q.id];
+                                    
+                                    let isCorrect = false;
+                                    if (hasCorrectAnswer && answer !== undefined && answer !== null && answer !== "") {
+                                      const answerStr = Array.isArray(answer)
+                                        ? answer.join(", ").toLowerCase()
+                                        : String(answer).toLowerCase();
+                                      const correctStr = Array.isArray(q.correctAnswer)
+                                        ? q.correctAnswer.join(", ").toLowerCase()
+                                        : String(q.correctAnswer).toLowerCase();
+                                      isCorrect = answerStr === correctStr;
+                                    }
+
                                     return (
-                                      <td key={`${response.id}-${q.id}`} className={`px-6 py-3 text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 min-w-64 break-words ${isFollowUp ? 'bg-purple-50 dark:bg-purple-900/10' : ''}`}>
+                                      <td 
+                                        key={`${response.id}-${q.id}`} 
+                                        className={`px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-64 break-words ${
+                                          isFollowUp ? 'bg-purple-50 dark:bg-purple-900/10' : ''
+                                        } ${
+                                          hasCorrectAnswer && !isEditing
+                                            ? isCorrect 
+                                              ? 'bg-green-100 dark:bg-green-900/30' 
+                                              : 'bg-red-100 dark:bg-red-900/30'
+                                            : ''
+                                        }`}
+                                      >
                                         {isEditing ? (
                                           <input
                                             type="text"
@@ -3632,26 +3947,28 @@ export default function FormAnalyticsDashboard() {
                                             placeholder="Enter answer"
                                           />
                                         ) : (
-                                          <div>
-                                            {response.answers?.[q.id] ? (
-                                              isImageUrl(String(response.answers[q.id])) ? (
-                                                <div className="w-32 h-32 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 hover:shadow-lg transition-shadow">
-                                                  <img
-                                                    src={String(response.answers[q.id])}
-                                                    alt={q.text || "Image"}
-                                                    className="w-full h-full object-cover cursor-pointer"
-                                                    onClick={() => window.open(String(response.answers[q.id]), '_blank')}
-                                                    title="Click to open in new tab"
-                                                  />
-                                                </div>
+                                          <div className="flex flex-col gap-1">
+                                            <div>
+                                              {answer ? (
+                                                isImageUrl(String(answer)) ? (
+                                                  <div className="w-32 h-32 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 hover:shadow-lg transition-shadow bg-white">
+                                                    <img
+                                                      src={String(answer)}
+                                                      alt={q.text || "Image"}
+                                                      className="w-full h-full object-cover cursor-pointer"
+                                                      onClick={() => window.open(String(answer), '_blank')}
+                                                      title="Click to open in new tab"
+                                                    />
+                                                  </div>
+                                                ) : (
+                                                  <span className="text-gray-900 dark:text-gray-200" title={String(answer)}>
+                                                    {String(answer)}
+                                                  </span>
+                                                )
                                               ) : (
-                                                <span title={String(response.answers[q.id])}>
-                                                  {String(response.answers[q.id])}
-                                                </span>
-                                              )
-                                            ) : (
-                                              <span>-</span>
-                                            )}
+                                                <span className="text-gray-500">-</span>
+                                              )}
+                                            </div>
                                           </div>
                                         )}
                                       </td>
@@ -3663,7 +3980,7 @@ export default function FormAnalyticsDashboard() {
                           ))
                         ) : (
                           <tr>
-                            <td colSpan={1 + (form?.sections?.reduce((acc: number, sec: Section) => (selectedResponsesSectionIds.includes(sec.id) ? acc + (sec.questions?.length || 0) : acc), 0) || 0)} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                            <td colSpan={4 + (form?.sections?.reduce((acc: number, sec: Section) => (selectedResponsesSectionIds.includes(sec.id) ? acc + (sec.questions?.length || 0) : acc), 0) || 0)} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
                               No responses yet
                             </td>
                           </tr>
@@ -3671,7 +3988,8 @@ export default function FormAnalyticsDashboard() {
                       </tbody>
                     </table>
                   </div>
-                ) : (
+                </>
+              ) : (
                   <div className="p-6 text-center text-gray-500 dark:text-gray-400">
                     Select at least one section to view responses
                   </div>

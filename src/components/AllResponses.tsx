@@ -48,8 +48,9 @@ import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
 import { useLogo } from "../context/LogoContext";
-import { generateResponseExcelReport } from "../utils/responseExportUtils";
+import { generateResponseExcelReport, generateResponseExcelBlob } from "../utils/responseExportUtils";
 import { generateAndDownloadPDF } from "../utils/pdfExportUtils";
+import JSZip from "jszip";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
 import DashboardSummaryCard from "./DashboardSummaryCard";
@@ -198,6 +199,7 @@ export default function AllResponses() {
   const [savingEdit, setSavingEdit] = useState(false);
   const [editingFormLoading, setEditingFormLoading] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [exportingZip, setExportingZip] = useState(false);
  // Add this line
   const [selectedPDFType, setSelectedPDFType] = useState<'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default' | 'responses-view' | null>(null);
 
@@ -495,6 +497,58 @@ export default function AllResponses() {
       showError("Failed to export Excel. Please try again.");
     } finally {
       setExportingExcel(false);
+    }
+  };
+
+  const handleBulkDownloadZip = async () => {
+    if (exportingZip) return;
+
+    const formsToDownload = selectedFormIds.length === 0 
+      ? uniqueForms 
+      : uniqueForms.filter(f => selectedFormIds.includes(f.id));
+
+    if (formsToDownload.length === 0) {
+      showError("No forms selected for download.");
+      return;
+    }
+
+    setExportingZip(true);
+    try {
+      const zip = new JSZip();
+      const folder = zip.folder(`Bulk_Responses_${new Date().toISOString().split('T')[0]}`);
+      
+      showSuccess(`Preparing ${formsToDownload.length} files...`);
+
+      for (const formItem of formsToDownload) {
+        try {
+          const formData = await apiClient.getForm(formItem.id);
+          const fullForm = formData.form;
+          const formResponses = responses.filter(r => (r.questionId || r.formId) === formItem.id);
+          
+          if (formResponses.length > 0) {
+            const excelBlob = generateResponseExcelBlob(formResponses, fullForm, 'both');
+            const safeFileName = `${formItem.title.replace(/[/\\?%*:|"<>]/g, '-')}_${formItem.id.slice(-6)}.xlsx`;
+            folder?.file(safeFileName, excelBlob);
+          }
+        } catch (err) {
+          console.error(`Failed to process form ${formItem.title}:`, err);
+        }
+      }
+
+      const content = await zip.generateAsync({ type: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(content);
+      link.download = `Bulk_Responses_${new Date().toISOString().split('T')[0]}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      showSuccess("ZIP file downloaded successfully.");
+    } catch (error) {
+      console.error("Failed to generate ZIP:", error);
+      showError("Failed to generate ZIP. Please try again.");
+    } finally {
+      setExportingZip(false);
     }
   };
 
@@ -3038,7 +3092,21 @@ const handleCancelWeightageEdit = () => {
               <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
               <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
             </svg>
-            Forms ({selectedFormIds.length === 0 ? uniqueForms.length : selectedFormIds.length}/{uniqueForms.length})
+            Forms ({selectedFormIds.length === 0 ? uniqueForms.length : (selectedFormIds.includes('NONE_SELECTED') ? 0 : selectedFormIds.length)}/{uniqueForms.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={handleBulkDownloadZip}
+            disabled={exportingZip}
+            className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap shadow-md hover:shadow-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {exportingZip ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : (
+              <Download className="w-5 h-5" />
+            )}
+            Bulk Download (ZIP)
           </button>
 
           {showFormFilter && (
@@ -3062,13 +3130,13 @@ const handleCancelWeightageEdit = () => {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setSelectedFormIds([])}
-                      className="flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded transition-colors"
+                      className="flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded transition-colors hover:opacity-90"
                       style={{ backgroundColor: "#1e3a8a" }}
                     >
                       Select All
                     </button>
                     <button
-                      onClick={() => setSelectedFormIds([])}
+                      onClick={() => setSelectedFormIds(['NONE_SELECTED'])}
                       className="flex-1 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                     >
                       Clear All
@@ -3083,7 +3151,7 @@ const handleCancelWeightageEdit = () => {
                         <div className="relative flex items-center flex-shrink-0">
                           <input
                             type="checkbox"
-                            checked={selectedFormIds.length === 0 || selectedFormIds.includes(form.id)}
+                            checked={selectedFormIds.length === 0 || (selectedFormIds.includes(form.id) && !selectedFormIds.includes('NONE_SELECTED'))}
                             onChange={(e) => {
                               const isChecked = e.target.checked;
                               if (selectedFormIds.length === 0) {
@@ -3092,6 +3160,11 @@ const handleCancelWeightageEdit = () => {
                                   // User unchecked one, so we select all OTHERS
                                   const allIds = uniqueForms.map(f => f.id);
                                   setSelectedFormIds(allIds.filter(id => id !== form.id));
+                                }
+                              } else if (selectedFormIds.includes('NONE_SELECTED')) {
+                                // Currently "None"
+                                if (isChecked) {
+                                  setSelectedFormIds([form.id]);
                                 }
                               } else {
                                 // Currently specific selection
@@ -3104,7 +3177,12 @@ const handleCancelWeightageEdit = () => {
                                     setSelectedFormIds(newIds);
                                   }
                                 } else {
-                                  setSelectedFormIds(selectedFormIds.filter(id => id !== form.id));
+                                  const newIds = selectedFormIds.filter(id => id !== form.id);
+                                  if (newIds.length === 0) {
+                                    setSelectedFormIds(['NONE_SELECTED']);
+                                  } else {
+                                    setSelectedFormIds(newIds);
+                                  }
                                 }
                               }
                             }}
@@ -3130,7 +3208,7 @@ const handleCancelWeightageEdit = () => {
                 
                 <div className="sticky bottom-0 px-4 py-3 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700">
                   <p className="text-xs text-gray-600 dark:text-gray-400 text-center">
-                    {selectedFormIds.length === 0 ? uniqueForms.length : selectedFormIds.length} of {uniqueForms.length} forms selected
+                    {selectedFormIds.length === 0 ? uniqueForms.length : (selectedFormIds.includes('NONE_SELECTED') ? 0 : selectedFormIds.length)} of {uniqueForms.length} forms selected
                   </p>
                 </div>
               </div>

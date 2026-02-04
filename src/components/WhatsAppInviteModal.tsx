@@ -9,6 +9,7 @@ import {
   FileText,
   Send,
   Download,
+  CheckCircle,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { apiClient } from "../api/client";
@@ -141,9 +142,12 @@ const WhatsAppInviteModal: React.FC<WhatsAppInviteModalProps> = ({
         phones: phonesToSend,
       });
 
-      if (response.success) {
+      if (response.success || (response.data && (response.data.sent > 0 || response.data.failed > 0))) {
         setSendResults(response.data);
         setStep("complete");
+        if (!response.success) {
+            setError(response.message || "Some invites failed to send");
+        }
       } else {
         setError(response.message || "Failed to send invites");
         setStep("preview");
@@ -461,7 +465,7 @@ const WhatsAppInviteModal: React.FC<WhatsAppInviteModalProps> = ({
           {step === "complete" && sendResults && (
             <div className="text-center py-8">
               <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-6">
-                <Check className="w-8 h-8 text-green-600" />
+                <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
 
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -510,6 +514,48 @@ const WhatsAppInviteModal: React.FC<WhatsAppInviteModalProps> = ({
                         <p className="text-xs text-red-600 bg-red-50/50 p-2 rounded border border-red-100/50">
                           {failure.reason || "Unknown error occurred"}
                         </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {sendResults.results && sendResults.results.length > 0 && (
+                <div className="mb-6 text-left border border-green-100 rounded-lg overflow-hidden">
+                  <div className="bg-green-50 px-4 py-2 border-b border-green-100 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-600" />
+                    <span className="text-sm font-semibold text-green-800">
+                      Success Details
+                    </span>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto bg-white">
+                    {sendResults.results.map((result: any, index: number) => (
+                      <div
+                        key={index}
+                        className="px-4 py-3 border-b border-gray-50 last:border-0 flex flex-col gap-1"
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">
+                            {result.phone}
+                          </span>
+                          <div className="flex items-center">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-green-500 bg-green-50 px-1.5 py-0.5 rounded">
+                              Sent
+                            </span>
+                            {result.strategy && (
+                              <span className="text-[10px] text-gray-400 ml-2">
+                                ({result.strategy})
+                              </span>
+                            )}
+                            {result.twilioStatus && (
+                              <span className={`text-[10px] ml-2 px-1 rounded ${
+                                result.twilioStatus === 'failed' ? 'text-red-600 bg-red-50' : 'text-blue-600 bg-blue-50'
+                              }`}>
+                                {result.twilioStatus}
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
