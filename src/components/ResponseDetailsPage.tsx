@@ -48,7 +48,7 @@ import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
 import { useLogo } from "../context/LogoContext";
 import { generateResponseExcelReport } from "../utils/responseExportUtils";
-import { ProgressCallback, generateAndDownloadPDF } from "../utils/pdfExportUtils";
+import { ProgressCallback, generateAndDownloadPDF, exportAllResponsesToZip } from "../utils/pdfExportUtils";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
 import DashboardSummaryCard from "./DashboardSummaryCard";
@@ -175,6 +175,7 @@ export default function ResponseDetailsPage() {
   const [showStatusUpdate, setShowStatusUpdate] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
+  const [exportingZip, setExportingZip] = useState(false);
   const [selectedPDFType, setSelectedPDFType] = useState<
     "no-only" | "yes-only" | "both" | "na-only" | "section" | "default" | "responses-view" | null
   >(null);
@@ -195,6 +196,7 @@ export default function ResponseDetailsPage() {
   const [tempWeightageValues, setTempWeightageValues] = useState<Record<string, string>>({});
   const [weightageBalance, setWeightageBalance] = useState(0);
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const isCancelledRef = useRef<boolean>(false);
   const [pendingSectionId, setPendingSectionId] = useState<string | null>(null);
   const [sectionChartTypes, setSectionChartTypes] = useState<Record<string, "pie" | "bar">>({});
   const [showMainParamsImages, setShowMainParamsImages] = useState<Record<string, boolean>>({});
@@ -485,7 +487,7 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
     }
   };
 
-const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default' | 'responses-view') => {
+  const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 'both' | 'section' | 'default' | 'responses-view') => {
   if (!response || !form) return;
 
   setPdfDownloadProgress(0);
@@ -535,6 +537,77 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
     setPdfDownloadProgress(null);
   }
 };
+
+const handleBulkDownloadZip = async () => {
+  if (!response || !form) return;
+
+  try {
+    setExportingZip(true);
+    isCancelledRef.current = false;
+    
+    const formIdentifier = response.questionId || response.formId;
+    if (!formIdentifier) {
+      throw new Error("Form identifier not found for this response.");
+    }
+
+    // Fetch all responses for this form
+    const responsesData = await apiClient.getResponses();
+    const filteredResponses = responsesData.responses.filter(
+      (r: Response) => {
+        const rFormId = r.questionId || r.formId || (r as any).formIdentifier;
+        return rFormId === formIdentifier || String(rFormId) === String(formIdentifier);
+      }
+    );
+
+    if (filteredResponses.length === 0) {
+      throw new Error("No responses found for this form.");
+    }
+
+    // Get the full form data to ensure we have everything needed
+    const formData = await apiClient.getForm(formIdentifier);
+    const fullForm = formData.form;
+
+    await exportAllResponsesToZip(
+      filteredResponses,
+      fullForm,
+      (progress) => {
+        setPdfProgress({
+          stage: 'generating',
+          percentage: (progress.current / progress.total) * 100,
+          message: progress.message
+        });
+      },
+      () => isCancelledRef.current
+    );
+
+    if (isCancelledRef.current) {
+      showSuccess("Bulk download cancelled.");
+      setPdfProgress(null);
+      return;
+    }
+
+    showSuccess(`Bulk download of ${filteredResponses.length} responses completed.`);
+    setPdfProgress({
+      stage: 'complete',
+      percentage: 100,
+      message: 'Download complete'
+    });
+    
+    setTimeout(() => setPdfProgress(null), 3000);
+    
+  } catch (err: any) {
+    console.error("Bulk download failed:", err);
+    showError(err.message || "Bulk download failed.");
+    setPdfProgress({
+      stage: 'error',
+      percentage: 0,
+      message: err.message
+    });
+  } finally {
+    setExportingZip(false);
+  }
+};
+
   const getStatusInfo = (status: string) => {
     switch (status.toLowerCase()) {
       case "pending":
@@ -1796,6 +1869,19 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
           <FileText className="w-4 h-4 text-cyan-600 dark:text-cyan-400 mr-2 flex-shrink-0" />
           <span>Responses Detail</span>
             </button>
+        <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowPDFTypeSelector(false);
+            handleBulkDownloadZip();
+          }}
+          disabled={exportingZip || generatingPDF}
+          className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors duration-150"
+        >
+          <Download className="w-4 h-4 text-indigo-600 dark:text-indigo-400 mr-2 flex-shrink-0" />
+          <span>Bulk Download (ZIP)</span>
+        </button>
       </div>
     </div>
   )}
@@ -3320,19 +3406,34 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                 Form Responses
               </h3>
-              <button
-                onClick={() => handleDownloadPDF('responses-view')}
-                disabled={generatingPDF}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: "#0891b2" }}
-              >
-                {generatingPDF ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <FileText className="w-4 h-4" />
-                )}
-                <span>{generatingPDF ? "Generating PDF..." : "Download as PDF"}</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={() => handleDownloadPDF('responses-view')}
+                  disabled={generatingPDF || exportingZip}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: "#0891b2" }}
+                >
+                  {generatingPDF ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <FileText className="w-4 h-4" />
+                  )}
+                  <span>{generatingPDF ? "Generating PDF..." : "Download as PDF"}</span>
+                </button>
+                <button
+                  onClick={handleBulkDownloadZip}
+                  disabled={generatingPDF || exportingZip}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                  style={{ backgroundColor: "#0e7490" }}
+                >
+                  {exportingZip ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
+                  <span>{exportingZip ? "Preparing ZIP..." : "Bulk Download (ZIP)"}</span>
+                </button>
+              </div>
             </div>
             <div className="space-y-8">
               {form.sections?.map((section: any) => {
@@ -3741,6 +3842,60 @@ const handleDownloadPDFNow = async (type?: 'yes-only' | 'no-only' | 'na-only' | 
                   </>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {pdfProgress && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 max-w-md w-full border border-gray-200 dark:border-gray-700 animate-in fade-in zoom-in duration-300">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
+                <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                {pdfProgress.stage === 'generating' ? 'Generating PDFs' : 
+                 pdfProgress.stage === 'downloading' ? 'Downloading' :
+                 pdfProgress.stage === 'complete' ? 'Complete!' :
+                 pdfProgress.stage === 'error' ? 'Error' : 'Processing'}
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                {pdfProgress.message || 'Please wait while we prepare your files...'}
+              </p>
+              
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-2 overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-300 rounded-full ${
+                    pdfProgress.stage === 'error' ? 'bg-red-500' : 'bg-blue-600'
+                  }`}
+                  style={{ width: `${pdfProgress.percentage}%` }}
+                />
+              </div>
+              <div className="flex justify-between w-full text-xs font-semibold text-gray-500 dark:text-gray-400">
+                <span>{Math.round(pdfProgress.percentage)}%</span>
+                <span>{pdfProgress.stage === 'complete' ? 'Success' : 'In Progress'}</span>
+              </div>
+
+              {(pdfProgress.stage === 'generating' || pdfProgress.stage === 'downloading') && (
+                <button
+                  onClick={() => {
+                    isCancelledRef.current = true;
+                    setPdfProgress(null);
+                  }}
+                  className="mt-6 px-6 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold rounded-xl hover:bg-red-200 dark:hover:bg-red-800/40 transition-all"
+                >
+                  Cancel
+                </button>
+              )}
+
+              {(pdfProgress.stage === 'complete' || pdfProgress.stage === 'error') && (
+                <button
+                  onClick={() => setPdfProgress(null)}
+                  className="mt-6 px-6 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+                >
+                  Close
+                </button>
+              )}
             </div>
           </div>
         </div>

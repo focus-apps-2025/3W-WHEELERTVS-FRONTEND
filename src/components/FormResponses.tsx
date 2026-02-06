@@ -19,7 +19,7 @@ import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
 import { exportResponsesToExcel } from "../utils/exportUtils";
-import { exportResponseToPDF, exportAllResponsesToPDF } from "../utils/pdfExportUtils";
+import { exportResponseToPDF, exportAllResponsesToPDF, exportAllResponsesToZip } from "../utils/pdfExportUtils";
 import { Bar, Pie } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -435,12 +435,12 @@ export default function FormResponses() {
                   Export as Excel
                 </button>
                 <button
-                  onClick={() => form && exportAllResponsesToPDF(responses as any, form as any)}
+                  onClick={() => form && exportAllResponsesToZip(responses as any, form as any)}
                   className="btn-secondary flex items-center"
                   disabled={!form || responses.length === 0}
                 >
                   <FileText className="w-4 h-4 mr-2" />
-                  Download as PDF
+                  Bulk Download (PDF ZIP)
                 </button>
                 <button
                   onClick={() => setShowTableView(true)}

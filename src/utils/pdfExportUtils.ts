@@ -1,5 +1,6 @@
 import html2pdf from "html2pdf.js";
 import html2canvas from "html2canvas";
+import JSZip from "jszip";
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "./dateUtils";
 
@@ -368,6 +369,120 @@ export async function exportAllResponsesToPDF(responses: any[], form: any): Prom
   for (const response of responses) {
     await exportResponseToPDF(response, form);
   }
+}
+
+export async function exportResponseToPDFBlob(
+  response: any,
+  form: any,
+  onProgress?: ProgressCallback
+): Promise<{ blob: Blob; filename: string }> {
+  try {
+    if (!response || !form) throw new Error("Missing response or form");
+
+    const sectionStats = getSectionYesNoStats(form, response.answers || {});
+    const questionStats: Record<string, any[]> = {};
+
+    form.sections?.forEach((section: any) => {
+      questionStats[section.id] = getSectionYesNoQuestionStats(
+        section,
+        response.answers || {}
+      );
+    });
+
+    const filename = `${form.title || "Form"}_Response_${formatTimestamp(
+      response.createdAt,
+      "file"
+    )}.pdf`;
+
+    const options: PDFOptions = {
+      filename,
+      formTitle: form.title || "Form Response",
+      submittedDate: formatTimestamp(response.createdAt),
+      sectionStats,
+      sectionQuestionStats: questionStats,
+      form,
+      response,
+      availableSections: form.sections || [],
+    };
+
+    console.log(`🚀 Starting PDF generation for ${filename}`);
+    const blob = await generatePDFOnServer(options, "default", onProgress);
+    console.log(`✅ PDF generation complete for ${filename}`);
+    return { blob, filename };
+  } catch (error) {
+    console.error("❌ Error in exportResponseToPDFBlob:", error);
+    throw error;
+  }
+}
+
+export async function exportAllResponsesToZip(
+  responses: any[],
+  form: any,
+  onProgress?: (progress: { current: number; total: number; message: string }) => void,
+  checkCancelled?: () => boolean
+): Promise<void> {
+  if (!responses || !responses.length || !form) return;
+
+  const zip = new JSZip();
+  const total = responses.length;
+  let totalProcessedInZip = 0;
+
+  for (let i = 0; i < responses.length; i++) {
+    if (checkCancelled && checkCancelled()) {
+      console.log("ZIP generation cancelled by user");
+      return;
+    }
+    const response = responses[i];
+    if (onProgress) {
+      onProgress({
+        current: i + 1,
+        total,
+        message: `Generating PDF ${i + 1} of ${total}...`,
+      });
+    }
+
+    try {
+      const { blob, filename } = await exportResponseToPDFBlob(response, form);
+      // Ensure unique filename in zip
+      let finalFilename = filename;
+      let counter = 1;
+      while (zip.file(finalFilename)) {
+        finalFilename = filename.replace(".pdf", `_${counter}.pdf`);
+        counter++;
+      }
+      zip.file(finalFilename, blob);
+      totalProcessedInZip++;
+      
+      // Small delay between generations to avoid overwhelming the server
+      if (i < responses.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    } catch (error) {
+      console.error(`Failed to generate PDF for response ${response.id}:`, error);
+    }
+  }
+
+  if (totalProcessedInZip === 0) {
+    throw new Error("No responses were processed successfully.");
+  }
+
+  if (onProgress) {
+    onProgress({
+      current: total,
+      total,
+      message: "Creating ZIP file...",
+    });
+  }
+
+  const zipBlob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(zipBlob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${form.title || "Responses"}_Bulk_Download.zip`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function formatQuestionNumberForDisplay(qNumber: string): string {
@@ -3649,7 +3764,7 @@ export type ProgressCallback = (progress: {
   message?: string;
 }) => void;
 
-async function generatePDFOnServer(
+export async function generatePDFOnServer(
   options: PDFOptions,
   type: string = "default",
   onProgress?: ProgressCallback

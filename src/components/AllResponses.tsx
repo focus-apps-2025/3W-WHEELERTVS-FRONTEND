@@ -49,7 +49,7 @@ import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
 import { useLogo } from "../context/LogoContext";
 import { generateResponseExcelReport, generateResponseExcelBlob } from "../utils/responseExportUtils";
-import { generateAndDownloadPDF } from "../utils/pdfExportUtils";
+import { generateAndDownloadPDF, exportAllResponsesToZip } from "../utils/pdfExportUtils";
 import JSZip from "jszip";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
@@ -515,35 +515,67 @@ export default function AllResponses() {
     setExportingZip(true);
     try {
       const zip = new JSZip();
-      const folder = zip.folder(`Bulk_Responses_${new Date().toISOString().split('T')[0]}`);
+      const timestamp = new Date().toISOString().split('T')[0];
       
-      showSuccess(`Preparing ${formsToDownload.length} files...`);
+      showSuccess(`Preparing PDF files for ${formsToDownload.length} forms...`);
+
+      let totalResponsesProcessed = 0;
 
       for (const formItem of formsToDownload) {
+        console.log(`Processing form: ${formItem.title} (ID: ${formItem.id})`);
         try {
           const formData = await apiClient.getForm(formItem.id);
           const fullForm = formData.form;
-          const formResponses = responses.filter(r => (r.questionId || r.formId) === formItem.id);
           
+          if (!fullForm) continue;
+
+          const formResponses = responses.filter(r => {
+            const rFormId = r.questionId || r.formId || (r as any).formIdentifier;
+            const targetId = formItem.id;
+            return rFormId === targetId || String(rFormId) === String(targetId);
+          });
+
           if (formResponses.length > 0) {
-            const excelBlob = generateResponseExcelBlob(formResponses, fullForm, 'both');
-            const safeFileName = `${formItem.title.replace(/[/\\?%*:|"<>]/g, '-')}_${formItem.id.slice(-6)}.xlsx`;
-            folder?.file(safeFileName, excelBlob);
+            const formFolder = zip.folder(formItem.title.replace(/[/\\?%*:|"<>]/g, '-'));
+            
+            for (const response of formResponses) {
+              try {
+                const { blob, filename } = await exportResponseToPDFBlob(response, fullForm);
+                let finalFilename = filename;
+                let counter = 1;
+                while (formFolder?.file(finalFilename)) {
+                  finalFilename = filename.replace(".pdf", `_${counter}.pdf`);
+                  counter++;
+                }
+                formFolder?.file(finalFilename, blob);
+                totalResponsesProcessed++;
+                
+                // Small delay to avoid server strain
+                await new Promise(resolve => setTimeout(resolve, 300));
+              } catch (pdfErr) {
+                console.error(`Failed to generate PDF for response ${response.id}:`, pdfErr);
+              }
+            }
           }
         } catch (err) {
           console.error(`Failed to process form ${formItem.title}:`, err);
         }
       }
 
+      if (totalResponsesProcessed === 0) {
+        showError("No responses were processed successfully.");
+        return;
+      }
+
       const content = await zip.generateAsync({ type: "blob" });
       const link = document.createElement("a");
       link.href = URL.createObjectURL(content);
-      link.download = `Bulk_Responses_${new Date().toISOString().split('T')[0]}.zip`;
+      link.download = `Bulk_PDF_Responses_${timestamp}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       
-      showSuccess("ZIP file downloaded successfully.");
+      showSuccess(`ZIP file with ${totalResponsesProcessed} PDFs downloaded successfully.`);
     } catch (error) {
       console.error("Failed to generate ZIP:", error);
       showError("Failed to generate ZIP. Please try again.");
@@ -3093,20 +3125,6 @@ const handleCancelWeightageEdit = () => {
               <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
             </svg>
             Forms ({selectedFormIds.length === 0 ? uniqueForms.length : (selectedFormIds.includes('NONE_SELECTED') ? 0 : selectedFormIds.length)}/{uniqueForms.length})
-          </button>
-
-          <button
-            type="button"
-            onClick={handleBulkDownloadZip}
-            disabled={exportingZip}
-            className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap shadow-md hover:shadow-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {exportingZip ? (
-              <RefreshCw className="w-5 h-5 animate-spin" />
-            ) : (
-              <Download className="w-5 h-5" />
-            )}
-            Bulk Download (ZIP)
           </button>
 
           {showFormFilter && (
