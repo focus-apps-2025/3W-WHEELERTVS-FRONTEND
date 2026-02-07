@@ -29,7 +29,8 @@ import {
   MapPin,
   X,
   Save,
-  ChevronDown, // Add this import
+  ChevronDown,
+  Folder,
 } from "lucide-react";
 import { useForms, useResponses, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
@@ -1086,6 +1087,13 @@ export default function FormsAnalytics() {
                       title="View responses"
                     >
                       <List className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => navigate(`/forms/${formId}/uploads`)}
+                      className="p-2 text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
+                      title="View uploads"
+                    >
+                      <Folder className="w-4 h-4" />
                     </button>
                   </div>
                   <div className="flex space-x-2">

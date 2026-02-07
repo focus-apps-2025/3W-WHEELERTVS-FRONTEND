@@ -137,6 +137,12 @@ class ApiClient {
     }
   }
 
+  getProxyUrl(url: string) {
+    if (!url) return "";
+    if (url.startsWith("data:")) return url;
+    return `${this.baseUrl}/files/proxy?url=${encodeURIComponent(url)}`;
+  }
+
   // Authentication
   async login(credentials: {
     email: string;

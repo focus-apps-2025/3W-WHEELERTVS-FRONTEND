@@ -24,6 +24,7 @@ import FormsList from "./components/FormsList";
 import FormCreator from "./components/FormCreator";
 import PreviewFormWrapper from "./components/PreviewFormWrapper";
 import FormResponses from "./components/FormResponses";
+import FormUploadsView from "./components/analytics/FormUploadsView";
 import AllResponses from "./components/AllResponses";
 import DashboardNew from "./components/DashboardNew";
 import CustomerViewCarousel from "./components/CustomerViewCarousel";
@@ -215,6 +216,10 @@ const router = createBrowserRouter(
         {
           path: "/forms/:id/responses",
           element: withAuthenticatedLayout(<FormResponses />),
+        },
+        {
+          path: "/forms/:id/uploads",
+          element: withAuthenticatedLayout(<FormUploadsView />),
         },
         {
           path: "/responses/all",
