@@ -1700,7 +1700,7 @@ const handleBulkDownloadZip = async () => {
                 {form.title}
               </h2>
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                Comprehensive analysis and insights
+                Comprehensive analysis and insightsd
               </p>
             </div>
             <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 hidden sm:block"></div>

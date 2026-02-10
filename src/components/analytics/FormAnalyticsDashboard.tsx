@@ -1911,7 +1911,7 @@ export default function FormAnalyticsDashboard() {
                     {totalPieChartData.yes}%
                   </div>
                   <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    {dynamicComplianceLabels.yes}
+                    {complianceLabels.yes}
                   </div>
                   <div className="text-xs text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.yes})
@@ -1924,7 +1924,7 @@ export default function FormAnalyticsDashboard() {
                     {totalPieChartData.no}%
                   </div>
                   <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    {dynamicComplianceLabels.no}
+                    {complianceLabels.no}
                   </div>
                   <div className="text-xs text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.no})
@@ -1937,7 +1937,7 @@ export default function FormAnalyticsDashboard() {
                     {totalPieChartData.na}%
                   </div>
                   <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                    {dynamicComplianceLabels.na}
+                    {complianceLabels.na}
                   </div>
                   <div className="text-xs text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.na})
