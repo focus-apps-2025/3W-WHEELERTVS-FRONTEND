@@ -374,56 +374,155 @@ export default function AnswerTemplateImport({
     fileInputRef.current?.click();
   };
 
-  const getImageAnswers = () => {
-    if (!selectedForm || !parsedAnswers) {
-      return [];
-    }
+ const getImageAnswers = () => {
+  if (!selectedForm || !parsedAnswers) {
+    return [];
+  }
 
-    const imageAnswers: Array<{
-      questionId: string;
-      questionText: string;
-      url: string;
-      isConverted: boolean;
-    }> = [];
+  const imageAnswers: Array<{
+    questionId: string;
+    questionText: string;
+    url: string;
+    isConverted: boolean;
+  }> = [];
 
-    interface QuestionWithFollowUps {
-      id: string;
-      text?: string;
-      type?: string;
-      followUpQuestions?: QuestionWithFollowUps[];
-    }
+  console.log("🔍 ALL PARSED ANSWERS KEYS:", Object.keys(parsedAnswers));
+  console.log("🔍 TOTAL KEYS:", Object.keys(parsedAnswers).length);
 
-    const flattenQuestions = (
-      questions: QuestionWithFollowUps[]
-    ): QuestionWithFollowUps[] => {
-      const flattened: QuestionWithFollowUps[] = [];
-      questions.forEach((q) => {
-        flattened.push(q);
-        if (q.followUpQuestions && q.followUpQuestions.length > 0) {
-          flattened.push(...flattenQuestions(q.followUpQuestions));
-        }
-      });
-      return flattened;
-    };
-
-    selectedForm.sections.forEach((section) => {
-      const allQuestions = flattenQuestions(section.questions);
-      allQuestions.forEach((question) => {
-        const answer = parsedAnswers[question.id];
-        if (answer && isImageUrl(String(answer))) {
-          const urlStr = String(answer);
-          imageAnswers.push({
-            questionId: question.id,
-            questionText: question.text || "Image Question",
-            url: urlStr,
-            isConverted: isImageConversionDone || isCloudinaryUrl(urlStr),
+  // ===========================================
+  // PART 1: Get ALL string values that are image URLs
+  // ===========================================
+  Object.entries(parsedAnswers).forEach(([key, value]) => {
+    // Check if value is a string and is an image URL
+    if (value && typeof value === 'string' && isImageUrl(value)) {
+      console.log(`✅ Found image URL in key: ${key}`);
+      
+      // Determine the question text based on the key pattern
+      let questionText = "Image";
+      
+      // Case 1: It's a direct photo key (contains _photo_)
+      if (key.includes('_photo_')) {
+        const parentId = key.replace('_photo_yes', '').replace('_photo_no', '');
+        const isYes = key.includes('_yes');
+        
+        // Find parent question
+        selectedForm.sections.forEach(section => {
+          section.questions.forEach(q => {
+            if (q.id === parentId) {
+              questionText = `${q.text || "Question"} - ${isYes ? 'Yes' : 'No'} Photograph`;
+            }
           });
-        }
-      });
-    });
+        });
+      }
+      // Case 2: It's a regular question ID
+      else if (key.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        // Find the question text
+        selectedForm.sections.forEach(section => {
+          section.questions.forEach(q => {
+            if (q.id === key) {
+              questionText = q.text || "Image Question";
+            }
+          });
+        });
+      }
+      // Case 3: It's a synthetic key
+      else if (key.startsWith('synthetic_')) {
+        questionText = "Follow-up Photograph";
+      }
 
-    return imageAnswers;
-  };
+      imageAnswers.push({
+        questionId: key,
+        questionText: questionText,
+        url: value,
+        isConverted: isCloudinaryUrl(value),
+      });
+    }
+  });
+
+  // ===========================================
+  // PART 2: Check nested objects for image URLs
+  // ===========================================
+  Object.entries(parsedAnswers).forEach(([key, value]) => {
+    if (value && typeof value === 'object' && value !== null) {
+      console.log(`🔍 Checking object: ${key}`, value);
+      
+      const parentId = key.replace('synthetic_', '');
+      
+      // Get parent question text
+      let parentText = "Question";
+      selectedForm.sections.forEach(section => {
+        section.questions.forEach(q => {
+          if (q.id === parentId) {
+            parentText = q.text || "Question";
+          }
+        });
+      });
+
+      // Check for Photograph for Yes
+      if ((value as any)['Photograph for Yes']?.answer) {
+        const photoUrl = (value as any)['Photograph for Yes'].answer;
+        if (isImageUrl(String(photoUrl))) {
+          console.log(`✅ Found Photograph for Yes in ${key}`);
+          
+          // Check if we already added this URL
+          const exists = imageAnswers.some(img => img.url === photoUrl);
+          if (!exists) {
+            imageAnswers.push({
+              questionId: `${parentId}_photo_yes`,
+              questionText: `${parentText} - Yes Photograph`,
+              url: String(photoUrl),
+              isConverted: isCloudinaryUrl(String(photoUrl)),
+            });
+          }
+        }
+      }
+
+      // Check for Photograph for No
+      if ((value as any)['Photograph for No']?.answer) {
+        const photoUrl = (value as any)['Photograph for No'].answer;
+        if (isImageUrl(String(photoUrl))) {
+          console.log(`✅ Found Photograph for No in ${key}`);
+          
+          // Check if we already added this URL
+          const exists = imageAnswers.some(img => img.url === photoUrl);
+          if (!exists) {
+            imageAnswers.push({
+              questionId: `${parentId}_photo_no`,
+              questionText: `${parentText} - No Photograph`,
+              url: String(photoUrl),
+              isConverted: isCloudinaryUrl(String(photoUrl)),
+            });
+          }
+        }
+      }
+    }
+  });
+
+  // ===========================================
+  // PART 3: Remove duplicates by URL
+  // ===========================================
+  const uniqueImages = new Map();
+  imageAnswers.forEach(img => {
+    if (!uniqueImages.has(img.url)) {
+      uniqueImages.set(img.url, img);
+    } else {
+      console.log(`⚠️ Duplicate image found: ${img.url.substring(0, 50)}...`);
+    }
+  });
+
+  const result = Array.from(uniqueImages.values());
+  
+  console.log("📊 IMAGE SUMMARY:");
+  console.log(`   Total images found: ${imageAnswers.length}`);
+  console.log(`   Duplicates removed: ${imageAnswers.length - result.length}`);
+  console.log(`   Final unique images: ${result.length}`);
+  
+  result.forEach((img, i) => {
+    console.log(`   ${i + 1}. ${img.questionText}: ${img.url.substring(0, 50)}...`);
+  });
+
+  return result;
+};
 
   const handleFinalSubmit = async () => {
     if (!selectedForm || !finalAnswers) {
@@ -483,22 +582,57 @@ export default function AnswerTemplateImport({
     return getImageAnswers();
   };
 
-  const getUnconvertedImageCount = () => {
-    if (!parsedAnswers) return 0;
-
-    // Count Google Drive URLs only if conversion is NOT done
-    if (!isImageConversionDone) {
-      return Object.values(parsedAnswers).filter(
-        (val) => typeof val === "string" && isGoogleDriveUrl(String(val))
-      ).length;
+ const getConvertedImageCount = () => {
+  if (!parsedAnswers) return 0;
+  
+  let count = 0;
+  
+  // Check all string values for Cloudinary URLs
+  Object.values(parsedAnswers).forEach(val => {
+    if (typeof val === 'string' && isCloudinaryUrl(val)) {
+      count++;
     }
-    return 0; // All converted
-  };
+  });
+  
+  // Check nested synthetic answers
+  Object.values(parsedAnswers).forEach(val => {
+    if (typeof val === 'object' && val !== null) {
+      const photoYes = (val as any)['Photograph for Yes']?.answer;
+      if (photoYes && isCloudinaryUrl(String(photoYes))) count++;
+      
+      const photoNo = (val as any)['Photograph for No']?.answer;
+      if (photoNo && isCloudinaryUrl(String(photoNo))) count++;
+    }
+  });
+  
+  return count;
+};
 
-  const getConvertedImageCount = () => {
-    if (!imageConversionStats) return 0;
-    return imageConversionStats.converted;
-  };
+const getUnconvertedImageCount = () => {
+  if (!parsedAnswers) return 0;
+  
+  let count = 0;
+  
+  // Check all string values for Google Drive URLs that aren't Cloudinary
+  Object.values(parsedAnswers).forEach(val => {
+    if (typeof val === 'string' && isGoogleDriveUrl(val) && !isCloudinaryUrl(val)) {
+      count++;
+    }
+  });
+  
+  // Check nested synthetic answers
+  Object.values(parsedAnswers).forEach(val => {
+    if (typeof val === 'object' && val !== null) {
+      const photoYes = (val as any)['Photograph for Yes']?.answer;
+      if (photoYes && isGoogleDriveUrl(String(photoYes)) && !isCloudinaryUrl(String(photoYes))) count++;
+      
+      const photoNo = (val as any)['Photograph for No']?.answer;
+      if (photoNo && isGoogleDriveUrl(String(photoNo)) && !isCloudinaryUrl(String(photoNo))) count++;
+    }
+  });
+  
+  return count;
+};
 
   if (!isOpen) {
     return null;
@@ -766,9 +900,6 @@ export default function AnswerTemplateImport({
                     </h3>
                     <div className="mb-3">
                       <div className="flex gap-2 mb-2">
-                        <span className="px-2 py-1 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 text-xs rounded">
-                          ✓ Cloudinary: {getConvertedImageCount()}
-                        </span>
                         {!isImageConversionDone &&
                           getUnconvertedImageCount() > 0 && (
                             <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded">

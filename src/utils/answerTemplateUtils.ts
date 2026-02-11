@@ -1445,7 +1445,6 @@ export async function parseAnswerWorkbook(
     throw new Error("Workbook has no sheets");
   }
 
-  // Read as array to preserve column structure
   const rawData = utils.sheet_to_json<Array<unknown>>(worksheet, {
     defval: "",
     header: 1,
@@ -1457,10 +1456,6 @@ export async function parseAnswerWorkbook(
     throw new Error("No answer data found in the file");
   }
 
-  const headerRow = rawData[0];
-  console.log("📋 Header row:", headerRow);
-
-  // Skip header row
   const answerRows = rawData.slice(1);
   const answers: ParsedAnswers = {};
 
@@ -1472,77 +1467,112 @@ export async function parseAnswerWorkbook(
   let matchedCount = 0;
   let unmatchedCount = 0;
 
+  // Create a map of question text to ID for main questions
+  const mainQuestionTextToId = new Map<string, string>();
+  form.sections.forEach(section => {
+    section.questions.forEach(q => {
+      // Only main questions (no parent)
+      if (!q.parentId && !q.showWhen?.questionId) {
+        mainQuestionTextToId.set(q.text, q.id);
+      }
+    });
+  });
+
+  // Track which main questions have already had synthetic answers added
+  const syntheticAnswersAdded = new Set<string>();
+
   answerRows.forEach((row, rowIndex) => {
     if (!Array.isArray(row)) {
-      console.log(`⚠️ Skipping row ${rowIndex + 1}: not an array`);
       return;
     }
 
     console.log(`\n🔍 Row ${rowIndex + 2}:`);
 
-    // Process MAIN question (column 2)
+    // Process MAIN question
     const mainQuestionText = row[2]?.toString().trim() || "";
     const mainAnswerValue = row[6]?.toString().trim() || "";
 
     if (mainQuestionText && mainAnswerValue) {
-      // Find matching question by text
-      let matchedQuestion: FollowUpQuestion | undefined;
-      form.sections.forEach((section) => {
-        section.questions.forEach((q) => {
-          if (q.text === mainQuestionText && !q.showWhen?.questionId) {
-            matchedQuestion = q;
-          }
-        });
-      });
-
-      if (matchedQuestion) {
-        answers[matchedQuestion.id] = mainAnswerValue;
+      const matchedId = mainQuestionTextToId.get(mainQuestionText);
+      
+      if (matchedId) {
+        answers[matchedId] = mainAnswerValue;
         parsedCount++;
         matchedCount++;
-        console.log(`   ✅ Main: "${mainQuestionText}" = "${mainAnswerValue}"`);
+        console.log(`   ✅ Main: "${mainQuestionText}" = "${mainAnswerValue}" (ID: ${matchedId})`);
       } else {
         unmatchedCount++;
-        console.log(`   ❓ No match found for: "${mainQuestionText}"`);
+        console.log(`   ❓ No match found for main: "${mainQuestionText}"`);
       }
     }
 
-    // Process FOLLOW-UP questions
+    // Process FOLLOW-UP questions - HANDLE SYNTHETIC FOLLOW-UPS
+    let columnIndex = 7;
     let followUpIndex = 0;
-    let columnIndex = 7; // Start of first follow-up group
 
-    // Each follow-up group has 6 columns
-    while (columnIndex + 5 < row.length && row[columnIndex]) {
-      const followUpText = row[columnIndex + 1]?.toString().trim() || "";
-      const followUpAnswer = row[columnIndex + 5]?.toString().trim() || "";
+    while (columnIndex + 5 < row.length) {
       const fuNumber = row[columnIndex]?.toString().trim() || "";
+      const followUpText = row[columnIndex + 1]?.toString().trim() || "";
+      const triggerValue = row[columnIndex + 4]?.toString().trim() || "";
+      const followUpAnswer = row[columnIndex + 5]?.toString().trim() || "";
 
-      if (followUpText && followUpAnswer) {
-        // Remove indentation from follow-up text
+      if (fuNumber && followUpText && followUpAnswer) {
+        // Remove indentation
         const cleanFollowUpText = followUpText.replace(/^\s+/, '');
         
-        // Find matching follow-up by text
-        let matchedFollowUp: FollowUpQuestion | undefined;
-        form.sections.forEach((section) => {
-          section.questions.forEach((q) => {
-            if (q.text === cleanFollowUpText) {
-              matchedFollowUp = q;
+        console.log(`     🔍 Looking for follow-up ${fuNumber}: "${cleanFollowUpText}"`);
+        
+        // Get the parent question ID
+        const rowMainQuestionText = row[2]?.toString().trim() || "";
+        const parentQuestionId = mainQuestionTextToId.get(rowMainQuestionText);
+        
+        if (parentQuestionId) {
+          // Check if this is a synthetic follow-up
+          const isSynthetic = 
+            cleanFollowUpText.includes("Photograph for") ||
+            cleanFollowUpText.includes("Remarks") ||
+            cleanFollowUpText.includes("Action Inititated") ||
+            cleanFollowUpText.includes("Reason fo Not OK") ||
+            cleanFollowUpText.includes("Responsible person");
+          
+          if (isSynthetic) {
+            console.log(`     ⚠️  Found synthetic follow-up: "${cleanFollowUpText}"`);
+            
+            // Create a unique key for this synthetic answer
+            const syntheticKey = `${parentQuestionId}|${cleanFollowUpText}|${triggerValue}`;
+            
+            // Only add each synthetic answer once per parent
+            if (!syntheticAnswersAdded.has(syntheticKey)) {
+              syntheticAnswersAdded.add(syntheticKey);
+              
+              // Create a special answer format that your preview can understand
+              // You can store these in a special field or handle them differently
+              if (!answers[`synthetic_${parentQuestionId}`]) {
+                answers[`synthetic_${parentQuestionId}`] = {};
+              }
+              
+              // Store the synthetic answer with its context
+              (answers[`synthetic_${parentQuestionId}`] as any)[cleanFollowUpText] = {
+                answer: followUpAnswer,
+                trigger: triggerValue
+              };
+              
+              console.log(`     ✅ Stored synthetic answer for ${parentQuestionId}: ${cleanFollowUpText}`);
+              parsedCount++;
+            } else {
+              console.log(`     ⏭️  Duplicate synthetic answer, skipping`);
             }
-          });
-        });
-
-        if (matchedFollowUp) {
-          answers[matchedFollowUp.id] = followUpAnswer;
-          parsedCount++;
-          matchedCount++;
-          console.log(`     ✅ Follow-up ${fuNumber}: "${cleanFollowUpText.substring(0, 30)}..." = "${followUpAnswer}"`);
+          }
         } else {
           unmatchedCount++;
-          console.log(`     ❓ No match found for: "${cleanFollowUpText}"`);
+          console.log(`     ❌ No parent found for follow-up: "${cleanFollowUpText}"`);
         }
       }
 
       followUpIndex++;
-      columnIndex += 6; // Move to next follow-up group
+      columnIndex += 6;
+      
+      if (followUpIndex > 200) break;
     }
   });
 
@@ -1550,9 +1580,8 @@ export async function parseAnswerWorkbook(
   console.log(`   ✅ Successfully parsed: ${parsedCount} answers`);
   console.log(`   ✓ Text matches: ${matchedCount}`);
   console.log(`   ✗ Unmatched questions: ${unmatchedCount}`);
-  console.log(
-    `   📋 Total answers ready for submission: ${Object.keys(answers).length}`
-  );
+  console.log(`   📋 Total answers ready for submission: ${Object.keys(answers).length}`);
+  console.log(`   🧪 Synthetic answers stored: ${syntheticAnswersAdded.size}`);
 
   onProgress?.(
     answerRows.length,
@@ -1569,6 +1598,13 @@ export function formatAnswersForSubmission(
 ) {
   const answers: Record<string, unknown> = {};
 
+  // ===== CRITICAL: Keep EVERY single key from parsedAnswers =====
+  // This ensures NO DATA IS LOST
+  Object.entries(parsedAnswers).forEach(([key, value]) => {
+    answers[key] = value;
+  });
+
+  // Handle regular form questions (convert types as needed)
   const flattenQuestions = (
     questions: FollowUpQuestion[]
   ): FollowUpQuestion[] => {
@@ -1606,6 +1642,16 @@ export function formatAnswersForSubmission(
         }
       }
     });
+  });
+
+  console.log("📤 FINAL formatted answers:", {
+    totalKeys: Object.keys(answers).length,
+    syntheticKeys: Object.keys(answers).filter(k => k.startsWith('synthetic_')).length,
+    photoKeys: Object.keys(answers).filter(k => k.includes('_photo_')).length,
+    regularKeys: Object.keys(answers).filter(k => 
+      !k.startsWith('synthetic_') && !k.includes('_photo_') && 
+      k.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+    ).length
   });
 
   return { answers };
