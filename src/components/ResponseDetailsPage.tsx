@@ -1700,7 +1700,7 @@ const handleBulkDownloadZip = async () => {
                 {form.title}
               </h2>
               <p className="text-xs text-gray-600 dark:text-gray-400">
-                Comprehensive analysis and insightsd
+                Comprehensive analysis and insights
               </p>
             </div>
             <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 hidden sm:block"></div>
@@ -2107,9 +2107,7 @@ const handleBulkDownloadZip = async () => {
                                   </div>
                                   <div className="mt-1">
                                     {answer !== undefined && answer !== null && answer !== '' 
-                                      ? (Array.isArray(answer) 
-                                          ? <div className="space-y-1 text-sm font-medium text-gray-900 dark:text-gray-100">{answer.join(', ')}</div>
-                                          : <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{String(answer)}</div>)
+                                      ? renderHighlightedAnswer(answer, question)
                                       : <span className="text-gray-400 italic text-xs">No answer</span>
                                     }
                                   </div>

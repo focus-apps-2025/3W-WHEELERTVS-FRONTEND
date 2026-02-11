@@ -77,6 +77,75 @@ function extractYesNoValues(value: any): string[] {
   return [];
 }
 
+const isImageUrl = (urlString: string): boolean => {
+  if (!urlString || typeof urlString !== "string") return false;
+  const url = urlString.toLowerCase().trim();
+  const imageExtensions = [
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".bmp",
+    ".webp",
+    ".svg",
+  ];
+  return (
+    imageExtensions.some((ext) => url.endsWith(ext)) ||
+    url.includes("focus_forms/response_images/") ||
+    url.includes("cloudinary.com") ||
+    url.includes("googleusercontent.com") ||
+    url.includes("blob:") ||
+    url.startsWith("data:image/")
+  );
+};
+
+const renderAnswerHTML = (value: any, color: string = "#1f2937"): string => {
+  if (value === null || value === undefined || value === "") {
+    return '<span style="color: #9ca3af; font-style: italic;">No response</span>';
+  }
+
+  const renderSingleValue = (val: any): string => {
+    const strVal = String(val).trim();
+    if (isImageUrl(strVal)) {
+      return `
+        <div style="margin: 5px 0;">
+          <img src="${strVal}" 
+               style="width: 100px; height: 100px; object-fit: cover; border: 1px solid #e2e8f0; border-radius: 4px;" 
+               onerror="this.onerror=null; this.src='https://via.placeholder.com/100?text=Image+Error';">
+        </div>`;
+    }
+    return `<span style="color: ${color}; font-weight: 600;">${strVal}</span>`;
+  };
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return '<span style="color: #9ca3af; font-style: italic;">No response</span>';
+    }
+    return `
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;">
+        ${value.map((v) => renderSingleValue(v)).join("")}
+      </div>`;
+  }
+
+  if (typeof value === "object") {
+    if (!Object.keys(value).length) {
+      return '<span style="color: #9ca3af; font-style: italic;">No response</span>';
+    }
+    // Check if it's an image object (some structures might have {url: "..."})
+    const potentialUrl = value.url || value.imageUrl || value.image;
+    if (potentialUrl && isImageUrl(String(potentialUrl))) {
+      return renderSingleValue(potentialUrl);
+    }
+    return `<pre style="font-size: 10px; white-space: pre-wrap; color: #4b5563; margin: 0; text-align: left;">${JSON.stringify(
+      value,
+      null,
+      2
+    )}</pre>`;
+  }
+
+  return renderSingleValue(value);
+};
+
 function getSectionYesNoStats(form: any, answers: Record<string, any>): any[] {
   if (!form || !form.sections) return [];
 
@@ -1433,8 +1502,8 @@ function generateResponsesViewAnalysis(form: any, response: any): string {
                   <td style="padding: 8px; text-align: center; color: #059669; font-weight: 600; width: 50%; border-right: 1px solid #e2e8f0;">
                     ${correctAnswerDisplay}
                   </td>
-                  <td style="padding: 8px; text-align: center; color: ${answerColor}; font-weight: 600; width: 50%;">
-                    ${selectedAnswer}
+                  <td style="padding: 8px; text-align: center; width: 50%;">
+                    ${renderAnswerHTML(answer, answerColor)}
                   </td>
                 </tr>
               </table>
@@ -1447,8 +1516,8 @@ function generateResponsesViewAnalysis(form: any, response: any): string {
             <td style="padding: 8px; border: 1px solid #e2e8f0; color: #1f2937; font-weight: 500; width: 40%;">
               ${question.text || question.title || "Question"}
             </td>
-            <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; color: ${answerColor}; font-weight: 600; width: 60%;">
-              ${selectedAnswer}
+            <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; width: 60%;">
+              ${renderAnswerHTML(answer, answerColor)}
             </td>
           </tr>
         `;
@@ -2669,40 +2738,6 @@ function generateFirstSectionContent(form: any, response: any): string {
 
   if (questions.length === 0) return "";
 
-  // Helper functions
-  const renderAnswerDisplay = (value: any): string => {
-    if (value === null || value === undefined) {
-      return '<span style="color: #9ca3af; font-style: italic;">No response</span>';
-    }
-
-    if (typeof value === "string") {
-      const trimmed = value.trim();
-      return trimmed
-        ? trimmed
-        : '<span style="color: #9ca3af; font-style: italic;">No response</span>';
-    }
-
-    if (Array.isArray(value)) {
-      if (value.length === 0) {
-        return '<span style="color: #9ca3af; font-style: italic;">No response</span>';
-      }
-      return value.join(", ");
-    }
-
-    if (typeof value === "object") {
-      if (!Object.keys(value).length) {
-        return '<span style="color: #9ca3af; font-style: italic;">No response</span>';
-      }
-      return `<pre style="font-size: 11px; white-space: pre-wrap; color: #4b5563; margin: 0;">${JSON.stringify(
-        value,
-        null,
-        2
-      )}</pre>`;
-    }
-
-    return String(value);
-  };
-
   const hasAnswerValue = (value: any): boolean => {
     if (value === null || value === undefined) return false;
     if (typeof value === "string") return value.trim() !== "";
@@ -2753,7 +2788,7 @@ function generateFirstSectionContent(form: any, response: any): string {
           <span style="font-weight: 600; color: #111827;">${
             leftQuestion.text || leftQuestion.id
           }</span>
-          <span style="color: #374151; margin-left: 4px;">${renderAnswerDisplay(
+          <span style="color: #374151; margin-left: 4px;">${renderAnswerHTML(
             answer
           )}</span>
         </div>
@@ -2769,7 +2804,7 @@ function generateFirstSectionContent(form: any, response: any): string {
                 <span style="font-weight: 500; color: #475569; font-size: 11px;">${
                   followUp.text || followUp.id
                 }</span>
-                <span style="color: #6b7280; font-size: 11px; margin-left: 4px;">${renderAnswerDisplay(
+                <span style="color: #6b7280; font-size: 11px; margin-left: 4px;">${renderAnswerHTML(
                   followAnswer
                 )}</span>
               </div>
@@ -2789,7 +2824,7 @@ function generateFirstSectionContent(form: any, response: any): string {
           <span style="font-weight: 600; color: #111827;">${
             rightQuestion.text || rightQuestion.id
           }</span>
-          <span style="color: #374151; margin-left: 4px;">${renderAnswerDisplay(
+          <span style="color: #374151; margin-left: 4px;">${renderAnswerHTML(
             answer
           )}</span>
         </div>
@@ -2805,7 +2840,7 @@ function generateFirstSectionContent(form: any, response: any): string {
                 <span style="font-weight: 500; color: #475569; font-size: 11px;">${
                   followUp.text || followUp.id
                 }</span>
-                <span style="color: #6b7280; font-size: 11px; margin-left: 4px;">${renderAnswerDisplay(
+                <span style="color: #6b7280; font-size: 11px; margin-left: 4px;">${renderAnswerHTML(
                   followAnswer
                 )}</span>
               </div>
@@ -3964,6 +3999,51 @@ export async function generatePDFOnServer(
   }
 }
 
+// Helper function to convert image URL to base64
+async function imageUrlToBase64(url: string): Promise<string> {
+  if (!url || !isImageUrl(url) || url.startsWith("data:")) return url;
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.warn(`Failed to convert image to base64: ${url}`, error);
+    return url;
+  }
+}
+
+// Recursively process an object to convert all image URLs to base64
+async function processObjectImages(obj: any): Promise<any> {
+  if (!obj) return obj;
+
+  if (typeof obj === "string") {
+    if (isImageUrl(obj)) {
+      return await imageUrlToBase64(obj);
+    }
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    return await Promise.all(obj.map((item) => processObjectImages(item)));
+  }
+
+  if (typeof obj === "object") {
+    const newObj: any = {};
+    for (const key in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, key)) {
+        newObj[key] = await processObjectImages(obj[key]);
+      }
+    }
+    return newObj;
+  }
+
+  return obj;
+}
+
 // Helper function to generate complete HTML for server
 async function generateCompleteHTMLForServer(
   options: PDFOptions,
@@ -3980,8 +4060,16 @@ async function generateCompleteHTMLForServer(
     sectionMainParameters = {},
     availableSections = [],
     form,
-    response,
+    response: originalResponse,
   } = options;
+
+  // Pre-process response to convert all image URLs to base64 for server-side PDF generation
+  console.log("📸 Pre-processing images in response...");
+  const response = {
+    ...originalResponse,
+    answers: await processObjectImages(originalResponse.answers || {}),
+  };
+  console.log("✅ Image pre-processing complete");
 
   // 1. Capture chart images
   const sectionChartImages: Record<string, string> = {};
