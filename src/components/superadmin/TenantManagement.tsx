@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Upload,
   Image as ImageIcon,
+  AlertTriangle,
 } from "lucide-react";
 import { useNotification } from "../../context/NotificationContext";
 import { apiClient } from "../../api/client";
@@ -59,6 +60,9 @@ export default function TenantManagement() {
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [tenantToDelete, setTenantToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [uploadingTenantId, setUploadingTenantId] = useState<string | null>(
     null
   );
@@ -89,6 +93,13 @@ export default function TenantManagement() {
   });
   const [deletingAdmin, setDeletingAdmin] = useState<string | null>(null);
   const [updatingAdmin, setUpdatingAdmin] = useState<string | null>(null);
+
+  // Statistics calculation
+  const stats = {
+    total: tenants.length,
+    active: tenants.filter((t) => t.isActive).length,
+    inactive: tenants.filter((t) => !t.isActive).length,
+  };
 
   const handleAddAdminClick = (tenantId: string) => {
     setShowAddAdminForm(tenantId);
@@ -385,6 +396,28 @@ export default function TenantManagement() {
     }
   };
 
+  const handleDeleteTenant = (tenantId: string, tenantName: string) => {
+    setTenantToDelete({ id: tenantId, name: tenantName });
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteTenant = async () => {
+    if (!tenantToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await apiClient.deleteTenant(tenantToDelete.id);
+      showSuccess("Tenant and all associated data deleted successfully");
+      setShowDeleteModal(false);
+      setTenantToDelete(null);
+      fetchTenants(); // Refresh the list
+    } catch (error: any) {
+      showError(error.response?.message || "Failed to delete tenant");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -470,6 +503,37 @@ export default function TenantManagement() {
         </div>
       </div>
 
+      {/* Stats Section */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-neutral-200 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
+            <Building2 className="w-6 h-6 text-primary-600" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-neutral-500">Total Tenants</p>
+            <p className="text-2xl font-bold text-primary-900">{stats.total}</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-neutral-200 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+            <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-neutral-500">Active Tenants</p>
+            <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-neutral-200 dark:border-gray-700 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+            <div className="w-3 h-3 bg-red-500 rounded-full" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-neutral-500">Inactive Tenants</p>
+            <p className="text-2xl font-bold text-red-600">{stats.inactive}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Tenants List */}
       {loading ? (
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-neutral-200 dark:border-gray-700 p-12 text-center shadow-sm">
@@ -544,15 +608,24 @@ export default function TenantManagement() {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <span
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
-                        tenant.isActive
-                          ? "bg-green-100 text-green-700 border border-green-200"
-                          : "bg-red-100 text-red-700 border border-red-200"
-                      }`}
-                    >
-                      {tenant.isActive ? "Active" : "Inactive"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                          tenant.isActive
+                            ? "bg-green-100 text-green-700 border border-green-200"
+                            : "bg-red-100 text-red-700 border border-red-200"
+                        }`}
+                      >
+                        {tenant.isActive ? "Active" : "Inactive"}
+                      </span>
+                      <button
+                        onClick={() => handleDeleteTenant(tenant._id, tenant.name)}
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                        title="Delete tenant completely"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                     <span className="text-xs text-neutral-500">
                       {new Date(tenant.createdAt).toLocaleDateString()}
                     </span>
@@ -1114,6 +1187,82 @@ export default function TenantManagement() {
           }}
           onUpdate={fetchTenants}
         />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && tenantToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform animate-in zoom-in-95 duration-200 border border-red-100 dark:border-red-900/30">
+            <div className="p-6">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-14 h-14 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                    Confirm Deletion
+                  </h3>
+                  <p className="text-red-600 dark:text-red-400 text-sm font-medium">
+                    This action is permanent
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4 mb-8">
+                <p className="text-gray-600 dark:text-gray-400 text-base leading-relaxed">
+                  Are you sure you want to completely delete{" "}
+                  <span className="font-bold text-gray-900 dark:text-white px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
+                    {tenantToDelete.name}
+                  </span>
+                  ?
+                </p>
+                
+                <div className="bg-red-50 dark:bg-red-900/10 rounded-xl p-4 border border-red-100 dark:border-red-900/20">
+                  <h4 className="text-sm font-bold text-red-800 dark:text-red-300 mb-2 flex items-center gap-2">
+                    <Trash2 className="w-4 h-4" />
+                    Items to be removed:
+                  </h4>
+                  <ul className="text-xs text-red-700 dark:text-red-400 space-y-1 ml-6 list-disc">
+                    <li>All tenant users and their profile data</li>
+                    <li>All forms and follow-up structures</li>
+                    <li>All responses and analytics data</li>
+                    <li>All associated parameters and invites</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button
+                  onClick={() => {
+                    setShowDeleteModal(false);
+                    setTenantToDelete(null);
+                  }}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition-all disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDeleteTenant}
+                  disabled={isDeleting}
+                  className="flex-1 px-4 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-200 dark:shadow-none transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete Tenant
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

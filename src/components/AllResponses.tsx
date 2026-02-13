@@ -27,6 +27,7 @@ import {
   MapPin,
   List,
   RefreshCw,
+  Upload,
 } from "lucide-react";
 import { Bar, Line, Pie, Radar } from "react-chartjs-2";
 import {
@@ -54,6 +55,7 @@ import JSZip from "jszip";
 import FilePreview from "./FilePreview";
 import ResponseEdit from "./ResponseEdit";
 import DashboardSummaryCard from "./DashboardSummaryCard";
+import AnswerTemplateImport from "./AnswerTemplateImport";
 import { isImageUrl } from "../utils/answerTemplateUtils";
 import ImageLink from "./ImageLink";
 //import LocationHeatmap from "./analytics/LocationHeatmap";
@@ -200,7 +202,7 @@ export default function AllResponses() {
   const [editingFormLoading, setEditingFormLoading] = useState(false);
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [exportingZip, setExportingZip] = useState(false);
- // Add this line
+  const [isAnswerTemplateOpen, setIsAnswerTemplateOpen] = useState(false);
   const [selectedPDFType, setSelectedPDFType] = useState<'no-only' | 'yes-only' | 'both' | 'na-only' | 'section' | 'default' | 'responses-view' | null>(null);
 
   const [editingWeightage, setEditingWeightage] = useState<string | null>(null);
@@ -3114,6 +3116,14 @@ const handleCancelWeightageEdit = () => {
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
 
+          <button
+            onClick={() => setIsAnswerTemplateOpen(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg font-semibold transition-all shadow-md hover:shadow-lg text-sm"
+          >
+            <Upload className="w-4 h-4" />
+            Import Answers
+          </button>
+
           <div className="relative">
           <button
             onClick={() => setShowFormFilter(!showFormFilter)}
@@ -4707,6 +4717,12 @@ const handleCancelWeightageEdit = () => {
             onCancel={handleCloseEdit}
           />
         )}
+
+      <AnswerTemplateImport
+        isOpen={isAnswerTemplateOpen}
+        onClose={() => setIsAnswerTemplateOpen(false)}
+        onSuccess={() => fetchData()}
+      />
        
     </div>
   );

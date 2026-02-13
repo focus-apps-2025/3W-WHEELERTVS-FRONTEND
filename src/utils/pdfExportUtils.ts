@@ -1522,6 +1522,26 @@ function generateResponsesViewAnalysis(form: any, response: any): string {
           </tr>
         `;
       }
+
+      // ADDITION: Include synthetic follow-ups in Responses View
+      const syntheticKey = `synthetic_${question.id}`;
+      const syntheticData = response.answers?.[syntheticKey];
+      if (syntheticData && typeof syntheticData === 'object') {
+        Object.entries(syntheticData).forEach(([fuText, fuData]: [string, any]) => {
+          if (fuData.answer) {
+            html += `
+              <tr style="background-color: ${rowBgColor}; font-style: italic;">
+                <td style="padding: 6px 8px 6px 20px; border: 1px solid #e2e8f0; color: #4b5563; font-size: 10px;">
+                  <span style="color: #ef4444; font-weight: 600; margin-right: 5px;">FU.S</span> ${fuText}
+                </td>
+                <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center; color: #1e40af; font-size: 10px;">
+                  ${renderAnswerHTML(fuData.answer, "#1e40af")}
+                </td>
+              </tr>
+            `;
+          }
+        });
+      }
     });
 
     html += `
@@ -1873,6 +1893,29 @@ function generateResponseAnalysis(
         console.log(
           `   ⓘ No follow-up questions found for: "${question.text}"`
         );
+      }
+
+      // ADDITION: Check for synthetic follow-ups from Excel imports
+      const syntheticKey = `synthetic_${question.id}`;
+      const syntheticData = response.answers?.[syntheticKey];
+      
+      if (syntheticData && typeof syntheticData === 'object') {
+        console.log(`   🧪 Found synthetic data for ${question.id}, processing...`);
+        
+        Object.entries(syntheticData).forEach(([fuText, fuData]: [string, any]) => {
+          // Only add if it's not already there by ID
+          const alreadyExists = followUps.some(f => f.text === fuText);
+          
+          if (!alreadyExists && fuData.answer) {
+            console.log(`     ✅ Adding synthetic follow-up: "${fuText}"`);
+            followUps.push({
+              id: `${question.id}_synth_${fuText}`,
+              text: fuText,
+              answer: fuData.answer,
+              number: "FU.S" // Synthetic indicator
+            });
+          }
+        });
       }
 
       const suggestion =

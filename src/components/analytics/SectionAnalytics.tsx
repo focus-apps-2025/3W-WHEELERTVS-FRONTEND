@@ -310,6 +310,26 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
   }, [onClose]);
 
   const renderAnswerDisplay = (answer: any): React.ReactNode => {
+    const resolveFileData = (input: any) => {
+      if (!input) return null;
+      const candidate = Array.isArray(input) && input.length === 1 ? input[0] : input;
+      if (typeof candidate === "string") {
+        if (candidate.startsWith("data:")) return { data: candidate };
+        if (candidate.startsWith("http") || candidate.startsWith("//") || candidate.startsWith("/") || candidate.startsWith("uploads/")) {
+          return { url: candidate };
+        }
+        return null;
+      }
+      if (typeof candidate === "object") {
+        const dataValue = candidate.data || candidate.value || candidate.file || candidate.base64 || candidate.url || candidate.answer || candidate.path;
+        if (typeof dataValue === "string") {
+          if (dataValue.startsWith("data:")) return { data: dataValue };
+          return { url: dataValue };
+        }
+      }
+      return null;
+    };
+
     if (answer === null || answer === undefined || answer === "") {
       return <span className="text-gray-400 italic">No response</span>;
     }
@@ -322,7 +342,17 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
           </span>
         );
       }
-      if (answer.startsWith("http://") || answer.startsWith("https://")) {
+
+      if (isImageUrl(answer)) {
+        return <ImageLink text={answer} />;
+      }
+
+      if (
+        answer.startsWith("http") ||
+        answer.startsWith("//") ||
+        answer.startsWith("/") ||
+        answer.startsWith("uploads/")
+      ) {
         if (isImageUrl(answer)) {
           return <ImageLink text={answer} />;
         }
@@ -345,7 +375,7 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
         return <span className="text-gray-400 italic">No response</span>;
       }
       return (
-        <ul className="list-disc pl-4 space-y-1">
+        <ul className="list-none p-0 space-y-2">
           {answer.map((item, index) => (
             <li key={index} className="text-gray-900">
               {renderAnswerDisplay(item)}
@@ -356,13 +386,30 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
     }
 
     if (typeof answer === "object") {
+      const fileData = resolveFileData(answer);
+      if (fileData?.url || fileData?.data) {
+        const finalUrl = fileData.url || fileData.data;
+        if (finalUrl && isImageUrl(finalUrl)) {
+          return <ImageLink text={finalUrl} />;
+        }
+      }
+
       if (Object.keys(answer).length === 0) {
         return <span className="text-gray-400 italic">No response</span>;
       }
+      
+      const entries = Object.entries(answer);
       return (
-        <pre className="text-sm bg-gray-50 p-3 rounded-lg overflow-auto max-h-32">
-          {JSON.stringify(answer, null, 2)}
-        </pre>
+        <div className="flex flex-col gap-2">
+          {entries.map(([k, v], i) => (
+            <div key={i} className="flex flex-col gap-0.5 border-l-2 border-gray-100 dark:border-gray-800 pl-2">
+              <span className="text-[10px] font-bold opacity-70 uppercase tracking-tighter text-blue-800 dark:text-blue-300">
+                {k}
+              </span>
+              {renderAnswerDisplay(v)}
+            </div>
+          ))}
+        </div>
       );
     }
 

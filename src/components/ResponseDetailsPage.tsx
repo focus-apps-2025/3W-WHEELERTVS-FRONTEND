@@ -247,6 +247,16 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
     }
   }, [autoOpenSectionId]);
 
+  useEffect(() => {
+    if (form?.sections) {
+      const initialShowImages: Record<string, boolean> = {};
+      form.sections.forEach((section: any) => {
+        initialShowImages[section.id] = true;
+      });
+      setShowMainParamsImages(initialShowImages);
+    }
+  }, [form]);
+
   const complianceLabels = useMemo(() => {
     const defaultLabels = { yes: "Yes", no: "No", na: "N/A" };
     let labels = { ...defaultLabels };
@@ -712,7 +722,19 @@ const handleBulkDownloadZip = async () => {
 
   const renderHighlightedAnswer = (value: any, question?: any, compact: boolean = false) => {
     const isArray = Array.isArray(value);
-    const strValue = isArray ? value.join(", ") : String(value || "");
+    
+    // Helper to get string representation for comparison
+    const getStringValue = (val: any): string => {
+      if (Array.isArray(val)) return val.map(v => getStringValue(v)).join(", ");
+      if (typeof val === 'object' && val !== null) {
+        if (val.url) return val.url;
+        if (val.answer !== undefined) return String(val.answer);
+        return JSON.stringify(val);
+      }
+      return String(val || "");
+    };
+
+    const strValue = getStringValue(value);
     const normalized = strValue.trim().toLowerCase();
     
     let bgColor = "bg-white dark:bg-gray-700";
@@ -741,7 +763,7 @@ const handleBulkDownloadZip = async () => {
       if (question.correctAnswers && question.correctAnswers.length > 0) {
         if (isArray) {
           isCorrect = value.length === question.correctAnswers.length && 
-                      value.every((a: any) => question.correctAnswers!.some((ca: any) => String(ca).toLowerCase() === String(a).toLowerCase()));
+                      value.every((a: any) => question.correctAnswers!.some((ca: any) => String(ca).toLowerCase() === getStringValue(a).toLowerCase()));
         } else {
           isCorrect = question.correctAnswers.some((ca: any) => String(ca).toLowerCase() === normalized);
         }
@@ -797,11 +819,54 @@ const handleBulkDownloadZip = async () => {
           <div className={`flex items-center gap-2 ${compact ? 'justify-center' : ''}`}>
             {Icon && <Icon className="w-4 h-4 flex-shrink-0" />}
             <div className="flex-1">
-              {isImageUrl(strValue) ? (
-                <ImageLink text={strValue} />
-              ) : (
-                strValue
-              )}
+              {(() => {
+                const renderInnerValue = (val: any): React.ReactNode => {
+                  if (val === null || val === undefined || val === "") return null;
+
+                  if (Array.isArray(val)) {
+                    return (
+                      <div className="flex flex-col gap-1">
+                        {val.map((item, i) => (
+                          <div key={i}>{renderInnerValue(item)}</div>
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  if (typeof val === "object") {
+                    if (val.url && isImageUrl(String(val.url))) {
+                      return <ImageLink text={String(val.url)} />;
+                    }
+                    if (val.answer && isImageUrl(String(val.answer))) {
+                      return <ImageLink text={String(val.answer)} />;
+                    }
+                    
+                    const entries = Object.entries(val);
+                    if (entries.length > 0) {
+                      return (
+                        <div className="flex flex-col gap-1">
+                          {entries.map(([k, v], i) => (
+                            <div key={i} className="flex flex-col gap-0.5">
+                              <span className="text-[10px] font-bold opacity-70 uppercase tracking-tighter text-indigo-800 dark:text-indigo-300">
+                                {k}
+                              </span>
+                              {renderInnerValue(v)}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return JSON.stringify(val);
+                  }
+
+                  const textVal = String(val);
+                  if (isImageUrl(textVal)) {
+                    return <ImageLink text={textVal} />;
+                  }
+                  return textVal;
+                };
+                return renderInnerValue(value);
+              })()}
             </div>
           </div>
         </div>
@@ -1145,34 +1210,35 @@ const handleBulkDownloadZip = async () => {
     });
 
     mainQuestions.forEach((question: any) => {
-      if (questionIds.includes(question.id)) {
-        const answers = response.answers?.[question.id];
-        const yesNoValues = extractYesNoValues(answers);
+      // INCLUDE ALL MAIN QUESTIONS, not just those from collectYesNoQuestionIds
+      // This ensures text-based main parameters (like in "Basic Information") are shown
+      const answers = response.answers?.[question.id];
+      const yesNoValues = extractYesNoValues(answers);
 
-        const followUpQuestionsForThis = [
-          ...(form.followUpQuestions?.filter(
-            (fq: any) => fq.parentId === question.id
-          ) || []),
-          ...(question.followUpQuestions || []),
-          ...(followUpMap.get(question.id) || []),
-        ];
+      const followUpQuestionsForThis = [
+        ...(form.followUpQuestions?.filter(
+          (fq: any) => fq.parentId === question.id
+        ) || []),
+        ...(question.followUpQuestions || []),
+        ...(followUpMap.get(question.id) || []),
+      ];
 
-        if (yesNoValues.length > 0 || followUpQuestionsForThis.length > 0) {
-          const mainQuestion = {
-            id: question.id,
-            title: question.title || question.label || question.text,
-            subParam1: question.subParam1,
-            yesNoValues,
-            followUpQuestions: followUpQuestionsForThis.map((fq: any) => ({
-              id: fq.id || fq._id,
-              title: fq.title || fq.label || fq.text,
-              subParam1: fq.subParam1,
-              answer: response.answers?.[fq.id || fq._id],
-            })),
-          };
+      // Show question if it has an answer OR has follow-ups
+      if ((answers !== undefined && answers !== null && answers !== "") || followUpQuestionsForThis.length > 0) {
+        const mainQuestion = {
+          id: question.id,
+          title: question.title || question.label || question.text,
+          subParam1: question.subParam1,
+          yesNoValues,
+          followUpQuestions: followUpQuestionsForThis.map((fq: any) => ({
+            id: fq.id || fq._id,
+            title: fq.title || fq.label || fq.text,
+            subParam1: fq.subParam1,
+            answer: response.answers?.[fq.id || fq._id],
+          })),
+        };
 
-          mainQuestionsWithFollowUps.push(mainQuestion);
-        }
+        mainQuestionsWithFollowUps.push(mainQuestion);
       }
     });
 
@@ -1585,28 +1651,63 @@ const handleBulkDownloadZip = async () => {
                         key={idx}
                         className="text-primary-700 dark:text-gray-200"
                       >
-                        {isImageUrl(String(v)) ? (
-                          <ImageLink text={String(v)} />
+                        {isImageUrl(typeof v === 'object' && v !== null && v.url ? String(v.url) : String(v)) ? (
+                          <ImageLink text={typeof v === 'object' && v !== null && v.url ? String(v.url) : String(v)} />
                         ) : (
                           String(v)
                         )}
                       </div>
                     ))}
                   </div>
-                ) : typeof value === "object" ? (
-                  <pre className="text-primary-700 dark:text-gray-200 overflow-auto">
-                    {JSON.stringify(value, null, 2)}
-                  </pre>
                 ) : (
                   <div className="text-primary-700 dark:text-gray-200">
-                    {isImageUrl(String(value)) ? (
-                      <ImageLink text={String(value)} />
+                    {isImageUrl(typeof value === 'object' && value !== null && value.url ? String(value.url) : String(value)) ? (
+                      <ImageLink text={typeof value === 'object' && value !== null && value.url ? String(value.url) : String(value)} />
+                    ) : typeof value === "object" && value !== null ? (
+                      <div className="flex flex-col gap-2">
+                        {Object.entries(value).map(([k, v], i) => (
+                          <div key={i} className="flex flex-col gap-0.5 border-l-2 border-primary-100 pl-2">
+                            <span className="text-[10px] font-bold opacity-70 uppercase tracking-tighter text-primary-600 dark:text-primary-400">
+                              {k}
+                            </span>
+                            {isImageUrl(typeof v === 'object' && v !== null && (v as any).url ? String((v as any).url) : String(v)) ? (
+                              <ImageLink text={typeof v === 'object' && v !== null && (v as any).url ? String((v as any).url) : String(v)} />
+                            ) : (
+                              String(v)
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     ) : (
                       String(value)
                     )}
                   </div>
                 )}
               </div>
+
+              {/* ADDITION: Render synthetic follow-ups for this question */}
+              {(() => {
+                const syntheticKey = `synthetic_${key}`;
+                const syntheticData = response.answers[syntheticKey];
+                if (syntheticData && typeof syntheticData === 'object') {
+                  return Object.entries(syntheticData).map(([fuText, fuData]: [string, any], idx) => (
+                    <div key={idx} className="mt-3 ml-6 border-l-2 border-red-200 pl-4 py-2 bg-red-50/30 dark:bg-red-900/10 rounded-r-lg">
+                      <div className="text-xs font-bold text-red-600 dark:text-red-400 mb-1 flex items-center gap-1">
+                        <span className="bg-red-100 dark:bg-red-900/30 px-1.5 py-0.5 rounded text-[10px]">FU.S</span>
+                        {fuText}
+                      </div>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">
+                        {isImageUrl(fuData.answer && typeof fuData.answer === 'object' && fuData.answer.url ? String(fuData.answer.url) : String(fuData.answer)) ? (
+                          <ImageLink text={fuData.answer && typeof fuData.answer === 'object' && fuData.answer.url ? String(fuData.answer.url) : String(fuData.answer)} />
+                        ) : (
+                          String(fuData.answer)
+                        )}
+                      </div>
+                    </div>
+                  ));
+                }
+                return null;
+              })()}
             </div>
           );
         })}
@@ -3155,10 +3256,24 @@ const handleBulkDownloadZip = async () => {
                     sectionQuestions.forEach((q: any) => {
                       q.followUpQuestions.forEach((fq: any) => {
                         allFollowUpIds.add(fq.id);
-                        if (fq.answer && 
-                            fq.answer !== "N/A" && 
-                            fq.answer !== "n/a" && 
-                            String(fq.answer).toLowerCase() !== complianceLabels.na.toLowerCase()) {
+                        
+                        // Check if it's an image (recursive check)
+                        const checkIsImage = (val: any): boolean => {
+                          if (!val) return false;
+                          if (Array.isArray(val)) return val.some(v => checkIsImage(v));
+                          if (typeof val === 'object') {
+                            if (val.url && isImageUrl(String(val.url))) return true;
+                            if (val.answer && isImageUrl(String(val.answer))) return true;
+                            return Object.values(val).some(v => checkIsImage(v));
+                          }
+                          return isImageUrl(String(val));
+                        };
+
+                        const hasActualAnswer = fq.answer !== undefined && fq.answer !== null && fq.answer !== "" && 
+                          fq.answer !== "N/A" && fq.answer !== "n/a" && 
+                          String(fq.answer).toLowerCase() !== complianceLabels.na.toLowerCase();
+
+                        if (hasActualAnswer || checkIsImage(fq.answer)) {
                           followUpIdAnswerStatus.set(fq.id, true);
                         }
                       });
@@ -3192,7 +3307,19 @@ const handleBulkDownloadZip = async () => {
                     const uniqueSubParams = Array.from(followUpsBySubParam.keys());
 
                     const hasImages = Array.from(followUpsBySubParam.values()).some(
-                      (items) => items.some((item) => isImageUrl(String(item.answer)))
+                      (items) => items.some((item) => {
+                        const checkValue = (val: any): boolean => {
+                          if (!val) return false;
+                          if (Array.isArray(val)) return val.some(v => checkValue(v));
+                          if (typeof val === 'object') {
+                            if (val.url && isImageUrl(String(val.url))) return true;
+                            if (val.answer && isImageUrl(String(val.answer))) return true;
+                            return Object.values(val).some(v => checkValue(v));
+                          }
+                          return isImageUrl(String(val));
+                        };
+                        return checkValue(item.answer);
+                      })
                     );
 
                     return (
@@ -3285,7 +3412,18 @@ const handleBulkDownloadZip = async () => {
                                             (fq: any) => fq.id === followUp.id
                                           );
                                         const answer = followUpFromMain?.answer;
-                                        if (answer !== undefined && answer !== null && answer !== "") {
+                                        
+                                        const isNotEmpty = answer !== undefined && answer !== null && answer !== "" && 
+                                          (!Array.isArray(answer) || answer.length > 0) &&
+                                          (typeof answer !== "object" || Object.keys(answer).length > 0);
+                                        
+                                        const isNA = typeof answer === "string" && (
+                                          answer === "N/A" || 
+                                          answer === "n/a" || 
+                                          answer.toLowerCase() === complianceLabels.na.toLowerCase()
+                                        );
+
+                                        if (isNotEmpty && !isNA) {
                                           return {
                                             answer,
                                             question: followUpFromMain,
@@ -3302,20 +3440,77 @@ const handleBulkDownloadZip = async () => {
                                       >
                                         {answerQuestionPairs.length > 0 ? (
                                           <div className="flex flex-wrap gap-2">
-                                            {answerQuestionPairs.map((item: any, idx) => (
-                                              <div
-                                                key={idx}
-                                                className=""
-                                              >
-                                                <div className="font-medium">
-                                                  {isImageUrl(String(item.answer)) ? (
-                                                    <ImageLink text={String(item.answer)} showImage={showMainParamsImages[section.id] ?? true} />
-                                                  ) : (
-                                                    String(item.answer)
-                                                  )}
+                                            {answerQuestionPairs.map((item: any, idx) => {
+                                              const renderValue = (val: any): React.ReactNode => {
+                                                if (val === null || val === undefined || val === "") return null;
+
+                                                if (Array.isArray(val)) {
+                                                  return (
+                                                    <div className="flex flex-col gap-1">
+                                                      {val.map((v, i) => (
+                                                        <div key={i}>{renderValue(v)}</div>
+                                                      ))}
+                                                    </div>
+                                                  );
+                                                }
+
+                                                if (typeof val === 'object') {
+                                                  if (val.url && isImageUrl(String(val.url))) {
+                                                    return (
+                                                      <ImageLink 
+                                                        text={String(val.url)} 
+                                                        showImage={showMainParamsImages[section.id] ?? false} 
+                                                      />
+                                                    );
+                                                  }
+                                                  if (val.answer && isImageUrl(String(val.answer))) {
+                                                    return (
+                                                      <ImageLink 
+                                                        text={String(val.answer)} 
+                                                        showImage={showMainParamsImages[section.id] ?? false} 
+                                                      />
+                                                    );
+                                                  }
+                                                  
+                                                  const entries = Object.entries(val);
+                                                  if (entries.length > 0) {
+                                                    return (
+                                                      <div className="flex flex-col gap-1">
+                                                        {entries.map(([k, v], i) => (
+                                                          <div key={i} className="flex flex-col gap-0.5">
+                                                            <span className="text-[10px] font-bold opacity-70 uppercase tracking-tighter text-blue-800 dark:text-blue-300">
+                                                              {k}
+                                                            </span>
+                                                            {renderValue(v)}
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                    );
+                                                  }
+                                                  return JSON.stringify(val);
+                                                }
+
+                                                const textValue = String(val);
+                                                if (isImageUrl(textValue)) {
+                                                  return (
+                                                    <ImageLink 
+                                                      text={textValue} 
+                                                      showImage={showMainParamsImages[section.id] ?? false} 
+                                                    />
+                                                  );
+                                                }
+
+                                                return textValue;
+                                              };
+
+                                              return (
+                                                <div key={idx} className="w-full">
+                                                  <div className="font-medium text-gray-800 dark:text-gray-200">
+                                                    {renderValue(item.answer)}
+                                                  </div>
                                                 </div>
-                                              </div>
-                                            ))}
+                                              );
+                                            })}
                                           </div>
                                         ) : (
                                           <span className="text-gray-400 italic">
@@ -3520,10 +3715,6 @@ const handleBulkDownloadZip = async () => {
                                             <div key={i}>{renderHighlightedAnswer(v, question, true)}</div>
                                           ))}
                                         </div>
-                                      ) : typeof value === "object" ? (
-                                        <pre className="text-gray-900 dark:text-gray-100 overflow-auto text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded max-h-24">
-                                          {JSON.stringify(value, null, 2)}
-                                        </pre>
                                       ) : (
                                         renderHighlightedAnswer(value, question, true)
                                       )}

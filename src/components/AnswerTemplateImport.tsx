@@ -243,109 +243,28 @@ export default function AnswerTemplateImport({
 
       // Store parsed answers immediately
       setParsedAnswers(answers);
+      setFinalAnswers(answers);
+      setIsImageConversionDone(true); // Allow submission, conversion happens at final step
 
-      // Step 2: Check for Google Drive URLs (just for UI display)
+      // Check for images
       const googleDriveUrls = Object.entries(answers).filter(
         ([_, val]) => typeof val === "string" && isGoogleDriveUrl(String(val))
       );
-
+      
       const totalImages = googleDriveUrls.length;
-
-      if (totalImages === 0) {
-        // No images to convert
-        setFinalAnswers(answers);
-        setIsImageConversionDone(true);
-        setImageConversionStats({
-          total: 0,
-          converted: 0,
-          status: "not_required",
-        });
-        setProgressStatus("complete");
-        setProgressMessage("✓ Template imported successfully!");
-        showSuccess("Template imported successfully!", "Import Complete");
-        setIsImporting(false);
-        return;
-      }
-
-      // Step 3: Show converting status (but conversion happens in backend automatically)
-      setProgressStatus("converting");
-      setProgressMessage(`Converting ${totalImages} images...`);
       setTotalImages(totalImages);
-      setCurrentImage(0);
-      setProgressError(undefined);
 
-      // Generate batch ID
-      const newBatchId = `batch-${Date.now()}`;
-      setBatchId(newBatchId);
+      setImageConversionStats({
+        total: totalImages,
+        converted: 0,
+        status: totalImages > 0 ? "pending" : "not_required",
+      });
 
-      // Join WebSocket room for this batch
-      if (socketRef.current) {
-        socketRef.current.emit("join-submission", newBatchId);
-      }
+      setProgressStatus("complete");
+      setProgressMessage("✓ Template parsed successfully! Review and click Save.");
+      showSuccess("Template parsed successfully!", "Parse Complete");
+      setIsImporting(false);
 
-      // Step 4: Format for submission - Backend will handle conversion
-      const formattedData = formatAnswersForSubmission(selectedForm, answers);
-
-      const formId = selectedForm.id || selectedForm._id;
-      const responsePayload = {
-        questionId: formId,
-        batchId: newBatchId,
-        responses: [
-          {
-            answers: formattedData.answers,
-            submittedBy: formattedData.submittedBy || "Excel Import",
-            submitterContact: formattedData.submitterContact,
-            parentResponseId: formattedData.parentResponseId,
-          },
-        ],
-      };
-
-      // Step 5: Submit to backend - conversion happens automatically
-      setProgressStatus("uploading");
-      setProgressMessage("Uploading and converting images...");
-
-      const data = await apiClient.batchImportResponses(responsePayload);
-
-      // Step 6: Check backend conversion results
-      if (data.data?.imageConversion) {
-        const {
-          total,
-          converted,
-          status,
-          batchId: responseBatchId,
-        } = data.data.imageConversion;
-
-        setImageConversionStats({
-          total,
-          converted,
-          status,
-          batchId: responseBatchId,
-        });
-
-        if (status === "completed") {
-          setIsImageConversionDone(true);
-          setFinalAnswers(answers); // Use original answers - backend already converted them
-
-          setProgressStatus("complete");
-          setProgressMessage(`✓ ${converted} images converted successfully!`);
-
-          if (converted > 0) {
-            showSuccess(
-              `Template imported with ${converted} images converted!`,
-              "Import Complete"
-            );
-          } else {
-            showSuccess("Template imported successfully!", "Import Complete");
-          }
-        }
-      } else {
-        // If backend doesn't return conversion stats, assume conversion happened
-        setIsImageConversionDone(true);
-        setFinalAnswers(answers);
-        setProgressStatus("complete");
-        setProgressMessage("✓ Template imported successfully!");
-        showSuccess("Template imported successfully!", "Import Complete");
-      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to import template";
@@ -535,6 +454,15 @@ export default function AnswerTemplateImport({
     setProgressMessage("Submitting answers to backend...");
 
     try {
+      // Generate batch ID for progress tracking
+      const newBatchId = `batch-${Date.now()}`;
+      setBatchId(newBatchId);
+
+      // Join WebSocket room for this batch
+      if (socketRef.current) {
+        socketRef.current.emit("join-submission", newBatchId);
+      }
+
       const formattedData = formatAnswersForSubmission(
         selectedForm,
         finalAnswers
@@ -544,6 +472,7 @@ export default function AnswerTemplateImport({
 
       const responsePayload = {
         questionId: formId,
+        batchId: newBatchId,
         responses: [
           {
             answers: formattedData.answers,
@@ -554,21 +483,25 @@ export default function AnswerTemplateImport({
         ],
       };
 
-      // IMPORTANT: Use batchImportResponses which already includes image conversion
+      // Set start time for progress estimation
+      (window as any).conversionStartTime = Date.now();
+
+      // Actually call the API
+      const response = await apiClient.batchImportResponses(responsePayload);
 
       setProgressStatus("complete");
       setProgressMessage("✓ Answers submitted successfully!");
 
-      showSuccess("Submission Complete");
+      showSuccess("Import Completed Successfully", "Success");
 
       // Clean up and close
       setTimeout(() => {
         onSuccess?.();
         onClose();
         clearImportState();
-      }, 1000);
+      }, 1500);
     } catch (error: any) {
-      const message = error.message || "Failed to submit answers";
+      const message = error.response?.data?.message || error.message || "Failed to submit answers";
       setProgressStatus("error");
       setProgressError(message);
       showError(message, "Submission Failed");

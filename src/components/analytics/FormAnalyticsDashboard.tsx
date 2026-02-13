@@ -1166,6 +1166,7 @@ export default function FormAnalyticsDashboard() {
           candidate.file ||
           candidate.base64 ||
           candidate.url ||
+          candidate.answer ||
           candidate.path;
         const nameValue =
           candidate.fileName ||
@@ -1194,19 +1195,7 @@ export default function FormAnalyticsDashboard() {
       return null;
     };
 
-    if (question?.type === "file" || question?.type === "radio-image") {
-      const fileData = resolveFileData(value);
-      if (fileData?.data) {
-        return (
-          <FilePreview data={fileData.data} fileName={fileData.fileName} />
-        );
-      }
-      if (fileData?.url) {
-        return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
-      }
-    }
-
-    if (value === null || value === undefined) {
+    if (value === null || value === undefined || value === "") {
       return <span className="text-gray-400">No response</span>;
     }
 
@@ -1219,31 +1208,24 @@ export default function FormAnalyticsDashboard() {
           />
         );
       }
-      if (question?.type === "file" || question?.type === "radio-image") {
-        if (
-          value.startsWith("http") ||
-          value.startsWith("//") ||
-          value.startsWith("/") ||
-          value.startsWith("uploads/")
-        ) {
-          const absolute = ensureAbsoluteFileSource(value);
-          return (
-            <FilePreview
-              url={absolute}
-              fileName={
-                question?.fileName || question?.name || extractFileName(value)
-              }
-            />
-          );
-        }
+
+      if (isImageUrl(value)) {
+        return <ImageLink text={value} />;
       }
-      if (value.startsWith("http://") || value.startsWith("https://")) {
-        if (isImageUrl(value)) {
-          return <ImageLink text={value} />;
+
+      if (
+        value.startsWith("http") ||
+        value.startsWith("//") ||
+        value.startsWith("/") ||
+        value.startsWith("uploads/")
+      ) {
+        const absolute = ensureAbsoluteFileSource(value);
+        if (isImageUrl(absolute)) {
+          return <ImageLink text={absolute} />;
         }
         return (
           <a
-            href={value}
+            href={absolute}
             target="_blank"
             rel="noopener noreferrer"
             className="text-blue-600 hover:text-blue-800"
@@ -1252,6 +1234,7 @@ export default function FormAnalyticsDashboard() {
           </a>
         );
       }
+      
       const trimmed = value.trim();
       return trimmed ? (
         trimmed
@@ -1264,70 +1247,68 @@ export default function FormAnalyticsDashboard() {
       if (value.length === 0) {
         return <span className="text-gray-400">No response</span>;
       }
-      if (question?.type === "file" || question?.type === "radio-image") {
-        const previews = value
-          .map((entry: any, index: number) => {
-            const fileData = resolveFileData(entry);
-            if (!fileData) {
-              return null;
+      
+      const previews = value
+        .map((entry: any, index: number) => {
+          const fileData = resolveFileData(entry);
+          if (!fileData) {
+            if (typeof entry === "string" && isImageUrl(entry)) {
+              return <ImageLink key={index} text={entry} />;
             }
-            return (
-              <FilePreview
-                key={`${question?.id ?? "file-array"}-${index}`}
-                data={fileData.data}
-                url={fileData.url}
-                fileName={fileData.fileName}
-              />
-            );
-          })
-          .filter(Boolean);
-        if (previews.length) {
-          return <div className="space-y-3">{previews}</div>;
-        }
+            return <span key={index} className="text-sm">{String(entry)}</span>;
+          }
+          if (isImageUrl(fileData.url || fileData.data || "")) {
+            return <ImageLink key={index} text={fileData.url || fileData.data || ""} />;
+          }
+          return (
+            <FilePreview
+              key={`${question?.id ?? "file-array"}-${index}`}
+              data={fileData.data}
+              url={fileData.url}
+              fileName={fileData.fileName}
+            />
+          );
+        })
+        .filter(Boolean);
+        
+      if (previews.length) {
+        return <div className="flex flex-wrap gap-2">{previews}</div>;
       }
-      const first = value[0];
-      if (typeof first === "string" && first.startsWith("data:")) {
-        return (
-          <FilePreview
-            data={first}
-            fileName={question?.fileName || question?.name}
-          />
-        );
-      }
-      return (
-        <div className="flex flex-wrap gap-2">
-          {value.map((item: any, index: number) => {
-            const itemStr = String(item);
-            if (isImageUrl(itemStr)) {
-              return (
-                <div key={index} className="inline-block">
-                  <ImageLink text={itemStr} />
-                </div>
-              );
-            }
-            return <span key={index} className="text-sm">{itemStr}</span>;
-          })}
-        </div>
-      );
     }
 
     if (typeof value === "object") {
       const fileData = resolveFileData(value);
-      if (fileData?.data) {
-        return (
-          <FilePreview data={fileData.data} fileName={fileData.fileName} />
-        );
+      if (fileData?.url || fileData?.data) {
+        const finalUrl = fileData.url || fileData.data;
+        if (finalUrl && isImageUrl(finalUrl)) {
+          return <ImageLink text={finalUrl} />;
+        }
+        if (fileData.data) {
+          return (
+            <FilePreview data={fileData.data} fileName={fileData.fileName} />
+          );
+        }
+        if (fileData.url) {
+          return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
+        }
       }
-      if (fileData?.url) {
-        return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
-      }
+      
       if (!Object.keys(value).length) {
         return <span className="text-gray-400">No response</span>;
       }
+      
+      const entries = Object.entries(value);
       return (
-        <pre className="whitespace-pre-wrap text-gray-600 text-sm">
-          {JSON.stringify(value, null, 2)}
-        </pre>
+        <div className="flex flex-col gap-2">
+          {entries.map(([k, v], i) => (
+            <div key={i} className="flex flex-col gap-0.5 border-l-2 border-gray-100 dark:border-gray-800 pl-2">
+              <span className="text-[10px] font-bold opacity-70 uppercase tracking-tighter text-blue-800 dark:text-blue-300">
+                {k}
+              </span>
+              {renderAnswerDisplay(v)}
+            </div>
+          ))}
+        </div>
       );
     }
 
@@ -3947,28 +3928,8 @@ export default function FormAnalyticsDashboard() {
                                             placeholder="Enter answer"
                                           />
                                         ) : (
-                                          <div className="flex flex-col gap-1">
-                                            <div>
-                                              {answer ? (
-                                                isImageUrl(String(answer)) ? (
-                                                  <div className="w-32 h-32 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-600 hover:shadow-lg transition-shadow bg-white">
-                                                    <img
-                                                      src={String(answer)}
-                                                      alt={q.text || "Image"}
-                                                      className="w-full h-full object-cover cursor-pointer"
-                                                      onClick={() => window.open(String(answer), '_blank')}
-                                                      title="Click to open in new tab"
-                                                    />
-                                                  </div>
-                                                ) : (
-                                                  <span className="text-gray-900 dark:text-gray-200" title={String(answer)}>
-                                                    {String(answer)}
-                                                  </span>
-                                                )
-                                              ) : (
-                                                <span className="text-gray-500">-</span>
-                                              )}
-                                            </div>
+                                          <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
+                                            {renderAnswerDisplay(answer, q)}
                                           </div>
                                         )}
                                       </td>
@@ -4815,34 +4776,10 @@ export default function FormAnalyticsDashboard() {
                                   const hasAnswer = answer !== null && answer !== undefined && answer !== '';
                                   
                                   return (
-                                    <td key={`${response.id}-${question.id}`} className="text-center px-3 py-2 border border-gray-200 dark:border-gray-700">
+                                    <td key={`${response.id}-${question.id}`} className="text-center px-3 py-2 border border-gray-200 dark:border-gray-700 min-w-[120px]">
                                       {hasAnswer ? (
-                                        <div className="flex items-center justify-center">
-                                          {Array.isArray(answer) ? (
-                                            <div className="space-y-1 text-left">
-                                              {answer.map((item, idx) => (
-                                                <div key={idx} className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-100 px-2 py-1 rounded whitespace-nowrap">
-                                                  {isImageUrl(String(item)) ? (
-                                                    <ImageLink text={String(item)} />
-                                                  ) : (
-                                                    String(item)
-                                                  )}
-                                                </div>
-                                              ))}
-                                            </div>
-                                          ) : typeof answer === 'object' ? (
-                                            <div className="text-xs text-gray-700 dark:text-gray-300 max-w-32 overflow-auto max-h-32">
-                                              <pre className="text-left text-[10px]">{JSON.stringify(answer, null, 1)}</pre>
-                                            </div>
-                                          ) : (
-                                            <div className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded inline-block max-w-24 truncate">
-                                              {isImageUrl(String(answer)) ? (
-                                                <ImageLink text={String(answer)} />
-                                              ) : (
-                                                String(answer)
-                                              )}
-                                            </div>
-                                          )}
+                                        <div className="flex items-center justify-center max-w-[200px] overflow-auto max-h-[150px]">
+                                          {renderAnswerDisplay(answer, question)}
                                         </div>
                                       ) : (
                                         <span className="text-xs text-gray-400 dark:text-gray-500">—</span>

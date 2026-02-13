@@ -20,6 +20,8 @@ import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
 import { exportResponsesToExcel } from "../utils/exportUtils";
 import { exportResponseToPDF, exportAllResponsesToPDF, exportAllResponsesToZip } from "../utils/pdfExportUtils";
+import { isImageUrl } from "../utils/answerTemplateUtils";
+import ImageLink from "./ImageLink";
 import { Bar, Pie } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -316,6 +318,51 @@ export default function FormResponses() {
     () => groupResponsesByDate(responses),
     [responses]
   );
+
+  const renderValue = (val: any): React.ReactNode => {
+    if (val === null || val === undefined || val === "") return null;
+
+    if (Array.isArray(val)) {
+      return (
+        <div className="flex flex-col gap-1">
+          {val.map((v, i) => (
+            <div key={i}>{renderValue(v)}</div>
+          ))}
+        </div>
+      );
+    }
+
+    if (typeof val === "object") {
+      // Check for direct image/file properties
+      const dataValue = val.url || val.answer || val.data || val.value;
+      if (typeof dataValue === "string" && isImageUrl(dataValue)) {
+        return <ImageLink text={dataValue} />;
+      }
+
+      const entries = Object.entries(val);
+      if (entries.length > 0) {
+        return (
+          <div className="flex flex-col gap-2">
+            {entries.map(([k, v], i) => (
+              <div key={i} className="flex flex-col gap-0.5 border-l-2 border-primary-100 pl-2">
+                <span className="text-[10px] font-bold opacity-70 uppercase tracking-tighter text-primary-600">
+                  {k}
+                </span>
+                {renderValue(v)}
+              </div>
+            ))}
+          </div>
+        );
+      }
+      return JSON.stringify(val);
+    }
+
+    const textVal = String(val);
+    if (isImageUrl(textVal)) {
+      return <ImageLink text={textVal} />;
+    }
+    return textVal;
+  };
 
   if (loading) {
     return (
@@ -756,13 +803,13 @@ export default function FormResponses() {
                       {(() => {
                         const question = allQuestions.find((q) => q.id === key);
                         const isQuiz = question && question.correctAnswer;
-                        const answerStr = Array.isArray(value)
-                          ? value.join(", ")
-                          : typeof value === "object"
-                          ? JSON.stringify(value, null, 2)
-                          : String(value);
                         const correct = isQuiz
                           ? (() => {
+                              const answerStr = Array.isArray(value)
+                                ? value.join(", ")
+                                : typeof value === "object"
+                                ? JSON.stringify(value, null, 2)
+                                : String(value);
                               const corrStr = Array.isArray(
                                 question.correctAnswer
                               )
@@ -774,6 +821,7 @@ export default function FormResponses() {
                               );
                             })()
                           : null;
+
                         return (
                           <div
                             className={`p-3 rounded-lg ${
@@ -784,7 +832,7 @@ export default function FormResponses() {
                                 : "bg-primary-50 text-primary-600"
                             }`}
                           >
-                            {answerStr}
+                            {renderValue(value)}
                           </div>
                         );
                       })()}
@@ -874,11 +922,7 @@ export default function FormResponses() {
                                     {getQuestionText(key)}
                                   </div>
                                   <div className="text-sm text-purple-700 bg-white dark:bg-gray-900 p-2 rounded border border-purple-100">
-                                    {Array.isArray(value)
-                                      ? value.join(", ")
-                                      : typeof value === "object"
-                                      ? JSON.stringify(value, null, 2)
-                                      : String(value)}
+                                    {renderValue(value)}
                                   </div>
                                 </div>
                               )

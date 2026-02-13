@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { LogIn, Mail, Lock, Eye, EyeOff, Sparkles } from "lucide-react";
+import { User, Lock, Chrome, Facebook, Github, Linkedin, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 
@@ -24,136 +24,115 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     const success = await login(email, password);
     if (success) {
       navigate("/dashboard");
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-800 to-primary-900 dark:from-gray-900 dark:to-gray-950 flex">
-      {/* Left Side - Welcome Section */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-primary-700 to-primary-800 dark:from-gray-800 dark:to-gray-900">
-        {/* Floating Elements */}
-        <div className="absolute inset-0">
-          <div className="floating-circle floating-circle-1"></div>
-          <div className="floating-circle floating-circle-2"></div>
-          <div className="floating-circle floating-circle-3"></div>
-          <div className="floating-circle floating-circle-4"></div>
-          <div className="floating-circle floating-circle-5"></div>
-        </div>
+  const socialIcons = [Chrome, Facebook, Github, Linkedin];
 
-        {/* Welcome Content */}
-        <div className="relative z-10 flex flex-col justify-center items-center w-full p-12 text-white">
-          <div className="max-w-md text-center">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-white/10 backdrop-blur-sm rounded-full mb-8">
-              <Sparkles className="w-10 h-10 text-white" />
-            </div>
-            <h1 className="text-4xl font-bold mb-4">Welcome Back!</h1>
-            <p className="text-xl text-primary-100 mb-8 leading-relaxed">
-              Access your dashboard and manage your forms with ease. Sign in to continue your journey.
-            </p>
-            <div className="flex items-center justify-center space-x-2 text-primary-200">
-              <Sparkles className="w-5 h-5" />
-              <span className="text-sm">Secure • Professional • Efficient</span>
-              <Sparkles className="w-5 h-5" />
-            </div>
-          </div>
+  return (
+    <div className="min-h-screen w-full flex flex-col md:flex-row bg-white font-sans overflow-hidden">
+      
+      {/* Left Side: Welcome Panel - Full Height, Blue Background, Smaller Curve */}
+      <div className="w-full md:w-1/2 bg-[#6F8EF6] text-white p-8 md:p-16 flex flex-col justify-center items-center text-center relative z-20 rounded-b-[3rem] md:rounded-b-none md:rounded-r-[10rem]">
+        <div className="max-w-md animate-in fade-in slide-in-from-left-8 duration-700">
+          <h1 className="text-4xl md:text-6xl font-bold mb-6">Hello, Welcome!</h1>
+          <p className="text-blue-100 text-lg md:text-xl mb-4 font-light">
+            Access your dashboard and manage your forms with ease.
+          </p>
+        </div>
+        
+        {/* Subtle decorative background elements for the blue side */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-10">
+          <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-white rounded-full blur-3xl"></div>
         </div>
       </div>
 
-      {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 bg-gradient-to-br from-blue-50 to-white dark:from-gray-900 dark:to-gray-950">
-        <div className="w-full max-w-md space-y-8">
-          {/* Mobile Header */}
-          <div className="lg:hidden text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 dark:bg-primary-500 rounded-lg mb-4">
-              <LogIn className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-primary-600 dark:text-primary-400 mb-2">Welcome Back</h1>
-            <p className="text-primary-600 dark:text-primary-300">Sign in to access your dashboard</p>
+      {/* Right Side: Login Form - Centered on White Background */}
+      <div className="w-full md:w-1/2 flex items-center justify-center p-8 md:p-16 bg-white z-10">
+        <div className="w-full max-w-md animate-in fade-in slide-in-from-right-8 duration-700">
+          <div className="mb-10">
+            <h2 className="text-4xl font-bold text-gray-800 mb-2">Login</h2>
+            <p className="text-gray-400">Please enter your details to sign in.</p>
           </div>
-
-          {/* Form */}
+          
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email field */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email Address
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                </div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 pl-12 pr-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-primary-400 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200"
-                  placeholder="admin@focus.com"
-                  required
-                  aria-invalid={!!authError}
-                  aria-describedby={authError ? "auth-error" : undefined}
-                />
-              </div>
+            <div className="relative group">
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#6F8EF6] transition-colors" size={22} />
+              <input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Email Address" 
+                required
+                className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-transparent rounded-2xl focus:ring-2 focus:ring-[#6F8EF6]/20 focus:bg-white focus:border-[#6F8EF6]/30 transition-all outline-none text-gray-700 text-lg shadow-sm"
+              />
             </div>
 
-            {/* Password field */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Password
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-                </div>
-                <input
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full px-4 py-3 pl-12 pr-12 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-primary-400 text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 placeholder-gray-500 dark:placeholder-gray-400 transition-all duration-200"
-                  placeholder="•••••••••"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors duration-200"
-                >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
-                </button>
-              </div>
-            </div>
-
-            {/* Submit button */}
-            <div className="pt-2">
+            <div className="relative group">
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#6F8EF6] transition-colors" size={22} />
+              <input 
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Password" 
+                required
+                className="w-full pl-12 pr-12 py-4 bg-gray-50 border border-transparent rounded-2xl focus:ring-2 focus:ring-[#6F8EF6]/20 focus:bg-white focus:border-[#6F8EF6]/30 transition-all outline-none text-gray-700 text-lg shadow-sm"
+              />
               <button
-                type="submit"
-                disabled={authLoading}
-                className="w-16 h-16 mx-auto bg-blue-600 dark:bg-primary-500 hover:bg-blue-700 dark:hover:bg-primary-400 text-white rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none flex items-center justify-center"
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
               >
-                {authLoading ? (
-                  <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : (
-                  <LogIn className="w-6 h-6" />
-                )}
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
               </button>
             </div>
+
+            <div className="flex flex-col gap-4">
+              <div className="text-right">
+                <a href="#" className="text-sm font-medium text-gray-400 hover:text-[#6F8EF6] transition-colors">Forgot password?</a>
+              </div>
+              
+              {authError && (
+                <div className="text-sm text-red-500 bg-red-50 p-3 rounded-xl text-center border border-red-100 animate-in fade-in zoom-in duration-300">
+                  {authError}
+                </div>
+              )}
+            </div>
+
+            <button 
+              type="submit"
+              disabled={authLoading}
+              className="w-full py-4 bg-[#6F8EF6] text-white rounded-2xl font-bold text-lg shadow-xl shadow-blue-100 hover:bg-[#5A7DE9] hover:-translate-y-1 transition-all duration-300 flex items-center justify-center disabled:opacity-70 disabled:transform-none disabled:shadow-none mt-4"
+            >
+              {authLoading ? (
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+              ) : (
+                "Login"
+              )}
+            </button>
           </form>
 
-          {authError && (
-            <div
-              id="auth-error"
-              className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-4 py-3"
-            >
-              {authError}
+          <div className="mt-12 text-center">
+            <p className="text-sm text-gray-400 mb-8 relative flex items-center justify-center">
+              <span className="bg-white px-6 relative z-10">or login with social platforms</span>
+              <span className="absolute w-full h-[1px] bg-gray-100 top-1/2"></span>
+            </p>
+            
+            <div className="flex justify-center gap-6">
+              {socialIcons.map((Icon, index) => (
+                <button 
+                  key={index} 
+                  className="p-4 bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md hover:border-[#6F8EF6]/30 hover:-translate-y-1 transition-all text-gray-600 hover:text-[#6F8EF6]"
+                >
+                  <Icon size={24} />
+                </button>
+              ))}
             </div>
-          )}
+          </div>
         </div>
       </div>
     </div>
