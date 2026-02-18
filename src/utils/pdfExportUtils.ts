@@ -139,7 +139,7 @@ const renderAnswerHTML = (value: any, color: string = "#1f2937"): string => {
     return `<pre style="font-size: 10px; white-space: pre-wrap; color: #4b5563; margin: 0; text-align: left;">${JSON.stringify(
       value,
       null,
-      2
+      2,
     )}</pre>`;
   }
 
@@ -203,21 +203,22 @@ function getSectionYesNoStats(form: any, answers: Record<string, any>): any[] {
               rawValue.every((a: any) =>
                 question.correctAnswers!.some(
                   (ca: any) =>
-                    String(ca).toLowerCase() === String(a).toLowerCase()
-                )
+                    String(ca).toLowerCase() === String(a).toLowerCase(),
+                ),
               );
           } else {
             isCorrect = question.correctAnswers.some(
-              (ca: any) => String(ca).toLowerCase() === normalized
+              (ca: any) => String(ca).toLowerCase() === normalized,
             );
           }
         } else if (question.correctAnswer) {
-          isCorrect = String(question.correctAnswer).toLowerCase() === normalized;
+          isCorrect =
+            String(question.correctAnswer).toLowerCase() === normalized;
         } else {
           // Fallback for accuracy questions without explicit correct answers:
           // If it has a value and it's not "N/A", it's considered "Correct" (Answered)
           const isNA = normalizedValues.some((v) =>
-            ["n/a", "na", "not applicable"].includes(v)
+            ["n/a", "na", "not applicable"].includes(v),
           );
           isCorrect = !isNA;
         }
@@ -277,7 +278,7 @@ function getSectionYesNoStats(form: any, answers: Record<string, any>): any[] {
 
 function getSectionYesNoQuestionStats(
   section: any,
-  answers: Record<string, any>
+  answers: Record<string, any>,
 ): any[] {
   const questionStats: any[] = [];
 
@@ -326,21 +327,22 @@ function getSectionYesNoQuestionStats(
               rawValue.every((a: any) =>
                 question.correctAnswers!.some(
                   (ca: any) =>
-                    String(ca).toLowerCase() === String(a).toLowerCase()
-                )
+                    String(ca).toLowerCase() === String(a).toLowerCase(),
+                ),
               );
           } else {
             isCorrect = question.correctAnswers.some(
-              (ca: any) => String(ca).toLowerCase() === normalized
+              (ca: any) => String(ca).toLowerCase() === normalized,
             );
           }
         } else if (question.correctAnswer) {
-          isCorrect = String(question.correctAnswer).toLowerCase() === normalized;
+          isCorrect =
+            String(question.correctAnswer).toLowerCase() === normalized;
         } else {
           // Fallback for accuracy questions without explicit correct answers:
           // If it has a value and it's not "N/A", it's considered "Correct" (Answered)
           const isNA = normalizedValues.some((v) =>
-            ["n/a", "na", "not applicable"].includes(v)
+            ["n/a", "na", "not applicable"].includes(v),
           );
           isCorrect = !isNA;
         }
@@ -400,7 +402,10 @@ function getSectionYesNoQuestionStats(
   return questionStats;
 }
 
-export async function exportResponseToPDF(response: any, form: any): Promise<void> {
+export async function exportResponseToPDF(
+  response: any,
+  form: any,
+): Promise<void> {
   if (!response || !form) return;
 
   const sectionStats = getSectionYesNoStats(form, response.answers || {});
@@ -409,13 +414,13 @@ export async function exportResponseToPDF(response: any, form: any): Promise<voi
   form.sections?.forEach((section: any) => {
     questionStats[section.id] = getSectionYesNoQuestionStats(
       section,
-      response.answers || {}
+      response.answers || {},
     );
   });
 
   const filename = `${form.title || "Form"}_Response_${formatTimestamp(
     response.createdAt,
-    "file"
+    "file",
   )}.pdf`;
 
   const options: PDFOptions = {
@@ -432,7 +437,10 @@ export async function exportResponseToPDF(response: any, form: any): Promise<voi
   return generateAndDownloadPDF(options);
 }
 
-export async function exportAllResponsesToPDF(responses: any[], form: any): Promise<void> {
+export async function exportAllResponsesToPDF(
+  responses: any[],
+  form: any,
+): Promise<void> {
   if (!responses || !responses.length || !form) return;
 
   for (const response of responses) {
@@ -443,7 +451,7 @@ export async function exportAllResponsesToPDF(responses: any[], form: any): Prom
 export async function exportResponseToPDFBlob(
   response: any,
   form: any,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
 ): Promise<{ blob: Blob; filename: string }> {
   try {
     if (!response || !form) throw new Error("Missing response or form");
@@ -454,13 +462,13 @@ export async function exportResponseToPDFBlob(
     form.sections?.forEach((section: any) => {
       questionStats[section.id] = getSectionYesNoQuestionStats(
         section,
-        response.answers || {}
+        response.answers || {},
       );
     });
 
     const filename = `${form.title || "Form"}_Response_${formatTimestamp(
       response.createdAt,
-      "file"
+      "file",
     )}.pdf`;
 
     const options: PDFOptions = {
@@ -487,8 +495,12 @@ export async function exportResponseToPDFBlob(
 export async function exportAllResponsesToZip(
   responses: any[],
   form: any,
-  onProgress?: (progress: { current: number; total: number; message: string }) => void,
-  checkCancelled?: () => boolean
+  onProgress?: (progress: {
+    current: number;
+    total: number;
+    message: string;
+  }) => void,
+  checkCancelled?: () => boolean,
 ): Promise<void> {
   if (!responses || !responses.length || !form) return;
 
@@ -521,13 +533,16 @@ export async function exportAllResponsesToZip(
       }
       zip.file(finalFilename, blob);
       totalProcessedInZip++;
-      
+
       // Small delay between generations to avoid overwhelming the server
       if (i < responses.length - 1) {
-        await new Promise(resolve => setTimeout(resolve, 300));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
     } catch (error) {
-      console.error(`Failed to generate PDF for response ${response.id}:`, error);
+      console.error(
+        `Failed to generate PDF for response ${response.id}:`,
+        error,
+      );
     }
   }
 
@@ -584,7 +599,7 @@ function formatQuestionNumberForDisplay(qNumber: string): string {
 function generateCombinedResponseAnalysis(
   form: any,
   response: any,
-  availableSections: any[]
+  availableSections: any[],
 ): string {
   console.log("🔍 Starting COMBINED Response Analysis generation...");
 
@@ -625,14 +640,14 @@ function generateCombinedResponseAnalysis(
     depth: number = 0,
     sectionIndex: number,
     questionIndex: number,
-    followUpPath: number[] = []
+    followUpPath: number[] = [],
   ) => {
     const answer = response.answers?.[question.id];
     const questionNumber = getQuestionNumber(
       question,
       sectionIndex,
       questionIndex,
-      followUpPath
+      followUpPath,
     );
 
     // Check for ALL response types for this question
@@ -640,7 +655,7 @@ function generateCombinedResponseAnalysis(
       // Check for YES response
       if (isYesResponse(answer)) {
         console.log(
-          `\n✅ Found YES response for ${questionNumber}: "${question.text}"`
+          `\n✅ Found YES response for ${questionNumber}: "${question.text}"`,
         );
         addResponseToCollection(
           question,
@@ -649,14 +664,14 @@ function generateCombinedResponseAnalysis(
           questionIndex,
           followUpPath,
           "YES",
-          answer
+          answer,
         );
       }
 
       // Check for NO response
       if (isNoResponse(answer)) {
         console.log(
-          `\n✅ Found NO response for ${questionNumber}: "${question.text}"`
+          `\n✅ Found NO response for ${questionNumber}: "${question.text}"`,
         );
         addResponseToCollection(
           question,
@@ -665,14 +680,14 @@ function generateCombinedResponseAnalysis(
           questionIndex,
           followUpPath,
           "NO",
-          answer
+          answer,
         );
       }
 
       // Check for NA response
       if (isNAResponse(answer)) {
         console.log(
-          `\n✅ Found NA response for ${questionNumber}: "${question.text}"`
+          `\n✅ Found NA response for ${questionNumber}: "${question.text}"`,
         );
         addResponseToCollection(
           question,
@@ -681,7 +696,7 @@ function generateCombinedResponseAnalysis(
           questionIndex,
           followUpPath,
           "NA",
-          answer
+          answer,
         );
       }
     }
@@ -695,7 +710,7 @@ function generateCombinedResponseAnalysis(
           depth + 1,
           sectionIndex,
           questionIndex,
-          newFollowUpPath
+          newFollowUpPath,
         );
       });
     }
@@ -709,13 +724,13 @@ function generateCombinedResponseAnalysis(
     questionIndex: number,
     followUpPath: number[],
     responseType: "YES" | "NO" | "NA",
-    answer: any
+    answer: any,
   ) => {
     const questionNumber = getQuestionNumber(
       question,
       sectionIndex,
       questionIndex,
-      followUpPath
+      followUpPath,
     );
 
     const followUps: Array<{
@@ -728,7 +743,7 @@ function generateCombinedResponseAnalysis(
     const collectFollowUps = (
       questions: any[],
       currentDepth: number,
-      parentPath: number[]
+      parentPath: number[],
     ) => {
       questions.forEach((fq, fqIndex) => {
         const followUpAnswer = response.answers?.[fq.id];
@@ -757,7 +772,7 @@ function generateCombinedResponseAnalysis(
 
     if (question.followUpQuestions && question.followUpQuestions.length > 0) {
       console.log(
-        `   📞 Starting to collect follow-ups for: "${question.text}"`
+        `   📞 Starting to collect follow-ups for: "${question.text}"`,
       );
       collectFollowUps(question.followUpQuestions, 1, []);
     } else {
@@ -787,7 +802,7 @@ function generateCombinedResponseAnalysis(
     });
 
     console.log(
-      `   ✅ Added ${responseType} response with ${followUps.length} follow-up answer(s)`
+      `   ✅ Added ${responseType} response with ${followUps.length} follow-up answer(s)`,
     );
   };
 
@@ -801,7 +816,7 @@ function generateCombinedResponseAnalysis(
         console.log(
           `   Q${sectionIndex + 1}.${
             questionIndex + 1
-          }: "${question.text.substring(0, 50)}..."`
+          }: "${question.text.substring(0, 50)}..."`,
         );
         processQuestion(question, section, 0, sectionIndex, questionIndex, []);
       });
@@ -823,7 +838,7 @@ function generateCombinedResponseAnalysis(
       groups[response.sectionTitle].push(response);
       return groups;
     },
-    {}
+    {},
   );
 
   // Generate HTML
@@ -859,7 +874,7 @@ function generateCombinedResponseAnalysis(
   <tr style="background: #ffffffff;">
     <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 14px; font-weight: 800; color: #1e3a8a;">
         ${sectionTitle} - ${formatQuestionNumberForDisplay(
-          response.questionNumber
+          response.questionNumber,
         )}
     </td>
   </tr>
@@ -973,10 +988,10 @@ function generateCombinedResponseAnalysis(
                   "/photos/",
                 ];
                 const hasImageExtension = imageExtensions.some((ext) =>
-                  url.includes(ext)
+                  url.includes(ext),
                 );
                 const hasImagePattern = imageHostingPatterns.some((pattern) =>
-                  url.includes(pattern)
+                  url.includes(pattern),
                 );
                 const isDataUrl = url.startsWith("data:image");
                 return hasImageExtension || hasImagePattern || isDataUrl;
@@ -984,7 +999,7 @@ function generateCombinedResponseAnalysis(
 
               // Function to extract image URLs
               const getImageUrls = (
-                answer: any
+                answer: any,
               ): Array<{
                 url: string;
                 location?: any;
@@ -1050,7 +1065,7 @@ function generateCombinedResponseAnalysis(
 
               if (imageUrls.length > 0) {
                 const imagesWithLocation = imageUrls.filter(
-                  (img) => img.location
+                  (img) => img.location,
                 ).length;
 
                 answerDisplay = `
@@ -1196,10 +1211,10 @@ function generateCombinedResponseAnalysis(
                   "/photos/",
                 ];
                 const hasImageExtension = imageExtensions.some((ext) =>
-                  url.includes(ext)
+                  url.includes(ext),
                 );
                 const hasImagePattern = imageHostingPatterns.some((pattern) =>
-                  url.includes(pattern)
+                  url.includes(pattern),
                 );
                 const isDataUrl = url.startsWith("data:image");
                 return hasImageExtension || hasImagePattern || isDataUrl;
@@ -1207,7 +1222,7 @@ function generateCombinedResponseAnalysis(
 
               // Function to extract image URLs
               const getImageUrls = (
-                answer: any
+                answer: any,
               ): Array<{
                 url: string;
                 location?: any;
@@ -1273,7 +1288,7 @@ function generateCombinedResponseAnalysis(
 
               if (imageUrls.length > 0) {
                 const imagesWithLocation = imageUrls.filter(
-                  (img) => img.location
+                  (img) => img.location,
                 ).length;
 
                 answerDisplay = `
@@ -1343,7 +1358,7 @@ function generateCombinedResponseAnalysis(
             html += `
       <div style="margin-bottom: 12px; padding: 8px; background: ${rowBgColor}; border-radius: 4px; border: 1px solid #e2e8f0; page-break-inside: avoid;">
         <div style="font-size: 10px; font-weight: 600; color: #1e40af; margin-bottom: 3px;">
-          ${fq.number} ${fq.text} ?
+          ${formatQuestionNumberForDisplay(fq.number)} ${fq.text} ?
         </div>
         <div style="font-size: 10px; color: #374151; padding-left: 12px; line-height: 1.4;font-family:italic;">
           ${answerDisplay}
@@ -1376,7 +1391,7 @@ function generateCombinedResponseAnalysis(
     <td colspan="3" style="border: 1px solid #666; padding: 10px;">
       <div style="font-size: 10px; line-height: 1.6;" page-break-after:always;>
         <span style="font-weight: 700; color: #1e3a8a;">${formatQuestionNumberForDisplay(
-          response.questionNumber
+          response.questionNumber,
         )}</span> - ${response.suggestion}
       </div>
     </td>
@@ -1390,7 +1405,7 @@ function generateCombinedResponseAnalysis(
 </table>
 `;
       });
-    }
+    },
   );
 
   return html;
@@ -1399,7 +1414,7 @@ function generateCombinedResponseAnalysis(
 // Helper function to limit combined response analysis size
 function limitCombinedResponseAnalysisSize(
   html: string,
-  maxSizeInChars: number = 300000
+  maxSizeInChars: number = 99999999,
 ): string {
   return limitResponseAnalysisSize(html, maxSizeInChars);
 }
@@ -1409,12 +1424,12 @@ function generateBothResponseAnalysis(
   form: any,
   response: any,
   availableSections: any[],
-  maxSize: number = 300000
+  maxSize: number = 9999999,
 ): string {
   const html = generateCombinedResponseAnalysis(
     form,
     response,
-    availableSections
+    availableSections,
   );
   return limitCombinedResponseAnalysisSize(html, maxSize);
 }
@@ -1423,9 +1438,9 @@ function generateResponsesViewAnalysis(form: any, response: any): string {
   if (!form || !response || !response.answers) return "";
 
   let html = "";
-  
+
   const sections = form.sections || [];
-  
+
   sections.forEach((section: any) => {
     const questions = section.questions || [];
     if (questions.length === 0) return;
@@ -1447,49 +1462,74 @@ function generateResponsesViewAnalysis(form: any, response: any): string {
 
     questions.forEach((question: any, idx: number) => {
       const answer = response.answers[question.id];
-      const hasCorrectAnswer = !!(question.correctAnswer || (question.correctAnswers && question.correctAnswers.length > 0));
-      
-      const correctAnswerDisplay = hasCorrectAnswer 
-        ? (question.correctAnswers && question.correctAnswers.length > 0 ? question.correctAnswers.join(", ") : String(question.correctAnswer))
+      const hasCorrectAnswer = !!(
+        question.correctAnswer ||
+        (question.correctAnswers && question.correctAnswers.length > 0)
+      );
+
+      const correctAnswerDisplay = hasCorrectAnswer
+        ? question.correctAnswers && question.correctAnswers.length > 0
+          ? question.correctAnswers.join(", ")
+          : String(question.correctAnswer)
         : "";
-        
-      const selectedAnswer = answer !== undefined 
-        ? (Array.isArray(answer) ? answer.join(", ") : String(answer)) 
-        : "Not Answered";
-      
+
+      const selectedAnswer =
+        answer !== undefined
+          ? Array.isArray(answer)
+            ? answer.join(", ")
+            : String(answer)
+          : "Not Answered";
+
       const isArray = Array.isArray(answer);
-      const normalized = String(selectedAnswer || "").trim().toLowerCase();
-      
+      const normalized = String(selectedAnswer || "")
+        .trim()
+        .toLowerCase();
+
       let isCorrect = false;
       if (hasCorrectAnswer) {
         if (question.correctAnswers && question.correctAnswers.length > 0) {
           if (isArray) {
-            isCorrect = answer.length === question.correctAnswers.length && 
-                        answer.every((a: any) => question.correctAnswers!.some((ca: any) => String(ca).toLowerCase() === String(a).toLowerCase()));
+            isCorrect =
+              answer.length === question.correctAnswers.length &&
+              answer.every((a: any) =>
+                question.correctAnswers!.some(
+                  (ca: any) =>
+                    String(ca).toLowerCase() === String(a).toLowerCase(),
+                ),
+              );
           } else {
-            isCorrect = question.correctAnswers.some((ca: any) => String(ca).toLowerCase() === normalized);
+            isCorrect = question.correctAnswers.some(
+              (ca: any) => String(ca).toLowerCase() === normalized,
+            );
           }
         } else if (question.correctAnswer) {
-          isCorrect = String(question.correctAnswer).toLowerCase() === normalized;
+          isCorrect =
+            String(question.correctAnswer).toLowerCase() === normalized;
         }
       }
 
       const rowBgColor = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
-      
+
       let answerColor = "#1e40af";
       if (hasCorrectAnswer) {
         answerColor = isCorrect ? "#059669" : "#dc2626";
       } else {
-        const normalizedValue = String(selectedAnswer || "").trim().toLowerCase();
+        const normalizedValue = String(selectedAnswer || "")
+          .trim()
+          .toLowerCase();
         if (normalizedValue === "yes" || normalizedValue === "y") {
           answerColor = "#059669";
         } else if (normalizedValue === "no" || normalizedValue === "n") {
           answerColor = "#dc2626";
-        } else if (normalizedValue === "n/a" || normalizedValue === "na" || normalizedValue === "not applicable") {
+        } else if (
+          normalizedValue === "n/a" ||
+          normalizedValue === "na" ||
+          normalizedValue === "not applicable"
+        ) {
           answerColor = "#ca8a04"; // Yellow/Orange
         }
       }
-      
+
       if (hasCorrectAnswer) {
         html += `
           <tr style="background-color: ${rowBgColor};">
@@ -1526,10 +1566,11 @@ function generateResponsesViewAnalysis(form: any, response: any): string {
       // ADDITION: Include synthetic follow-ups in Responses View
       const syntheticKey = `synthetic_${question.id}`;
       const syntheticData = response.answers?.[syntheticKey];
-      if (syntheticData && typeof syntheticData === 'object') {
-        Object.entries(syntheticData).forEach(([fuText, fuData]: [string, any]) => {
-          if (fuData.answer) {
-            html += `
+      if (syntheticData && typeof syntheticData === "object") {
+        Object.entries(syntheticData).forEach(
+          ([fuText, fuData]: [string, any]) => {
+            if (fuData.answer) {
+              html += `
               <tr style="background-color: ${rowBgColor}; font-style: italic;">
                 <td style="padding: 6px 8px 6px 20px; border: 1px solid #e2e8f0; color: #4b5563; font-size: 10px;">
                   <span style="color: #ef4444; font-weight: 600; margin-right: 5px;">FU.S</span> ${fuText}
@@ -1539,8 +1580,9 @@ function generateResponsesViewAnalysis(form: any, response: any): string {
                 </td>
               </tr>
             `;
-          }
-        });
+            }
+          },
+        );
       }
     });
 
@@ -1604,11 +1646,11 @@ function buildNestedFormForAnalysis(sections: any[]): any {
           parentId: parentId,
         });
         console.log(
-          `   ✅ Attached follow-up: "${followUp.text}" → parent: "${parentQuestion.text}"`
+          `   ✅ Attached follow-up: "${followUp.text}" → parent: "${parentQuestion.text}"`,
         );
       } else {
         console.log(
-          `   ❌ Could not find parent for follow-up: "${followUp.text}" (parentId: ${parentId})`
+          `   ❌ Could not find parent for follow-up: "${followUp.text}" (parentId: ${parentId})`,
         );
         // Keep as main question if parent not found
         mainQuestions.push(followUp);
@@ -1622,13 +1664,13 @@ function buildNestedFormForAnalysis(sections: any[]): any {
     };
 
     console.log(
-      `   - Final nested questions: ${updatedSection.questions.length}`
+      `   - Final nested questions: ${updatedSection.questions.length}`,
     );
     updatedSection.questions.forEach((q: any, index: number) => {
       console.log(
         `   - Q${index + 1}: "${q.text}" (${
           q.followUpQuestions.length
-        } follow-ups)`
+        } follow-ups)`,
       );
     });
 
@@ -1679,7 +1721,7 @@ const isYesResponse = (answer: any): boolean => {
       (item) =>
         typeof item === "string" &&
         (item.trim().toUpperCase() === "YES" ||
-          item.trim().toUpperCase() === "Y")
+          item.trim().toUpperCase() === "Y"),
     );
   }
   return false;
@@ -1692,7 +1734,7 @@ const isNoResponse = (answer: any): boolean => {
   }
   if (Array.isArray(answer)) {
     return answer.some(
-      (item) => typeof item === "string" && item.trim().toUpperCase() === "NO"
+      (item) => typeof item === "string" && item.trim().toUpperCase() === "NO",
     );
   }
   return false;
@@ -1703,7 +1745,7 @@ const getQuestionNumber = (
   question: any,
   sectionIndex: number,
   questionIndex: number,
-  followUpPath: number[] = []
+  followUpPath: number[] = [],
 ): string => {
   const match = question.text?.match(/(Q\d+(?:\.\d+)*)/i);
   if (match) {
@@ -1718,7 +1760,7 @@ const getQuestionNumber = (
   const generateQuestionNumber = (
     sectionIndex: number,
     questionIndex: number,
-    followUpPath: number[] = []
+    followUpPath: number[] = [],
   ): string => {
     let number = `Q${sectionIndex + 1}.${questionIndex + 1}`;
     if (followUpPath.length > 0) {
@@ -1760,7 +1802,7 @@ const checkIfRealAnswer = (answer: any, questionText: string): boolean => {
     return (
       answer.length > 0 &&
       answer.some(
-        (item) => item && typeof item === "string" && item.trim().length > 0
+        (item) => item && typeof item === "string" && item.trim().length > 0,
       )
     );
   }
@@ -1773,10 +1815,10 @@ function generateResponseAnalysis(
   form: any,
   response: any,
   availableSections: any[],
-  responseType: "no" | "yes" | "na"
+  responseType: "no" | "yes" | "na",
 ): string {
   console.log(
-    `🔍 Starting ${responseType.toUpperCase()} Response Analysis generation...`
+    `🔍 Starting ${responseType.toUpperCase()} Response Analysis generation...`,
   );
 
   if (!form || !response || !response.answers) {
@@ -1816,7 +1858,7 @@ function generateResponseAnalysis(
     depth: number = 0,
     sectionIndex: number,
     questionIndex: number,
-    followUpPath: number[] = []
+    followUpPath: number[] = [],
   ) => {
     const answer = response.answers?.[question.id];
     let isTargetResponse = false;
@@ -1837,14 +1879,14 @@ function generateResponseAnalysis(
       question,
       sectionIndex,
       questionIndex,
-      followUpPath
+      followUpPath,
     );
 
     if (isTargetResponse && depth === 0) {
       console.log(
         `\n✅ Found ${responseType.toUpperCase()} response for ${questionNumber}: "${
           question.text
-        }"`
+        }"`,
       );
 
       const followUps: Array<{
@@ -1857,7 +1899,7 @@ function generateResponseAnalysis(
       const collectFollowUps = (
         questions: any[],
         currentDepth: number,
-        parentPath: number[]
+        parentPath: number[],
       ) => {
         questions.forEach((fq, fqIndex) => {
           const followUpAnswer = response.answers?.[fq.id];
@@ -1886,36 +1928,40 @@ function generateResponseAnalysis(
 
       if (question.followUpQuestions && question.followUpQuestions.length > 0) {
         console.log(
-          `   📞 Starting to collect follow-ups for: "${question.text}"`
+          `   📞 Starting to collect follow-ups for: "${question.text}"`,
         );
         collectFollowUps(question.followUpQuestions, 1, []);
       } else {
         console.log(
-          `   ⓘ No follow-up questions found for: "${question.text}"`
+          `   ⓘ No follow-up questions found for: "${question.text}"`,
         );
       }
 
       // ADDITION: Check for synthetic follow-ups from Excel imports
       const syntheticKey = `synthetic_${question.id}`;
       const syntheticData = response.answers?.[syntheticKey];
-      
-      if (syntheticData && typeof syntheticData === 'object') {
-        console.log(`   🧪 Found synthetic data for ${question.id}, processing...`);
-        
-        Object.entries(syntheticData).forEach(([fuText, fuData]: [string, any]) => {
-          // Only add if it's not already there by ID
-          const alreadyExists = followUps.some(f => f.text === fuText);
-          
-          if (!alreadyExists && fuData.answer) {
-            console.log(`     ✅ Adding synthetic follow-up: "${fuText}"`);
-            followUps.push({
-              id: `${question.id}_synth_${fuText}`,
-              text: fuText,
-              answer: fuData.answer,
-              number: "FU.S" // Synthetic indicator
-            });
-          }
-        });
+
+      if (syntheticData && typeof syntheticData === "object") {
+        console.log(
+          `   🧪 Found synthetic data for ${question.id}, processing...`,
+        );
+
+        Object.entries(syntheticData).forEach(
+          ([fuText, fuData]: [string, any]) => {
+            // Only add if it's not already there by ID
+            const alreadyExists = followUps.some((f) => f.text === fuText);
+
+            if (!alreadyExists && fuData.answer) {
+              console.log(`     ✅ Adding synthetic follow-up: "${fuText}"`);
+              followUps.push({
+                id: `${question.id}_synth_${fuText}`,
+                text: fuText,
+                answer: fuData.answer,
+                number: "FU.S", // Synthetic indicator
+              });
+            }
+          },
+        );
       }
 
       const suggestion =
@@ -1941,7 +1987,7 @@ function generateResponseAnalysis(
       });
 
       console.log(
-        `   ✅ Added to responses with ${followUps.length} REAL follow-up answer(s)`
+        `   ✅ Added to responses with ${followUps.length} REAL follow-up answer(s)`,
       );
     }
 
@@ -1954,7 +2000,7 @@ function generateResponseAnalysis(
           depth + 1,
           sectionIndex,
           questionIndex,
-          newFollowUpPath
+          newFollowUpPath,
         );
       });
     }
@@ -1962,7 +2008,7 @@ function generateResponseAnalysis(
 
   // Process all sections and questions
   console.log(
-    `\n🔍 Processing nested sections for ${responseType.toUpperCase()} responses...`
+    `\n🔍 Processing nested sections for ${responseType.toUpperCase()} responses...`,
   );
   sectionsToUse.forEach((section, sectionIndex) => {
     console.log(`\n📁 Processing section: "${section.title}"`);
@@ -1972,7 +2018,7 @@ function generateResponseAnalysis(
         console.log(
           `   Q${sectionIndex + 1}.${
             questionIndex + 1
-          }: "${question.text.substring(0, 50)}..."`
+          }: "${question.text.substring(0, 50)}..."`,
         );
         processQuestion(question, section, 0, sectionIndex, questionIndex, []);
       });
@@ -1980,7 +2026,7 @@ function generateResponseAnalysis(
   });
 
   console.log(
-    `\n📊 Found ${responses.length} ${responseType.toUpperCase()} responses`
+    `\n📊 Found ${responses.length} ${responseType.toUpperCase()} responses`,
   );
 
   if (responses.length === 0) {
@@ -1996,7 +2042,7 @@ function generateResponseAnalysis(
       groups[response.sectionTitle].push(response);
       return groups;
     },
-    {}
+    {},
   );
 
   // Generate HTML
@@ -2013,8 +2059,8 @@ function generateResponseAnalysis(
           responseType === "no"
             ? "red"
             : responseType === "yes"
-            ? "black"
-            : "#f59e0b";
+              ? "black"
+              : "#f59e0b";
 
         html += `
 <!-- Separate Table for EACH Main Question (${responseType.toUpperCase()} Response) -->
@@ -2024,7 +2070,7 @@ function generateResponseAnalysis(
   <tr style="background: #ffffffff;">
     <td colspan="3" style="border: 1px solid #666; padding: 10px; font-size: 14px; font-weight: 800; color: #1e3a8a;">
         ${sectionTitle} - ${formatQuestionNumberForDisplay(
-          response.questionNumber
+          response.questionNumber,
         )}
     </td>
   </tr>
@@ -2139,10 +2185,10 @@ function generateResponseAnalysis(
                   "/photos/",
                 ];
                 const hasImageExtension = imageExtensions.some((ext) =>
-                  url.includes(ext)
+                  url.includes(ext),
                 );
                 const hasImagePattern = imageHostingPatterns.some((pattern) =>
-                  url.includes(pattern)
+                  url.includes(pattern),
                 );
                 const isDataUrl = url.startsWith("data:image");
                 return hasImageExtension || hasImagePattern || isDataUrl;
@@ -2150,7 +2196,7 @@ function generateResponseAnalysis(
 
               // Function to extract image URLs
               const getImageUrls = (
-                answer: any
+                answer: any,
               ): Array<{
                 url: string;
                 location?: any;
@@ -2216,7 +2262,7 @@ function generateResponseAnalysis(
 
               if (imageUrls.length > 0) {
                 const imagesWithLocation = imageUrls.filter(
-                  (img) => img.location
+                  (img) => img.location,
                 ).length;
 
                 answerDisplay = `
@@ -2362,10 +2408,10 @@ function generateResponseAnalysis(
                   "/photos/",
                 ];
                 const hasImageExtension = imageExtensions.some((ext) =>
-                  url.includes(ext)
+                  url.includes(ext),
                 );
                 const hasImagePattern = imageHostingPatterns.some((pattern) =>
-                  url.includes(pattern)
+                  url.includes(pattern),
                 );
                 const isDataUrl = url.startsWith("data:image");
                 return hasImageExtension || hasImagePattern || isDataUrl;
@@ -2373,7 +2419,7 @@ function generateResponseAnalysis(
 
               // Function to extract image URLs
               const getImageUrls = (
-                answer: any
+                answer: any,
               ): Array<{
                 url: string;
                 location?: any;
@@ -2439,7 +2485,7 @@ function generateResponseAnalysis(
 
               if (imageUrls.length > 0) {
                 const imagesWithLocation = imageUrls.filter(
-                  (img) => img.location
+                  (img) => img.location,
                 ).length;
 
                 answerDisplay = `
@@ -2509,7 +2555,7 @@ function generateResponseAnalysis(
             html += `
       <div style="margin-bottom: 2px; padding: 8px; background: ${rowBgColor}; border-radius: 4px; border: 1px solid #e2e8f0; page-break-inside: avoid;">
         <div style="font-size: 10px; font-weight: 600; color: #1e40af; margin-bottom: 3px;">
-          ${fq.number} ${fq.text} ?
+          ${formatQuestionNumberForDisplay(fq.number)} ${fq.text} ?  
         </div>
         <div style="font-size: 10px; color: #374151; padding-left: 12px; line-height: 1.4;font-family:italic;">
           ${answerDisplay}
@@ -2554,16 +2600,16 @@ function generateResponseAnalysis(
 </table>
 `;
       });
-    }
+    },
   );
 
   return html;
 }
 
 // Helper function to limit response analysis size
-function limitResponseAnalysisSize(
+/*function limitResponseAnalysisSize(
   html: string,
-  maxSizeInChars: number = 300000
+  maxSizeInChars: number = 500000
 ): string {
   if (html.length <= maxSizeInChars) {
     return html;
@@ -2600,6 +2646,16 @@ function limitResponseAnalysisSize(
     truncated +
     `<p style="color: #f59e0b; font-weight: 700; margin-top: 20px;">⚠️ Response analysis was truncated due to size.</p>`
   );
+}*/
+function limitResponseAnalysisSize(
+  html: string,
+  maxSizeInChars: number = 99999999,
+): string {
+  // ✅ NEVER truncate — just log and return full HTML
+  if (html.length > 1000000) {
+    console.warn(`Large analysis: ${(html.length / 1000000).toFixed(2)}MB`);
+  }
+  return html; // ← always return full, never slice
 }
 
 // Individual response analysis functions (kept for backward compatibility)
@@ -2607,13 +2663,13 @@ function generateNoResponseAnalysis(
   form: any,
   response: any,
   availableSections: any[],
-  maxSize: number = 300000
+  maxSize: number = 99999999,
 ): string {
   const html = generateResponseAnalysis(
     form,
     response,
     availableSections,
-    "no"
+    "no",
   );
   return limitResponseAnalysisSize(html, maxSize);
 }
@@ -2622,13 +2678,13 @@ function generateYesResponseAnalysis(
   form: any,
   response: any,
   availableSections: any[],
-  maxSize: number = 300000
+  maxSize: number = 99999999,
 ): string {
   const html = generateResponseAnalysis(
     form,
     response,
     availableSections,
-    "yes"
+    "yes",
   );
   return limitResponseAnalysisSize(html, maxSize);
 }
@@ -2637,13 +2693,13 @@ function generateNAResponseAnalysis(
   form: any,
   response: any,
   availableSections: any[],
-  maxSize: number = 300000
+  maxSize: number = 99999999,
 ): string {
   const html = generateResponseAnalysis(
     form,
     response,
     availableSections,
-    "na"
+    "na",
   );
   return limitResponseAnalysisSize(html, maxSize);
 }
@@ -2652,7 +2708,7 @@ function generatePieChartSVG(
   yesPercent: number,
   noPercent: number,
   naPercent: number,
-  overallScore: number
+  overallScore: number,
 ): string {
   const size = 140;
   const radius = 55;
@@ -2751,28 +2807,6 @@ function generatePieChartSVG(
     `;
 }
 
-async function captureChartAsImage(chartElementId: string): Promise<string> {
-  const chartElement = document.getElementById(chartElementId);
-  if (!chartElement) {
-    console.error(`Chart element with id ${chartElementId} not found`);
-    return "";
-  }
-
-  try {
-    const canvas = await html2canvas(chartElement, {
-      scale: 2,
-      logging: false,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: "#ffffff",
-    });
-    return canvas.toDataURL("image/png");
-  } catch (error) {
-    console.error("Error capturing chart:", error);
-    return "";
-  }
-}
-
 function generateFirstSectionContent(form: any, response: any): string {
   if (!form?.sections?.[0]) return "";
 
@@ -2790,7 +2824,7 @@ function generateFirstSectionContent(form: any, response: any): string {
   };
 
   let html = `
-    <div style="margin: 1px 0; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+    <div style="margin: -2px 0; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
       <!-- Table Header -->
       <div style="padding: 8px 12px; background: #1e3a8a; text-align: center;">
         <h2 style="font-size: 16px; font-weight: 700; color: white; margin: 0;">
@@ -2811,7 +2845,7 @@ function generateFirstSectionContent(form: any, response: any): string {
   // Determine the maximum number of rows needed
   const maxRows = Math.max(
     leftColumnQuestions.length,
-    rightColumnQuestions.length
+    rightColumnQuestions.length,
   );
 
   for (let i = 0; i < maxRows; i++) {
@@ -2832,7 +2866,7 @@ function generateFirstSectionContent(form: any, response: any): string {
             leftQuestion.text || leftQuestion.id
           }</span>
           <span style="color: #374151; margin-left: 4px;">${renderAnswerHTML(
-            answer
+            answer,
           )}</span>
         </div>
       `;
@@ -2848,7 +2882,7 @@ function generateFirstSectionContent(form: any, response: any): string {
                   followUp.text || followUp.id
                 }</span>
                 <span style="color: #6b7280; font-size: 11px; margin-left: 4px;">${renderAnswerHTML(
-                  followAnswer
+                  followAnswer,
                 )}</span>
               </div>
             `;
@@ -2868,7 +2902,7 @@ function generateFirstSectionContent(form: any, response: any): string {
             rightQuestion.text || rightQuestion.id
           }</span>
           <span style="color: #374151; margin-left: 4px;">${renderAnswerHTML(
-            answer
+            answer,
           )}</span>
         </div>
       `;
@@ -2884,7 +2918,7 @@ function generateFirstSectionContent(form: any, response: any): string {
                   followUp.text || followUp.id
                 }</span>
                 <span style="color: #6b7280; font-size: 11px; margin-left: 4px;">${renderAnswerHTML(
-                  followAnswer
+                  followAnswer,
                 )}</span>
               </div>
             `;
@@ -2911,19 +2945,30 @@ function generateScoreSection(sectionStats: any[]): string {
   const totalYes = sectionStats.reduce((sum, stat) => sum + (stat.yes || 0), 0);
   const totalNo = sectionStats.reduce((sum, stat) => sum + (stat.no || 0), 0);
   const totalNA = sectionStats.reduce((sum, stat) => sum + (stat.na || 0), 0);
-  const totalCorrect = sectionStats.reduce((sum, stat) => sum + (stat.correct || 0), 0);
-  const totalWrong = sectionStats.reduce((sum, stat) => sum + (stat.wrong || 0), 0);
-  
+  const totalCorrect = sectionStats.reduce(
+    (sum, stat) => sum + (stat.correct || 0),
+    0,
+  );
+  const totalWrong = sectionStats.reduce(
+    (sum, stat) => sum + (stat.wrong || 0),
+    0,
+  );
+
   const totalCompliance = totalYes + totalNo + totalNA;
   const totalAccuracy = totalCorrect + totalWrong;
   const grandTotal = totalCompliance + totalAccuracy;
 
-  const yesPercentage = totalCompliance > 0 ? (totalYes / totalCompliance) * 100 : 0;
-  const noPercentage = totalCompliance > 0 ? (totalNo / totalCompliance) * 100 : 0;
-  const naPercentage = totalCompliance > 0 ? (totalNA / totalCompliance) * 100 : 0;
-  
-  const correctPercentage = totalAccuracy > 0 ? (totalCorrect / totalAccuracy) * 100 : 0;
-  const wrongPercentage = totalAccuracy > 0 ? (totalWrong / totalAccuracy) * 100 : 0;
+  const yesPercentage =
+    totalCompliance > 0 ? (totalYes / totalCompliance) * 100 : 0;
+  const noPercentage =
+    totalCompliance > 0 ? (totalNo / totalCompliance) * 100 : 0;
+  const naPercentage =
+    totalCompliance > 0 ? (totalNA / totalCompliance) * 100 : 0;
+
+  const correctPercentage =
+    totalAccuracy > 0 ? (totalCorrect / totalAccuracy) * 100 : 0;
+  const wrongPercentage =
+    totalAccuracy > 0 ? (totalWrong / totalAccuracy) * 100 : 0;
 
   const hasAccuracy = totalAccuracy > 0;
   const hasCompliance = totalCompliance > 0;
@@ -2938,7 +2983,9 @@ function generateScoreSection(sectionStats: any[]): string {
       <div style="padding: 20px;">
         <div style="display: flex; flex-direction: column; gap: 20px;">
           
-          ${hasCompliance ? `
+          ${
+            hasCompliance
+              ? `
           <div style="display: flex; align-items: center; gap: 30px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
             <div style="flex-shrink: 0; text-align: center; min-width: 120px;">
               <div style="font-size: 11px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">COMPLIANCE</div>
@@ -2964,9 +3011,13 @@ function generateScoreSection(sectionStats: any[]): string {
               </div>
             </div>
           </div>
-          ` : ''}
+          `
+              : ""
+          }
 
-          ${hasAccuracy ? `
+          ${
+            hasAccuracy
+              ? `
           <div style="display: flex; align-items: center; gap: 30px;">
             <div style="flex-shrink: 0; text-align: center; min-width: 120px;">
               <div style="font-size: 11px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">ACCURACY</div>
@@ -2987,9 +3038,11 @@ function generateScoreSection(sectionStats: any[]): string {
               </div>
             </div>
           </div>
-          ` : ''}
+          `
+              : ""
+          }
 
-          <div style="margin-top: 5px; padding-top: 10px; border-top: 1.5px solid #e5e7eb; text-align: center; font-size: 13px; font-weight: 700; color: #374151;">
+          <div style="margin-top: 1px; padding-top: 10px; border-top: 1.5px solid #e5e7eb; text-align: center; font-size: 13px; font-weight: 700; color: #374151;">
             Total Parameters Evaluated: <span style="color: #1e3a8a; font-weight: 900; margin-left: 6px;">${grandTotal}</span>
           </div>
         </div>
@@ -3003,7 +3056,7 @@ function generateSectionTables(
   sectionMainParameters: Record<string, any[]>,
   sectionChartImages: Record<string, string> = {},
   form?: any,
-  response?: any
+  response?: any,
 ): string {
   console.log("🔍 generateSectionTables called with:", {
     availableSectionsCount: availableSections.length,
@@ -3045,7 +3098,7 @@ function generateSectionTables(
               wrong: totals.wrong + (stat.wrong || 0),
               total: totals.total + (stat.total || 0),
             }),
-            { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 }
+            { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 },
           )
         : { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 };
 
@@ -3061,7 +3114,7 @@ function generateSectionTables(
           const questionText = question.text || "";
 
           console.log(
-            `🔍 Processing question: "${questionText}" → Answer: "${answer}"`
+            `🔍 Processing question: "${questionText}" → Answer: "${answer}"`,
           );
 
           // Check if this is a main parameter question (not a follow-up)
@@ -3092,7 +3145,7 @@ function generateSectionTables(
             console.log(
               `✅ Started new parameter: "${
                 question.subParam1 || "No parameter set"
-              }"`
+              }"`,
             );
           }
 
@@ -3144,9 +3197,9 @@ function generateSectionTables(
 
       // Response Analysis Section - Show if we have question stats
       if (hasQuestionStats) {
-        const complianceStats = questionStats.filter(q => q.hasYesNo);
-        const accuracyStats = questionStats.filter(q => q.isQuiz);
-        
+        const complianceStats = questionStats.filter((q) => q.hasYesNo);
+        const accuracyStats = questionStats.filter((q) => q.isQuiz);
+
         const hasCompliance = complianceStats.length > 0;
         const hasAccuracy = accuracyStats.length > 0;
 
@@ -3169,14 +3222,18 @@ function generateSectionTables(
         // Chart Container
         html += `
           <div style="margin-bottom: 30px; text-align: center;">
-            ${chartImage ? `
+            ${
+              chartImage
+                ? `
               <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; display: inline-block; width: 100%; max-width: 500px;">
                 <div style="font-size: 14px; font-weight: 600; color: #1e3a8a; margin-bottom: 10px;">
                   Response Distribution
                 </div>
                 <img src="${chartImage}" style="width: 100%; height: auto; max-height: 250px; object-fit: contain;" alt="Response Distribution Chart" />
               </div>
-            ` : ""}
+            `
+                : ""
+            }
           </div>
         `;
 
@@ -3197,13 +3254,24 @@ function generateSectionTables(
                   </tr>
                 </thead>
                 <tbody>
-                  ${complianceStats.map((stat, i) => {
-                    const total = (stat.yes || 0) + (stat.no || 0) + (stat.na || 0);
-                    const yesPct = total > 0 ? ((stat.yes / total) * 100).toFixed(1) : "0.0";
-                    const noPct = total > 0 ? ((stat.no / total) * 100).toFixed(1) : "0.0";
-                    const naPct = total > 0 ? ((stat.na / total) * 100).toFixed(1) : "0.0";
-                    const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
-                    return `
+                  ${complianceStats
+                    .map((stat, i) => {
+                      const total =
+                        (stat.yes || 0) + (stat.no || 0) + (stat.na || 0);
+                      const yesPct =
+                        total > 0
+                          ? ((stat.yes / total) * 100).toFixed(1)
+                          : "0.0";
+                      const noPct =
+                        total > 0
+                          ? ((stat.no / total) * 100).toFixed(1)
+                          : "0.0";
+                      const naPct =
+                        total > 0
+                          ? ((stat.na / total) * 100).toFixed(1)
+                          : "0.0";
+                      const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
+                      return `
                       <tr style="background: ${rowBg};">
                         <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: 600;">${stat.subParam1 || stat.title}</td>
                         <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
@@ -3220,7 +3288,8 @@ function generateSectionTables(
                         </td>
                       </tr>
                     `;
-                  }).join("")}
+                    })
+                    .join("")}
                 </tbody>
               </table>
             </div>
@@ -3243,12 +3312,19 @@ function generateSectionTables(
                   </tr>
                 </thead>
                 <tbody>
-                  ${accuracyStats.map((stat, i) => {
-                    const total = (stat.correct || 0) + (stat.wrong || 0);
-                    const correctPct = total > 0 ? ((stat.correct / total) * 100).toFixed(1) : "0.0";
-                    const wrongPct = total > 0 ? ((stat.wrong / total) * 100).toFixed(1) : "0.0";
-                    const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
-                    return `
+                  ${accuracyStats
+                    .map((stat, i) => {
+                      const total = (stat.correct || 0) + (stat.wrong || 0);
+                      const correctPct =
+                        total > 0
+                          ? ((stat.correct / total) * 100).toFixed(1)
+                          : "0.0";
+                      const wrongPct =
+                        total > 0
+                          ? ((stat.wrong / total) * 100).toFixed(1)
+                          : "0.0";
+                      const rowBg = i % 2 === 0 ? "#ffffff" : "#f8fafc";
+                      return `
                       <tr style="background: ${rowBg};">
                         <td style="padding: 6px 8px; border: 1px solid #e2e8f0; font-weight: 600;">${stat.subParam1 || stat.title}</td>
                         <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center;">
@@ -3261,7 +3337,8 @@ function generateSectionTables(
                         </td>
                       </tr>
                     `;
-                  }).join("")}
+                    })
+                    .join("")}
                 </tbody>
               </table>
             </div>
@@ -3368,8 +3445,8 @@ function generateSectionTables(
                   ? "#ffffff"
                   : "#f8fafc"
                 : globalIndex % 2 === 0
-                ? "#f0f9ff"
-                : "#e0f2fe";
+                  ? "#f0f9ff"
+                  : "#e0f2fe";
 
               const paramColor = isMainParam ? "#1e293b" : "#0369a1";
               const fontWeight = isMainParam ? "600" : "500";
@@ -3378,7 +3455,7 @@ function generateSectionTables(
               // Helper function to display actual values or "Not provided"
               const displayValue = (
                 value: any,
-                defaultValue: string = "Not provided"
+                defaultValue: string = "Not provided",
               ) => {
                 if (value === null || value === undefined || value === "") {
                   return `<span style="color: #9ca3af; font-style: italic;">${defaultValue}</span>`;
@@ -3437,7 +3514,7 @@ function generateSectionTables(
       }
 
       console.log(
-        ` Generated HTML for section ${section.id}: ${html.length} characters`
+        ` Generated HTML for section ${section.id}: ${html.length} characters`,
       );
       return html;
     })
@@ -3518,7 +3595,7 @@ async function getLogoAsBase64(): Promise<string> {
           reader.onloadend = () => {
             const base64 = reader.result as string;
             console.log(
-              `📸 Logo loaded successfully, base64 length: ${base64.length}`
+              `📸 Logo loaded successfully, base64 length: ${base64.length}`,
             );
             resolve(base64);
           };
@@ -3540,7 +3617,7 @@ async function getLogoAsBase64(): Promise<string> {
 function generateTableBarChart(
   yesPercent: number,
   noPercent: number,
-  naPercent: number
+  naPercent: number,
 ): string {
   const totalWidth = 200;
   const yesWidth = (yesPercent / 100) * totalWidth;
@@ -3556,7 +3633,7 @@ function generateTableBarChart(
           ${
             yesPercent >= 15
               ? `<span style="color: white; font-size: 8px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${yesPercent.toFixed(
-                  0
+                  0,
                 )}%</span>`
               : ""
           }
@@ -3571,7 +3648,7 @@ function generateTableBarChart(
           ${
             noPercent >= 15
               ? `<span style="color: white; font-size: 8px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${noPercent.toFixed(
-                  0
+                  0,
                 )}%</span>`
               : ""
           }
@@ -3588,7 +3665,7 @@ function generateTableBarChart(
           ${
             naPercent >= 15
               ? `<span style="color: white; font-size: 8px; font-weight: bold; text-shadow: 0 0 2px rgba(0,0,0,0.5);">${naPercent.toFixed(
-                  0
+                  0,
                 )}%</span>`
               : ""
           }
@@ -3603,7 +3680,7 @@ function generateTableBarChart(
           ? `
         <div style="position: absolute; left: 2px; top: 1px;">
           <span style="color: #059669; font-size: 7px; font-weight: bold; background: rgba(255,255,255,0.8); padding: 1px 2px; border-radius: 1px;">${yesPercent.toFixed(
-            0
+            0,
           )}%</span>
         </div>
       `
@@ -3614,7 +3691,7 @@ function generateTableBarChart(
           ? `
         <div style="position: absolute; left: ${yesWidth + 2}px; top: 1px;">
           <span style="color: #dc2626; font-size: 7px; font-weight: bold; background: rgba(255,255,255,0.8); padding: 1px 2px; border-radius: 1px;">${noPercent.toFixed(
-            0
+            0,
           )}%</span>
         </div>
       `
@@ -3627,7 +3704,7 @@ function generateTableBarChart(
           yesWidth + noWidth + 2
         }px; top: 1px;">
           <span style="color: #6b7280; font-size: 7px; font-weight: bold; background: rgba(255,255,255,0.8); padding: 1px 2px; border-radius: 1px;">${naPercent.toFixed(
-            0
+            0,
           )}%</span>
         </div>
       `
@@ -3713,8 +3790,15 @@ function getPDFTypeSuffix(type: string): string {
 }
 export async function generateAndDownloadPDF(
   options: PDFOptions,
-  type?: "no-only" | "yes-only" | "both" | "na-only" | "section" | "default" | "responses-view",
-  onProgress?: ProgressCallback // Add this parameter
+  type?:
+    | "no-only"
+    | "yes-only"
+    | "both"
+    | "na-only"
+    | "section"
+    | "default"
+    | "responses-view",
+  onProgress?: ProgressCallback, // Add this parameter
 ): Promise<void> {
   const pdfType = type || "default";
 
@@ -3754,11 +3838,11 @@ export async function generateAndDownloadPDF(
     // If server fails, show user-friendly message
     if (error.message?.includes("too large")) {
       alert(
-        "Document is too large for server processing. Please try exporting smaller reports or contact support."
+        "Document is too large for server processing. Please try exporting smaller reports or contact support.",
       );
     } else {
       alert(
-        `PDF generation failed: ${error.message}. Please try again or contact support.`
+        `PDF generation failed: ${error.message}. Please try again or contact support.`,
       );
     }
 
@@ -3769,67 +3853,67 @@ export async function generateAndDownloadPDF(
 // Update these convenience functions
 export async function generateNoOnlyPDF(
   options: Omit<PDFOptions, "type">,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
 ): Promise<void> {
   return generateAndDownloadPDF(
     { ...options, type: "no-only" },
     "no-only",
-    onProgress
+    onProgress,
   );
 }
 
 export async function generateYesOnlyPDF(
   options: Omit<PDFOptions, "type">,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
 ): Promise<void> {
   return generateAndDownloadPDF(
     { ...options, type: "yes-only" },
     "yes-only",
-    onProgress
+    onProgress,
   );
 }
 
 export async function generateNAOnlyPDF(
   options: Omit<PDFOptions, "type">,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
 ): Promise<void> {
   return generateAndDownloadPDF(
     { ...options, type: "na-only" },
     "na-only",
-    onProgress
+    onProgress,
   );
 }
 
 export async function generateBothPDF(
   options: Omit<PDFOptions, "type">,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
 ): Promise<void> {
   return generateAndDownloadPDF(
     { ...options, type: "both" },
     "both",
-    onProgress
+    onProgress,
   );
 }
 
 export async function generateSectionOnlyPDF(
   options: Omit<PDFOptions, "type">,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
 ): Promise<void> {
   return generateAndDownloadPDF(
     { ...options, type: "section" },
     "section",
-    onProgress
+    onProgress,
   );
 }
 
 export async function generateFullPDF(
   options: Omit<PDFOptions, "type">,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
 ): Promise<void> {
   return generateAndDownloadPDF(
     { ...options, type: "default" },
     "default",
-    onProgress
+    onProgress,
   );
 }
 
@@ -3845,7 +3929,7 @@ export type ProgressCallback = (progress: {
 export async function generatePDFOnServer(
   options: PDFOptions,
   type: string = "default",
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
 ): Promise<Blob> {
   const htmlContent = await generateCompleteHTMLForServer(options, type);
 
@@ -3879,7 +3963,7 @@ export async function generatePDFOnServer(
 
           currentPercentage = Math.min(
             currentPercentage + increment,
-            targetPercentage
+            targetPercentage,
           );
         } else {
           // If we've reached target but not at 100, continue slowly
@@ -3916,7 +4000,7 @@ export async function generatePDFOnServer(
   const updateProgress = (
     stage: "uploading" | "generating" | "downloading" | "complete",
     percentage: number,
-    message?: string
+    message?: string,
   ) => {
     if (!onProgress) return;
 
@@ -4087,10 +4171,97 @@ async function processObjectImages(obj: any): Promise<any> {
   return obj;
 }
 
+// ✅ NEW: Fetch only image URLs to base64, skip all other answers
+async function convertImageAnswersToBase64(
+  answers: Record<string, any>,
+): Promise<Record<string, any>> {
+  // Step 1: Collect all unique image URLs from answers
+  const imageUrlMap = new Map<string, string>(); // url → base64
+
+  const collectImageUrls = (val: any): string[] => {
+    if (!val) return [];
+    if (
+      typeof val === "string" &&
+      isImageUrl(val) &&
+      !val.startsWith("data:")
+    ) {
+      return [val];
+    }
+    if (Array.isArray(val)) return val.flatMap(collectImageUrls);
+    if (typeof val === "object")
+      return Object.values(val).flatMap(collectImageUrls);
+    return [];
+  };
+
+  const allImageUrls = [
+    ...new Set(Object.values(answers).flatMap(collectImageUrls)),
+  ];
+
+  console.log(`🖼️ Found ${allImageUrls.length} unique images to convert`);
+
+  if (allImageUrls.length === 0) return answers;
+
+  // Step 2: Fetch images in parallel (max 5 at a time to avoid overload)
+  const BATCH_SIZE = 5;
+  for (let i = 0; i < allImageUrls.length; i += BATCH_SIZE) {
+    const batch = allImageUrls.slice(i, i + BATCH_SIZE);
+
+    await Promise.all(
+      batch.map(async (url) => {
+        try {
+          const response = await fetch(url, { credentials: "include" }); // ✅ includes auth cookies
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const blob = await response.blob();
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+          imageUrlMap.set(url, base64);
+          console.log(`✅ Converted: ${url.substring(0, 60)}...`);
+        } catch (err) {
+          console.warn(`⚠️ Failed to convert image: ${url}`, err);
+          imageUrlMap.set(url, url); // fallback: keep original URL
+        }
+      }),
+    );
+
+    console.log(
+      `📸 Image batch ${Math.floor(i / BATCH_SIZE) + 1} done (${Math.min(i + BATCH_SIZE, allImageUrls.length)}/${allImageUrls.length})`,
+    );
+  }
+
+  // Step 3: Replace all image URLs in answers with their base64 versions
+  const replaceImageUrls = (val: any): any => {
+    if (!val) return val;
+    if (typeof val === "string") {
+      return imageUrlMap.has(val) ? imageUrlMap.get(val)! : val;
+    }
+    if (Array.isArray(val)) return val.map(replaceImageUrls);
+    if (typeof val === "object") {
+      const result: any = {};
+      for (const key of Object.keys(val)) {
+        result[key] = replaceImageUrls(val[key]);
+      }
+      return result;
+    }
+    return val;
+  };
+
+  const processedAnswers: Record<string, any> = {};
+  for (const [key, val] of Object.entries(answers)) {
+    processedAnswers[key] = replaceImageUrls(val);
+  }
+
+  console.log(
+    `✅ Image conversion complete: ${imageUrlMap.size} images converted`,
+  );
+  return processedAnswers;
+}
 // Helper function to generate complete HTML for server
 async function generateCompleteHTMLForServer(
   options: PDFOptions,
-  type: string = "default"
+  type: string = "default",
 ): Promise<string> {
   console.log("🔄 Generating complete HTML for server...");
 
@@ -4108,10 +4279,15 @@ async function generateCompleteHTMLForServer(
 
   // Pre-process response to convert all image URLs to base64 for server-side PDF generation
   console.log("📸 Pre-processing images in response...");
+  const processedAnswers = await convertImageAnswersToBase64(
+    originalResponse?.answers || {},
+  );
+
   const response = {
     ...originalResponse,
-    answers: await processObjectImages(originalResponse.answers || {}),
+    answers: processedAnswers,
   };
+
   console.log("✅ Image pre-processing complete");
 
   // 1. Capture chart images
@@ -4137,7 +4313,7 @@ async function generateCompleteHTMLForServer(
     } catch (error) {
       console.warn(
         `⚠️ Could not capture chart for section ${section.id}:`,
-        error
+        error,
       );
     }
   }
@@ -4152,7 +4328,7 @@ async function generateCompleteHTMLForServer(
   const totalNA = sectionStats.reduce((sum, stat) => sum + stat.na, 0);
   const totalQuestions = sectionStats.reduce(
     (sum, stat) => sum + stat.total,
-    0
+    0,
   );
 
   const yesPercentage =
@@ -4165,8 +4341,8 @@ async function generateCompleteHTMLForServer(
 
   console.log(
     `📊 Calculated scores: Yes ${yesPercentage.toFixed(
-      1
-    )}%, No ${noPercentage.toFixed(1)}%, NA ${naPercentage.toFixed(1)}%`
+      1,
+    )}%, No ${noPercentage.toFixed(1)}%, NA ${naPercentage.toFixed(1)}%`,
   );
 
   // 4. Generate response analysis based on type
@@ -4180,7 +4356,7 @@ async function generateCompleteHTMLForServer(
         form,
         response,
         form?.sections || [],
-        1000000
+        1000000,
       );
       break;
     case "yes-only":
@@ -4188,7 +4364,7 @@ async function generateCompleteHTMLForServer(
         form,
         response,
         form?.sections || [],
-        1000000
+        1000000,
       );
       break;
     case "na-only":
@@ -4196,7 +4372,7 @@ async function generateCompleteHTMLForServer(
         form,
         response,
         form?.sections || [],
-        1000000
+        1000000,
       );
       break;
     case "both":
@@ -4204,7 +4380,7 @@ async function generateCompleteHTMLForServer(
         form,
         response,
         form?.sections || [],
-        1000000
+        1000000,
       );
       break;
     case "section":
@@ -4218,12 +4394,12 @@ async function generateCompleteHTMLForServer(
         form,
         response,
         form?.sections || [],
-        1000000
+        1000000,
       );
   }
 
   console.log(
-    `📄 Response analysis generated: ${responseAnalysisHTML.length} chars`
+    `📄 Response analysis generated: ${responseAnalysisHTML.length} chars`,
   );
 
   // 5. Generate other sections
@@ -4238,7 +4414,7 @@ async function generateCompleteHTMLForServer(
       sectionMainParameters,
       sectionChartImages,
       form,
-      response
+      response,
     );
   }
 
@@ -4249,7 +4425,9 @@ async function generateCompleteHTMLForServer(
   let tableRows = "";
 
   const hasWeightage = sectionStats.some((stat) => stat.weightage > 0);
-  const hasAccuracyOverall = sectionStats.some((stat) => stat.correct > 0 || stat.wrong > 0);
+  const hasAccuracyOverall = sectionStats.some(
+    (stat) => stat.correct > 0 || stat.wrong > 0,
+  );
 
   if (sectionStats.length > 0) {
     tableHeaders = `
@@ -4258,10 +4436,14 @@ async function generateCompleteHTMLForServer(
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Yes</th>
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">No</th>
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">N/A</th>
-      ${hasAccuracyOverall ? `
+      ${
+        hasAccuracyOverall
+          ? `
         <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Correct</th>
         <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Wrong</th>
-      ` : ''}
+      `
+          : ""
+      }
       ${
         hasWeightage
           ? `
@@ -4274,16 +4456,22 @@ async function generateCompleteHTMLForServer(
 
     tableRows = sectionStats
       .map((section, index) => {
-        const totalCompliance = (section.yes || 0) + (section.no || 0) + (section.na || 0);
+        const totalCompliance =
+          (section.yes || 0) + (section.no || 0) + (section.na || 0);
         const totalAccuracy = (section.correct || 0) + (section.wrong || 0);
-        
-        const yesPercent = totalCompliance > 0 ? (section.yes / totalCompliance) * 100 : 0;
-        const noPercent = totalCompliance > 0 ? (section.no / totalCompliance) * 100 : 0;
-        const naPercent = totalCompliance > 0 ? (section.na / totalCompliance) * 100 : 0;
-        
-        const correctPercent = totalAccuracy > 0 ? (section.correct / totalAccuracy) * 100 : 0;
-        const wrongPercent = totalAccuracy > 0 ? (section.wrong / totalAccuracy) * 100 : 0;
-        
+
+        const yesPercent =
+          totalCompliance > 0 ? (section.yes / totalCompliance) * 100 : 0;
+        const noPercent =
+          totalCompliance > 0 ? (section.no / totalCompliance) * 100 : 0;
+        const naPercent =
+          totalCompliance > 0 ? (section.na / totalCompliance) * 100 : 0;
+
+        const correctPercent =
+          totalAccuracy > 0 ? (section.correct / totalAccuracy) * 100 : 0;
+        const wrongPercent =
+          totalAccuracy > 0 ? (section.wrong / totalAccuracy) * 100 : 0;
+
         const rowBgColor = index % 2 === 0 ? "#ffffff" : "#f8fafc";
 
         return `
@@ -4306,7 +4494,9 @@ async function generateCompleteHTMLForServer(
             <div style="font-weight: 700; color: #6b7280;">${section.na}</div>
             <div style="font-size: 9px; color: #6b7280;">${naPercent.toFixed(1)}%</div>
           </td>
-          ${hasAccuracyOverall ? `
+          ${
+            hasAccuracyOverall
+              ? `
             <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
               <div style="font-weight: 700; color: #166534;">${section.correct || 0}</div>
               <div style="font-size: 9px; color: #166534;">${correctPercent.toFixed(1)}%</div>
@@ -4315,7 +4505,9 @@ async function generateCompleteHTMLForServer(
               <div style="font-weight: 700; color: #991b1b;">${section.wrong || 0}</div>
               <div style="font-size: 9px; color: #991b1b;">${wrongPercent.toFixed(1)}%</div>
             </td>
-          ` : ''}
+          `
+              : ""
+          }
           ${
             hasWeightage
               ? `
@@ -4589,9 +4781,9 @@ async function generateCompleteHTMLForServer(
           ${
             type !== "default"
               ? `<p style="font-size: 10px; color: ${getTypeColor(
-                  type
+                  type,
                 )}; font-weight: 600; margin-top: 2px;">${getPDFTypeDisplayName(
-                  type
+                  type,
                 )}</p>`
               : ""
           }
@@ -4685,8 +4877,8 @@ async function generateCompleteHTMLForServer(
     <!-- Footer -->
     <div class="footer">
       <p>Generated on ${new Date().toLocaleString()} • Total Assessment Score: ${overallScore.toFixed(
-    1
-  )}% • PDF Type: ${getPDFTypeDisplayName(type)}</p>
+        1,
+      )}% • PDF Type: ${getPDFTypeDisplayName(type)}</p>
       ${
         type === "no-only" ||
         type === "yes-only" ||
@@ -4694,7 +4886,7 @@ async function generateCompleteHTMLForServer(
         type === "na" ||
         type === "section"
           ? `<p style="font-size: 9px; color: #6b7280;">Note: ${getExclusionNote(
-              type
+              type,
             )}</p>`
           : ""
       }
