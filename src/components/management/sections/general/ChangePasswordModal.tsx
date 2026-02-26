@@ -17,6 +17,7 @@ export default function ChangePasswordModal({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [directReset, setDirectReset] = useState(false);
 
   const validatePassword = (password: string) => {
     if (password.length < 8) {
@@ -41,10 +42,12 @@ export default function ChangePasswordModal({
     e.preventDefault();
     setError("");
 
-    // Validate current password
-    if (!currentPassword) {
-      setError("Please enter your current password");
-      return;
+    if (!directReset) {
+      // Validate current password for regular password change
+      if (!currentPassword) {
+        setError("Please enter your current password");
+        return;
+      }
     }
 
     // Validate new password
@@ -60,8 +63,8 @@ export default function ChangePasswordModal({
       return;
     }
 
-    // Check if new password is different from current
-    if (currentPassword === newPassword) {
+    // Check if new password is different from current (only for regular change)
+    if (!directReset && currentPassword === newPassword) {
       setError("New password must be different from current password");
       return;
     }
@@ -92,7 +95,7 @@ export default function ChangePasswordModal({
               <Lock className="w-5 h-5 text-primary-600" />
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Change Password
+              {directReset ? "Reset Password" : "Change Password"}
             </h3>
           </div>
           <button
@@ -121,7 +124,25 @@ export default function ChangePasswordModal({
             </div>
           )}
 
+          {/* Toggle for Direct Reset */}
+          <div className="flex items-center space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <input
+              type="checkbox"
+              id="directReset"
+              checked={directReset}
+              onChange={(e) => {
+                setDirectReset(e.target.checked);
+                setCurrentPassword("");
+              }}
+              className="w-4 h-4 rounded cursor-pointer"
+            />
+            <label htmlFor="directReset" className="text-sm font-medium text-blue-900 dark:text-blue-300 cursor-pointer flex-1">
+              Direct Password Reset (Skip Current Password)
+            </label>
+          </div>
+
           {/* Current Password */}
+          {!directReset && (
           <div className="space-y-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Current Password
@@ -133,13 +154,14 @@ export default function ChangePasswordModal({
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 className="input-field pr-10"
                 placeholder="Enter current password"
-                required
-                disabled={success}
+                required={!directReset}
+                disabled={success || directReset}
               />
               <button
                 type="button"
                 onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                 className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:text-gray-400"
+                disabled={directReset}
               >
                 {showCurrentPassword ? (
                   <EyeOff className="w-5 h-5" />
@@ -149,6 +171,7 @@ export default function ChangePasswordModal({
               </button>
             </div>
           </div>
+          )}
 
           {/* New Password */}
           <div className="space-y-2">
@@ -251,15 +274,15 @@ export default function ChangePasswordModal({
               {loading ? (
                 <div className="flex items-center">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
-                  Changing...
+                  {directReset ? "Resetting..." : "Changing..."}
                 </div>
               ) : success ? (
                 <div className="flex items-center">
                   <Check className="w-4 h-4 mr-2" />
-                  Changed
+                  {directReset ? "Reset" : "Changed"}
                 </div>
               ) : (
-                "Change Password"
+                directReset ? "Reset Password" : "Change Password"
               )}
             </button>
           </div>

@@ -696,6 +696,8 @@ export default function FormAnalyticsDashboard() {
   const [deletingResponseId, setDeletingResponseId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedResponseIds, setSelectedResponseIds] = useState<string[]>([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; id: string } | null>(null);
   const [selectedResponse, setSelectedResponse] = useState<Response | null>(null);
   const [selectedFormForModal, setSelectedFormForModal] = useState<Form | null>(null);
@@ -2042,11 +2044,7 @@ export default function FormAnalyticsDashboard() {
         button.disabled = false;
       }
 
-      if (success) {
-        console.log('PDF generated successfully');
-      } else {
-        alert('Failed to generate PDF. Please try again.');
-      }
+      console.log('PDF generated successfully');
     } catch (error) {
       console.error('Error downloading PDF:', error);
       alert('Failed to generate PDF. Please try again.');
@@ -2360,6 +2358,28 @@ export default function FormAnalyticsDashboard() {
     } catch (err) {
       console.error("Error deleting response:", err);
       showToast("Failed to delete response. Please try again.", "error");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleBulkDeleteResponses = async () => {
+    if (selectedResponseIds.length === 0) return;
+    
+    try {
+      setIsDeleting(true);
+      
+      for (const responseId of selectedResponseIds) {
+        await apiClient.deleteResponse(responseId);
+      }
+      
+      setResponses(responses.filter(r => !selectedResponseIds.includes(r.id)));
+      setSelectedResponseIds([]);
+      setShowBulkDeleteConfirm(false);
+      showToast(`${selectedResponseIds.length} response(s) deleted successfully!`, "success");
+    } catch (err) {
+      console.error("Error deleting responses:", err);
+      showToast("Failed to delete some responses. Please try again.", "error");
     } finally {
       setIsDeleting(false);
     }
@@ -3588,6 +3608,15 @@ export default function FormAnalyticsDashboard() {
                       <Download className="w-4 h-4" />
                       Download as Excel
                     </button>
+                    {selectedResponseIds.length > 0 && (
+                      <button
+                        onClick={() => setShowBulkDeleteConfirm(true)}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete Selected ({selectedResponseIds.length})
+                      </button>
+                    )}
 
                     {showResponsesFilter && (
                       <div className="absolute top-full left-0 mt-2 p-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 min-w-80 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -3720,6 +3749,7 @@ export default function FormAnalyticsDashboard() {
                     <table className="text-sm border-collapse">
                       <thead className="sticky top-0 z-10">
                         <tr className="bg-indigo-50 dark:bg-indigo-900/20">
+                          <td className="px-3 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                           <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                           <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                           <td colSpan={2} className="px-6 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">Performance</td>
@@ -3736,7 +3766,21 @@ export default function FormAnalyticsDashboard() {
                         </tr>
                         
                         <tr className="bg-gray-100 dark:bg-gray-800">
-                          <th className="sticky left-0 z-20 text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-100 dark:bg-gray-800">Actions</th>
+                          <th className="sticky left-0 z-20 text-center px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+                            <input
+                              type="checkbox"
+                              checked={selectedResponseIds.length > 0 && selectedResponseIds.length === filteredResponses.length}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedResponseIds(filteredResponses.map(r => r.id));
+                                } else {
+                                  setSelectedResponseIds([]);
+                                }
+                              }}
+                              className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
+                            />
+                          </th>
+                          <th className="sticky left-12 z-20 text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-100 dark:bg-gray-800">Actions</th>
                           <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">Timestamp</th>
                           <th className="text-center px-4 py-3 font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">Correct</th>
                           <th className="text-center px-4 py-3 font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">Wrong</th>
@@ -3772,7 +3816,8 @@ export default function FormAnalyticsDashboard() {
 
                         {/* Common Answer Row */}
                         <tr className="bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-200 dark:border-amber-800">
-                          <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 sticky left-0 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">Correct Answer</td>
+                          <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
+                          <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 sticky left-12 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">Correct Answer</td>
                           <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
                           <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
                           <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
@@ -3801,7 +3846,21 @@ export default function FormAnalyticsDashboard() {
                         {filteredResponses.length > 0 ? (
                           filteredResponses.map((response: Response, idx: number) => (
                             <tr key={response.id} className={`${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
-                              <td className={`px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 z-20 ${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+                              <td className={`px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 z-20 ${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedResponseIds.includes(response.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedResponseIds([...selectedResponseIds, response.id]);
+                                    } else {
+                                      setSelectedResponseIds(selectedResponseIds.filter(id => id !== response.id));
+                                    }
+                                  }}
+                                  className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
+                                />
+                              </td>
+                              <td className={`px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-12 z-20 ${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
                                 <div className="flex items-center gap-2">
                                   {editingResponseId === response.id ? (
                                     <>
@@ -4838,6 +4897,53 @@ export default function FormAnalyticsDashboard() {
                     </>
                   ) : (
                     "Delete"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-sm">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+                <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+                Delete Selected Responses
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 text-center mb-2">
+                Are you sure you want to delete {selectedResponseIds.length} response(s)? This action cannot be undone.
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 text-center mb-6">
+                This will permanently remove the selected responses from the system.
+              </p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={() => {
+                    setShowBulkDeleteConfirm(false);
+                  }}
+                  disabled={isDeleting}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleBulkDeleteResponses}
+                  disabled={isDeleting}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isDeleting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    <>Delete {selectedResponseIds.length} Response(s)</>
                   )}
                 </button>
               </div>

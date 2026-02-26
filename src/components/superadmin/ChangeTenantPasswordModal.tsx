@@ -80,7 +80,7 @@ export default function ChangeTenantPasswordModal({
             </div>
             <div>
               <h3 className="text-lg font-semibold text-primary-900">
-                Change Admin Password
+                Reset Admin Password
               </h3>
               <p className="text-sm text-primary-600">
                 {tenant.adminId.firstName} {tenant.adminId.lastName}
@@ -108,7 +108,7 @@ export default function ChangeTenantPasswordModal({
             <div className="flex items-start space-x-2 p-3 bg-green-50 border border-green-200 rounded-lg">
               <Check className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-green-800">
-                Password changed successfully!
+                Password reset successfully!
               </p>
             </div>
           )}
@@ -116,8 +116,8 @@ export default function ChangeTenantPasswordModal({
           {/* Info Message */}
           <div className="p-3 bg-primary-50 border border-primary-200 rounded-lg">
             <p className="text-sm text-primary-700">
-              As a superadmin, you can change the tenant admin's password
-              without requiring their current password.
+              As a superadmin, you can reset the tenant admin's password
+              without requiring their current password. The admin can use the new password to log in immediately.
             </p>
           </div>
 
@@ -212,15 +212,15 @@ export default function ChangeTenantPasswordModal({
               {loading ? (
                 <div className="flex items-center">
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div>
-                  Changing...
+                  Resetting...
                 </div>
               ) : success ? (
                 <div className="flex items-center">
                   <Check className="w-4 h-4 mr-2" />
-                  Changed
+                  Reset
                 </div>
               ) : (
-                "Change Password"
+                "Reset Password"
               )}
             </button>
           </div>

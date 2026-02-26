@@ -3609,8 +3609,29 @@ async function getLogoAsBase64(): Promise<string> {
     }
   }
 
-  // If no logo found, return empty string so no image shows
-  console.warn("⚠️ No logo found in any path, image will be empty");
+  console.warn("⚠️ No custom logo found, falling back to default logo");
+  try {
+    const defaultLogoPath = "/logoimages/logo.jpeg";
+    const response = await fetch(defaultLogoPath);
+    
+    if (response.ok) {
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64 = reader.result as string;
+          console.log(
+            `📸 Default logo loaded successfully, base64 length: ${base64.length}`,
+          );
+          resolve(base64);
+        };
+        reader.readAsDataURL(blob);
+      });
+    }
+  } catch (error) {
+    console.log(`❌ Error loading default logo:`, error);
+  }
+
   return "";
 }
 // Add this function (generateTableBarChart)

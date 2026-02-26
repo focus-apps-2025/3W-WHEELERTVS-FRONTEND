@@ -28,6 +28,7 @@ export default function DashboardStats({
       icon: FileText,
       gradient: "from-blue-500 to-blue-600",
       bg: "bg-blue-50",
+      description: "Total service forms created",
     },
     {
       name: "Customer Requests",
@@ -36,6 +37,7 @@ export default function DashboardStats({
       icon: Users,
       gradient: "from-green-500 to-green-600",
       bg: "bg-green-50",
+      description: "Total customer responses received",
     },
     {
       name: "Active Customers",
@@ -46,6 +48,7 @@ export default function DashboardStats({
       icon: BarChart2,
       gradient: "from-purple-500 to-purple-600",
       bg: "bg-purple-50",
+      description: "Customers who submitted responses",
     },
     {
       name: "Response Rate",
@@ -54,6 +57,7 @@ export default function DashboardStats({
       icon: TrendingUp,
       gradient: "from-orange-500 to-orange-600",
       bg: "bg-orange-50",
+      description: "Percentage of submitted responses",
     },
   ];
 
@@ -73,10 +77,13 @@ export default function DashboardStats({
                 {stat.value}
               </p>
             </div>
-            <div className={`rounded-xl p-3 ${stat.bg}`}>
+            <div className={`rounded-xl p-3 ${stat.bg} cursor-help group relative`} title={stat.description}>
               <stat.icon
                 className={`w-7 h-7 bg-gradient-to-r ${stat.gradient} bg-clip-text text-transparent`}
               />
+              <div className="absolute hidden group-hover:block bg-gray-900 dark:bg-gray-700 text-white text-xs rounded py-1 px-2 bottom-full right-0 mb-2 whitespace-nowrap z-50 pointer-events-none">
+                {stat.description}
+              </div>
             </div>
           </div>
           <div className="flex items-center justify-between">

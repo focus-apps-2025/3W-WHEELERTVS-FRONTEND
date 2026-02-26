@@ -14,6 +14,7 @@ import {
   LogOut,
   Building2,
   Users,
+  Clock,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useSidebar } from "../../context/SidebarContext";
@@ -68,6 +69,12 @@ export default function Sidebar() {
       icon: Building2,
       path: "/superadmin/tenants",
       description: "Manage all tenants and branches",
+    },
+    {
+      title: "Free Trial",
+      icon: Clock,
+      path: "/superadmin/free-trial",
+      description: "Manage tenants on free trial",
     },
     {
       title: "Global Forms",
@@ -183,7 +190,7 @@ export default function Sidebar() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 h-full z-40 transition-all duration-300 bg-blue-900
+          fixed top-0 left-0 h-full z-40 transition-all duration-300 bg-[#1e3a8a]
           ${isCollapsed ? "w-16" : "w-64"}
           ${
             isMobileOpen
@@ -193,7 +200,7 @@ export default function Sidebar() {
         `}
       >
         {/* Header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-blue-800">
+        <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
           <div className="flex items-center">
             {logo ? (
               <>
@@ -221,7 +228,7 @@ export default function Sidebar() {
           </div>
           <button
             onClick={toggleSidebar}
-            className="hidden lg:flex p-2 hover:bg-blue-800 rounded-lg transition-colors"
+            className="hidden lg:flex p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
             {isCollapsed ? (
               <ChevronRight className="w-4 h-4 text-white" />
@@ -247,8 +254,8 @@ export default function Sidebar() {
                     group relative flex items-center px-3 py-3 rounded-lg transition-all duration-200
                     ${
                       isActive
-                        ? "bg-blue-700 text-white"
-                        : "text-white hover:bg-blue-800 hover:text-white"
+                        ? "bg-white/20 text-white shadow-sm"
+                        : "text-white/80 hover:bg-white/10 hover:text-white"
                     }
                   `}
                   title={isCollapsed ? item.title : ""}
@@ -260,7 +267,7 @@ export default function Sidebar() {
 
                   {/* Tooltip for collapsed state */}
                   {isCollapsed && (
-                    <div className="absolute left-full ml-2 px-2 py-1 text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 bg-blue-800 text-white">
+                    <div className="absolute left-full ml-2 px-2 py-1 text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 bg-[#1e3a8a] text-white">
                       {item.title}
                     </div>
                   )}

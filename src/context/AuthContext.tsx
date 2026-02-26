@@ -50,6 +50,15 @@ interface AuthContextType {
     password: string,
     tenantSlug?: string
   ) => Promise<boolean>;
+  signup: (signupData: {
+    name: string;
+    slug: string;
+    companyName: string;
+    adminEmail: string;
+    adminPassword: string;
+    adminFirstName: string;
+    adminLastName: string;
+  }) => Promise<boolean>;
   logout: () => void;
   isAuthenticated: boolean;
   loading: boolean;
@@ -62,6 +71,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   tenant: null,
   login: async () => false,
+  signup: async () => false,
   logout: () => {},
   isAuthenticated: false,
   loading: false,
@@ -178,6 +188,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const signup = async (signupData: {
+    name: string;
+    slug: string;
+    companyName: string;
+    adminEmail: string;
+    adminPassword: string;
+    adminFirstName: string;
+    adminLastName: string;
+  }) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      await apiClient.signup(signupData);
+      setLoading(false);
+      return true;
+    } catch (err) {
+      setLoading(false);
+      if (err instanceof ApiError) {
+        const serverMessage =
+          (err.response && (err.response as { message?: string }).message) ||
+          err.message ||
+          "Signup failed. Please try again.";
+        setError(serverMessage);
+      } else {
+        setError("Signup failed. Please try again.");
+      }
+      return false;
+    }
+  };
+
   const logout = () => {
     apiClient.logout();
     setUser(null);
@@ -187,7 +228,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, tenant, login, logout, isAuthenticated, loading, error, updateTenant: updateTenantState, updateUser: updateUserState }}
+      value={{
+        user,
+        tenant,
+        login,
+        signup,
+        logout,
+        isAuthenticated,
+        loading,
+        error,
+        updateTenant: updateTenantState,
+        updateUser: updateUserState,
+      }}
     >
       {children}
     </AuthContext.Provider>

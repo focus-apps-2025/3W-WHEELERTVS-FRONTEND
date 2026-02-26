@@ -1073,49 +1073,55 @@ export default function FormsAnalytics() {
                     </button>
                     <button
                       onClick={() => navigate(`/forms/${formId}/edit`)}
-                      className="p-2 text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
+                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
                       title="Edit form"
                     >
                       <Edit2 className="w-4 h-4" />
+                      Edit
                     </button>
                     <button
                       onClick={() => navigate(`/forms/${formId}/analytics`)}
-                      className="p-2 text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
+                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
                       title="View analytics"
                     >
                       <BarChart3 className="w-4 h-4" />
+                      Analytics
                     </button>
-                    <button
+                    {/* <button
                       onClick={() => navigate(`/forms/${formId}/responses`)}
-                      className="p-2 text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
+                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
                       title="View responses"
                     >
                       <List className="w-4 h-4" />
-                    </button>
+                      Responses
+                    </button> */}
                     <button
                       onClick={() => navigate(`/forms/${formId}/uploads`)}
-                      className="p-2 text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
+                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
                       title="View uploads"
                     >
                       <Folder className="w-4 h-4" />
+                      Uploads
                     </button>
                   </div>
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleDuplicate(formId)}
-                      className="p-2 text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
+                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
                       title="Duplicate form"
                       disabled={duplicateMutation.loading}
                     >
                       <Copy className="w-4 h-4" />
+                      Duplicate
                     </button>
                     <button
                       onClick={() => handleDelete(formId, parent.title)}
-                      className="p-2 text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700"
+                      className="px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700 flex items-center gap-2"
                       title="Delete form"
                       disabled={deleteMutation.loading}
                     >
                       <Trash2 className="w-4 h-4" />
+                      Delete
                     </button>
                   </div>
                 </div>

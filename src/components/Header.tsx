@@ -172,21 +172,16 @@ export default function Header() {
               )}
             </button>
 
-            {logo ? (
-              <div className="flex items-center">
-                <img
-                  src={logo}
-                  alt="Logo"
-                  className="h-8 w-auto object-contain"
-                />
-              </div>
-            ) : (
-              <div className="flex items-center">
-                <span className="text-lg font-medium text-primary-600 dark:text-primary-400 hidden sm:block">
-                  {tenant?.companyName || tenant?.name || "Focus Form"}
-                </span>
-              </div>
-            )}
+            <div className="flex items-center">
+              <img
+                src={logo}
+                alt="Logo"
+                className="h-8 w-auto object-contain max-w-[150px]"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+            </div>
           </div>
 
           {/* Center - Navigation */}

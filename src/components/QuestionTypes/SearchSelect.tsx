@@ -29,9 +29,25 @@ export default function SearchSelect({
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [openUpward, setOpenUpward] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const isSmall = size === "sm";
+
+  useEffect(() => {
+    if (isOpen && dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      const dropdownHeight = isSmall ? 300 : 450; // Estimated height
+      const spaceBelow = windowHeight - rect.bottom;
+      
+      if (spaceBelow < dropdownHeight && rect.top > dropdownHeight) {
+        setOpenUpward(true);
+      } else {
+        setOpenUpward(false);
+      }
+    }
+  }, [isOpen, isSmall]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -136,8 +152,10 @@ export default function SearchSelect({
       </div>
 
       {isOpen && (
-        <div className={`absolute z-[100] w-full mt-2 bg-white dark:bg-gray-900 border border-primary-100 dark:border-primary-900 shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200 ${
-          isSmall ? "rounded-xl mt-1" : "rounded-3xl mt-3 border-2"
+        <div className={`absolute z-[100] w-full bg-white dark:bg-gray-900 border border-primary-100 dark:border-primary-900 shadow-2xl overflow-hidden animate-in fade-in duration-200 ${
+          openUpward 
+            ? `bottom-full slide-in-from-bottom-2 ${isSmall ? "rounded-xl mb-1" : "rounded-3xl mb-3 border-2"}` 
+            : `top-full slide-in-from-top-2 ${isSmall ? "rounded-xl mt-1" : "rounded-3xl mt-3 border-2"}`
         }`}>
           <div className={`${isSmall ? "p-2" : "p-4"} bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-100 dark:border-gray-800`}>
             <div className="relative">

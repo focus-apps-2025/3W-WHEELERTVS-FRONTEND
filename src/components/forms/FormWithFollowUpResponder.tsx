@@ -21,6 +21,15 @@ interface FollowUpQuestion {
   description?: string;
   options?: string[];
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
+  followUpConfig?: Record<
+    string,
+    {
+      hasFollowUp: boolean;
+      required: boolean;
+      linkedSectionId?: string;
+      linkedFormId?: string;
+    }
+  >;
 }
 
 interface Question {
@@ -31,6 +40,15 @@ interface Question {
   options?: string[];
   description?: string;
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
+  followUpConfig?: Record<
+    string,
+    {
+      hasFollowUp: boolean;
+      required: boolean;
+      linkedSectionId?: string;
+      linkedFormId?: string;
+    }
+  >;
 }
 
 interface Section {
@@ -292,10 +310,38 @@ export const FormWithFollowUpResponder: React.FC<
       }
 
       const result = await response.json();
+
+      // Check for follow-up form redirection based on answers
+      let followUpFormId: string | null = null;
+      if (form) {
+        // Collect all questions (main and follow-up)
+        const allQuestions = [
+          ...form.sections.flatMap((s) => s.questions),
+          ...form.followUpQuestions,
+        ];
+
+        for (const question of allQuestions) {
+          const answer = responses[question.id];
+          if (answer && question.followUpConfig) {
+            if (Array.isArray(answer)) {
+              for (const val of answer) {
+                if (question.followUpConfig[val]?.linkedFormId) {
+                  followUpFormId = question.followUpConfig[val].linkedFormId;
+                  break;
+                }
+              }
+            } else if (question.followUpConfig[answer]?.linkedFormId) {
+              followUpFormId = question.followUpConfig[answer].linkedFormId;
+            }
+          }
+          if (followUpFormId) break;
+        }
+      }
+
       setSuccess("Form submitted successfully!");
 
       if (onSubmitted) {
-        onSubmitted(result.data);
+        onSubmitted({ ...result.data, followUpFormId });
       }
 
       // Reset form after successful submission

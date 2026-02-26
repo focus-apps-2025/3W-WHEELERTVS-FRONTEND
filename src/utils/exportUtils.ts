@@ -2040,8 +2040,6 @@ function parseNewTemplateFormat(
 
       // Yes/No variations
       yesnona: "yesNoNA",
-      yesno: "yesNoNA",
-      "yes/no": "yesNoNA",
       "yes/no/na": "yesNoNA",
       "yes/no/n/a": "yesNoNA",
 

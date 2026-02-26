@@ -32,6 +32,8 @@ import TenantManagement from "./components/superadmin/TenantManagement";
 import GlobalFormManagement from "./components/superadmin/GlobalFormManagement";
 import AdminManagement from "./components/admin/AdminManagement";
 import LoginPage from "./components/auth/LoginPage";
+import SignupPage from "./components/auth/SignupPage";
+import FreeTrialManagement from "./components/superadmin/FreeTrialManagement";
 import NotificationContainer from "./components/ui/NotificationContainer";
 import Header from "./components/Header";
 import ResponseDetailsPage from "./components/ResponseDetailsPage";
@@ -140,6 +142,7 @@ const router = createBrowserRouter(
       errorElement: <ErrorPage />,
       children: [
         { path: "/login", element: <LoginPage /> },
+        { path: "/signup", element: <SignupPage /> },
         { path: "/", element: <RootRedirect /> },
         { path: "/forms/preview", element: <FormsPreview /> },
         { path: "/api-test", element: <TestAPI /> },
@@ -242,6 +245,12 @@ const router = createBrowserRouter(
         {
           path: "/superadmin/tenants",
           element: withAccessControl(<TenantManagement />, {
+            allowedRoles: ["superadmin"],
+          }),
+        },
+        {
+          path: "/superadmin/free-trial",
+          element: withAccessControl(<FreeTrialManagement />, {
             allowedRoles: ["superadmin"],
           }),
         },

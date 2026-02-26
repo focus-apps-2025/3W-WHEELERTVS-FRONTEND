@@ -112,6 +112,117 @@ export default function ResponseQuestion({
     setFollowUpModalData(null);
   };
 
+  const renderFollowUpCards = (followUpQuestions: FollowUpQuestion[]) => {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {followUpQuestions.map((q: any) => {
+          const shouldRenderChart =
+            Array.isArray(q.options) &&
+            q.options.length > 0 &&
+            CHART_SUPPORTED_TYPES.has(q.type);
+          const responses = getQuestionResponses(q.id);
+          const responseCount = responses.length;
+          const stats = getCorrectWrongStats(q);
+
+          return (
+            <div
+              key={q.id}
+              className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm p-6 flex flex-col h-full"
+            >
+              <div className="flex justify-between items-start mb-4 gap-4">
+                <div className="flex-1">
+                  <h5 className="text-lg font-medium text-gray-900 dark:text-white">
+                    {q.text}
+                  </h5>
+                  {q.description && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                      {q.description}
+                    </p>
+                  )}
+
+                  {(q.correctAnswer ||
+                    (q.correctAnswers &&
+                      q.correctAnswers.length > 0)) && (
+                    <div className="mt-2">
+                      <p className="text-sm font-medium text-green-600 dark:text-green-400">
+                        Correct Answer
+                        {q.correctAnswers &&
+                        q.correctAnswers.length > 1
+                          ? "s"
+                          : ""}
+                        :{" "}
+                        {q.correctAnswers &&
+                        q.correctAnswers.length > 0
+                          ? q.correctAnswers.join(", ")
+                          : q.correctAnswer}
+                      </p>
+                    </div>
+                  )}
+
+                  {stats && (
+                    <div className="mt-3 flex items-center space-x-4">
+                      <div className="flex items-center space-x-2">
+                        <div className="flex items-center bg-green-100 dark:bg-green-900 px-3 py-1 rounded-full">
+                          <svg
+                            className="w-4 h-4 text-green-600 dark:text-green-400 mr-1"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <span className="text-sm font-semibold text-green-700 dark:text-green-300">
+                            {stats.correctCount} Correct
+                          </span>
+                        </div>
+                        <div className="flex items-center bg-red-100 dark:bg-red-900 px-3 py-1 rounded-full">
+                          <svg
+                            className="w-4 h-4 text-red-600 dark:text-red-400 mr-1"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                          <span className="text-sm font-semibold text-red-700 dark:text-red-300">
+                            {stats.wrongCount} Wrong
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                        ({(stats.correctCount / stats.total * 100).toFixed(1)}% accuracy)
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {shouldRenderChart && (
+                  <ChartTypeSelector
+                    value={chartPreferences[q.id] || "bar"}
+                    onChange={(type) => handleChartTypeChange(q.id, type)}
+                  />
+                )}
+              </div>
+
+              <div className="flex-1">
+                {shouldRenderChart ? (
+                  renderQuestionChart(q)
+                ) : (
+                  renderTextQuestionSummary(q)
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   // Filter responses based on selected filters (multiple values)
   const filteredResponses = useMemo(() => {
     if (!filterQuestionId || filterValues.length === 0) return responses;

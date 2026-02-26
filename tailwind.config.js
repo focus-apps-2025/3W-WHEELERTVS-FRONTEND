@@ -19,9 +19,9 @@ export default {
           300: '#93c5fd',
           400: '#60a5fa',
           500: '#3b82f6',
-          600: '#1e3a8a',  // Main dark blue
-          700: '#1d4ed8',
-          800: '#1e40af',
+          600: '#1e3a8a',  // Website button color (Standard Blue 900)
+          700: '#1e40af',  // Standard Blue 800
+          800: '#1d4ed8',  // Standard Blue 700
           900: '#1e3a8a',
         },
         neutral: {

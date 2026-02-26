@@ -326,7 +326,25 @@ async function getLogoAsBase64(): Promise<string> {
     }
   }
 
-  console.warn('No logo found in any path');
+  console.warn('No custom logo found, falling back to default logo');
+  try {
+    const defaultLogoPath = '/logoimages/logo.jpeg';
+    const response = await fetch(defaultLogoPath);
+    
+    if (response.ok) {
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result as string);
+        };
+        reader.readAsDataURL(blob);
+      });
+    }
+  } catch (error) {
+    console.log('Error loading default logo:', error);
+  }
+
   return '';
 }
 

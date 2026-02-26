@@ -32,7 +32,20 @@ export const FormWithFollowUpResponderWrapper: React.FC = () => {
       formId={id}
       onSubmitted={(response) => {
         console.log("Form submitted successfully:", response);
-        alert("Thank you! Your response has been submitted successfully.");
+        const followUpFormId = response?.followUpFormId;
+
+        if (followUpFormId) {
+          if (
+            window.confirm(
+              "Form submitted successfully! Based on your response, there is a follow-up form. Would you like to fill it out now?"
+            )
+          ) {
+            navigate(`/forms/${followUpFormId}/preview`);
+            return;
+          }
+        } else {
+          alert("Thank you! Your response has been submitted successfully.");
+        }
         navigate("/forms/preview");
       }}
       onError={(error) => {

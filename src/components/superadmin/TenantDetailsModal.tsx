@@ -44,6 +44,8 @@ export default function TenantDetailsModal({
     }
   };
 
+  const primaryAdmin = Array.isArray(tenant.adminId) ? tenant.adminId[0] : tenant.adminId;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-gray-900 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
@@ -124,52 +126,54 @@ export default function TenantDetailsModal({
           </div>
 
           {/* Admin Info */}
-          <div className="bg-neutral-50 rounded-lg p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium text-primary-900">
-                Admin Information
-              </h3>
-              <button
-                onClick={() => setShowPasswordModal(true)}
-                className="btn-secondary flex items-center text-xs"
-              >
-                <Key className="w-3 h-3 mr-1" />
-                Change Password
-              </button>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-primary-600">Name</span>
-                <span className="font-medium text-primary-900">
-                  {tenant.adminId.firstName} {tenant.adminId.lastName}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-primary-600">Email</span>
-                <span className="font-medium text-primary-900">
-                  {tenant.adminId.email}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-primary-600">Status</span>
-                <span
-                  className={`font-medium ${
-                    tenant.adminId.isActive ? "text-green-600" : "text-red-600"
-                  }`}
+          {primaryAdmin && (
+            <div className="bg-neutral-50 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium text-primary-900">
+                  Admin Information
+                </h3>
+                <button
+                  onClick={() => setShowPasswordModal(true)}
+                  className="btn-secondary flex items-center text-xs"
                 >
-                  {tenant.adminId.isActive ? "Active" : "Inactive"}
-                </span>
+                  <Key className="w-3 h-3 mr-1" />
+                  Reset Password
+                </button>
               </div>
-              {tenant.adminId.lastLogin && (
+              <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-primary-600">Last Login</span>
+                  <span className="text-primary-600">Name</span>
                   <span className="font-medium text-primary-900">
-                    {new Date(tenant.adminId.lastLogin).toLocaleString()}
+                    {primaryAdmin.firstName} {primaryAdmin.lastName}
                   </span>
                 </div>
-              )}
+                <div className="flex justify-between">
+                  <span className="text-primary-600">Email</span>
+                  <span className="font-medium text-primary-900">
+                    {primaryAdmin.email}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-primary-600">Status</span>
+                  <span
+                    className={`font-medium ${
+                      primaryAdmin.isActive ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {primaryAdmin.isActive ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                {primaryAdmin.lastLogin && (
+                  <div className="flex justify-between">
+                    <span className="text-primary-600">Last Login</span>
+                    <span className="font-medium text-primary-900">
+                      {new Date(primaryAdmin.lastLogin).toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Subscription Info */}
           <div className="bg-neutral-50 rounded-lg p-4 space-y-3">
@@ -231,9 +235,9 @@ export default function TenantDetailsModal({
       </div>
 
       {/* Change Password Modal */}
-      {showPasswordModal && (
+      {showPasswordModal && primaryAdmin && (
         <ChangeTenantPasswordModal
-          tenant={tenant}
+          tenant={{ ...tenant, adminId: primaryAdmin }}
           onClose={() => setShowPasswordModal(false)}
           onSuccess={() => {
             setShowPasswordModal(false);

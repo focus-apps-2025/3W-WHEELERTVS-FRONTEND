@@ -423,25 +423,38 @@ export default function PreviewForm({
       for (const q of questionsInSection) {
         const answer = answers[q.id];
 
-        if (answer && q.followUpConfig?.[answer]?.linkedFormId) {
-          const linkedFormId = q.followUpConfig[answer].linkedFormId;
-          console.log(
-            `[Follow-up Form] Found! Question: ${q.id}, Answer: ${answer}, Linked Form: ${linkedFormId}`
-          );
-
-          // Store the linked form ID to show in the thank you message
-          setLinkedFollowUpForm(linkedFormId);
-          
-          try {
-            setIsSubmitting(true);
-            await onSubmit(response);
-            if (isMounted.current) setSubmitted(true);
-          } catch (error) {
-            console.error("Submission failed:", error);
-          } finally {
-            if (isMounted.current) setIsSubmitting(false);
+        if (answer && q.followUpConfig) {
+          let linkedFormId: string | null = null;
+          if (Array.isArray(answer)) {
+            for (const val of answer) {
+              if (q.followUpConfig[val]?.linkedFormId) {
+                linkedFormId = q.followUpConfig[val].linkedFormId;
+                break;
+              }
+            }
+          } else if (q.followUpConfig[answer]?.linkedFormId) {
+            linkedFormId = q.followUpConfig[answer].linkedFormId;
           }
-          return;
+
+          if (linkedFormId) {
+            console.log(
+              `[Follow-up Form] Found! Question: ${q.id}, Answer: ${answer}, Linked Form: ${linkedFormId}`
+            );
+
+            // Store the linked form ID to show in the thank you message
+            setLinkedFollowUpForm(linkedFormId);
+
+            try {
+              setIsSubmitting(true);
+              await onSubmit(response);
+              if (isMounted.current) setSubmitted(true);
+            } catch (error) {
+              console.error("Submission failed:", error);
+            } finally {
+              if (isMounted.current) setIsSubmitting(false);
+            }
+            return;
+          }
         }
       }
     }

@@ -29,8 +29,85 @@ export default function QuestionRenderer({
   readOnly = false,
   isFollowUp = false,
 }: QuestionRendererProps) {
+  const [error, setError] = React.useState<string | null>(null);
+
+  const validateEmail = (email: string) => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(email);
+  };
+
+  const handleInputChange = (val: string) => {
+    if (readOnly || !onChange) return;
+
+    if (question.type === "email") {
+      if (val && !validateEmail(val)) {
+        setError("Please enter a valid email address with @");
+      } else {
+        setError(null);
+      }
+    }
+
+    if (question.type === "number") {
+      // Only allow numbers
+      const numericValue = val.replace(/[^0-9.]/g, "");
+      onChange(numericValue);
+      return;
+    }
+
+    onChange(val);
+  };
+
   const renderInput = () => {
     switch (question.type) {
+      case "email":
+        return (
+          <div className="relative">
+            <input
+              type="email"
+              value={value || ""}
+              onChange={(e) => handleInputChange(e.target.value)}
+              onBlur={(e) => {
+                if (e.target.value && !validateEmail(e.target.value)) {
+                  setError("Invalid email format (missing @ or domain)");
+                }
+              }}
+              required={question.required}
+              disabled={readOnly}
+              placeholder="example@domain.com"
+              className={`w-full px-4 py-2 border rounded-lg transition-all ${
+                readOnly
+                  ? "bg-gray-100 cursor-not-allowed"
+                  : error
+                  ? "border-red-500 focus:ring-2 focus:ring-red-500 bg-red-50"
+                  : "border-gray-300 bg-white focus:ring-2 focus:ring-blue-500"
+              }`}
+            />
+            {error && (
+              <p className="mt-1 text-xs font-semibold text-red-500 animate-in fade-in slide-in-from-top-1">
+                {error}
+              </p>
+            )}
+          </div>
+        );
+
+      case "number":
+        return (
+          <input
+            type="text"
+            inputMode="numeric"
+            value={value || ""}
+            onChange={(e) => handleInputChange(e.target.value)}
+            required={question.required}
+            disabled={readOnly}
+            placeholder="Numbers only..."
+            className={`w-full px-4 py-2 border border-gray-300 rounded-lg ${
+              readOnly
+                ? "bg-gray-100 cursor-not-allowed"
+                : "bg-white focus:ring-2 focus:ring-blue-500"
+            }`}
+          />
+        );
+
       case "paragraph":
         return (
           <ParagraphInput

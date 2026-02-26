@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { X, Edit2, Save, Mail, User, Briefcase, Phone, Building2, AlertCircle } from "lucide-react";
+import { X, Edit2, Save, Mail, User, Briefcase, Phone, Building2, AlertCircle, Lock } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
+import ChangePasswordModal from "./management/sections/general/ChangePasswordModal";
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [formData, setFormData] = useState({
     firstName: user?.firstName || "",
     lastName: user?.lastName || "",
@@ -302,7 +304,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 </div>
               )}
 
-              <div className="pt-4">
+              <div className="pt-4 space-y-3">
                 <button
                   onClick={() => {
                     setIsEditing(true);
@@ -313,11 +315,22 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   <Edit2 className="w-4 h-4" />
                   Edit Profile
                 </button>
+                <button
+                  onClick={() => setShowPasswordModal(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 transition-colors"
+                >
+                  <Lock className="w-4 h-4" />
+                  Change Password
+                </button>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {showPasswordModal && (
+        <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />
+      )}
     </div>
   );
 }

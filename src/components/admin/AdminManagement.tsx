@@ -150,7 +150,7 @@ export default function AdminManagement() {
     try {
       const uploadResult = await apiClient.uploadFile(
         file,
-        "tenant_logo",
+        "logo",
         undefined, // No associatedId for tenant logo
         (progress) => {
           setBrandingProgress(progress);
@@ -508,12 +508,16 @@ export default function AdminManagement() {
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-8 mb-10">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
               <div className="flex items-center gap-4">
-                <div className="w-24 h-24 rounded-xl border-2 border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-800 flex items-center justify-center overflow-hidden shadow-sm">
-                  {logo ? (
-                    <img src={logo} alt="Tenant logo" className="w-full h-full object-contain" />
-                  ) : (
-                    <ImageIcon className="w-12 h-12 text-gray-400 dark:text-gray-500" />
-                  )}
+                <div className="relative w-24 h-24 rounded-xl border-2 border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-800 flex items-center justify-center overflow-hidden shadow-sm">
+                  <img 
+                    src={logo} 
+                    alt="Tenant logo" 
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                  <ImageIcon className="w-12 h-12 text-gray-400 dark:text-gray-500 absolute" />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Tenant Branding</h2>

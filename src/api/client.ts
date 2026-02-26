@@ -165,6 +165,21 @@ class ApiClient {
     this.clearToken();
   }
 
+  async signup(signupData: {
+    name: string;
+    slug: string;
+    companyName: string;
+    adminEmail: string;
+    adminPassword: string;
+    adminFirstName: string;
+    adminLastName: string;
+  }) {
+    return this.request<{ tenant: any }>("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify(signupData),
+    });
+  }
+
   async getProfile() {
     return this.request<{ user: any }>("/auth/profile");
   }
@@ -780,9 +795,9 @@ class ApiClient {
   }
 
   // Tenants (SuperAdmin only)
-  async getTenants(search: string = "", status: string = "all") {
+  async getTenants(search: string = "", status: string = "all", plan: string = "all") {
     return this.request<{ tenants: any[]; total: number }>(
-      `/tenants?search=${search}&status=${status}`,
+      `/tenants?search=${search}&status=${status}&plan=${plan}`,
     );
   }
 

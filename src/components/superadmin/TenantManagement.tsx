@@ -184,7 +184,7 @@ export default function TenantManagement() {
   const fetchTenants = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.getTenants(searchTerm, statusFilter);
+      const data = await apiClient.getTenants(searchTerm, statusFilter, "paid");
       setTenants(data.tenants);
     } catch (error: any) {
       showError(error.response?.message || "Failed to fetch tenants");
@@ -232,7 +232,7 @@ export default function TenantManagement() {
     try {
       const uploadResult = await apiClient.uploadFile(
         file,
-        "tenant_logo",
+        "logo",
         undefined,
         (progress) => {
           setUploadProgress((prev) => ({
