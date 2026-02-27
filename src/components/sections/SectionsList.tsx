@@ -74,6 +74,7 @@ export default function SectionsList({
           <SectionEditor
             key={section.id}
             section={section}
+            availableSections={sections}
             onUpdate={(updates) => updateSection(index, updates)}
             onRemove={() => removeSection(index)}
             onCopy={() => copySection(index)}

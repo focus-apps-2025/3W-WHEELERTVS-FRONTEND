@@ -773,6 +773,7 @@ export function downloadNestedFormImportTemplate() {
     "Section Title",
     "Section Description",
     "Section Weightage",
+    "Next Section",
     "Section Merging",
     "Question",
     "Question Description",
@@ -841,6 +842,7 @@ export function downloadNestedFormImportTemplate() {
     "Title of the section",
     "Description of what this section covers",
     "Percentage weight (0-100, must total 100% if used)",
+    "Next section to navigate to (number or 'end')",
     "Mark which columns should be merged together (e.g., 1,2 means columns 1 and 2 merge; leave blank to not merge)",
     "The question text to ask",
     "Additional details about the question",
@@ -1520,6 +1522,7 @@ export function downloadFormImportTemplate() {
     "Section Title",
     "Section Description",
     "Section Weightage",
+    "Next Section",
     "Section Merging",
     "Question",
     "Question Description",
@@ -1560,6 +1563,7 @@ export function downloadFormImportTemplate() {
     "Title of the section",
     "Description of what this section covers",
     "Percentage weight (0-100, must total 100% if used)",
+    "Next section to navigate to (number or 'end')",
     "Mark which columns should be merged together (e.g., 1,2 means columns 1 and 2 merge; leave blank to not merge)",
     "The question text to ask",
     "Additional details about the question",
@@ -1908,6 +1912,97 @@ export function downloadFormImportTemplate() {
   writeFile(workbook, "form-import-template-unlimited-followups.xlsx");
 }
 
+export function downloadLinkingFormImportTemplate() {
+  const mainHeaders = [
+    "Form Title",
+    "Form Description",
+    "Section Number",
+    "Section Title",
+    "Section Description",
+    "Section Weightage",
+    "Next Section",
+    "Section Merging",
+    "Question",
+    "Question Description",
+    "Question Type",
+    "Required",
+    "Options",
+    "Branching",
+    "Suggestion",
+    "SubParam1",
+    "SubParam2",
+    "Allowed File Types",
+    "Correct Answer",
+    "Correct Answers",
+  ];
+
+  const sampleData = [
+    {
+      "Form Title": "Conditional Flow Service Form",
+      "Form Description": "A form demonstrating section jumping and early submission",
+      "Section Number": "1",
+      "Section Title": "Initial Screening",
+      "Section Description": "Basic check to determine service path",
+      "Section Weightage": "25",
+      "Next Section": "2",
+      Question: "What type of service do you need?",
+      "Question Type": "multipleChoice",
+      Required: "TRUE",
+      Options: "Quick Repair,Full Service,Consultation",
+      Branching: "2,3,4",
+    },
+    {
+      "Section Number": "2",
+      "Section Title": "Quick Repair Details",
+      "Section Description": "Simple fixes only",
+      "Section Weightage": "25",
+      "Next Section": "end",
+      Question: "Describe the issue briefly",
+      "Question Type": "longText",
+      Required: "TRUE",
+    },
+    {
+      "Section Number": "3",
+      "Section Title": "Full Service Checklist",
+      "Section Description": "Comprehensive maintenance",
+      "Section Weightage": "25",
+      "Next Section": "end",
+      Question: "Select items to be checked",
+      "Question Type": "checkboxes",
+      Options: "Engine,Brakes,Tires,Electrical",
+      Required: "TRUE",
+    },
+    {
+      "Section Number": "4",
+      "Section Title": "Consultation Booking",
+      "Section Description": "Speak with an expert",
+      "Section Weightage": "25",
+      "Next Section": "end",
+      Question: "Preferred date for consultation",
+      "Question Type": "date",
+      Required: "TRUE",
+    }
+  ];
+
+  const worksheet = styleUtils.json_to_sheet(sampleData, { header: mainHeaders });
+  const workbook = styleUtils.book_new();
+  styleUtils.book_append_sheet(workbook, worksheet, "Form Import");
+
+  // Apply basic styling to headers
+  const range = styleUtils.decode_range(worksheet["!ref"] || "A1:Z1");
+  for (let C = range.s.c; C <= range.e.c; ++C) {
+    const address = styleUtils.encode_col(C) + "1";
+    if (!worksheet[address]) continue;
+    worksheet[address].s = {
+      fill: { fgColor: { rgb: "000000" } },
+      font: { color: { rgb: "FFFFFF" }, bold: true },
+      alignment: { horizontal: "center" }
+    };
+  }
+
+  writeFile(workbook, "form-import-template-section-linking.xlsx");
+}
+
 export async function parseFormWorkbook(file: File) {
   const buffer = await file.arrayBuffer();
   const workbook = read(buffer, { type: "array" });
@@ -2233,6 +2328,7 @@ function parseNewTemplateFormat(
 
   // Log available columns for debugging
   let mergingColumnName = "Section Merging";
+  let nextSectionColumnName = "Next Section";
   if (rows.length > 0) {
     const availableColumns = Object.keys(rows[0]);
     console.log("[Excel Import] Available columns:", availableColumns);
@@ -2252,7 +2348,22 @@ function parseNewTemplateFormat(
         "[Excel Import] Warning: 'Section Merging' column not found. Make sure your Excel has this column for section merging to work."
       );
     }
+
+    const foundNextSectionColumn = findColumnName(availableColumns, [
+      "Next Section",
+      "NextSection",
+      "NavigateTo",
+      "Navigate To",
+    ]);
+    if (foundNextSectionColumn) {
+      nextSectionColumnName = foundNextSectionColumn;
+      console.log(
+        `[Excel Import] "Next Section" column found: ${nextSectionColumnName}`
+      );
+    }
   }
+
+  const sectionNavigationMap = new Map<string, string>();
 
   rows.forEach((row: FormRowData) => {
     const sectionNo = row["Section Number"]?.toString().trim();
@@ -2268,15 +2379,23 @@ function parseNewTemplateFormat(
       currentSectionNo = sectionNo;
       const sectionWeightage = parseNumber(row["Section Weightage"]);
       const sectionMerging = row[mergingColumnName]?.toString().trim() || "";
+      const nextSection = row[nextSectionColumnName]?.toString().trim() || "";
 
       console.log(
-        `[Excel Import] Section ${sectionNo}: Title="${sectionTitle}", Merging="${sectionMerging}"`
+        `[Excel Import] Section ${sectionNo}: Title="${sectionTitle}", Merging="${sectionMerging}", NextSection="${nextSection}"`
       );
 
       if (sectionMerging) {
         sectionMergingMap.set(sectionNo, sectionMerging);
         console.log(
           `[Excel Import] Stored merging data for section ${sectionNo}: "${sectionMerging}"`
+        );
+      }
+
+      if (nextSection) {
+        sectionNavigationMap.set(sectionNo, nextSection);
+        console.log(
+          `[Excel Import] Stored navigation data for section ${sectionNo}: "${nextSection}"`
         );
       }
 

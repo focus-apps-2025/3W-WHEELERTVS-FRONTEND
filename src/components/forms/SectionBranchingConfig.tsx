@@ -1,19 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Link2, X } from 'lucide-react';
 
-interface BranchingRule {
-  optionLabel: string;
-  targetSectionId: string;
-  isOtherOption?: boolean;
-}
+import type { Section, BranchingRule } from '../../types/forms';
 
 interface SectionBranchingConfigProps {
   questionId: string;
   sectionId: string;
   options: string[];
-  sections: { id: string; title: string }[];
+  sections: Section[];
   existingRules?: BranchingRule[];
   onSave: (rules: BranchingRule[]) => void;
+  onUpdateSection: (sectionId: string, updates: Partial<Section>) => void;
   onClose: () => void;
 }
 
@@ -24,6 +21,7 @@ export const SectionBranchingConfig: React.FC<SectionBranchingConfigProps> = ({
   sections,
   existingRules = [],
   onSave,
+  onUpdateSection,
   onClose
 }) => {
   const [rules, setRules] = useState<BranchingRule[]>(existingRules);
@@ -124,13 +122,27 @@ export const SectionBranchingConfig: React.FC<SectionBranchingConfigProps> = ({
               </div>
 
               <div className="space-y-4">
-                <h4 className="text-md font-medium text-gray-900 dark:text-gray-100">Option Routing</h4>
+                <div className="grid grid-cols-3 gap-4 px-4 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  <div>Option</div>
+                  <div>Mapping (Go to)</div>
+                  <div>Then (After mapped section)</div>
+                </div>
                 {options.map(option => {
                   const rule = rules.find(r => r.optionLabel === option && !r.isOtherOption);
+                  const targetSection = sections.find(s => s.id === rule?.targetSectionId);
+                  
                   return (
-                    <div key={option} className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                      <div className="flex-1">
+                    <div key={option} className="grid grid-cols-3 items-center gap-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{option}</p>
+                        {rule && (
+                          <button
+                            onClick={() => handleRemoveRule(option)}
+                            className="text-gray-400 hover:text-red-600"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                       <select
                         value={rule?.targetSectionId || ''}
@@ -138,20 +150,32 @@ export const SectionBranchingConfig: React.FC<SectionBranchingConfigProps> = ({
                         className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="">No routing (Continue to next)</option>
-                        {sections.map(section => (
+                        <option value="end">Submit Form here (End)</option>
+                        {sections.map((section, idx) => (
                           <option key={section.id} value={section.id}>
-                            → {section.title}
+                            → Section {idx + 1}: {section.title}
                           </option>
                         ))}
                       </select>
-                      {rule && (
-                        <button
-                          onClick={() => handleRemoveRule(option)}
-                          className="text-gray-400 hover:text-red-600"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
+                      
+                      <div className="flex items-center">
+                        {rule && rule.targetSectionId && rule.targetSectionId !== 'end' && targetSection ? (
+                          <select
+                            value={targetSection.nextSectionId === 'end' ? 'end' : 'continue'}
+                            onChange={e => onUpdateSection(targetSection.id, { 
+                              nextSectionId: e.target.value === 'end' ? 'end' : undefined 
+                            })}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm bg-white dark:bg-gray-900"
+                          >
+                            <option value="continue">Continue to next</option>
+                            <option value="end">Submit here (End)</option>
+                          </select>
+                        ) : (
+                          <span className="text-xs text-gray-400 italic px-3">
+                            {rule?.targetSectionId === 'end' ? 'Already ending' : 'No mapping'}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -184,6 +208,7 @@ export const SectionBranchingConfig: React.FC<SectionBranchingConfigProps> = ({
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="">Select Section</option>
+                    <option value="end">Submit Form here (End)</option>
                     {sections.map(section => (
                       <option key={section.id} value={section.id}>
                         {section.title}

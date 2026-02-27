@@ -511,6 +511,12 @@ export default function PreviewForm({
       console.log(`Branching rule found: `, branchingRule);
 
       if (branchingRule) {
+        if (branchingRule.targetSectionId === 'end') {
+          console.log("Branching set to 'end', submitting");
+          handleSubmit(new Event("submit") as any);
+          return;
+        }
+
         const targetSectionIndex = sections.findIndex(
           (s) => s.id === branchingRule.targetSectionId
         );
@@ -544,8 +550,36 @@ export default function PreviewForm({
     }
 
     console.log(
-      "No branching rule matched, proceeding to next section normally"
+      "No branching rule matched, checking section-level navigation"
     );
+
+    if (currentSection.nextSectionId) {
+      if (currentSection.nextSectionId === "end") {
+        console.log("Section navigation set to 'end', submitting");
+        handleSubmit(new Event("submit") as any);
+        return;
+      }
+
+      const targetSectionIndex = sections.findIndex(
+        (s) => s.id === currentSection.nextSectionId
+      );
+
+      if (targetSectionIndex !== -1) {
+        console.log(
+          `Section-level navigation found! Target section index: ${targetSectionIndex}`
+        );
+        setCurrentSectionIndex(targetSectionIndex);
+        setVisitedSectionIndices((prev) => new Set(prev).add(targetSectionIndex));
+        setSectionNavigationHistory((prev) => [...prev, targetSectionIndex]);
+        setParentSectionIndex(currentSectionIndex);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      } else {
+        console.error(
+          `Target section ID ${currentSection.nextSectionId} not found`
+        );
+      }
+    }
     
     const nextIndex = getNextSequentialSectionIndex(currentSectionIndex);
     
@@ -654,7 +688,33 @@ export default function PreviewForm({
   const currentSection = sections[currentSectionIndex];
   const nextAvailableIndex = getNextSequentialSectionIndex(currentSectionIndex);
   // isLastSection is true only if we're at the absolute last section with no more sections after
-  const isLastSection = currentSectionIndex === sections.length - 1;
+  const isLastSection = (() => {
+    if (!currentSection) return true;
+
+    // 1. Explicitly marked as end
+    if (currentSection.nextSectionId === 'end') return true;
+
+    // 2. Check if any currently active branching rule for this section points to 'end'
+    const visibleQuestions = getOrderedVisibleQuestions(currentSection.questions, answers);
+    for (const q of visibleQuestions) {
+      const answer = answers[q.id];
+      if (answer) {
+        const rule = branchingRules.find(r => 
+          r.sectionId === currentSection.id && 
+          r.questionId === q.id && 
+          (r.optionLabel === answer || (r.isOtherOption && !q.options?.includes(answer)))
+        );
+        if (rule?.targetSectionId === 'end') return true;
+      }
+    }
+
+    // 3. Sequential check (if no branching/navigation override)
+    return getNextSequentialSectionIndex(currentSectionIndex) === -1 && 
+      !currentSection.questions.some(q => 
+        branchingRules.some(rule => rule.sectionId === currentSection.id && rule.questionId === q.id)
+      );
+  })();
+
   const isFirstSection = sectionNavigationHistory.length <= 1;
   const submitDisabled = hasMissingRequiredAnswers();
 

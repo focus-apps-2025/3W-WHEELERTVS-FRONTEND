@@ -9,8 +9,8 @@ const API_BASE_URL = (() => {
     hostname.startsWith("172.");
 
   const baseUrl = isLocal
-    ? "http://localhost:5000/api"
-    : "https://formsapi.focusengineeringapp.com/api";
+    ? "http://127.0.0.1:5000/api"
+    : "https://forms-backend-am6n.onrender.com/api";
 
   console.log(
     `🔗 API Base URL: ${baseUrl} (Environment: ${
@@ -137,12 +137,6 @@ class ApiClient {
     }
   }
 
-  getProxyUrl(url: string) {
-    if (!url) return "";
-    if (url.startsWith("data:")) return url;
-    return `${this.baseUrl}/files/proxy?url=${encodeURIComponent(url)}`;
-  }
-
   // Authentication
   async login(credentials: {
     email: string;
@@ -163,21 +157,6 @@ class ApiClient {
 
   async logout() {
     this.clearToken();
-  }
-
-  async signup(signupData: {
-    name: string;
-    slug: string;
-    companyName: string;
-    adminEmail: string;
-    adminPassword: string;
-    adminFirstName: string;
-    adminLastName: string;
-  }) {
-    return this.request<{ tenant: any }>("/auth/signup", {
-      method: "POST",
-      body: JSON.stringify(signupData),
-    });
   }
 
   async getProfile() {
@@ -280,9 +259,16 @@ class ApiClient {
   }
 
   async getPublicForm(id: string, tenantSlug?: string) {
-    const endpoint = tenantSlug
-      ? `/forms/${id}/public/${tenantSlug}`
-      : `/forms/${id}/public`;
+    // IMPORTANT: tenantSlug is REQUIRED for public access
+    if (!tenantSlug) {
+      // You need to get the tenantSlug from somewhere
+      // Maybe from the URL params or a default value
+      console.error("tenantSlug is required for public form access");
+      throw new Error("tenantSlug is required");
+    }
+
+    // This matches your backend route exactly: /forms/:id/public/:tenantSlug
+    const endpoint = `/forms/${id}/public/${tenantSlug}`;
     const url = `${this.baseUrl}${endpoint}`;
 
     const response = await fetch(url);
@@ -298,7 +284,32 @@ class ApiClient {
 
     return data.data;
   }
+  async submitPublicResponse(
+    formId: string,
+    data: { inviteId: string; answers: any; location?: any },
+  ) {
+    const url = `${this.baseUrl}/forms/${formId}/public/submit`;
 
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new ApiError(
+        response.status,
+        result,
+        result.message || "Submission failed",
+      );
+    }
+
+    return result.data;
+  }
   async createForm(formData: any) {
     return this.request<{ form: any }>("/forms", {
       method: "POST",
@@ -795,9 +806,9 @@ class ApiClient {
   }
 
   // Tenants (SuperAdmin only)
-  async getTenants(search: string = "", status: string = "all", plan: string = "all") {
+  async getTenants(search: string = "", status: string = "all") {
     return this.request<{ tenants: any[]; total: number }>(
-      `/tenants?search=${search}&status=${status}&plan=${plan}`,
+      `/tenants?search=${search}&status=${status}`,
     );
   }
 
@@ -1145,6 +1156,26 @@ class ApiClient {
     return {
       success: true,
       message: "WhatsApp invites processed successfully",
+      data: response,
+    };
+  }
+
+  // SMS Invite Management
+  async sendSMSInvites(
+    formId: string,
+    data: { phones: Array<{ phone: string; email?: string }> },
+  ) {
+    const response = await this.request<any>(
+      `/forms/${formId}/invites/sms/send`,
+      {
+        method: "POST",
+        body: JSON.stringify(data),
+      },
+    );
+
+    return {
+      success: true,
+      message: "SMS invites processed successfully",
       data: response,
     };
   }

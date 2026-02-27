@@ -37,7 +37,7 @@ const createSampleAnswer = (question: FollowUpQuestion): any => {
       if (question.options?.length) {
         const values = question.options.slice(
           0,
-          Math.min(2, question.options.length)
+          Math.min(2, question.options.length),
         );
         return values.length ? values : [sampleText];
       }
@@ -108,7 +108,7 @@ const createSampleAnswer = (question: FollowUpQuestion): any => {
 
 const normalizeTriggerValue = (
   question: FollowUpQuestion | undefined,
-  value: any
+  value: any,
 ) => {
   if (value === undefined || value === null) {
     return value;
@@ -124,18 +124,17 @@ const normalizeTriggerValue = (
 
 const isValidFileInput = (value: any): boolean => {
   if (!value) return false;
-  
+
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
       if (parsed && parsed.url && parsed.location) {
         return !!parsed.url;
       }
-    } catch {
-    }
+    } catch {}
     return value.trim().length > 0;
   }
-  
+
   return false;
 };
 
@@ -148,7 +147,7 @@ export default function ResponseForm({
   questions: propQuestions,
   onSubmit,
 }: ResponseFormProps) {
-  const { id } = useParams();
+  const { id, tenantSlug } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -160,6 +159,14 @@ export default function ResponseForm({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { getOrderedVisibleQuestions } = useQuestionLogic();
+  const [showDuplicateMessage, setShowDuplicateMessage] = useState(false);
+  const [duplicateInfo, setDuplicateInfo] = useState<{
+    isDuplicate: boolean;
+    email: string;
+  }>({
+    isDuplicate: false,
+    email: "",
+  });
 
   // Fetch form from backend
   useEffect(() => {
@@ -168,9 +175,25 @@ export default function ResponseForm({
 
       try {
         setLoading(true);
-        const response = await apiClient.getFormById(id);
-        console.log("Fetched form:", response);
-        setForm(response.form);
+
+        // Check if there's an inviteId in the URL
+        const inviteId = searchParams.get("inviteId");
+        // Get tenantSlug from URL params
+        // Make sure you have this
+
+        let response;
+        if (inviteId) {
+          // Use public endpoint for invites - pass tenantSlug!
+          console.log("🔑 Using public endpoint with inviteId:", inviteId);
+          response = await apiClient.getPublicForm(id, tenantSlug);
+          setForm(response.form || response);
+        } else {
+          // Use authenticated endpoint for admin users
+          console.log("🔒 Using authenticated endpoint");
+          response = await apiClient.getFormById(id);
+          setForm(response.form);
+        }
+
         setError(null);
       } catch (err: any) {
         console.error("Error fetching form:", err);
@@ -181,7 +204,32 @@ export default function ResponseForm({
     };
 
     fetchForm();
-  }, [id]);
+  }, [id, searchParams, tenantSlug]); // Add tenantSlug to dependencies // 👈 Add inviteId to dependencies
+
+  useEffect(() => {
+    if (selectedParentResponse) {
+      setAnswers({});
+    }
+  }, [selectedParentResponse]);
+
+  useEffect(() => {
+    if (!form) return;
+    const sections =
+      form.sections && form.sections.length > 0
+        ? form.sections
+        : [
+            {
+              id: "default",
+              title: form.title,
+              description: form.description,
+              questions: [],
+            },
+          ];
+
+    if (currentSectionIndex >= sections.length && sections.length > 0) {
+      setCurrentSectionIndex(sections.length - 1);
+    }
+  }, [form, currentSectionIndex, answers]);
 
   const question = form;
   const isChildForm = question?.parentFormId !== undefined;
@@ -189,12 +237,6 @@ export default function ResponseForm({
 
   const parentResponseId = searchParams.get("parentResponse");
   const parentResponses: any[] = [];
-
-  useEffect(() => {
-    if (selectedParentResponse) {
-      setAnswers({});
-    }
-  }, [selectedParentResponse]);
 
   if (loading) {
     return (
@@ -270,7 +312,10 @@ export default function ResponseForm({
 
         for (const question of allQuestions) {
           const answer = answers[question.id];
-          if (answer && question.followUpConfig?.[answer]?.linkedSectionId === section.id) {
+          if (
+            answer &&
+            question.followUpConfig?.[answer]?.linkedSectionId === section.id
+          ) {
             linkedSections.push(section);
             break;
           }
@@ -286,15 +331,16 @@ export default function ResponseForm({
       addedSectionIds.add(baseSection.id);
 
       const questionsInSection = (baseSection.questions || []).filter(
-        (q) => q && !q.showWhen
+        (q) => q && !q.showWhen,
       );
 
       for (const question of questionsInSection) {
         const answer = answers[question.id];
         if (answer && question.followUpConfig?.[answer]?.linkedSectionId) {
-          const linkedSectionId = question.followUpConfig[answer].linkedSectionId;
+          const linkedSectionId =
+            question.followUpConfig[answer].linkedSectionId;
           const linkedSection = linkedSections.find(
-            (s) => s && s.id === linkedSectionId && !addedSectionIds.has(s.id)
+            (s) => s && s.id === linkedSectionId && !addedSectionIds.has(s.id),
           );
           if (linkedSection) {
             result.push(linkedSection);
@@ -324,16 +370,20 @@ export default function ResponseForm({
   if (formSections[currentSectionIndex]) {
     console.log(
       "Current section questions:",
-      formSections[currentSectionIndex].questions
+      formSections[currentSectionIndex].questions,
     );
     console.log(
       "Questions with showWhen:",
-      formSections[currentSectionIndex].questions.filter((q) => q.showWhen)
+      formSections[currentSectionIndex].questions.filter((q) => q.showWhen),
     );
   }
 
   if (submitted) {
     return <ThankYouMessage />;
+  }
+
+  if (showDuplicateMessage) {
+    return <ThankYouMessage isDuplicate={true} email={duplicateInfo.email} />;
   }
 
   if (isChildForm && !selectedParentResponse) {
@@ -387,19 +437,15 @@ export default function ResponseForm({
   const findLinkedFormInAnswers = (): string | null => {
     const checkQuestionRecursively = (
       q: any,
-      answers: Record<string, any>
+      answers: Record<string, any>,
     ): string | null => {
       const answer = answers[q.id];
-      
+
       if (answer && q.followUpConfig?.[answer]?.linkedFormId) {
         return q.followUpConfig[answer].linkedFormId;
       }
 
-      if (
-        q.followUpQuestions &&
-        Array.isArray(q.followUpQuestions) &&
-        answer
-      ) {
+      if (q.followUpQuestions && Array.isArray(q.followUpQuestions) && answer) {
         for (const followUp of q.followUpQuestions) {
           if (
             followUp.showWhen?.questionId === q.id &&
@@ -432,15 +478,15 @@ export default function ResponseForm({
     formSections.forEach((section) => {
       const visibleQuestions = getOrderedVisibleQuestions(
         section.questions,
-        answers
+        answers,
       );
       const hasRequiredAnswers = visibleQuestions.every((q) => {
         if (!q.required) return true;
-        
+
         if (q.type === "file") {
           return isValidFileInput(answers[q.id]);
         }
-        
+
         return answers[q.id];
       });
       if (!hasRequiredAnswers) {
@@ -450,7 +496,7 @@ export default function ResponseForm({
 
     if (!isValid) {
       alert(
-        "Please fill in all required fields in all sections before submitting."
+        "Please fill in all required fields in all sections before submitting.",
       );
       return;
     }
@@ -462,8 +508,8 @@ export default function ResponseForm({
       timestamp: new Date().toISOString(),
       parentResponseId: selectedParentResponse?.id,
       submissionMetadata: {
-        source: 'internal'
-      }
+        source: "internal",
+      },
     };
 
     try {
@@ -471,47 +517,89 @@ export default function ResponseForm({
 
       if (navigator.geolocation) {
         try {
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: false,
-              timeout: 5000,
-              maximumAge: 0
-            });
-          });
+          const position = await new Promise<GeolocationPosition>(
+            (resolve, reject) => {
+              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                enableHighAccuracy: false,
+                timeout: 5000,
+                maximumAge: 0,
+              });
+            },
+          );
 
           submitData.location = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: position.coords.accuracy,
-            source: 'browser'
+            source: "browser",
           };
         } catch (geoErr) {
           console.warn("Geolocation not available:", geoErr);
         }
       }
 
-      // Save response to backend
-      await apiClient.submitResponse(question.id, submitData);
+      const inviteId = searchParams.get("inviteId");
 
-      // Also save to local storage for backward compatibility
-      responsesApi.save(response);
+      if (inviteId) {
+        try {
+          // Use public endpoint for invite submissions
+          console.log(
+            "📝 Submitting via public endpoint with inviteId:",
+            inviteId,
+          );
+          await apiClient.submitPublicResponse(question.id, {
+            inviteId,
+            answers: submitData.answers,
+            location: submitData.location,
+          });
 
-      // Check if there's a follow-up form linked to any selected option
-      const linkedFormId = findLinkedFormInAnswers();
-      if (linkedFormId) {
-        setTimeout(() => {
-          navigate(`/forms/${linkedFormId}/respond?parentResponse=${response.id}`);
-        }, 500);
-        return;
+          // ✅ Success - show thank you message
+          setSubmitted(true);
+        } catch (err: any) {
+          console.error("Error submitting response:", err);
+
+          // 🔴 CHECK IF IT'S A DUPLICATE SUBMISSION
+          if (
+            err.response?.message === "ALREADY_SUBMITTED" ||
+            err.message?.includes("already been used")
+          ) {
+            // Show duplicate message with email if available
+            const email = err.response?.data?.email || "";
+            setDuplicateInfo({
+              isDuplicate: true,
+              email: email,
+            });
+            setShowDuplicateMessage(true);
+          } else {
+            alert("Failed to submit response. Please try again.");
+          }
+        }
+      } else {
+        // Use authenticated endpoint for admin users
+        console.log("🔒 Submitting via authenticated endpoint");
+        await apiClient.submitResponse(question.id, submitData);
+
+        // Check if there's a follow-up form linked to any selected option
+        const linkedFormId = findLinkedFormInAnswers();
+        if (linkedFormId) {
+          setTimeout(() => {
+            navigate(
+              `/forms/${linkedFormId}/respond?parentResponse=${response.id}`,
+            );
+          }, 500);
+          return;
+        }
+
+        if (onSubmit) {
+          onSubmit(response);
+        }
+        setSubmitted(true);
       }
-
-      if (onSubmit) {
-        onSubmit(response);
-      }
-      setSubmitted(true);
     } catch (err: any) {
       console.error("Error submitting response:", err);
-      alert("Failed to submit response. Please try again.");
+      if (!err.response?.message?.includes("ALREADY_SUBMITTED")) {
+        alert("Failed to submit response. Please try again.");
+      }
     }
   };
 
@@ -528,15 +616,15 @@ export default function ResponseForm({
 
     const visibleQuestions = getOrderedVisibleQuestions(
       currentSection.questions,
-      answers
+      answers,
     );
     const hasRequiredAnswers = visibleQuestions.every(
-      (q) => !q.required || answers[q.id]
+      (q) => !q.required || answers[q.id],
     );
 
     if (!hasRequiredAnswers) {
       alert(
-        "Please fill in all required fields in this section before proceeding."
+        "Please fill in all required fields in this section before proceeding.",
       );
       return;
     }
@@ -583,7 +671,7 @@ export default function ResponseForm({
       const parentQuestion = questionMap.get(condition.questionId);
       const normalizedValue = normalizeTriggerValue(
         parentQuestion,
-        condition.value
+        condition.value,
       );
       if (normalizedValue !== undefined) {
         sampleAnswers[condition.questionId] = normalizedValue;
@@ -592,12 +680,6 @@ export default function ResponseForm({
 
     setAnswers(sampleAnswers);
   };
-
-  useEffect(() => {
-    if (currentSectionIndex >= formSections.length && formSections.length > 0) {
-      setCurrentSectionIndex(formSections.length - 1);
-    }
-  }, [formSections.length]);
 
   const currentSection = formSections[currentSectionIndex];
   const isLastSection = currentSectionIndex === formSections.length - 1;
@@ -672,7 +754,7 @@ export default function ResponseForm({
                   </span>
                   <span className="text-sm text-primary-500">
                     {Math.round(
-                      ((currentSectionIndex + 1) / formSections.length) * 100
+                      ((currentSectionIndex + 1) / formSections.length) * 100,
                     )}
                     % Complete
                   </span>
@@ -688,8 +770,8 @@ export default function ResponseForm({
                           index === currentSectionIndex
                             ? "bg-primary-600"
                             : index < currentSectionIndex
-                            ? "bg-green-500"
-                            : "bg-transparent"
+                              ? "bg-green-500"
+                              : "bg-transparent"
                         }`}
                       />
                     </div>
@@ -726,7 +808,7 @@ export default function ResponseForm({
             <div className="space-y-8">
               {getOrderedVisibleQuestions(
                 currentSection.questions,
-                answers
+                answers,
               ).map((q) => (
                 <div
                   key={q.id}

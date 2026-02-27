@@ -37,7 +37,9 @@ import { apiClient } from "../../api/client";
 import { useNotification } from "../../context/NotificationContext";
 import {
   downloadFormImportTemplate,
-  downloadNestedFormImportTemplate,parseFormWorkbook // You'll need to create this function
+  downloadNestedFormImportTemplate,
+  downloadLinkingFormImportTemplate,
+  parseFormWorkbook
 } from "../../utils/exportUtils";
 import AnswerTemplateImport from "../AnswerTemplateImport";
 import type { Question as FormQuestion } from "../../types";
@@ -47,7 +49,7 @@ import WhatsAppInviteModal from "../WhatsAppInviteModal";
 
 // Add this interface for the dropdown options
 interface TemplateOption {
-  id: "flat" | "nested";
+  id: "flat" | "nested" | "linking";
   label: string;
   description: string;
 }
@@ -105,6 +107,11 @@ export default function FormsAnalytics() {
       id: "nested",
       label: "Nested Follow-up",
       description: "Hierarchical structure with nested follow-ups (FU1.1, FU1.1.1)"
+    },
+    {
+      id: "linking",
+      label: "Followup Section Template",
+      description: "Dynamic section navigation and conditional form ending"
     }
   ];
 
@@ -448,7 +455,7 @@ export default function FormsAnalytics() {
     });
   };
 
- const handleExportTemplate = (templateId?: "flat" | "nested") => {
+ const handleExportTemplate = (templateId?: "flat" | "nested" | "linking") => {
     const templateToUse = templateId || selectedTemplate?.id;
     
     if (templateToUse === "nested") {
@@ -456,6 +463,9 @@ export default function FormsAnalytics() {
       // You'll need to create downloadNestedFormImportTemplate() in your exportUtils
       downloadNestedFormImportTemplate(); // For now, using the existing one
       showSuccess("Nested Follow-up template downloaded", "Success");
+    } else if (templateToUse === "linking") {
+      downloadLinkingFormImportTemplate();
+      showSuccess("Followup Section Template downloaded", "Success");
     } else {
       // Default to flat template
       downloadFormImportTemplate();

@@ -2455,6 +2455,10 @@ export default function FormCreator() {
     setShowFormRoutingConfig(true);
   };
 
+  const handleUpdateSection = (sectionId: string, updates: Partial<FormSection>) => {
+    updateSection(sectionId, updates);
+  };
+
   const handleSaveBranchingRules = (rules: any[]) => {
     if (!branchingConfigQuestion) return;
 
@@ -5429,7 +5433,7 @@ export default function FormCreator() {
           questionId={branchingConfigQuestion.questionId}
           sectionId={branchingConfigQuestion.sectionId}
           options={branchingConfigQuestion.options}
-          sections={form.sections.map((s) => ({ id: s.id, title: s.title }))}
+          sections={form.sections}
           existingRules={
             form.sections
               .find((s) => s.id === branchingConfigQuestion.sectionId)
@@ -5438,6 +5442,7 @@ export default function FormCreator() {
               )?.branchingRules || []
           }
           onSave={handleSaveBranchingRules}
+          onUpdateSection={handleUpdateSection}
           onClose={() => {
             setShowBranchingConfig(false);
             setBranchingConfigQuestion(null);
