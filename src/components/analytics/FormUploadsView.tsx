@@ -16,6 +16,9 @@ import {
   X,
   Download,
   DownloadCloud,
+  LayoutGrid,
+  ClipboardList,
+  Layers,
 } from "lucide-react";
 import { apiClient } from "../../api/client";
 import { useNotification } from "../../context/NotificationContext";
@@ -76,6 +79,9 @@ export default function FormUploadsView() {
   const [selectedUpload, setSelectedUpload] = useState<UploadItem | null>(null);
   const [zipping, setZipping] = useState(false);
   const [zipProgress, setZipProgress] = useState({ current: 0, total: 0 });
+  const [viewMode, setViewMode] = useState<'questions' | 'submissions' | 'sections'>('questions');
+  const [expandedSubmissions, setExpandedSubmissions] = useState<Set<string>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (id) {
@@ -84,12 +90,31 @@ export default function FormUploadsView() {
   }, [id]);
 
   const getSubmitterName = (response: Response) => {
-    // 1. Try to find a name-like field in answers
+    // 1. Prioritize first 2 questions of first section as requested
+    if (form?.sections && form.sections.length > 0) {
+      const firstSection = form.sections[0];
+      const answers: string[] = [];
+      
+      // Get answers for up to first 2 questions
+      for (let i = 0; i < Math.min(2, firstSection.questions.length); i++) {
+        const q = firstSection.questions[i];
+        const answer = response.answers[q.id];
+        if (answer !== undefined && answer !== null && String(answer).trim()) {
+          answers.push(String(answer).trim());
+        }
+      }
+      
+      if (answers.length > 0) {
+        return answers.join(" - ");
+      }
+    }
+
+    // 2. Try to find a name-like field in answers (Legacy/Fallback)
     if (form?.sections) {
       for (const section of form.sections) {
         for (const q of section.questions) {
           const text = q.text.toLowerCase();
-          if (text.includes('name') || text.includes('full name') || text.includes('applicant')) {
+          if (text.includes('name') || text.includes('full name') || text.includes('applicant') || text.includes('dealer')) {
             const answer = response.answers[q.id];
             if (answer && typeof answer === 'string' && answer.trim()) {
               return answer.trim();
@@ -99,88 +124,66 @@ export default function FormUploadsView() {
       }
     }
 
-    // 2. Try submittedBy
+    // 3. Try submittedBy
     if (response.submittedBy && response.submittedBy.trim()) {
       return response.submittedBy.trim();
     }
 
-    // 3. Try email or phone
+    // 4. Try email or phone
     if (response.submitterContact?.email) return response.submitterContact.email;
     if (response.submitterContact?.phone) return response.submitterContact.phone;
 
-    // 4. Fallback to ID
+    // 5. Fallback to ID
     return response.id.slice(-6);
   };
 
   const downloadAllAsZip = async () => {
-    if (zipping || questionUploads.length === 0) return;
+    if (zipping || (viewMode === 'questions' ? questionUploads.length === 0 : viewMode === 'submissions' ? submissionUploads.length === 0 : sectionUploads.length === 0)) return;
     try {
       setZipping(true);
       
-      // Calculate total files
-      const allUploads: { question: Question; upload: UploadItem; index: number }[] = [];
-      questionUploads.forEach(({ question, uploads }) => {
-        uploads.forEach((upload, index) => {
-          allUploads.push({ question, upload, index });
+      const allFiles: { sectionTitle: string; submitterName: string; questionText: string; url: string; response: Response }[] = [];
+      
+      sectionUploads.forEach(({ section, uploads }) => {
+        uploads.forEach(({ question, upload }) => {
+          allFiles.push({
+            sectionTitle: section.title,
+            submitterName: getSubmitterName(upload.response),
+            questionText: question.text,
+            url: upload.url,
+            response: upload.response
+          });
         });
       });
 
-      setZipProgress({ current: 0, total: allUploads.length });
+      setZipProgress({ current: 0, total: allFiles.length });
       
       const zip = new JSZip();
-      
-      // Group by question to create folders
-      const questionFolders: Record<string, JSZip> = {};
-      
-      // Helper for concurrent fetching
       const CONCURRENCY_LIMIT = 5;
       let processedCount = 0;
 
-      const processBatch = async (batch: typeof allUploads) => {
-        await Promise.all(batch.map(async ({ question, upload, index }) => {
-          const sanitizedText = question.text.replace(/[\\/:*?"<>|]/g, '_').trim().substring(0, 80) || 'Question';
-          const folderName = `${sanitizedText}_${question.id.slice(-5)}`;
+      const processBatch = async (batch: typeof allFiles) => {
+        await Promise.all(batch.map(async (fileInfo) => {
+          const sectionName = fileInfo.sectionTitle.replace(/[\\/:*?"<>|]/g, '_').substring(0, 50);
+          const submitterName = fileInfo.submitterName.replace(/[\\/:*?"<>|]/g, '_').substring(0, 50);
+          const questionName = fileInfo.questionText.replace(/[\\/:*?"<>|]/g, '_').substring(0, 50);
           
-          if (!questionFolders[question.id]) {
-            questionFolders[question.id] = zip.folder(folderName) || zip;
-          }
-          const folder = questionFolders[question.id];
+          const folderPath = `${sectionName}/${submitterName}`;
+          let folder = zip.folder(folderPath);
+          if (!folder) folder = zip;
           
-          const proxyUrl = apiClient.getProxyUrl(upload.url);
+          const proxyUrl = apiClient.getProxyUrl(fileInfo.url);
           
           try {
             const res = await fetch(proxyUrl, { mode: 'cors' });
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-            
             const blob = await res.blob();
-            
-            let extension = "";
-            if (upload.url.startsWith('data:')) {
-              const mimeMatch = upload.url.match(/^data:([^;]+);/);
-              if (mimeMatch && mimeMatch[1]) {
-                extension = mimeMatch[1].split('/')[1]?.split('+')[0] || 'jpg';
-              }
-            }
-            
-            if (!extension) {
-              extension = upload.url.split('.').pop()?.split(/[?#]/)[0] || '';
-              if (!extension || extension.length > 4 || extension.includes(':')) {
-                const contentType = res.headers.get('content-type');
-                if (contentType) {
-                  extension = contentType.split('/')[1]?.split('+')[0] || 'jpg';
-                } else {
-                  extension = 'jpg';
-                }
-              }
-            }
-
-            const submitterName = getSubmitterName(upload.response).replace(/[\\/:*?"<>|]/g, '_').substring(0, 50);
-            const fileName = `${submitterName}_${upload.response.id.slice(-5)}_${index + 1}.${extension}`;
+            const extension = getExtensionFromUrl(fileInfo.url, res.headers.get('content-type'));
+            const fileName = `${questionName}_${fileInfo.response.id.slice(-5)}.${extension}`;
             folder.file(fileName, blob);
           } catch (err) {
-            console.error(`Failed to fetch ${upload.url}:`, err);
-            // Add a placeholder text file if fetch fails so user knows something is missing
-            folder.file(`FAILED_TO_DOWNLOAD_${index + 1}.txt`, `Original URL: ${upload.url}\nError: ${err instanceof Error ? err.message : String(err)}`);
+            console.error(`Failed to fetch ${fileInfo.url}:`, err);
+            folder.file(`FAILED_${questionName}.txt`, `URL: ${fileInfo.url}\nError: ${err}`);
           } finally {
             processedCount++;
             setZipProgress(prev => ({ ...prev, current: processedCount }));
@@ -188,26 +191,12 @@ export default function FormUploadsView() {
         }));
       };
 
-      // Process in batches
-      for (let i = 0; i < allUploads.length; i += CONCURRENCY_LIMIT) {
-        const batch = allUploads.slice(i, i + CONCURRENCY_LIMIT);
-        await processBatch(batch);
+      for (let i = 0; i < allFiles.length; i += CONCURRENCY_LIMIT) {
+        await processBatch(allFiles.slice(i, i + CONCURRENCY_LIMIT));
       }
 
-      const content = await zip.generateAsync({ 
-        type: "blob",
-        compression: "DEFLATE",
-        compressionOptions: { level: 6 }
-      });
-      
-      const url = URL.createObjectURL(content);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${form?.title?.replace(/[\\/:*?"<>|]/g, '_') || "form-uploads"}_all_images.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      const content = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      saveAs(content, `${form?.title?.replace(/[\\/:*?"<>|]/g, '_') || "uploads"}_structured.zip`);
     } catch (err) {
       console.error("ZIP Generation Error:", err);
       showError("Failed to generate ZIP. Please check your connection.");
@@ -238,29 +227,9 @@ export default function FormUploadsView() {
           try {
             const res = await fetch(proxyUrl, { mode: 'cors' });
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-            
             const blob = await res.blob();
             
-            let extension = "";
-            if (upload.url.startsWith('data:')) {
-              const mimeMatch = upload.url.match(/^data:([^;]+);/);
-              if (mimeMatch && mimeMatch[1]) {
-                extension = mimeMatch[1].split('/')[1]?.split('+')[0] || 'jpg';
-              }
-            }
-            
-            if (!extension) {
-              extension = upload.url.split('.').pop()?.split(/[?#]/)[0] || '';
-              if (!extension || extension.length > 4 || extension.includes(':')) {
-                const contentType = res.headers.get('content-type');
-                if (contentType) {
-                  extension = contentType.split('/')[1]?.split('+')[0] || 'jpg';
-                } else {
-                  extension = 'jpg';
-                }
-              }
-            }
-            
+            let extension = getExtensionFromUrl(upload.url, res.headers.get('content-type'));
             const submitterName = getSubmitterName(upload.response).replace(/[\\/:*?"<>|]/g, '_').substring(0, 50);
             const fileName = `${submitterName}_${upload.response.id.slice(-5)}_${index + 1}.${extension}`;
             folder.file(fileName, blob);
@@ -279,20 +248,8 @@ export default function FormUploadsView() {
         await processBatch(batch, i);
       }
 
-      const content = await zip.generateAsync({ 
-        type: "blob",
-        compression: "DEFLATE",
-        compressionOptions: { level: 6 }
-      });
-      
-      const url = URL.createObjectURL(content);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${folderName}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 100);
+      const content = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      saveAs(content, `${folderName}.zip`);
     } catch (err) {
       console.error("Question ZIP Error:", err);
       showError("Failed to generate ZIP for this question.");
@@ -300,6 +257,142 @@ export default function FormUploadsView() {
       setZipping(false);
       setZipProgress({ current: 0, total: 0 });
     }
+  };
+
+  const downloadSectionAsZip = async (section: Section, uploads: { question: Question; upload: UploadItem }[]) => {
+    try {
+      setZipping(true);
+      setZipProgress({ current: 0, total: uploads.length });
+      
+      const zip = new JSZip();
+      const folderName = section.title.replace(/[\\/:*?"<>|]/g, '_').trim().substring(0, 80) || 'Section';
+      const folder = zip.folder(folderName) || zip;
+      
+      const CONCURRENCY_LIMIT = 5;
+      let processedCount = 0;
+
+      const processBatch = async (batch: typeof uploads, startIndex: number) => {
+        await Promise.all(batch.map(async ({ question, upload }, i) => {
+          const index = startIndex + i;
+          const proxyUrl = apiClient.getProxyUrl(upload.url);
+          
+          try {
+            const res = await fetch(proxyUrl, { mode: 'cors' });
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            const blob = await res.blob();
+            
+            let extension = getExtensionFromUrl(upload.url, res.headers.get('content-type'));
+            const submitterName = getSubmitterName(upload.response).replace(/[\\/:*?"<>|]/g, '_').substring(0, 50);
+            const questionName = question.text.replace(/[\\/:*?"<>|]/g, '_').substring(0, 30);
+            const fileName = `${submitterName}_${questionName}_${upload.response.id.slice(-5)}_${index + 1}.${extension}`;
+            folder.file(fileName, blob);
+          } catch (err) {
+            console.error(`Failed to fetch ${upload.url}:`, err);
+            folder.file(`FAILED_TO_DOWNLOAD_${index + 1}.txt`, `Original URL: ${upload.url}\nError: ${err instanceof Error ? err.message : String(err)}`);
+          } finally {
+            processedCount++;
+            setZipProgress(prev => ({ ...prev, current: processedCount }));
+          }
+        }));
+      };
+
+      for (let i = 0; i < uploads.length; i += CONCURRENCY_LIMIT) {
+        const batch = uploads.slice(i, i + CONCURRENCY_LIMIT);
+        await processBatch(batch, i);
+      }
+
+      const content = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      saveAs(content, `${folderName}.zip`);
+    } catch (err) {
+      console.error("Section ZIP Error:", err);
+      showError("Failed to generate ZIP for this section.");
+    } finally {
+      setZipping(false);
+      setZipProgress({ current: 0, total: 0 });
+    }
+  };
+
+  const downloadSubmissionAsZip = async (name: string, response: Response, uploads: { question: Question; url: string }[]) => {
+    try {
+      setZipping(true);
+      setZipProgress({ current: 0, total: uploads.length });
+      
+      const zip = new JSZip();
+      const folderName = name.replace(/[\\/:*?"<>|]/g, '_').trim().substring(0, 80) || 'Submission';
+      const folder = zip.folder(folderName) || zip;
+      
+      const CONCURRENCY_LIMIT = 5;
+      let processedCount = 0;
+
+      const processBatch = async (batch: typeof uploads, startIndex: number) => {
+        await Promise.all(batch.map(async ({ question, url }, i) => {
+          const index = startIndex + i;
+          const proxyUrl = apiClient.getProxyUrl(url);
+          
+          try {
+            const res = await fetch(proxyUrl, { mode: 'cors' });
+            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+            const blob = await res.blob();
+            
+            let extension = getExtensionFromUrl(url, res.headers.get('content-type'));
+            const questionName = question.text.replace(/[\\/:*?"<>|]/g, '_').substring(0, 50);
+            const fileName = `${questionName}_${index + 1}.${extension}`;
+            folder.file(fileName, blob);
+          } catch (err) {
+            console.error(`Failed to fetch ${url}:`, err);
+            folder.file(`FAILED_TO_DOWNLOAD_${index + 1}.txt`, `Original URL: ${url}\nError: ${err instanceof Error ? err.message : String(err)}`);
+          } finally {
+            processedCount++;
+            setZipProgress(prev => ({ ...prev, current: processedCount }));
+          }
+        }));
+      };
+
+      for (let i = 0; i < uploads.length; i += CONCURRENCY_LIMIT) {
+        const batch = uploads.slice(i, i + CONCURRENCY_LIMIT);
+        await processBatch(batch, i);
+      }
+
+      const content = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+      saveAs(content, `${folderName}.zip`);
+    } catch (err) {
+      console.error("Submission ZIP Error:", err);
+      showError("Failed to generate ZIP for this submission.");
+    } finally {
+      setZipping(false);
+      setZipProgress({ current: 0, total: 0 });
+    }
+  };
+
+  const getExtensionFromUrl = (url: string, contentType: string | null): string => {
+    let extension = "";
+    if (url.startsWith('data:')) {
+      const mimeMatch = url.match(/^data:([^;]+);/);
+      if (mimeMatch && mimeMatch[1]) {
+        return mimeMatch[1].split('/')[1]?.split('+')[0] || 'jpg';
+      }
+    }
+    
+    extension = url.split('.').pop()?.split(/[?#]/)[0] || '';
+    if (!extension || extension.length > 4 || extension.includes(':')) {
+      if (contentType) {
+        return contentType.split('/')[1]?.split('+')[0] || 'jpg';
+      } else {
+        return 'jpg';
+      }
+    }
+    return extension;
+  };
+
+  const saveAs = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   const downloadSingleImage = async (url: string, fileName?: string) => {
@@ -417,6 +510,66 @@ export default function FormUploadsView() {
     return results;
   }, [form, responses]);
 
+  const submissionUploads = useMemo(() => {
+    if (!form || !responses.length) return [];
+    
+    return responses.map(response => {
+      const name = getSubmitterName(response);
+      const uploads: { question: Question; url: string }[] = [];
+      
+      const fileQuestions = getAllFileQuestions(form);
+      fileQuestions.forEach(q => {
+        const answer = response.answers[q.id];
+        if (answer) {
+          if (Array.isArray(answer)) {
+            answer.forEach(url => {
+              if (typeof url === 'string' && url.trim()) {
+                uploads.push({ question: q, url });
+              }
+            });
+          } else if (typeof answer === 'string' && answer.trim()) {
+            uploads.push({ question: q, url: answer });
+          }
+        }
+      });
+      
+      return { response, name, uploads };
+    }).filter(s => s.uploads.length > 0);
+  }, [form, responses, getSubmitterName]);
+
+  const sectionUploads = useMemo(() => {
+    if (!form || !responses.length) return [];
+    
+    const results: { section: Section; uploads: { question: Question; upload: UploadItem }[] }[] = [];
+    
+    form.sections?.forEach(section => {
+      const uploads: { question: Question; upload: UploadItem }[] = [];
+      section.questions.forEach(question => {
+        if (question.type === 'file') {
+          responses.forEach(response => {
+            const answer = response.answers[question.id];
+            if (answer) {
+              if (Array.isArray(answer)) {
+                answer.forEach(url => {
+                   if (typeof url === 'string' && url.trim()) {
+                     uploads.push({ question, upload: { url, response } });
+                   }
+                });
+              } else if (typeof answer === 'string' && answer.trim()) {
+                uploads.push({ question, upload: { url: answer, response } });
+              }
+            }
+          });
+        }
+      });
+      if (uploads.length > 0) {
+        results.push({ section, uploads });
+      }
+    });
+    
+    return results;
+  }, [form, responses]);
+
   const filteredQuestionUploads = useMemo(() => {
     if (!searchTerm.trim()) return questionUploads;
     
@@ -439,6 +592,44 @@ export default function FormUploadsView() {
     }
     setExpandedQuestions(next);
   };
+
+  const toggleExpandSubmissions = (id: string) => {
+    const next = new Set(expandedSubmissions);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setExpandedSubmissions(next);
+  };
+
+  const toggleExpandSections = (id: string) => {
+    const next = new Set(expandedSections);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    setExpandedSections(next);
+  };
+
+  const filteredSubmissions = useMemo(() => {
+    if (!searchTerm.trim()) return submissionUploads;
+    const term = searchTerm.toLowerCase();
+    return submissionUploads.filter(s => 
+      s.name.toLowerCase().includes(term) ||
+      (s.response.submittedBy || "").toLowerCase().includes(term)
+    );
+  }, [submissionUploads, searchTerm]);
+
+  const filteredSections = useMemo(() => {
+    if (!searchTerm.trim()) return sectionUploads;
+    const term = searchTerm.toLowerCase();
+    return sectionUploads.filter(s => 
+      s.section.title.toLowerCase().includes(term) ||
+      s.uploads.some(u => u.question.text.toLowerCase().includes(term))
+    );
+  }, [sectionUploads, searchTerm]);
 
   const isImage = (url: string) => {
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
@@ -493,9 +684,45 @@ export default function FormUploadsView() {
         </div>
         
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center bg-primary-50 p-1 rounded-xl border border-primary-100 shadow-sm overflow-x-auto">
+            <button
+              onClick={() => setViewMode('questions')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                viewMode === 'questions' 
+                  ? 'bg-white text-primary-600 shadow-sm' 
+                  : 'text-primary-400 hover:text-primary-600'
+              }`}
+            >
+              <LayoutGrid className="w-4 h-4" />
+              Question-wise
+            </button>
+            <button
+              onClick={() => setViewMode('sections')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                viewMode === 'sections' 
+                  ? 'bg-white text-primary-600 shadow-sm' 
+                  : 'text-primary-400 hover:text-primary-600'
+              }`}
+            >
+              <Layers className="w-4 h-4" />
+              Section-wise
+            </button>
+            <button
+              onClick={() => setViewMode('submissions')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+                viewMode === 'submissions' 
+                  ? 'bg-white text-primary-600 shadow-sm' 
+                  : 'text-primary-400 hover:text-primary-600'
+              }`}
+            >
+              <ClipboardList className="w-4 h-4" />
+              Submission-wise
+            </button>
+          </div>
+          
           <button
             onClick={downloadAllAsZip}
-            disabled={zipping || filteredQuestionUploads.length === 0}
+            disabled={zipping || (viewMode === 'questions' ? filteredQuestionUploads.length === 0 : viewMode === 'submissions' ? filteredSubmissions.length === 0 : filteredSections.length === 0)}
             className="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold"
           >
             {zipping ? (
@@ -523,15 +750,16 @@ export default function FormUploadsView() {
         </div>
       </div>
 
-      {filteredQuestionUploads.length === 0 ? (
+      {(viewMode === 'questions' ? filteredQuestionUploads.length : viewMode === 'submissions' ? filteredSubmissions.length : filteredSections.length) === 0 ? (
         <div className="bg-white rounded-xl border border-primary-100 p-12 text-center">
           <ImageIcon className="w-16 h-16 text-primary-200 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-primary-800">No uploads found</h3>
-          <p className="text-primary-500">There are no file or image uploads for this form yet.</p>
+          <p className="text-primary-500">There are no file or image uploads matching your criteria.</p>
         </div>
       ) : (
         <div className="space-y-6">
-          {filteredQuestionUploads.map(({ question, uploads }) => (
+          {/* Question-wise View */}
+          {viewMode === 'questions' && filteredQuestionUploads.map(({ question, uploads }) => (
             <div key={question.id} className="bg-white rounded-xl border border-primary-100 overflow-hidden shadow-sm">
               <button
                 onClick={() => toggleExpand(question.id)}
@@ -605,6 +833,144 @@ export default function FormUploadsView() {
                           <div className="p-2.5 bg-primary-600 rounded-full text-white shadow-lg transform hover:scale-110 transition-all">
                             <Info className="w-5 h-5" />
                           </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Section-wise View */}
+          {viewMode === 'sections' && filteredSections.map(({ section, uploads }) => (
+            <div key={section.id} className="bg-white rounded-xl border border-primary-100 overflow-hidden shadow-sm">
+              <button
+                onClick={() => toggleExpandSections(section.id)}
+                className="w-full flex items-center justify-between p-4 bg-primary-50/50 hover:bg-primary-50 transition-colors border-b border-primary-100"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white rounded-lg border border-primary-200">
+                    <Layers className="w-5 h-5 text-primary-600" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-semibold text-primary-800">{section.title}</h3>
+                    <p className="text-xs text-primary-500">{uploads.length} total uploads in this section</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadSectionAsZip(section, uploads);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-primary-200 text-primary-600 rounded-lg hover:bg-primary-50 transition-colors text-xs font-medium"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span className="hidden sm:inline">Download Section ZIP</span>
+                  </button>
+                  {expandedSections.has(section.id) ? (
+                    <ChevronDown className="w-5 h-5 text-primary-400" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-primary-400" />
+                  )}
+                </div>
+              </button>
+              
+              {expandedSections.has(section.id) && (
+                <div className="p-4 sm:p-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    {uploads.map(({ question, upload }, index) => (
+                      <div 
+                        key={index}
+                        className="group relative bg-primary-50/30 rounded-lg overflow-hidden border border-primary-100 aspect-square cursor-pointer hover:shadow-md transition-all"
+                        onClick={() => setSelectedUpload(upload)}
+                      >
+                        {isImage(upload.url) ? (
+                          <img src={upload.url} alt={`Upload ${index + 1}`} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                            <FileIcon className="w-10 h-10 text-primary-400 mb-2" />
+                            <span className="text-[10px] text-primary-600 truncate w-full">{question.text}</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-primary-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                           <div className="p-2.5 bg-primary-600 rounded-full text-white shadow-lg transform hover:scale-110 transition-all">
+                            <Info className="w-5 h-5" />
+                          </div>
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-white text-[8px] truncate">
+                          {getSubmitterName(upload.response)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Submission-wise View */}
+          {viewMode === 'submissions' && filteredSubmissions.map(({ response, name, uploads }) => (
+            <div key={response.id} className="bg-white rounded-xl border border-primary-100 overflow-hidden shadow-sm">
+              <button
+                onClick={() => toggleExpandSubmissions(response.id)}
+                className="w-full flex items-center justify-between p-4 bg-primary-50/50 hover:bg-primary-50 transition-colors border-b border-primary-100"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-white rounded-lg border border-primary-200">
+                    <User className="w-5 h-5 text-primary-600" />
+                  </div>
+                  <div className="text-left">
+                    <h3 className="font-semibold text-primary-800">{name}</h3>
+                    <p className="text-xs text-primary-500">
+                      {new Date(response.createdAt).toLocaleDateString()} • {uploads.length} uploads
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadSubmissionAsZip(name, response, uploads);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-primary-200 text-primary-600 rounded-lg hover:bg-primary-50 transition-colors text-xs font-medium"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span className="hidden sm:inline">Download ZIP</span>
+                  </button>
+                  {expandedSubmissions.has(response.id) ? (
+                    <ChevronDown className="w-5 h-5 text-primary-400" />
+                  ) : (
+                    <ChevronRight className="w-5 h-5 text-primary-400" />
+                  )}
+                </div>
+              </button>
+              
+              {expandedSubmissions.has(response.id) && (
+                <div className="p-4 sm:p-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                    {uploads.map((upload, index) => (
+                      <div 
+                        key={index}
+                        className="group relative bg-primary-50/30 rounded-lg overflow-hidden border border-primary-100 aspect-square cursor-pointer hover:shadow-md transition-all"
+                        onClick={() => setSelectedUpload({ url: upload.url, response })}
+                      >
+                        {isImage(upload.url) ? (
+                          <img src={upload.url} alt={`Upload ${index + 1}`} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
+                            <FileIcon className="w-10 h-10 text-primary-400 mb-2" />
+                            <span className="text-[10px] text-primary-600 truncate w-full">{upload.question.text}</span>
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-primary-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                           <div className="p-2.5 bg-primary-600 rounded-full text-white shadow-lg transform hover:scale-110 transition-all">
+                            <Info className="w-5 h-5" />
+                          </div>
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 p-1 bg-black/50 text-white text-[8px] truncate">
+                          {upload.question.text}
                         </div>
                       </div>
                     ))}

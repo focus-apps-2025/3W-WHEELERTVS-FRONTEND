@@ -290,7 +290,10 @@ export default function PreviewForm({
   // Initialize sections if they don't exist
   const sections: Section[] =
     question.sections?.length > 0
-      ? question.sections
+      ? question.sections.map((s: any) => ({
+          ...s,
+          id: s.id || s._id,
+        }))
       : [
           {
             id: "default",
@@ -305,6 +308,12 @@ export default function PreviewForm({
     const linkedIds = new Set<string>();
     branchingRules.forEach((rule) => {
       linkedIds.add(rule.targetSectionId);
+    });
+    // Also consider sections linked via section-level direct link
+    sections.forEach(section => {
+      if (section.nextSectionId && section.nextSectionId !== 'end') {
+        linkedIds.add(section.nextSectionId);
+      }
     });
     return linkedIds;
   };
@@ -709,10 +718,13 @@ export default function PreviewForm({
     }
 
     // 3. Sequential check (if no branching/navigation override)
-    return getNextSequentialSectionIndex(currentSectionIndex) === -1 && 
-      !currentSection.questions.some(q => 
-        branchingRules.some(rule => rule.sectionId === currentSection.id && rule.questionId === q.id)
-      );
+    const hasNextSequential = getNextSequentialSectionIndex(currentSectionIndex) !== -1;
+    const hasBranchingToSection = currentSection.questions.some(q => 
+      branchingRules.some(rule => rule.sectionId === currentSection.id && rule.questionId === q.id)
+    );
+    const hasDirectLink = !!currentSection.nextSectionId && currentSection.nextSectionId !== 'end';
+    
+    return !hasNextSequential && !hasBranchingToSection && !hasDirectLink;
   })();
 
   const isFirstSection = sectionNavigationHistory.length <= 1;
@@ -740,7 +752,7 @@ export default function PreviewForm({
               currentSection={Array.from(visitedSectionIndices)
                 .sort()
                 .indexOf(currentSectionIndex)}
-              totalSections={visitedSectionIndices.size}
+              totalSections={sections.length}
               visitedCount={visitedSectionIndices.size}
               totalCount={sections.length}
             />

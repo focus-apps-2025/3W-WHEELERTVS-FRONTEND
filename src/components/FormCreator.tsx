@@ -60,6 +60,7 @@ interface FormSection {
   questions: Question[];
   parentSectionId?: string; // For subsections
   isSubsection?: boolean; // Mark if this is a subsection
+  nextSectionId?: string; // Target section for direct link
 }
 
 interface Question {
@@ -346,6 +347,8 @@ export default function FormCreator() {
 
               return {
                 ...section,
+                id: section.id || section._id,
+                nextSectionId: section.nextSectionId,
                 questions: questionsWithFollowUps,
               };
             }
@@ -993,6 +996,7 @@ export default function FormCreator() {
         return {
           ...section,
           questions: allQuestions,
+          nextSectionId: section.nextSectionId,
         };
       }),
     };
@@ -2512,6 +2516,11 @@ export default function FormCreator() {
     setShowBranchingConfig(false);
     setBranchingConfigQuestion(null);
     showSuccess("Section routing configured successfully");
+  };
+
+  const hasSectionBranching = (sectionId: string) => {
+    // Check if any rule in formSectionBranching exists for this section
+    return formSectionBranching.some((rule) => rule.sectionId === sectionId);
   };
 
   const handleSaveFormRoutingConfig = (
@@ -5034,6 +5043,103 @@ export default function FormCreator() {
                           </React.Fragment>
                         );
                       })}
+
+                      {/* After Section Action / Section Routing */}
+                      {!section.isSubsection && (
+                        <div className="mt-8 pt-6 border-t border-gray-100 dark:border-gray-800">
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+                              <LinkIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wider">
+                              After Section Action
+                            </h4>
+                          </div>
+
+                          {hasSectionBranching(section.id) ? (
+                            <div className="p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                              <p className="text-sm text-orange-800 flex items-center gap-2">
+                                <span className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+                                <strong>Direct Link Disabled:</strong> This section has options linked to other sections via branching. Direct linking is only available when no options have custom routing.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              <button
+                                onClick={() => updateSection(section.id, { nextSectionId: undefined })}
+                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                                  !section.nextSectionId
+                                    ? "bg-blue-50 border-blue-500 text-blue-700 shadow-sm"
+                                    : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-500 hover:border-blue-200"
+                                }`}
+                              >
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                  !section.nextSectionId ? "bg-blue-600 text-white" : "bg-gray-100 dark:bg-gray-800"
+                                }`}>
+                                  <ChevronDown className="w-5 h-5" />
+                                </div>
+                                <span className="text-xs font-bold uppercase tracking-wide">Continue to Next</span>
+                              </button>
+
+                              <button
+                                onClick={() => updateSection(section.id, { nextSectionId: "end" })}
+                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
+                                  section.nextSectionId === "end"
+                                    ? "bg-red-50 border-red-500 text-red-700 shadow-sm"
+                                    : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-500 hover:border-red-200"
+                                }`}
+                              >
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                  section.nextSectionId === "end" ? "bg-red-600 text-white" : "bg-gray-100 dark:bg-gray-800"
+                                }`}>
+                                  <X className="w-5 h-5" />
+                                </div>
+                                <span className="text-xs font-bold uppercase tracking-wide">End Form</span>
+                              </button>
+
+                              <div className={`relative flex flex-col gap-2 p-4 rounded-xl border-2 transition-all ${
+                                !!section.nextSectionId && section.nextSectionId !== "end"
+                                  ? "bg-purple-50 border-purple-500 text-purple-700 shadow-sm"
+                                  : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-500 hover:border-purple-200"
+                              }`}>
+                                <div className="flex flex-col items-center gap-2 cursor-pointer" 
+                                     onClick={() => {
+                                       const firstAvailable = form.sections.find(s => s.id !== section.id && !s.isSubsection);
+                                       if (firstAvailable) {
+                                         updateSection(section.id, { nextSectionId: firstAvailable.id });
+                                       }
+                                     }}>
+                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                                    !!section.nextSectionId && section.nextSectionId !== "end" ? "bg-purple-600 text-white" : "bg-gray-100 dark:bg-gray-800"
+                                  }`}>
+                                    <LinkIcon className="w-5 h-5" />
+                                  </div>
+                                  <span className="text-xs font-bold uppercase tracking-wide">Jump to Section</span>
+                                </div>
+                                
+                                {!!section.nextSectionId && section.nextSectionId !== "end" && (
+                                  <select
+                                    value={section.nextSectionId}
+                                    onChange={(e) => updateSection(section.id, { nextSectionId: e.target.value })}
+                                    className="mt-2 w-full px-2 py-1 text-xs border border-purple-200 rounded bg-white dark:bg-gray-800 focus:ring-2 focus:ring-purple-500 outline-none font-semibold"
+                                  >
+                                    {form.sections
+                                      .filter((s) => s.id !== section.id && !s.isSubsection)
+                                      .map((s, idx) => (
+                                        <option key={s.id} value={s.id}>
+                                          Section {String.fromCharCode(65 + form.sections.indexOf(s))}: {s.title || "Untitled"}
+                                        </option>
+                                      ))}
+                                  </select>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                          <p className="mt-3 text-[10px] text-gray-500 dark:text-gray-400 font-medium">
+                            * This setting determines where respondents go after completing all questions in this section.
+                          </p>
+                        </div>
+                      )}
 
                       {/* Add question button at the end */}
                       {section.questions.length > 0 && (
