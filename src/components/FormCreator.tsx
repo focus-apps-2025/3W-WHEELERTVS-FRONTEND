@@ -3459,6 +3459,16 @@ export default function FormCreator() {
       description: "Emoji reactions (sad to laugh)",
     },
     {
+      value: "rating-number",
+      label: "Ratings by Number",
+      description: "0-10 circular rating scale",
+    },
+    {
+      value: "satisfaction-rating",
+      label: "Satisfaction Rating (1-5)",
+      description: "1-5 circular rating scale",
+    },
+    {
       value: "productNPSTGWBuckets",
       label: "Product NPS TGW Buckets",
       description: "6-level hierarchical complaint categorization: L1 (Groups) → L2 (Sub-issues) → L3 (Questions) → L4 (Answers) → L5 (Details) → L6 (Final Options)",

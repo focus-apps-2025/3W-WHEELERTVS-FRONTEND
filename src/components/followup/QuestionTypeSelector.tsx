@@ -21,6 +21,7 @@ export default function QuestionTypeSelector({ value, onChange }: QuestionTypeSe
     { value: 'file', label: 'File Upload' },
     { value: 'range', label: 'Range' },
     { value: 'rating', label: 'Rating' },
+    { value: 'rating-number', label: 'Ratings by Number' },
     { value: 'scale', label: 'Linear Scale' },
     { value: 'radio-grid', label: 'Multiple Choice Grid' },
     { value: 'checkbox-grid', label: 'Checkbox Grid' },

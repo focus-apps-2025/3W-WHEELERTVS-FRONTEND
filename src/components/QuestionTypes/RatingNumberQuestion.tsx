@@ -2,36 +2,35 @@ import React from 'react';
 import type { FollowUpQuestion } from '../../types';
 import { useTheme } from "../../context/ThemeContext";
 
-interface ScaleQuestionProps {
+interface RatingNumberQuestionProps {
   question: FollowUpQuestion;
   value: string;
   onChange: (value: string) => void;
   readOnly?: boolean;
 }
 
-export default function ScaleQuestion({
+export default function RatingNumberQuestion({
   question,
   value,
   onChange,
   readOnly = false,
-}: ScaleQuestionProps) {
+}: RatingNumberQuestionProps) {
   const { darkMode } = useTheme();
   
-  // Default values based on common patterns if not specified
-  const min = question.min !== undefined ? question.min : 0;
   const max = question.max || 10;
+  const min = question.min !== undefined ? question.min : 0;
   const currentValue = value !== "" && value !== undefined ? parseInt(value) : null;
 
   const range = Array.from({ length: max - min + 1 }, (_, i) => min + i);
 
-  // Default labels based on NPS/CSAT if not provided
+  // Labels matching the screenshot
   const minLabel = question.minLabel || (max === 10 ? "Not at all likely" : "Very unsatisfied");
   const maxLabel = question.maxLabel || (max === 10 ? "Extremely likely" : "Very satisfied");
 
   return (
     <div className="space-y-4 px-1 p-2 rounded-xl transition-all duration-300">
-      <div className="flex flex-col items-center">
-        <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2 mb-2 w-full">
+      <div className="flex flex-col inline-flex">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 mb-2">
           {range.map((num) => {
             const isSelected = currentValue === num;
             return (
@@ -40,13 +39,13 @@ export default function ScaleQuestion({
                 type="button"
                 onClick={() => !readOnly && onChange(num.toString())}
                 disabled={readOnly}
-                className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center text-[13px] font-black transition-all duration-300 ${
+                className={`w-9 h-9 sm:w-11 sm:h-11 rounded-full border flex items-center justify-center text-[14px] font-medium transition-all duration-200 ${
                   isSelected
-                    ? 'bg-slate-900 border-slate-900 text-white shadow-lg scale-110 z-10'
+                    ? 'bg-slate-900 border-slate-900 text-white shadow-md'
                     : darkMode
-                      ? 'bg-slate-800 border-slate-700 text-slate-300 hover:border-blue-500'
-                      : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400 hover:shadow-sm'
-                } ${readOnly ? 'cursor-not-allowed opacity-70' : 'cursor-pointer active:scale-90 hover:scale-105'}`}
+                      ? 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
+                      : 'bg-white border-slate-300 text-slate-600 hover:border-slate-500'
+                } ${readOnly ? 'cursor-not-allowed opacity-70' : 'cursor-pointer active:scale-95'}`}
               >
                 {num}
               </button>
@@ -54,11 +53,11 @@ export default function ScaleQuestion({
           })}
         </div>
         
-        <div className="flex justify-between w-full px-1 mt-1">
-          <span className={`text-[10px] font-medium tracking-tight max-w-[45%] ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+        <div className="flex justify-between w-full mt-1 px-1">
+          <span className={`text-[10px] sm:text-[11px] font-normal tracking-tight text-slate-500 dark:text-slate-400`}>
             {minLabel}
           </span>
-          <span className={`text-[10px] font-medium tracking-tight text-right max-w-[45%] ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+          <span className={`text-[10px] sm:text-[11px] font-normal tracking-tight text-slate-500 dark:text-slate-400`}>
             {maxLabel}
           </span>
         </div>

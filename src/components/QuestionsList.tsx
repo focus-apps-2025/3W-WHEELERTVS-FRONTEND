@@ -34,6 +34,8 @@ export default function QuestionsList({
     { value: "file", label: "File Upload" },
     { value: "range", label: "Range" },
     { value: "rating", label: "Rating" },
+    { value: "rating-number", label: "Ratings by Number" },
+    { value: "satisfaction-rating", label: "Satisfaction Rating (1-5)" },
     { value: "scale", label: "Linear Scale" },
     { value: "radio-image", label: "Image Choice" },
     { value: "productNPSTGWBuckets", label: "Product NPS TGW Buckets" },

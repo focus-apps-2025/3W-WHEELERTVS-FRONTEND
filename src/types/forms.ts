@@ -34,6 +34,8 @@ export interface FollowUpQuestion {
   gridOptions?: GridOption;
   min?: number;
   max?: number;
+  minLabel?: string;
+  maxLabel?: string;
   step?: number;
   showWhen?: ShowWhen;
   parentId?: string;

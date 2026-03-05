@@ -20,4 +20,6 @@ export type QuestionType =
   | "slider-feedback"
   | "emoji-star-feedback"
   | "emoji-reaction-feedback"
+  | "rating-number"
+  | "satisfaction-rating"
   | "productNPSTGWBuckets";

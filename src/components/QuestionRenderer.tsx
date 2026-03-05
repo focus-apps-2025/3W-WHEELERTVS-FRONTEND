@@ -6,6 +6,8 @@ import FileInput from "./QuestionTypes/FileInput";
 import GridQuestion from "./QuestionTypes/GridQuestion";
 import RadioImageQuestion from "./QuestionTypes/RadioImageQuestion";
 import RatingQuestion from "./QuestionTypes/RatingQuestion";
+import RatingNumberQuestion from "./QuestionTypes/RatingNumberQuestion";
+import SatisfactionRatingQuestion from "./QuestionTypes/SatisfactionRatingQuestion";
 import ScaleQuestion from "./QuestionTypes/ScaleQuestion";
 import SearchSelect from "./QuestionTypes/SearchSelect";
 import ParagraphInput from "./QuestionTypes/ParagraphInput";
@@ -230,6 +232,26 @@ export default function QuestionRenderer({
       case "rating":
         return (
           <RatingQuestion
+            question={question}
+            value={value}
+            onChange={onChange}
+            readOnly={readOnly}
+          />
+        );
+
+      case "rating-number":
+        return (
+          <RatingNumberQuestion
+            question={question}
+            value={value}
+            onChange={onChange}
+            readOnly={readOnly}
+          />
+        );
+
+      case "satisfaction-rating":
+        return (
+          <SatisfactionRatingQuestion
             question={question}
             value={value}
             onChange={onChange}
