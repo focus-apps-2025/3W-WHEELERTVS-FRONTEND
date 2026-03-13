@@ -8,7 +8,7 @@ import ThankYouMessage from "./ThankYouMessage";
 import { responsesApi } from "../api/storage";
 import ParentResponseSelector from "./ParentResponseSelector";
 import { apiClient } from "../api/client";
- 
+
 const SAMPLE_IMAGE_DATA =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==";
 
@@ -148,7 +148,7 @@ export default function ResponseForm({
   questions: propQuestions,
   onSubmit,
 }: ResponseFormProps) {
-  const { id,tenantSlug } = useParams();
+  const { id, tenantSlug } = useParams();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -162,129 +162,56 @@ export default function ResponseForm({
   const { getOrderedVisibleQuestions } = useQuestionLogic();
   const [showDuplicateMessage, setShowDuplicateMessage] = useState(false);
   const [duplicateInfo, setDuplicateInfo] = useState<{ isDuplicate: boolean; email: string }>({
-  isDuplicate: false,
-  email: ''
-});
+    isDuplicate: false,
+    email: ''
+  });
 
-  // Fetch form from backend
-useEffect(() => {
-  const fetchForm = async () => {
-    if (!id) return;
+  // Derived sections logic
+  const allFormSections = React.useMemo(() => {
+    const rawSections =
+      form?.sections && form.sections.length > 0
+        ? form.sections
+        : [
+            {
+              id: "default",
+              title: form?.title || "",
+              description: form?.description || "",
+              questions: form?.followUpQuestions || [],
+            },
+          ];
 
-    try {
-      setLoading(true);
-      
-      // Check if there's an inviteId in the URL
-      const inviteId = searchParams.get('inviteId');
-      // Get tenantSlug from URL params
-       // Make sure you have this
-      
-      let response;
-      if (inviteId) {
-        // Use public endpoint for invites - pass tenantSlug!
-        console.log("🔑 Using public endpoint with inviteId:", inviteId);
-        response = await apiClient.getPublicForm(id, tenantSlug);
-        setForm(response.form || response);
-      } else {
-        // Use authenticated endpoint for admin users
-        console.log("🔒 Using authenticated endpoint");
-        response = await apiClient.getFormById(id);
-        setForm(response.form);
-      }
-      
-      setError(null);
-    } catch (err: any) {
-      console.error("Error fetching form:", err);
-      setError(err.message || "Failed to load form");
-    } finally {
-      setLoading(false);
-    }
-  };
+    // Flatten sections to handle nested follow-up questions
+    return rawSections.map((section: any) => {
+      const allQuestions: any[] = [];
 
-  fetchForm();
-}, [id, searchParams, tenantSlug]); // Add tenantSlug to dependencies // 👈 Add inviteId to dependencies
+      const flattenQuestions = (questions: any[], parentId?: string) => {
+        questions.forEach((question: any) => {
+          const { followUpQuestions, ...mainQuestion } = question;
+          
+          if (parentId && !mainQuestion.showWhen) {
+            mainQuestion.showWhen = {
+              questionId: parentId,
+              value: "", 
+            };
+          }
+          
+          allQuestions.push(mainQuestion);
 
-  
+          if (followUpQuestions && followUpQuestions.length > 0) {
+            flattenQuestions(followUpQuestions, question.id);
+          }
+        });
+      };
 
-  useEffect(() => {
-    if (selectedParentResponse) {
-      setAnswers({});
-    }
-  }, [selectedParentResponse]);
-  
- useEffect(() => {
-  if (!form) return;
-  const sections =
-    form.sections && form.sections.length > 0
-      ? form.sections
-      : [{ id: "default", title: form.title, description: form.description, questions: [] }];
-  
-  if (currentSectionIndex >= sections.length && sections.length > 0) {
-    setCurrentSectionIndex(sections.length - 1);
-  }
-}, [form, currentSectionIndex, answers]);
+      flattenQuestions(section.questions || []);
 
-
-  const question = form;
-  const isChildForm = question?.parentFormId !== undefined;
-  const parentForm = null; // TODO: Implement parent form fetching if needed
-
-  const parentResponseId = searchParams.get("parentResponse");
-  const parentResponses: any[] = [];
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 py-12 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl border border-neutral-200 p-12">
-            <div className="flex flex-col items-center justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary-200 border-t-primary-600 mb-4"></div>
-              <span className="text-primary-600 font-medium">
-                Loading form...
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !question) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 py-12 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-2xl shadow-xl border border-neutral-200 p-12 text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-6">
-              <AlertCircle className="w-8 h-8 text-red-600" />
-            </div>
-            <h2 className="text-2xl font-bold text-primary-800 mb-4">
-              Form Not Found
-            </h2>
-            <p className="text-primary-600 mb-8 max-w-md mx-auto">
-              {error ||
-                "The form you're looking for doesn't exist or has been removed."}
-            </p>
-            <button onClick={() => navigate("/forms")} className="btn-primary">
-              Return to Forms
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Use sections from the form
-  const allFormSections =
-    question.sections && question.sections.length > 0
-      ? question.sections
-      : [
-          {
-            id: "default",
-            title: question.title,
-            description: question.description,
-            questions: [],
-          },
-        ];
+      return {
+        ...section,
+        id: section.id || section._id,
+        questions: allQuestions,
+      };
+    });
+  }, [form]);
 
   const getAvailableSections = () => {
     if (!allFormSections || !Array.isArray(allFormSections)) {
@@ -306,7 +233,10 @@ useEffect(() => {
 
         for (const question of allQuestions) {
           const answer = answers[question.id];
-          if (answer && question.followUpConfig?.[answer]?.linkedSectionId === section.id) {
+          if (
+            answer &&
+            question.followUpConfig?.[answer]?.linkedSectionId === section.id
+          ) {
             linkedSections.push(section);
             break;
           }
@@ -340,6 +270,7 @@ useEffect(() => {
       }
     }
 
+    // Add any linked sections that were not added sequentially
     for (const linkedSection of linkedSections) {
       if (!addedSectionIds.has(linkedSection.id)) {
         result.push(linkedSection);
@@ -347,82 +278,139 @@ useEffect(() => {
       }
     }
 
-    return result;
+    // Group subsections into their parent sections
+    const sectionsMap = new Map<string, any>();
+    const rootSections: any[] = [];
+
+    // Initialize map
+    result.forEach((section) => {
+      sectionsMap.set(section.id, { ...section, subsections: [] });
+    });
+
+    // Build hierarchy
+    result.forEach((section) => {
+      const mappedSection = sectionsMap.get(section.id);
+      
+      // Robust check for subsection
+      const isSub = section.isSubsection === true || 
+                   section.isSubsection === 'true' || 
+                   (section.parentSectionId && section.parentSectionId !== '');
+
+      if (
+        isSub &&
+        section.parentSectionId &&
+        sectionsMap.has(section.parentSectionId)
+      ) {
+        const parent = sectionsMap.get(section.parentSectionId);
+        parent.subsections.push(mappedSection);
+      } else {
+        rootSections.push(mappedSection);
+      }
+    });
+
+    const finalResult = rootSections;
+
+    // If viewType is question-wise, split each section into multiple virtual sections (one per question)
+    if (form?.viewType === "question-wise") {
+      const virtualSections: any[] = [];
+      finalResult.forEach((section, sIdx) => {
+        // Collect all questions including from subsections
+        const allQuestions = [...(section.questions || [])];
+        if (section.subsections && Array.isArray(section.subsections)) {
+          section.subsections.forEach((sub: any) => {
+            allQuestions.push(...(sub.questions || []));
+          });
+        }
+
+        const visibleQuestions = getOrderedVisibleQuestions(
+          allQuestions,
+          answers
+        );
+
+        if (visibleQuestions.length === 0) {
+          virtualSections.push({
+            ...section,
+            questions: [],
+            isVirtual: true,
+            originalSectionId: section.id,
+            originalSectionIndex: sIdx,
+            totalOriginalSections: finalResult.length,
+            questionIndex: 0,
+            totalQuestionsInSection: 0,
+          });
+        } else {
+          visibleQuestions.forEach((q, qIdx) => {
+            virtualSections.push({
+              ...section,
+              id: `${section.id}_v${qIdx}`,
+              title: section.title,
+              description: qIdx === 0 ? section.description : "",
+              questions: [q],
+              isVirtual: true,
+              originalSectionId: section.id,
+              originalSectionIndex: sIdx,
+              totalOriginalSections: finalResult.length,
+              questionIndex: qIdx,
+              totalQuestionsInSection: visibleQuestions.length,
+            });
+          });
+        }
+      });
+      return virtualSections;
+    }
+
+    return finalResult;
   };
 
   const formSections = getAvailableSections();
 
-  console.log("All form sections:", allFormSections);
-  console.log("Available sections:", formSections);
-  console.log("Current answers:", answers);
+  // Fetch form from backend
+  useEffect(() => {
+    const fetchForm = async () => {
+      if (!id) return;
 
-  // Debug: Log all questions in current section
-  if (formSections[currentSectionIndex]) {
-    console.log(
-      "Current section questions:",
-      formSections[currentSectionIndex].questions
-    );
-    console.log(
-      "Questions with showWhen:",
-      formSections[currentSectionIndex].questions.filter((q) => q.showWhen)
-    );
-  }
+      try {
+        setLoading(true);
+        const inviteId = searchParams.get('inviteId');
+        
+        let response;
+        if (inviteId) {
+          response = await apiClient.getPublicForm(id, tenantSlug);
+          setForm(response.form || response);
+        } else {
+          response = await apiClient.getFormById(id);
+          setForm(response.form);
+        }
+        
+        setError(null);
+      } catch (err: any) {
+        console.error("Error fetching form:", err);
+        setError(err.message || "Failed to load form");
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (submitted) {
-  return <ThankYouMessage />;
-}
+    fetchForm();
+  }, [id, searchParams, tenantSlug]);
 
-if (showDuplicateMessage) {
-  return <ThankYouMessage isDuplicate={true} email={duplicateInfo.email} />;
-}
-
-  if (isChildForm && !selectedParentResponse) {
-    if (parentResponses.length === 0) {
-      return (
-        <div className="max-w-4xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
-          <div className="flex items-center space-x-2 text-amber-600 dark:text-amber-500 mb-4">
-            <AlertCircle className="w-5 h-5" />
-            <h2 className="text-xl font-semibold">
-              Parent Form Response Required
-            </h2>
-          </div>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">
-            This is a follow-up form that requires a response to "
-            {parentForm?.title}" first. Please complete the parent form before
-            proceeding.
-          </p>
-          <button
-            onClick={() => navigate(`/forms/${question.parentFormId}/respond`)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Respond to Parent Form
-          </button>
-        </div>
-      );
+  useEffect(() => {
+    if (selectedParentResponse) {
+      setAnswers({});
     }
+  }, [selectedParentResponse]);
+  
+  useEffect(() => {
+    if (!form || !formSections) return;
+    
+    if (currentSectionIndex >= formSections.length && formSections.length > 0) {
+      setCurrentSectionIndex(formSections.length - 1);
+    }
+  }, [formSections.length, currentSectionIndex]);
 
-    return (
-      <div className="max-w-4xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
-        <button
-          onClick={() => navigate(-1)}
-          className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 mb-6"
-        >
-          <ArrowLeft className="w-5 h-5 mr-2" />
-          Back
-        </button>
-
-        <h2 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
-          Select Parent Response
-        </h2>
-
-        <ParentResponseSelector
-          parentForm={parentForm!}
-          responses={parentResponses}
-          onSelect={setSelectedParentResponse}
-        />
-      </div>
-    );
-  }
+  const question = form;
+  const isChildForm = question?.parentFormId !== undefined;
+  const parentForm = null;
 
   const findLinkedFormInAnswers = (): string | null => {
     const checkQuestionRecursively = (
@@ -466,127 +454,124 @@ if (showDuplicateMessage) {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  let isValid = true;
-  formSections.forEach((section) => {
-    const visibleQuestions = getOrderedVisibleQuestions(
-      section.questions,
-      answers
-    );
-    const hasRequiredAnswers = visibleQuestions.every((q) => {
-      if (!q.required) return true;
-      
-      if (q.type === "file") {
-        return isValidFileInput(answers[q.id]);
+    let isValid = true;
+    formSections.forEach((section) => {
+      // Collect all questions including from subsections
+      const allQuestions = [...(section.questions || [])];
+      if (section.subsections && Array.isArray(section.subsections)) {
+        section.subsections.forEach((sub: any) => {
+          allQuestions.push(...(sub.questions || []));
+        });
       }
-      
-      return answers[q.id];
+
+      const visibleQuestions = getOrderedVisibleQuestions(
+        allQuestions,
+        answers
+      );
+      const hasRequiredAnswers = visibleQuestions.every((q) => {
+        if (!q.required) return true;
+        
+        if (q.type === "file") {
+          return isValidFileInput(answers[q.id]);
+        }
+        
+        return answers[q.id];
+      });
+      if (!hasRequiredAnswers) {
+        isValid = false;
+      }
     });
-    if (!hasRequiredAnswers) {
-      isValid = false;
+
+    if (!isValid) {
+      alert(
+        "Please fill in all required fields in all sections before submitting."
+      );
+      return;
     }
-  });
 
-  if (!isValid) {
-    alert(
-      "Please fill in all required fields in all sections before submitting."
-    );
-    return;
-  }
-
-  const response: Response = {
-    id: crypto.randomUUID(),
-    questionId: question.id,
-    answers,
-    timestamp: new Date().toISOString(),
-    parentResponseId: selectedParentResponse?.id,
-    submissionMetadata: {
-      source: 'internal'
-    }
-  };
-
-  try {
-    const submitData: any = { ...response };
-
-    if (navigator.geolocation) {
-      try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: false,
-            timeout: 5000,
-            maximumAge: 0
-          });
-        });
-
-        submitData.location = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-          source: 'browser'
-        };
-      } catch (geoErr) {
-        console.warn("Geolocation not available:", geoErr);
+    const response: Response = {
+      id: crypto.randomUUID(),
+      questionId: question.id,
+      answers,
+      timestamp: new Date().toISOString(),
+      parentResponseId: selectedParentResponse?.id,
+      submissionMetadata: {
+        source: 'internal'
       }
-    }
+    };
 
-    const inviteId = searchParams.get('inviteId');
-    
-    if (inviteId) {
-      try {
-        // Use public endpoint for invite submissions
-        console.log("📝 Submitting via public endpoint with inviteId:", inviteId);
-        await apiClient.submitPublicResponse(question.id, {
-          inviteId,
-          answers: submitData.answers,
-          location: submitData.location
-        });
-        
-        // ✅ Success - show thank you message
-        setSubmitted(true);
-        
-      } catch (err: any) {
-        console.error("Error submitting response:", err);
-        
-        // 🔴 CHECK IF IT'S A DUPLICATE SUBMISSION
-        if (err.response?.message === 'ALREADY_SUBMITTED' || err.message?.includes('already been used')) {
-          // Show duplicate message with email if available
-          const email = err.response?.data?.email || '';
-          setDuplicateInfo({
-            isDuplicate: true,
-            email: email
+    try {
+      const submitData: any = { ...response };
+
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: false,
+              timeout: 5000,
+              maximumAge: 0
+            });
           });
-          setShowDuplicateMessage(true);
-        } else {
-          alert("Failed to submit response. Please try again.");
+
+          submitData.location = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            source: 'browser'
+          };
+        } catch (geoErr) {
+          console.warn("Geolocation not available:", geoErr);
         }
       }
-    } else {
-      // Use authenticated endpoint for admin users
-      console.log("🔒 Submitting via authenticated endpoint");
-      await apiClient.submitResponse(question.id, submitData);
-      
-      // Check if there's a follow-up form linked to any selected option
-      const linkedFormId = findLinkedFormInAnswers();
-      if (linkedFormId) {
-        setTimeout(() => {
-          navigate(`/forms/${linkedFormId}/respond?parentResponse=${response.id}`);
-        }, 500);
-        return;
-      }
 
-      if (onSubmit) {
-        onSubmit(response);
+      const inviteId = searchParams.get('inviteId');
+      
+      if (inviteId) {
+        try {
+          await apiClient.submitPublicResponse(question.id, {
+            inviteId,
+            answers: submitData.answers,
+            location: submitData.location
+          });
+          setSubmitted(true);
+        } catch (err: any) {
+          console.error("Error submitting response:", err);
+          if (err.response?.message === 'ALREADY_SUBMITTED' || err.message?.includes('already been used')) {
+            const email = err.response?.data?.email || '';
+            setDuplicateInfo({
+              isDuplicate: true,
+              email: email
+            });
+            setShowDuplicateMessage(true);
+          } else {
+            alert("Failed to submit response. Please try again.");
+          }
+        }
+      } else {
+        await apiClient.submitResponse(question.id, submitData);
+        
+        const linkedFormId = findLinkedFormInAnswers();
+        if (linkedFormId) {
+          setTimeout(() => {
+            navigate(`/forms/${linkedFormId}/respond?parentResponse=${response.id}`);
+          }, 500);
+          return;
+        }
+
+        if (onSubmit) {
+          onSubmit(response);
+        }
+        setSubmitted(true);
       }
-      setSubmitted(true);
+    } catch (err: any) {
+      console.error("Error submitting response:", err);
+      if (!err.response?.message?.includes('ALREADY_SUBMITTED')) {
+        alert("Failed to submit response. Please try again.");
+      }
     }
-  } catch (err: any) {
-    console.error("Error submitting response:", err);
-    if (!err.response?.message?.includes('ALREADY_SUBMITTED')) {
-      alert("Failed to submit response. Please try again.");
-    }
-  }
-};
+  };
 
   const handleAnswerChange = (questionId: string, value: any) => {
     setAnswers((prev) => ({
@@ -599,8 +584,16 @@ if (showDuplicateMessage) {
     const currentSection = formSections[currentSectionIndex];
     if (!currentSection) return;
 
+    // Collect all questions including from subsections
+    const allQuestions = [...(currentSection.questions || [])];
+    if (currentSection.subsections && Array.isArray(currentSection.subsections)) {
+      currentSection.subsections.forEach((sub: any) => {
+        allQuestions.push(...(sub.questions || []));
+      });
+    }
+
     const visibleQuestions = getOrderedVisibleQuestions(
-      currentSection.questions,
+      allQuestions,
       answers
     );
     const hasRequiredAnswers = visibleQuestions.every(
@@ -633,6 +626,13 @@ if (showDuplicateMessage) {
       (section.questions || []).forEach((item) => {
         allQuestions.push(item);
       });
+      if (section.subsections) {
+        section.subsections.forEach((sub: any) => {
+          (sub.questions || []).forEach((item: any) => {
+            allQuestions.push(item);
+          });
+        });
+      }
     });
 
     const questionMap = new Map<string, FollowUpQuestion>();
@@ -645,28 +645,52 @@ if (showDuplicateMessage) {
       sampleAnswers[item.id] = createSampleAnswer(item);
     });
 
-    allQuestions.forEach((item) => {
-      const condition = item.showWhen;
-      if (!condition?.questionId) {
-        return;
-      }
-      if (condition.value === undefined || condition.value === null) {
-        return;
-      }
-      const parentQuestion = questionMap.get(condition.questionId);
-      const normalizedValue = normalizeTriggerValue(
-        parentQuestion,
-        condition.value
-      );
-      if (normalizedValue !== undefined) {
-        sampleAnswers[condition.questionId] = normalizedValue;
-      }
-    });
-
     setAnswers(sampleAnswers);
   };
 
- 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 py-12 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl border border-neutral-200 p-12">
+            <div className="flex flex-col items-center justify-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-primary-200 border-t-primary-600 mb-4"></div>
+              <span className="text-primary-600 font-medium">Loading form...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !question) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 py-12 px-4">
+        <div className="max-w-4xl mx-auto">
+          <div className="bg-white rounded-2xl shadow-xl border border-neutral-200 p-12 text-center">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-6">
+              <AlertCircle className="w-8 h-8 text-red-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-primary-800 mb-4">Form Not Found</h2>
+            <p className="text-primary-600 mb-8 max-w-md mx-auto">
+              {error || "The form you're looking for doesn't exist or has been removed."}
+            </p>
+            <button onClick={() => navigate("/forms")} className="btn-primary">
+              Return to Forms
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (submitted) {
+    return <ThankYouMessage />;
+  }
+
+  if (showDuplicateMessage) {
+    return <ThankYouMessage isDuplicate={true} email={duplicateInfo.email} />;
+  }
 
   const currentSection = formSections[currentSectionIndex];
   const isLastSection = currentSectionIndex === formSections.length - 1;
@@ -675,88 +699,49 @@ if (showDuplicateMessage) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-primary-50 py-12 px-4">
       <div className="max-w-4xl mx-auto">
-        {/* Back Button */}
         <button
           onClick={() => navigate(-1)}
-          className="flex items-center text-primary-600 hover:text-primary-800 mb-6 transition-colors font-medium"
+          className="group flex items-center text-primary-600 hover:text-primary-800 mb-8 transition-colors font-medium"
         >
-          <ArrowLeft className="w-5 h-5 mr-2" />
+          <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
           Back to Forms
         </button>
 
-        {/* Main Form Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-neutral-200 overflow-hidden">
-          {/* Form Header */}
-          <div className="bg-gradient-to-r from-primary-600 to-primary-700 px-8 py-10 text-white">
-            <h1 className="text-3xl font-bold mb-3">{question.title}</h1>
+          <div className="p-8 border-b border-neutral-100 bg-white/50 backdrop-blur-sm">
+            <h1 className="text-3xl font-bold text-primary-900 mb-4">
+              {question.title}
+            </h1>
             {question.description && (
-              <p className="text-primary-100 text-lg leading-relaxed">
+              <p className="text-primary-600 text-lg leading-relaxed">
                 {question.description}
               </p>
             )}
           </div>
 
-          {question.imageUrl && (
-            <div className="relative h-64 overflow-hidden">
-              <img
-                src={question.imageUrl}
-                alt="Form header"
-                className="w-full h-full object-cover"
-              />
-            </div>
-          )}
-
-          {/* Parent Response Info */}
-          {isChildForm && selectedParentResponse && parentForm && (
-            <div className="mx-8 mt-8 p-6 bg-primary-50 border border-primary-200 rounded-xl">
-              <h2 className="text-lg font-semibold text-primary-800 mb-4 flex items-center">
-                <AlertCircle className="w-5 h-5 mr-2" />
-                Parent Form Response
-              </h2>
-              <div className="space-y-3">
-                {parentForm.followUpQuestions.map((q) => (
-                  <div key={q.id} className="flex flex-col">
-                    <span className="font-medium text-primary-700 text-sm mb-1">
-                      {q.text}
-                    </span>
-                    <span className="text-primary-600 bg-white px-3 py-2 rounded-lg border border-primary-200">
-                      {Array.isArray(selectedParentResponse.answers[q.id])
-                        ? selectedParentResponse.answers[q.id].join(", ")
-                        : selectedParentResponse.answers[q.id]}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Form Content */}
-          <form onSubmit={handleSubmit} className="px-8 py-8">
-            {/* Progress Indicator */}
+          <form onSubmit={handleSubmit} className="p-8">
+            {/* Progress Bar */}
             {formSections.length > 1 && (
-              <div className="mb-8 pb-6 border-b border-neutral-200">
+              <div className="mb-12 pb-6 border-b border-neutral-100">
                 <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-medium text-primary-700">
+                  <span className="text-sm font-bold text-primary-700">
                     Section {currentSectionIndex + 1} of {formSections.length}
                   </span>
-                  <span className="text-sm text-primary-500">
-                    {Math.round(
-                      ((currentSectionIndex + 1) / formSections.length) * 100
-                    )}
-                    % Complete
+                  <span className="text-sm font-bold text-primary-600">
+                    {Math.round(((currentSectionIndex + 1) / formSections.length) * 100)}% Complete
                   </span>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {formSections.map((_, index) => (
+                  {formSections.map((_, idx) => (
                     <div
-                      key={index}
-                      className="flex-1 h-2 rounded-full overflow-hidden bg-neutral-200"
+                      key={idx}
+                      className="flex-1 h-2.5 rounded-full overflow-hidden bg-neutral-100 border border-neutral-200"
                     >
                       <div
-                        className={`h-full transition-all duration-300 ${
-                          index === currentSectionIndex
-                            ? "bg-primary-600"
-                            : index < currentSectionIndex
+                        className={`h-full transition-all duration-500 ${
+                          idx === currentSectionIndex
+                            ? "bg-primary-600 animate-pulse"
+                            : idx < currentSectionIndex
                             ? "bg-green-500"
                             : "bg-transparent"
                         }`}
@@ -764,76 +749,117 @@ if (showDuplicateMessage) {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Section Header */}
-            {currentSection.title !== question.title && (
-              <div className="mb-8 pb-6 border-b border-neutral-200">
-                <h2 className="text-2xl font-bold text-primary-800 mb-2">
-                  {currentSection.title}
-                </h2>
-                {currentSection.description && (
-                  <p className="text-primary-600 leading-relaxed">
-                    {currentSection.description}
+                {formSections.length > 1 && (
+                  <p className="text-xs text-primary-500 mt-3 font-medium italic">
+                    Note: Subsections are grouped within their parent sections for a better experience.
                   </p>
                 )}
               </div>
             )}
 
-            <div className="flex justify-end mb-6">
+            <div className="flex justify-end mb-8">
               <button
                 type="button"
                 onClick={handleLoadSampleAnswers}
-                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                className="inline-flex items-center px-4 py-2 bg-primary-100 text-primary-700 rounded-lg hover:bg-primary-200 transition-colors font-medium text-sm border border-primary-200"
               >
                 Load Sample Answers
               </button>
             </div>
 
-            {/* Questions */}
-            <div className="space-y-8">
-              {getOrderedVisibleQuestions(
-                currentSection.questions,
-                answers
-              ).map((q) => (
-                <div
-                  key={q.id}
-                  className={`${
-                    q.showWhen
-                      ? "ml-6 pl-6 border-l-4 border-primary-200 bg-primary-50/30 py-4 rounded-r-lg"
-                      : ""
-                  }`}
-                >
-                  <QuestionRenderer
-                    question={q}
-                    value={answers[q.id]}
-                    onChange={(value) => handleAnswerChange(q.id, value)}
-                  />
+            {/* Current Section Content */}
+            <div className="space-y-12">
+              {/* Section Header */}
+              {currentSection.title !== question.title && (
+                <div className="mb-8 pb-6 border-b border-neutral-100">
+                  <h2 className="text-2xl font-bold text-primary-800 mb-2">
+                    {currentSection.title}
+                  </h2>
+                  {currentSection.description && (
+                    <p className="text-primary-600 leading-relaxed">
+                      {currentSection.description}
+                    </p>
+                  )}
                 </div>
-              ))}
+              )}
+
+              {/* Main Section Questions */}
+              <div className="space-y-8">
+                {getOrderedVisibleQuestions(currentSection.questions, answers).map((q) => (
+                  <div
+                    key={q.id}
+                    className={`${
+                      q.showWhen
+                        ? "ml-6 pl-6 border-l-4 border-primary-200 bg-primary-50/30 py-4 rounded-r-lg"
+                        : ""
+                    }`}
+                  >
+                    <QuestionRenderer
+                      question={q}
+                      value={answers[q.id]}
+                      onChange={(value) => handleAnswerChange(q.id, value)}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Subsections Rendering */}
+              {currentSection.subsections &&
+                currentSection.subsections.length > 0 &&
+                currentSection.subsections.map((sub: any) => (
+                  <div key={sub.id} className="mt-12 pt-8 border-t border-neutral-200">
+                    <div className="mb-8">
+                      <h3 className="text-xl font-bold text-primary-800 mb-2">
+                        {sub.title}
+                      </h3>
+                      {sub.description && (
+                        <p className="text-primary-600 text-sm leading-relaxed">
+                          {sub.description}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-8">
+                      {getOrderedVisibleQuestions(sub.questions, answers).map((q) => (
+                        <div
+                          key={q.id}
+                          className={`${
+                            q.showWhen
+                              ? "ml-6 pl-6 border-l-4 border-primary-200 bg-primary-50/30 py-4 rounded-r-lg"
+                              : ""
+                          }`}
+                        >
+                          <QuestionRenderer
+                            question={q}
+                            value={answers[q.id]}
+                            onChange={(value) => handleAnswerChange(q.id, value)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
             </div>
 
             {/* Navigation Buttons */}
-            <div className="flex justify-between items-center pt-8 mt-8 border-t border-neutral-200">
+            <div className="flex justify-between items-center pt-8 mt-12 border-t border-neutral-100">
               {!isFirstSection ? (
                 <button
                   type="button"
                   onClick={handlePrevious}
-                  className="flex items-center px-6 py-3 bg-neutral-100 text-primary-700 rounded-lg hover:bg-neutral-200 transition-colors font-medium border border-neutral-300"
+                  className="flex items-center px-6 py-3 bg-neutral-100 text-primary-700 rounded-xl hover:bg-neutral-200 transition-colors font-medium border border-neutral-200"
                 >
                   <ArrowLeft className="w-5 h-5 mr-2" />
                   Previous
                 </button>
               ) : (
-                <div></div>
+                <div />
               )}
 
               {!isLastSection ? (
                 <button
                   type="button"
                   onClick={handleNext}
-                  className="flex items-center px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium shadow-lg shadow-primary-600/30"
+                  className="flex items-center px-8 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-all font-bold shadow-lg shadow-primary-600/30 hover:shadow-primary-600/40 active:scale-95"
                 >
                   Next Section
                   <ArrowLeft className="w-5 h-5 ml-2 rotate-180" />
@@ -841,7 +867,7 @@ if (showDuplicateMessage) {
               ) : (
                 <button
                   type="submit"
-                  className="flex items-center px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium shadow-lg shadow-green-600/30"
+                  className="flex items-center px-10 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-bold shadow-lg shadow-green-600/30 hover:shadow-green-600/40 active:scale-95"
                 >
                   <Send className="w-5 h-5 mr-2" />
                   Submit Response

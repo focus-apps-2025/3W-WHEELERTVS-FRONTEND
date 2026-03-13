@@ -543,6 +543,29 @@ export default function FormCreator() {
       };
 
       setForm(newForm);
+
+      // Extract branching rules from imported questions to populate formSectionBranching state
+      const branchingRulesToSet: any[] = [];
+      importedData.sections.forEach((section: any) => {
+        section.questions.forEach((question: any) => {
+          if (question.branchingRules && question.branchingRules.length > 0) {
+            branchingRulesToSet.push({
+              sectionId: section.id,
+              questionId: question.id,
+              rules: question.branchingRules.map((rule: any) => ({
+                optionLabel: rule.optionLabel,
+                targetSectionId: rule.targetSectionId,
+              })),
+            });
+          }
+        });
+      });
+
+      if (branchingRulesToSet.length > 0) {
+        console.log("Setting imported branching rules:", branchingRulesToSet);
+        setFormSectionBranching(branchingRulesToSet);
+      }
+
       if (
         importedData.parametersToCreate &&
         importedData.parametersToCreate.length > 0
@@ -1166,11 +1189,14 @@ export default function FormCreator() {
         "Section Description": "Basic details about the bike",
         "Section Weightage": "20",
         "Section Merging": "",
+        "After Section Action": "",
         Question: "What is your bike make and model?",
         "Question Description": "Manufacturer and specific model",
         "Question Type": "shortText",
         Required: "TRUE",
         Options: "",
+        "Section Routing": "",
+        Suggestion: "",
         SubParam1: "Bike Details",
         SubParam2: "Identification",
       },
@@ -1195,11 +1221,26 @@ export default function FormCreator() {
         SubParam2: "Mileage",
       },
       {
+        "Section Number": "1.1",
+        "Section Title": "Owner Details",
+        "Section Description": "Details about the bike owner",
+        "Section Weightage": "10",
+        "Subsection Of": "1",
+        "After Section Action": "",
+        Question: "Owner Name",
+        "Question Type": "shortText",
+        Required: "TRUE",
+        Options: "",
+        SubParam1: "Owner",
+        SubParam2: "Identification",
+      },
+      {
         "Section Number": "2",
         "Section Title": "Service Requirements Assessment",
         "Section Description": "Evaluate what service the bike needs",
-        "Section Weightage": "60",
+        "Section Weightage": "40",
         "Section Merging": "",
+        "After Section Action": "3",
 
         // ========== MAIN QUESTION 1: ENGINE ISSUES (WITH NESTED FOLLOW-UPS) ==========
         Question: "Are you experiencing any engine issues?",
@@ -1207,6 +1248,8 @@ export default function FormCreator() {
         "Question Type": "yesNoNA",
         Required: "TRUE",
         Options: "Yes,No,N/A",
+        "Section Routing": "",
+        Suggestion: "",
         SubParam1: "Engine Health",
         SubParam2: "Performance",
 
@@ -1268,7 +1311,7 @@ export default function FormCreator() {
         // FU4: ADDITIONAL ENGINE QUESTION
       },
       {
-        "Section Weightage": "60",
+        "Section Weightage": "40",
         // ========== MAIN QUESTION 2: BRAKE SYSTEM (WITH NESTED FOLLOW-UPS) ==========
         Question: "Are there any brake system problems?",
         "Question Description": "Issues with braking performance",
@@ -1335,7 +1378,7 @@ export default function FormCreator() {
         "FU3: Question Text": "Why are brakes not applicable?",
       },
       {
-        "Section Weightage": "60",
+        "Section Weightage": "40",
 
         // ========== MAIN QUESTION 3: TIRE CONDITION (SIMPLE FOLLOW-UPS - NO NESTING) ==========
         Question: "Are there any tire issues?",
@@ -1375,7 +1418,7 @@ export default function FormCreator() {
         // FU4: ADDITIONAL TIRE QUESTION
       },
       {
-        "Section Weightage": "60",
+        "Section Weightage": "40",
 
         // ========== MAIN QUESTION 4: ELECTRICAL SYSTEM (SIMPLE FOLLOW-UPS - NO NESTING) ==========
         Question: "Are there any electrical problems?",
@@ -1415,7 +1458,7 @@ export default function FormCreator() {
         // FU4: ADDITIONAL ELECTRICAL QUESTION
       },
       {
-        "Section Weightage": "60",
+        "Section Weightage": "40",
 
         // ========== MAIN QUESTION 5: SUSPENSION & HANDLING (SIMPLE FOLLOW-UPS - NO NESTING) ==========
         Question: "Are there any suspension or handling issues?",
@@ -1456,7 +1499,7 @@ export default function FormCreator() {
         "Section Number": "3",
         "Section Title": "Service History & Preferences",
         "Section Description": "Previous service records and preferences",
-        "Section Weightage": "20",
+        "Section Weightage": "30",
         "Section Merging": "",
         Question: "When was your last full service?",
         "Question Description": "Complete professional service",
@@ -1467,7 +1510,7 @@ export default function FormCreator() {
         SubParam2: "Maintenance",
       },
       {
-        "Section Weightage": "20",
+        "Section Weightage": "30",
         Question: "What type of service do you prefer?",
         "Question Description": "Service package preference",
         "Question Type": "multipleChoice",
@@ -1478,7 +1521,7 @@ export default function FormCreator() {
         SubParam2: "Package",
       },
       {
-        "Section Weightage": "20",
+        "Section Weightage": "30",
         Question: "Do you need a pickup/drop service?",
         "Question Description": "Transportation assistance",
         "Question Type": "yesNoNA",

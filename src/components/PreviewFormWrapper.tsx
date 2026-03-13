@@ -162,69 +162,41 @@ export default function PreviewFormWrapper() {
   const flattenedSections = (form.sections || []).map((section: any) => {
     const allQuestions: any[] = [];
 
-    (section.questions || []).forEach((question: any) => {
-      console.log("Processing question:", question.text, "ID:", question.id);
-
-      // Add the main question (without followUpQuestions to avoid duplication)
-      const { followUpQuestions, ...mainQuestion } = question;
-      allQuestions.push(mainQuestion);
-
-      // Extract branching rules from the question if they exist
-      if (question.branchingRules && question.branchingRules.length > 0) {
-        console.log("Found branching rules:", question.branchingRules);
-        question.branchingRules.forEach((rule: any) => {
-          extractedBranchingRules.push({
-            questionId: question.id,
-            sectionId: section.id,
-            optionLabel: rule.optionLabel,
-            targetSectionId: rule.targetSectionId,
-            isOtherOption: rule.isOtherOption || false,
-          });
-        });
-      }
-
-      // Add follow-up questions if they exist
-      if (followUpQuestions && followUpQuestions.length > 0) {
-        console.log(
-          `Found ${followUpQuestions.length} follow-up questions for "${question.text}"`
-        );
-
-        followUpQuestions.forEach((followUp: any) => {
-          console.log(
-            "Follow-up:",
-            followUp.text,
-            "showWhen:",
-            followUp.showWhen
-          );
-
-          // Add follow-up with proper showWhen structure
-          const followUpQuestion = {
-            ...followUp,
-            showWhen: followUp.showWhen || {
-              questionId: question.id,
-              value: followUp.showWhen?.value || "",
-            },
+    const flattenQuestions = (questions: any[], parentId?: string) => {
+      questions.forEach((question: any) => {
+        // Add the main question (without followUpQuestions to avoid duplication)
+        const { followUpQuestions, ...mainQuestion } = question;
+        
+        if (parentId && !mainQuestion.showWhen) {
+          mainQuestion.showWhen = {
+            questionId: parentId,
+            value: mainQuestion.showWhen?.value || ""
           };
+        }
+        
+        allQuestions.push(mainQuestion);
 
-          console.log("Adding follow-up question:", followUpQuestion);
-          allQuestions.push(followUpQuestion);
-        });
-      }
+        // Extract branching rules from the question if they exist
+        if (question.branchingRules && question.branchingRules.length > 0) {
+          question.branchingRules.forEach((rule: any) => {
+            extractedBranchingRules.push({
+              questionId: question.id,
+              sectionId: section.id,
+              optionLabel: rule.optionLabel,
+              targetSectionId: rule.targetSectionId,
+              isOtherOption: rule.isOtherOption || false,
+            });
+          });
+        }
 
-      // Also check if the question itself has showWhen (already flattened)
-      if (question.showWhen) {
-        console.log("Question already has showWhen:", question.showWhen);
-      }
-    });
+        // Recursively add follow-up questions
+        if (followUpQuestions && followUpQuestions.length > 0) {
+          flattenQuestions(followUpQuestions, question.id);
+        }
+      });
+    };
 
-    console.log(
-      `Section "${section.title}" total questions:`,
-      allQuestions.length
-    );
-    console.log(
-      "Questions with showWhen:",
-      allQuestions.filter((q) => q.showWhen).length
-    );
+    flattenQuestions(section.questions || []);
 
     return {
       ...section,
@@ -252,6 +224,7 @@ export default function PreviewFormWrapper() {
       questions={[formData]}
       onSubmit={handleSubmit}
       branchingRules={finalBranchingRules}
+      viewType={form.viewType}
     />
   );
 }

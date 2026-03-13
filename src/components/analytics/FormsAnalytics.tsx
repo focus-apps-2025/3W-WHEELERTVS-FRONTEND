@@ -31,6 +31,8 @@ import {
   Save,
   ChevronDown,
   Folder,
+  Layout,
+  Split,
 } from "lucide-react";
 import { useForms, useResponses, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
@@ -38,7 +40,6 @@ import { useNotification } from "../../context/NotificationContext";
 import {
   downloadFormImportTemplate,
   downloadNestedFormImportTemplate,
-  downloadLinkingFormImportTemplate,
   parseFormWorkbook
 } from "../../utils/exportUtils";
 import AnswerTemplateImport from "../AnswerTemplateImport";
@@ -63,6 +64,7 @@ interface FormItem {
   isVisible?: boolean;
   locationEnabled?: boolean;
   isActive?: boolean;
+  viewType?: "section-wise" | "question-wise";
   sections?: any[];
   questions?: any[];
   createdAt?: string;
@@ -107,11 +109,6 @@ export default function FormsAnalytics() {
       id: "nested",
       label: "Nested Follow-up",
       description: "Hierarchical structure with nested follow-ups (FU1.1, FU1.1.1)"
-    },
-    {
-      id: "linking",
-      label: "Followup Section Template",
-      description: "Dynamic section navigation and conditional form ending"
     }
   ];
 
@@ -194,6 +191,24 @@ export default function FormsAnalytics() {
       onError: (error: any) => {
         showError(
           error.message || "Failed to update location setting",
+          "Error"
+        );
+      },
+    }
+  );
+
+  const viewTypeMutation = useMutation(
+    ({ id, viewType }: { id: string; viewType: "section-wise" | "question-wise" }) =>
+      apiClient.updateFormViewType(id, viewType),
+    {
+      onSuccess: () => {
+        refetchForms();
+        showSuccess("Form view type updated successfully");
+      },
+      onError: (error: any) => {
+        console.error("View Type Update Error:", error);
+        showError(
+          typeof error === "string" ? error : error.message || "Failed to update view type setting",
           "Error"
         );
       },
@@ -455,17 +470,28 @@ export default function FormsAnalytics() {
     });
   };
 
- const handleExportTemplate = (templateId?: "flat" | "nested" | "linking") => {
-    const templateToUse = templateId || selectedTemplate?.id;
+  const handleToggleViewType = (
+    id: string,
+    currentViewType: "section-wise" | "question-wise" | undefined
+  ) => {
+    console.log("Toggling view type for ID:", id, "current:", currentViewType);
+    const nextViewType =
+      currentViewType === "question-wise" ? "section-wise" : "question-wise";
+    
+    viewTypeMutation.mutate({
+      id,
+      viewType: nextViewType,
+    });
+  };
+
+  const handleExportTemplate = (templateId?: "flat" | "nested") => {
+    const templateToUse = templateId || (selectedTemplate?.id as "flat" | "nested");
     
     if (templateToUse === "nested") {
       // Call the nested template download function
       // You'll need to create downloadNestedFormImportTemplate() in your exportUtils
       downloadNestedFormImportTemplate(); // For now, using the existing one
       showSuccess("Nested Follow-up template downloaded", "Success");
-    } else if (templateToUse === "linking") {
-      downloadLinkingFormImportTemplate();
-      showSuccess("Followup Section Template downloaded", "Success");
     } else {
       // Default to flat template
       downloadFormImportTemplate();
@@ -954,6 +980,31 @@ export default function FormsAnalytics() {
                             </div>
                           </button>
 
+                          <button
+                            onClick={() => handleToggleViewType(formId, parent.viewType)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+                          >
+                            <div className="p-1.5 bg-gradient-to-br from-orange-100 to-amber-100 rounded-lg">
+                              {parent.viewType === "question-wise" ? (
+                                <Layout className="w-4 h-4 text-orange-600" />
+                              ) : (
+                                <Split className="w-4 h-4 text-orange-600" />
+                              )}
+                            </div>
+                            <div className="text-left">
+                              <div className="font-medium">
+                                {parent.viewType === "question-wise"
+                                  ? "Section-wise View"
+                                  : "Question-wise View"}
+                              </div>
+                              <div className="text-xs text-primary-500">
+                                {parent.viewType === "question-wise"
+                                  ? "Show one section per page"
+                                  : "Show one question per page"}
+                              </div>
+                            </div>
+                          </button>
+
                           <div className="border-t border-primary-100 my-1"></div>
 
                           <button
@@ -1016,6 +1067,25 @@ export default function FormsAnalytics() {
                         ? "Location Enabled"
                         : "Location Disabled"}
                     </span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-medium border ${
+                        parent.viewType === "question-wise"
+                          ? "bg-orange-100 text-orange-800 border-orange-200"
+                          : "bg-blue-100 text-blue-800 border-blue-200"
+                      }`}
+                    >
+                      {parent.viewType === "question-wise" ? (
+                        <>
+                          <Split className="w-3 h-3" />
+                          Question-wise
+                        </>
+                      ) : (
+                        <>
+                          <Layout className="w-3 h-3" />
+                          Section-wise
+                        </>
+                      )}
+                    </span>
                   </div>
                   <div className="flex items-center gap-3">
                     <button
@@ -1067,6 +1137,34 @@ export default function FormsAnalytics() {
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                           isLocationEnabled ? "translate-x-6" : "translate-x-1"
+                        }`}
+                      />
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleToggleViewType(parent._id, parent.viewType)
+                      }
+                      disabled={viewTypeMutation.loading}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                        parent.viewType === "question-wise"
+                          ? "bg-orange-500 focus:ring-orange-500"
+                          : "bg-blue-500 focus:ring-blue-500"
+                      } ${
+                        viewTypeMutation.loading
+                          ? "opacity-50 cursor-not-allowed"
+                          : "cursor-pointer"
+                      }`}
+                      title={
+                        parent.viewType === "question-wise"
+                          ? "Question-wise view - Click for Section-wise"
+                          : "Section-wise view - Click for Question-wise"
+                      }
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          parent.viewType === "question-wise"
+                            ? "translate-x-6"
+                            : "translate-x-1"
                         }`}
                       />
                     </button>

@@ -65,6 +65,7 @@ export interface Question {
   parentFormId?: string;
   parentFormTitle?: string;
   locationEnabled?: boolean;
+  viewType?: "section-wise" | "question-wise";
   followUpConfig?: Record<
     string,
     {

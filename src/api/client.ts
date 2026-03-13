@@ -351,6 +351,13 @@ class ApiClient {
     });
   }
 
+  async updateFormViewType(id: string, viewType: "section-wise" | "question-wise") {
+    return this.request(`/forms/${id}/view-type`, {
+      method: "PATCH",
+      body: JSON.stringify({ viewType }),
+    });
+  }
+
   async duplicateForm(id: string) {
     return this.request<{ form: any }>(`/forms/${id}/duplicate`, {
       method: "POST",

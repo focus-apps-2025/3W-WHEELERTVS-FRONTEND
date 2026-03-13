@@ -305,7 +305,7 @@ export function createSampleFormData() {
       "Section Number": "1",
       "Section Title": "Basic Bike Information",
       "Section Description": "Basic details about the bike",
-      "Section Weightage": "20",
+      "Section Weightage": "30",
       "Section Merging": "",
       Question: "What is your bike make and model?",
       "Question Description": "Manufacturer and specific model",
@@ -316,7 +316,7 @@ export function createSampleFormData() {
       SubParam2: "Identification",
     },
     {
-      "Section Weightage": "20",
+      "Section Weightage": "30",
       Question: "What is the bike's registration number?",
       "Question Description": "Official registration/plate number",
       "Question Type": "shortText",
@@ -326,7 +326,7 @@ export function createSampleFormData() {
       SubParam2: "Legal Info",
     },
     {
-      "Section Weightage": "20",
+      "Section Weightage": "30",
       Question: "What is the current odometer reading?",
       "Question Description": "Total kilometers/miles ridden",
       "Question Type": "number",
@@ -674,7 +674,7 @@ export function createSampleFormData() {
       "Section Number": "3",
       "Section Title": "Service History & Preferences",
       "Section Description": "Previous service records and preferences",
-      "Section Weightage": "20",
+      "Section Weightage": "30",
       "Section Merging": "",
       Question: "When was your last full service?",
       "Question Description": "Complete professional service",
@@ -685,7 +685,7 @@ export function createSampleFormData() {
       SubParam2: "Maintenance",
     },
     {
-      "Section Weightage": "20",
+      "Section Weightage": "30",
       Question: "What type of service do you prefer?",
       "Question Description": "Service package preference",
       "Question Type": "multipleChoice",
@@ -696,7 +696,7 @@ export function createSampleFormData() {
       SubParam2: "Package",
     },
     {
-      "Section Weightage": "20",
+      "Section Weightage": "30",
       Question: "Do you need a pickup/drop service?",
       "Question Description": "Transportation assistance",
       "Question Type": "yesNoNA",
@@ -773,14 +773,19 @@ export function downloadNestedFormImportTemplate() {
     "Section Title",
     "Section Description",
     "Section Weightage",
-    "Next Section",
-    "Section Merging",
+    "After Section Action",
+    "Subsection Of", // Replaces "Section Merging"
     "Question",
     "Question Description",
     "Question Type",
     "Required",
     "Options",
-    "Branching",
+    "Option 1 Route",
+    "Option 2 Route",
+    "Option 3 Route",
+    "Option 4 Route",
+    "Option 5 Route",
+    "Section Routing", // Still here for backward compatibility or bulk entry
     "Suggestion",
     "SubParam1",
     "SubParam2",
@@ -842,18 +847,23 @@ export function downloadNestedFormImportTemplate() {
     "Title of the section",
     "Description of what this section covers",
     "Percentage weight (0-100, must total 100% if used)",
-    "Next section to navigate to (number or 'end')",
-    "Mark which columns should be merged together (e.g., 1,2 means columns 1 and 2 merge; leave blank to not merge)",
+    "Action after section: number (go to section #), 'end' (Submit Form), or blank (Continue to next)",
+    "Subsection Of: Enter the parent section number (e.g., '1' to make this section a subsection of section 1)",
     "The question text to ask",
     "Additional details about the question",
-    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, searchableselect, hierarchy, yesNoNA, file",
+    "Type: text, paragraph, radio, checkbox, search-select, yesNoNA, file",
     "TRUE/FALSE - is this question required?",
-    "For multipleChoice/checkboxes/dropdown/searchableselect: option1,option2,option3 (comma-separated)",
-    "Section branching: comma-separated section numbers for each option (e.g., 2,3,4 means option1→sec2, option2→sec3, option3→sec4; use 0 to skip)",
+    "For choice questions: Option 1, Option 2, Option 3 (comma-separated)",
+    "Jump to Section for Option 1: number (e.g. 2), 'end', or '0' (none)",
+    "Jump to Section for Option 2: number, 'end', or '0'",
+    "Jump to Section for Option 3: number, 'end', or '0'",
+    "Jump to Section for Option 4: number, 'end', or '0'",
+    "Jump to Section for Option 5: number, 'end', or '0'",
+    "Section Routing (Advanced): comma-separated section numbers (e.g., 2,3,4 means opt1→sec2, opt2→sec3, opt3→sec4; use 0 to skip)",
     "Suggestions or recommendations for this question",
     "Additional parameter 1 for custom question configuration",
     "Additional parameter 2 for custom question configuration",
-    "For fileUpload: allowed file types (image,pdf,excel) - comma-separated",
+    "For file: allowed file types (image,pdf,excel) - comma-separated",
     "For quiz: correct answer value",
     "For quiz: multiple correct answers separated by |",
   ];
@@ -1279,13 +1289,20 @@ export function downloadNestedFormImportTemplate() {
       "Section Number": row["Section Number"] || "",
       "Section Title": row["Section Title"] || "",
       "Section Description": row["Section Description"] || "",
-      "Section Merging": "",
+      "Section Weightage": row["Section Weightage"] || "",
+      "After Section Action": row["After Section Action"] || "",
+      "Subsection Of": row["Subsection Of"] || row["Section Merging"] || "",
       Question: row.Question || "",
       "Question Description": row["Question Description"] || "",
       "Question Type": row["Question Type"] || "",
       Required: row.Required || "FALSE",
       Options: row.Options || "",
-      Branching: branchingStr,
+      "Option 1 Route": branchingValues[0] !== 0 ? branchingValues[0] : "",
+      "Option 2 Route": branchingValues[1] !== 0 ? branchingValues[1] : "",
+      "Option 3 Route": branchingValues[2] !== 0 ? branchingValues[2] : "",
+      "Option 4 Route": branchingValues[3] !== 0 ? branchingValues[3] : "",
+      "Option 5 Route": branchingValues[4] !== 0 ? branchingValues[4] : "",
+      "Section Routing": branchingStr,
       Suggestion: row["Suggestion"] || "",
       SubParam1: row.SubParam1 || "",
       SubParam2: row.SubParam2 || "",
@@ -1294,12 +1311,12 @@ export function downloadNestedFormImportTemplate() {
       "Correct Answers": row["Correct Answers"] || "",
     };
 
-    // Add merge instructions for section columns (3-6) when same section has multiple questions
+    // Add merge instructions for section columns (3-8) when same section has multiple questions
     if (sectionNum && sectionCounts[sectionNum] > 1) {
       const currentRowNum = templateData.length + 3; // +3 for header rows
       const firstRow = sectionFirstRow[sectionNum];
-      // Merge columns 3-6 (C-F: Section Number, Title, Description, Weightage)
-      fullRow["Section Merging"] = `C${firstRow}:F${
+      // Merge columns 3-8 (C-H: Section Number, Title, Description, Weightage, Action, Subsection Of)
+      fullRow["Section Merging"] = `C${firstRow}:H${
         firstRow + sectionCounts[sectionNum] - 1
       }`;
     }
@@ -1397,50 +1414,56 @@ export function downloadNestedFormImportTemplate() {
     }
   });
 
-  // Add data validation for SubParam1 and SubParam2 columns
-  // Add data validation for SubParam1 and SubParam2 columns
-  worksheet["!datavalidation"] = [
-    {
-      sqref: "M5:M1000", // SubParam1 column M (13), from row 5 onwards (was L, now M)
+  // Add data validation for SubParam columns
+  const dataValidations: any[] = [];
+  
+  // Main SubParam columns
+  const mainSubParam1Idx = mainHeaders.indexOf("SubParam1");
+  const mainSubParam2Idx = mainHeaders.indexOf("SubParam2");
+  
+  if (mainSubParam1Idx !== -1) {
+    const col = utils.encode_col(mainSubParam1Idx);
+    dataValidations.push({
+      sqref: `${col}5:${col}1000`,
       type: "list",
       formula1: "=Parameters!$A$4:$A$1000",
-    },
-    {
-      sqref: "N5:N1000", // SubParam2 column N (14) (was M, now N)
+    });
+  }
+  
+  if (mainSubParam2Idx !== -1) {
+    const col = utils.encode_col(mainSubParam2Idx);
+    dataValidations.push({
+      sqref: `${col}5:${col}1000`,
       type: "list",
       formula1: "=Parameters!$A$4:$A$1000",
-    },
-    {
-      sqref: "T5:T1000", // FU1:SubParam1 column T (20) (was S, now T)
-      type: "list",
-      formula1: "=Parameters!$A$4:$A$1000",
-    },
-    {
-      sqref: "U5:U1000", // FU1:SubParam2 column U (21) (was T, now U)
-      type: "list",
-      formula1: "=Parameters!$A$4:$A$1000",
-    },
-    {
-      sqref: "AC5:AC1000", // FU2:SubParam1 column AC (29) (was AB, now AC)
-      type: "list",
-      formula1: "=Parameters!$A$4:$A$1000",
-    },
-    {
-      sqref: "AD5:AD1000", // FU2:SubParam2 column AD (30) (was AC, now AD)
-      type: "list",
-      formula1: "=Parameters!$A$4:$A$1000",
-    },
-    {
-      sqref: "AK5:AK1000", // FU3:SubParam1 column AK (37) (was AJ, now AK)
-      type: "list",
-      formula1: "=Parameters!$A$4:$A$1000",
-    },
-    {
-      sqref: "AL5:AL1000", // FU3:SubParam2 column AL (38) (was AK, now AL)
-      type: "list",
-      formula1: "=Parameters!$A$4:$A$1000",
-    },
-  ];
+    });
+  }
+
+  // Follow-up SubParam columns (Level 1 only for validation to keep it simple but covering most cases)
+  for (let i = 1; i <= 5; i++) {
+    const fuSubParam1Idx = headerArray.indexOf(`FU${i}: SubParam1`);
+    const fuSubParam2Idx = headerArray.indexOf(`FU${i}: SubParam2`);
+    
+    if (fuSubParam1Idx !== -1) {
+      const col = utils.encode_col(fuSubParam1Idx);
+      dataValidations.push({
+        sqref: `${col}5:${col}1000`,
+        type: "list",
+        formula1: "=Parameters!$A$4:$A$1000",
+      });
+    }
+    
+    if (fuSubParam2Idx !== -1) {
+      const col = utils.encode_col(fuSubParam2Idx);
+      dataValidations.push({
+        sqref: `${col}5:${col}1000`,
+        type: "list",
+        formula1: "=Parameters!$A$4:$A$1000",
+      });
+    }
+  }
+
+  worksheet["!datavalidation"] = dataValidations;
 
   // Create Parameters sheet
   const parametersHeaders = ["Parameter Name", "Type"];
@@ -1522,14 +1545,19 @@ export function downloadFormImportTemplate() {
     "Section Title",
     "Section Description",
     "Section Weightage",
-    "Next Section",
-    "Section Merging",
+    "After Section Action",
+    "Subsection Of", // Replaces "Section Merging"
     "Question",
     "Question Description",
     "Question Type",
     "Required",
     "Options",
-    "Branching",
+    "Option 1 Route",
+    "Option 2 Route",
+    "Option 3 Route",
+    "Option 4 Route",
+    "Option 5 Route",
+    "Section Routing", // Still here for backward compatibility or bulk entry
     "Suggestion",
     "SubParam1",
     "SubParam2",
@@ -1563,18 +1591,23 @@ export function downloadFormImportTemplate() {
     "Title of the section",
     "Description of what this section covers",
     "Percentage weight (0-100, must total 100% if used)",
-    "Next section to navigate to (number or 'end')",
-    "Mark which columns should be merged together (e.g., 1,2 means columns 1 and 2 merge; leave blank to not merge)",
+    "Action after section: number (go to section #), 'end' (Submit Form), or blank (Continue to next)",
+    "Subsection Of: Enter the parent section number (e.g., '1' to make this section a subsection of section 1)",
     "The question text to ask",
     "Additional details about the question",
-    "Type: shortText, longText, multipleChoice, checkboxes, dropdown, yesNoNA, file",
+    "Type: text, paragraph, radio, checkbox, search-select, yesNoNA, file",
     "TRUE/FALSE - is this question required?",
-    "For multipleChoice/checkboxes/dropdown: option1,option2,option3 (comma-separated)",
-    "Section branching: comma-separated section numbers for each option (e.g., 2,3,4 means option1→sec2, option2→sec3, option3→sec4; use 0 to skip)",
+    "For choice questions: Option 1, Option 2, Option 3 (comma-separated)",
+    "Jump to Section for Option 1: number (e.g. 2), 'end', or '0' (none)",
+    "Jump to Section for Option 2: number, 'end', or '0'",
+    "Jump to Section for Option 3: number, 'end', or '0'",
+    "Jump to Section for Option 4: number, 'end', or '0'",
+    "Jump to Section for Option 5: number, 'end', or '0'",
+    "Section Routing (Advanced): comma-separated section numbers (e.g., 2,3,4 means opt1→sec2, opt2→sec3, opt3→sec4; use 0 to skip)",
     "Suggestions or recommendations for this question",
     "Additional parameter 1 for custom question configuration",
     "Additional parameter 2 for custom question configuration",
-    "For fileUpload: allowed file types (image,pdf,excel) - comma-separated",
+    "For file: allowed file types (image,pdf,excel) - comma-separated",
     "For quiz: correct answer value",
     "For quiz: multiple correct answers separated by |",
   ];
@@ -1680,6 +1713,22 @@ export function downloadFormImportTemplate() {
       "FU3: Correct Answer": "",
       // Can add FU4, FU5, ... up to FU99 here
     },
+    {
+      "Section Number": "3",
+      "Section Title": "Section 3: Final Feedback",
+      "Section Description": "Final thoughts and submission",
+      "Section Weightage": "30",
+      "Section Merging": "",
+      Question: "Any other comments?",
+      "Question Type": "longText",
+      Required: "FALSE",
+      Options: "",
+      SubParam1: "Final Feedback",
+      SubParam2: "Comments",
+      "Allowed File Types": "",
+      "Correct Answer": "",
+      "Correct Answers": "",
+    },
   ];
 
   // Track section counts for merging
@@ -1724,13 +1773,20 @@ export function downloadFormImportTemplate() {
       "Section Number": row["Section Number"] || "",
       "Section Title": row["Section Title"] || "",
       "Section Description": row["Section Description"] || "",
-      "Section Merging": "",
+      "Section Weightage": row["Section Weightage"] || "",
+      "After Section Action": row["After Section Action"] || "",
+      "Subsection Of": row["Subsection Of"] || row["Section Merging"] || "",
       Question: row.Question || "",
       "Question Description": row["Question Description"] || "",
       "Question Type": row["Question Type"] || "",
       Required: row.Required || "FALSE",
       Options: row.Options || "",
-      Branching: branchingStr,
+      "Option 1 Route": branchingValues[0] !== 0 ? branchingValues[0] : "",
+      "Option 2 Route": branchingValues[1] !== 0 ? branchingValues[1] : "",
+      "Option 3 Route": branchingValues[2] !== 0 ? branchingValues[2] : "",
+      "Option 4 Route": branchingValues[3] !== 0 ? branchingValues[3] : "",
+      "Option 5 Route": branchingValues[4] !== 0 ? branchingValues[4] : "",
+      "Section Routing": branchingStr,
       Suggestion: row["Suggestion"] || "",
       SubParam1: row.SubParam1 || "",
       SubParam2: row.SubParam2 || "",
@@ -1739,12 +1795,12 @@ export function downloadFormImportTemplate() {
       "Correct Answers": row["Correct Answers"] || "",
     };
 
-    // Add merge instructions for section columns (3-6) when same section has multiple questions
+    // Add merge instructions for section columns (3-8) when same section has multiple questions
     if (sectionNum && sectionCounts[sectionNum] > 1) {
       const currentRowNum = templateData.length + 3; // +3 for header rows
       const firstRow = sectionFirstRow[sectionNum];
-      // Merge columns 3-6 (C-F: Section Number, Title, Description, Weightage)
-      fullRow["Section Merging"] = `C${firstRow}:F${
+      // Merge columns 3-8 (C-H: Section Number, Title, Description, Weightage, Action, Subsection Of)
+      fullRow["Section Merging"] = `C${firstRow}:H${
         firstRow + sectionCounts[sectionNum] - 1
       }`;
     }
@@ -1912,97 +1968,6 @@ export function downloadFormImportTemplate() {
   writeFile(workbook, "form-import-template-unlimited-followups.xlsx");
 }
 
-export function downloadLinkingFormImportTemplate() {
-  const mainHeaders = [
-    "Form Title",
-    "Form Description",
-    "Section Number",
-    "Section Title",
-    "Section Description",
-    "Section Weightage",
-    "Next Section",
-    "Section Merging",
-    "Question",
-    "Question Description",
-    "Question Type",
-    "Required",
-    "Options",
-    "Branching",
-    "Suggestion",
-    "SubParam1",
-    "SubParam2",
-    "Allowed File Types",
-    "Correct Answer",
-    "Correct Answers",
-  ];
-
-  const sampleData = [
-    {
-      "Form Title": "Conditional Flow Service Form",
-      "Form Description": "A form demonstrating section jumping and early submission",
-      "Section Number": "1",
-      "Section Title": "Initial Screening",
-      "Section Description": "Basic check to determine service path",
-      "Section Weightage": "25",
-      "Next Section": "2",
-      Question: "What type of service do you need?",
-      "Question Type": "multipleChoice",
-      Required: "TRUE",
-      Options: "Quick Repair,Full Service,Consultation",
-      Branching: "2,3,4",
-    },
-    {
-      "Section Number": "2",
-      "Section Title": "Quick Repair Details",
-      "Section Description": "Simple fixes only",
-      "Section Weightage": "25",
-      "Next Section": "end",
-      Question: "Describe the issue briefly",
-      "Question Type": "longText",
-      Required: "TRUE",
-    },
-    {
-      "Section Number": "3",
-      "Section Title": "Full Service Checklist",
-      "Section Description": "Comprehensive maintenance",
-      "Section Weightage": "25",
-      "Next Section": "end",
-      Question: "Select items to be checked",
-      "Question Type": "checkboxes",
-      Options: "Engine,Brakes,Tires,Electrical",
-      Required: "TRUE",
-    },
-    {
-      "Section Number": "4",
-      "Section Title": "Consultation Booking",
-      "Section Description": "Speak with an expert",
-      "Section Weightage": "25",
-      "Next Section": "end",
-      Question: "Preferred date for consultation",
-      "Question Type": "date",
-      Required: "TRUE",
-    }
-  ];
-
-  const worksheet = styleUtils.json_to_sheet(sampleData, { header: mainHeaders });
-  const workbook = styleUtils.book_new();
-  styleUtils.book_append_sheet(workbook, worksheet, "Form Import");
-
-  // Apply basic styling to headers
-  const range = styleUtils.decode_range(worksheet["!ref"] || "A1:Z1");
-  for (let C = range.s.c; C <= range.e.c; ++C) {
-    const address = styleUtils.encode_col(C) + "1";
-    if (!worksheet[address]) continue;
-    worksheet[address].s = {
-      fill: { fgColor: { rgb: "000000" } },
-      font: { color: { rgb: "FFFFFF" }, bold: true },
-      alignment: { horizontal: "center" }
-    };
-  }
-
-  writeFile(workbook, "form-import-template-section-linking.xlsx");
-}
-
 export async function parseFormWorkbook(file: File) {
   const buffer = await file.arrayBuffer();
   const workbook = read(buffer, { type: "array" });
@@ -2111,6 +2076,8 @@ function parseNewTemplateFormat(
   >();
   const questionMap = new Map<string, FollowUpQuestion>();
   const sectionMergingMap = new Map<string, string>(); // Map to store section merging info
+  let availableColumns: string[] = [];
+
   const normalizeQuestionType = (type: string): string => {
     if (!type) return "text";
 
@@ -2329,11 +2296,15 @@ function parseNewTemplateFormat(
   // Log available columns for debugging
   let mergingColumnName = "Section Merging";
   let nextSectionColumnName = "Next Section";
+  let branchingColumnName = "Branching";
+
   if (rows.length > 0) {
-    const availableColumns = Object.keys(rows[0]);
+    availableColumns = Object.keys(rows[0]);
     console.log("[Excel Import] Available columns:", availableColumns);
 
     const foundMergingColumn = findColumnName(availableColumns, [
+      "Subsection Of",
+      "Parent Section",
       "Section Merging",
       "Merge",
       "Merging",
@@ -2350,20 +2321,46 @@ function parseNewTemplateFormat(
     }
 
     const foundNextSectionColumn = findColumnName(availableColumns, [
+      "After Section Action",
       "Next Section",
       "NextSection",
       "NavigateTo",
       "Navigate To",
+      "Next Section Action",
+      "Form Ending",
+      "Form Action",
     ]);
     if (foundNextSectionColumn) {
       nextSectionColumnName = foundNextSectionColumn;
       console.log(
-        `[Excel Import] "Next Section" column found: ${nextSectionColumnName}`
+        `[Excel Import] "Next Section" column found (as ${nextSectionColumnName})`
+      );
+    }
+
+    const foundBranchingColumn = findColumnName(availableColumns, [
+      "Section Routing",
+      "Option Mapping",
+      "Branching",
+      "Routing",
+      "Section Navigation",
+      "Branching Rule",
+      "Condition Mapping",
+    ]);
+    if (foundBranchingColumn) {
+      branchingColumnName = foundBranchingColumn;
+      console.log(
+        `[Excel Import] "Branching" column found (as ${branchingColumnName})`
       );
     }
   }
 
   const sectionNavigationMap = new Map<string, string>();
+  const rawBranchingRules: Array<{
+    sectionNo: string;
+    questionId: string;
+    optionLabel: string;
+    targetSectionNo: string;
+  }> = [];
 
   rows.forEach((row: FormRowData) => {
     const sectionNo = row["Section Number"]?.toString().trim();
@@ -2409,6 +2406,7 @@ function parseNewTemplateFormat(
           merging: sectionMerging || undefined,
           parentSectionId: undefined,
           isSubsection: false,
+          sectionNo: sectionNo, // Added for easier identification
         };
         sectionsMap.set(sectionNo, newSection);
         console.log(
@@ -2416,7 +2414,7 @@ function parseNewTemplateFormat(
             newSection.id
           }, Merging: ${sectionMerging || "none"}`
         );
-      } else if (sectionWeightage !== undefined || sectionMerging) {
+      } else {
         const existingSection = sectionsMap.get(sectionNo);
         if (existingSection) {
           if (sectionWeightage !== undefined) {
@@ -2518,25 +2516,80 @@ function parseNewTemplateFormat(
     }> = [];
 
     if (options && options.length > 0) {
-      // Parse branching column (format: "2,3,4" where each number is section for each option)
-      const branchingStr = row["Branching"]?.toString().trim() || "";
-      if (branchingStr) {
-        const branchingNumbers = branchingStr
-          .split(",")
-          .map((n) => n.trim())
-          .filter(Boolean);
+      // 1. Check for individual Option X Route columns (using flexible names)
+      options.forEach((option, idx) => {
+        const optNum = idx + 1;
+        const potentialHeaders = [
+          `Option ${optNum} Route`,
+          `Option ${optNum} Routing`,
+          `Option ${optNum} Action`,
+          `Jump to Section for Option ${optNum}`,
+          `Route for Option ${optNum}`,
+          `Option ${optNum} Navigation`,
+        ];
+        
+        const optionRouteHeader = findColumnName(availableColumns, potentialHeaders);
+        const targetSectionNo = optionRouteHeader ? row[optionRouteHeader]?.toString().trim() : undefined;
+        
+        if (targetSectionNo && targetSectionNo !== "0") {
+          branchingRules.push({
+            optionLabel: option,
+            targetSectionId: targetSectionNo,
+          });
+        }
+      });
 
-        options.forEach((option, idx) => {
-          const targetSectionNo = branchingNumbers[idx];
-          if (targetSectionNo && targetSectionNo !== "0") {
-            branchingRules.push({
-              optionLabel: option,
-              targetSectionId: targetSectionNo,
-            });
-          }
-        });
+      // 2. Check for advanced "Section Routing" column (Mapping format or Legacy list)
+      // We don't use 'if (!hasIndividualRoutes)' anymore so they can be combined
+      const branchingStr = row[branchingColumnName]?.toString().trim() || "";
+      if (branchingStr) {
+        // Format A: "OptionName -> SectionNo, OptionName -> SectionNo"
+        if (branchingStr.includes("->")) {
+          const rules = branchingStr.split(",").map((s) => s.trim());
+          rules.forEach((rule) => {
+            const [optLabel, targetNo] = rule.split("->").map((s) => s.trim());
+            if (optLabel && targetNo && targetNo !== "0") {
+              // Only add if not already added by individual columns (priority to individual columns)
+              if (!branchingRules.some(r => r.optionLabel === optLabel)) {
+                branchingRules.push({
+                  optionLabel: optLabel,
+                  targetSectionId: targetNo,
+                });
+              }
+            }
+          });
+        } else {
+          // Format B: Legacy format "2,3,4" (comma-separated list for options in order)
+          const branchingNumbers = branchingStr
+            .split(",")
+            .map((n) => n.trim())
+            .filter(Boolean);
+
+          options.forEach((option, idx) => {
+            const targetSectionNo = branchingNumbers[idx];
+            if (targetSectionNo && targetSectionNo !== "0") {
+              // Only add if not already added by individual columns
+              if (!branchingRules.some(r => r.optionLabel === option)) {
+                branchingRules.push({
+                  optionLabel: option,
+                  targetSectionId: targetSectionNo,
+                });
+              }
+            }
+          });
+        }
       }
     }
+
+    // Add to global branching rules collection for the form
+    branchingRules.forEach(rule => {
+      rawBranchingRules.push({
+        sectionNo: currentSectionNo!,
+        questionId: questionId,
+        optionLabel: rule.optionLabel,
+        targetSectionNo: rule.targetSectionId
+      });
+    });
 
     const question: FollowUpQuestion = {
       id: questionId,
@@ -2556,8 +2609,8 @@ function parseNewTemplateFormat(
       ...(branchingRules.length > 0 && { branchingRules }),
     };
 
-    // Process level 1 follow-ups
-    for (let fuIndex = 1; fuIndex <= 10; fuIndex++) {
+    // Process level 1 follow-ups (Support up to 99 main-level follow-ups)
+    for (let fuIndex = 1; fuIndex <= 99; fuIndex++) {
       const fuOptionKey = `FU${fuIndex}: Option` as const;
       const fuTypeKey = `FU${fuIndex}: Question Type` as const;
       const fuRequiredKey = `FU${fuIndex}: Required` as const;
@@ -2650,6 +2703,29 @@ function parseNewTemplateFormat(
     }
   });
 
+  // Update section navigation to use section IDs instead of section numbers
+  sections.forEach((section) => {
+    // Get the section number for this section
+    const sectionNo = Array.from(sectionsMap.entries()).find(
+      ([_, s]) => s.id === section.id
+    )?.[0];
+
+    if (sectionNo && sectionNavigationMap.has(sectionNo)) {
+      const targetSectionNo = sectionNavigationMap.get(sectionNo);
+      if (targetSectionNo && targetSectionNo.toLowerCase() === "end") {
+        (section as any).nextSectionId = "end";
+      } else if (targetSectionNo) {
+        const targetSectionId = sectionNumberToIdMap.get(targetSectionNo);
+        if (targetSectionId) {
+          (section as any).nextSectionId = targetSectionId;
+          console.log(
+            `[Navigation] Mapping section ${sectionNo} nextSection ${targetSectionNo} to ID ${targetSectionId}`
+          );
+        }
+      }
+    }
+  });
+
   // Update branching rules to use section IDs instead of section numbers
   sections.forEach((section) => {
     section.questions.forEach((question) => {
@@ -2659,6 +2735,9 @@ function parseNewTemplateFormat(
       ) {
         (question as any).branchingRules = (question as any).branchingRules.map(
           (rule: any) => {
+            if (rule.targetSectionId && rule.targetSectionId.toLowerCase() === 'end') {
+              return { ...rule, targetSectionId: 'end' };
+            }
             const sectionId = sectionNumberToIdMap.get(rule.targetSectionId);
             if (sectionId) {
               console.log(
@@ -2718,15 +2797,19 @@ function parseNewTemplateFormat(
       `[Section Merging] Parsed section numbers: ${sectionNumbers.join(", ")}`
     );
 
-    if (sectionNumbers.length < 2) {
-      console.log(
-        `[Section Merging] Only ${sectionNumbers.length} section(s) found, need at least 2 for merging`
-      );
-      return;
+    let parentSectionNo: string;
+    let childSectionNumbers: string[];
+
+    if (sectionNumbers.length === 1) {
+      // New simplified format: "Subsection Of: 1" means current section is child of 1
+      parentSectionNo = sectionNumbers[0];
+      childSectionNumbers = [currentSectionNo];
+    } else {
+      // Legacy format: "1,2" means 1 is parent, 2 is child
+      parentSectionNo = sectionNumbers[0];
+      childSectionNumbers = sectionNumbers.slice(1);
     }
 
-    // First section is the parent
-    const parentSectionNo = sectionNumbers[0];
     const parentSectionEntry = Array.from(sectionsMap.entries()).find(
       ([sectionNo]) => sectionNo === parentSectionNo
     );
@@ -2742,29 +2825,30 @@ function parseNewTemplateFormat(
     console.log(
       `[Section Merging] Parent section found: ${parentSectionNo} (ID: ${
         parentSection.id
-      }), Children: ${sectionNumbers.slice(1).join(", ")}`
+      }), Children: ${childSectionNumbers.join(", ")}`
     );
 
-    // Set remaining sections as subsections
-    for (let i = 1; i < sectionNumbers.length; i++) {
-      const childSectionNo = sectionNumbers[i];
+    // Set children as subsections
+    childSectionNumbers.forEach((childSectionNo) => {
       const childSectionEntry = Array.from(sectionsMap.entries()).find(
-        ([sectionNo]) => sectionNo === childSectionNo
+        ([sectionNo]) => sectionNo.toString() === childSectionNo.toString()
       );
       const childSection = childSectionEntry?.[1];
 
-      if (childSection) {
+      if (childSection && parentSection && childSection.id !== parentSection.id) {
         childSection.parentSectionId = parentSection.id;
         childSection.isSubsection = true;
+        
+        // Also ensure questions know their new section layout if needed
+        childSection.questions.forEach(q => {
+          q.sectionId = childSection.id;
+        });
+
         console.log(
           `[Section Merging] ✓ Set section ${childSectionNo} (ID: ${childSection.id}) as subsection of ${parentSectionNo}`
         );
-      } else {
-        console.warn(
-          `[Section Merging] Child section ${childSectionNo} not found in sections map`
-        );
       }
-    }
+    });
   });
 
   console.log(
@@ -2777,13 +2861,34 @@ function parseNewTemplateFormat(
     }))
   );
 
-  const formPayload: Partial<Question> & { sections: Section[] } = {
+  // Process all branching rules into the top-level sectionBranching array
+  const sectionBranching = rawBranchingRules.map(rule => {
+    const sectionId = sectionNumberToIdMap.get(rule.sectionNo);
+    let targetSectionId = rule.targetSectionNo;
+    
+    if (targetSectionId && targetSectionId.toLowerCase() !== 'end') {
+      const mappedId = sectionNumberToIdMap.get(targetSectionId);
+      if (mappedId) targetSectionId = mappedId;
+    }
+    
+    return {
+      questionId: rule.questionId,
+      sectionId: sectionId,
+      optionLabel: rule.optionLabel,
+      targetSectionId: targetSectionId
+    };
+  }).filter(rule => rule.sectionId && rule.targetSectionId);
+
+  console.log(`[Excel Import] Total branching rules created: ${sectionBranching.length}`);
+
+  const formPayload: Partial<Question> & { sections: Section[]; sectionBranching: any[] } = {
     id: generateId(),
     title: formTitle,
     description: "Imported form from Excel template",
     isVisible: true,
     sections,
     followUpQuestions: [],
+    sectionBranching
   };
 
   return formPayload;

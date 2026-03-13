@@ -121,12 +121,14 @@ interface PreviewFormProps {
   questions: Question[];
   onSubmit: (response: Response) => Promise<void> | void;
   branchingRules?: any[];
+  viewType?: "section-wise" | "question-wise";
 }
 
 export default function PreviewForm({
   questions,
   onSubmit,
   branchingRules: propBranchingRules = [],
+  viewType = "section-wise",
 }: PreviewFormProps) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -145,6 +147,7 @@ export default function PreviewForm({
     null
   );
   const [parentSectionIndex, setParentSectionIndex] = useState<number | null>(null);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const { getOrderedVisibleQuestions } = useQuestionLogic();
   const isMounted = useRef(true);
 
@@ -287,21 +290,109 @@ export default function PreviewForm({
     return <ThankYouMessage />;
   }
 
-  // Initialize sections if they don't exist
-  const sections: Section[] =
-    question.sections?.length > 0
-      ? question.sections.map((s: any) => ({
-          ...s,
-          id: s.id || s._id,
-        }))
-      : [
-          {
-            id: "default",
-            title: question.title,
-            description: question.description,
-            questions: question.followUpQuestions,
-          },
-        ];
+  // Group subsections into their parent sections
+  const groupedSections = React.useMemo(() => {
+    // 1. Initial list of sections (flattened)
+    const baseSections: Section[] =
+      question.sections?.length > 0
+        ? question.sections.map((s: any) => ({
+            ...s,
+            id: s.id || s._id,
+            isSubsection: s.isSubsection,
+            parentSectionId: s.parentSectionId,
+          }))
+        : [
+            {
+              id: "default",
+              title: question.title,
+              description: question.description,
+              questions: question.followUpQuestions || [],
+            },
+          ];
+
+    // 2. Handle question-wise view
+    if (viewType === "question-wise") {
+      const virtualSections: any[] = [];
+      baseSections.forEach((section, sIdx) => {
+        const allQuestions = [...(section.questions || [])];
+        // Note: For question-wise, we might want to include questions from subsections too
+        // but for now let's keep it simple as the user is using section-wise.
+        
+        const visibleQuestions = getOrderedVisibleQuestions(
+          allQuestions,
+          answers
+        );
+
+        if (visibleQuestions.length === 0) {
+          virtualSections.push({
+            ...section,
+            questions: [],
+            isVirtual: true,
+            originalSectionId: section.id,
+            originalSectionIndex: sIdx,
+            totalOriginalSections: baseSections.length,
+            questionIndex: 0,
+            totalQuestionsInSection: 0
+          });
+        } else {
+          visibleQuestions.forEach((q, qIdx) => {
+            virtualSections.push({
+              ...section,
+              id: `${section.id}_v${qIdx}`,
+              title: section.title,
+              description: qIdx === 0 ? section.description : "",
+              questions: [q],
+              isVirtual: true,
+              originalSectionId: section.id,
+              originalSectionIndex: sIdx,
+              totalOriginalSections: baseSections.length,
+              questionIndex: qIdx,
+              totalQuestionsInSection: visibleQuestions.length
+            });
+          });
+        }
+      });
+      return virtualSections;
+    }
+
+    // 3. Handle section-wise grouping (hierarchy)
+    const sectionsMap = new Map<string, any>();
+    const rootSections: any[] = [];
+
+    // Initialize map
+    baseSections.forEach((section) => {
+      sectionsMap.set(section.id, { ...section, subsections: [] });
+    });
+
+    // Build hierarchy
+    baseSections.forEach((section) => {
+      const mappedSection = sectionsMap.get(section.id);
+      
+      const parentId = section.parentSectionId;
+      const isSub = section.isSubsection === true || 
+                   section.isSubsection === 'true' || 
+                   (parentId && parentId !== '');
+
+      if (isSub && parentId) {
+        // Find parent by ID or _ID
+        const parent = sectionsMap.get(parentId) || 
+                       Array.from(sectionsMap.values()).find(s => s._id === parentId);
+                       
+        if (parent) {
+          parent.subsections.push(mappedSection);
+        } else {
+          // Parent not found yet
+          rootSections.push(mappedSection);
+        }
+      } else {
+        rootSections.push(mappedSection);
+      }
+    });
+
+    return rootSections;
+  }, [question, viewType, answers]);
+
+  let sections = groupedSections;
 
   // Get sections that are linked in branching rules (section isolation)
   const getLinkedSectionIds = (): Set<string> => {
@@ -313,6 +404,10 @@ export default function PreviewForm({
     sections.forEach(section => {
       if (section.nextSectionId && section.nextSectionId !== 'end') {
         linkedIds.add(section.nextSectionId);
+      }
+      // Also consider sections that are subsections (they should be reached via branching/links)
+      if (section.parentSectionId || section.isSubsection) {
+        linkedIds.add(section.id);
       }
     });
     return linkedIds;
@@ -333,21 +428,37 @@ export default function PreviewForm({
     return -1;
   };
 
+  const checkSectionRequiredAnswers = (section: any): boolean => {
+    if (!section) return true;
+    
+    // Check main questions
+    const visibleQuestions = getOrderedVisibleQuestions(
+      section.questions || [],
+      answers
+    );
+    const hasRequiredAnswers = visibleQuestions.every(
+      (q) => !q.required || answers[q.id || q._id]
+    );
+    if (!hasRequiredAnswers) return false;
+
+    // Check subsections
+    if (section.subsections && section.subsections.length > 0) {
+      const allSubsectionsValid = section.subsections.every((sub: any) => 
+        checkSectionRequiredAnswers(sub)
+      );
+      if (!allSubsectionsValid) return false;
+    }
+
+    return true;
+  };
+
   const hasMissingRequiredAnswers = () => {
     let missing = false;
     visitedSectionIndices.forEach((sectionIndex) => {
       const section = sections[sectionIndex];
-      if (!section) {
-        return;
-      }
-      const visibleQuestions = getOrderedVisibleQuestions(
-        section.questions,
-        answers
-      );
-      const hasRequiredAnswers = visibleQuestions.every(
-        (q) => !q.required || answers[q.id]
-      );
-      if (!hasRequiredAnswers) {
+      if (!section) return;
+      
+      if (!checkSectionRequiredAnswers(section)) {
         missing = true;
       }
     });
@@ -489,10 +600,34 @@ export default function PreviewForm({
     }));
   };
 
+  const transitionToSection = (index: number) => {
+    setIsTransitioning(true);
+    setTimeout(() => {
+      setCurrentSectionIndex(index);
+      setIsTransitioning(false);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 400); // Match transition duration
+  };
+
   const handleNext = () => {
     const currentSection = sections[currentSectionIndex];
+    
+    // Check for required answers in current section and its subsections
+    if (!checkSectionRequiredAnswers(currentSection)) {
+      alert("Please fill in all required fields before moving to the next section.");
+      return;
+    }
+
+    // Collect all visible questions from main section and subsections to check branching
+    const allQuestionsToProcess = [...(currentSection.questions || [])];
+    if (currentSection.subsections) {
+      currentSection.subsections.forEach((sub: any) => {
+        allQuestionsToProcess.push(...(sub.questions || []));
+      });
+    }
+
     const visibleQuestions = getOrderedVisibleQuestions(
-      currentSection.questions,
+      allQuestionsToProcess,
       answers
     );
 
@@ -500,37 +635,54 @@ export default function PreviewForm({
     console.log("Current section ID:", currentSection.id);
     console.log("Current section title:", currentSection.title);
     console.log(
-      "Visible questions:",
+      "Visible questions (including subsections):",
       visibleQuestions.map((q) => ({ id: q.id, text: q.text }))
     );
     console.log("Answers:", answers);
     console.log("Branching rules available:", branchingRules.length);
 
     for (const question of visibleQuestions) {
-      const answerValue = answers[question.id];
+      const answerValue = answers[question.id || question._id];
+      if (answerValue === undefined) continue;
+      
       console.log(
-        `Checking question: ${question.id} (${question.text}) with answer: ${answerValue}`
+        `Checking question: ${question.id || question._id} (${question.text}) with answer: ${answerValue}`
       );
 
       const branchingRule = checkForBranching(
         currentSection.id,
-        question.id,
+        question.id || question._id,
         answerValue
       );
-      console.log(`Branching rule found: `, branchingRule);
+      
+      // Also check if branching rule is associated with a subsection ID but triggered here
+      // However, usually branching rules are tied to the main section ID or the specific subsection ID.
+      // If we are grouping, we should probably check if any rule matches this questionId regardless of sectionId,
+      // or check all sectionIds in the group.
+      
+      let finalRule = branchingRule;
+      if (!finalRule && currentSection.subsections) {
+        for (const sub of currentSection.subsections) {
+          const subRule = checkForBranching(sub.id, question.id || question._id, answerValue);
+          if (subRule) {
+            finalRule = subRule;
+            break;
+          }
+        }
+      }
 
-      if (branchingRule) {
-        if (branchingRule.targetSectionId === 'end') {
+      if (finalRule) {
+        if (finalRule.targetSectionId === 'end') {
           console.log("Branching set to 'end', submitting");
           handleSubmit(new Event("submit") as any);
           return;
         }
 
         const targetSectionIndex = sections.findIndex(
-          (s) => s.id === branchingRule.targetSectionId
+          (s) => s.id === finalRule.targetSectionId
         );
         console.log(
-          `Target section index: ${targetSectionIndex}, Target ID: ${branchingRule.targetSectionId}`
+          `Target section index: ${targetSectionIndex}, Target ID: ${finalRule.targetSectionId}`
         );
 
         if (targetSectionIndex !== -1) {
@@ -541,7 +693,7 @@ export default function PreviewForm({
           );
           setBranchingAlert(`Navigating to: ${targetSectionTitle}`);
           setTimeout(() => {
-            setCurrentSectionIndex(targetSectionIndex);
+            transitionToSection(targetSectionIndex);
             setVisitedSectionIndices((prev) =>
               new Set(prev).add(targetSectionIndex)
             );
@@ -551,7 +703,6 @@ export default function PreviewForm({
             ]);
             setParentSectionIndex(currentSectionIndex);
             setBranchingAlert(null);
-            window.scrollTo({ top: 0, behavior: "smooth" });
           }, 500);
           return;
         }
@@ -577,11 +728,10 @@ export default function PreviewForm({
         console.log(
           `Section-level navigation found! Target section index: ${targetSectionIndex}`
         );
-        setCurrentSectionIndex(targetSectionIndex);
+        transitionToSection(targetSectionIndex);
         setVisitedSectionIndices((prev) => new Set(prev).add(targetSectionIndex));
         setSectionNavigationHistory((prev) => [...prev, targetSectionIndex]);
         setParentSectionIndex(currentSectionIndex);
-        window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       } else {
         console.error(
@@ -594,11 +744,10 @@ export default function PreviewForm({
     
     if (nextIndex !== -1) {
       console.log(`Moving to next available section (skipping linked sections): index ${nextIndex}`);
-      setCurrentSectionIndex(nextIndex);
+      transitionToSection(nextIndex);
       setVisitedSectionIndices((prev) => new Set(prev).add(nextIndex));
       setSectionNavigationHistory((prev) => [...prev, nextIndex]);
       setParentSectionIndex(null);
-      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -616,9 +765,8 @@ export default function PreviewForm({
         "[handlePrevious] Going back to parent section (branching origin):",
         parentSectionIndex
       );
-      setCurrentSectionIndex(parentSectionIndex);
+      transitionToSection(parentSectionIndex);
       setParentSectionIndex(null);
-      window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
 
@@ -633,8 +781,7 @@ export default function PreviewForm({
       );
 
       setSectionNavigationHistory(newHistory);
-      setCurrentSectionIndex(previousSectionIndex);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      transitionToSection(previousSectionIndex);
     } else {
       console.log("[handlePrevious] Already at first section in history");
     }
@@ -701,28 +848,59 @@ export default function PreviewForm({
     if (!currentSection) return true;
 
     // 1. Explicitly marked as end
-    if (currentSection.nextSectionId === 'end') return true;
+    if (currentSection.nextSectionId && currentSection.nextSectionId.toLowerCase() === 'end') return true;
 
     // 2. Check if any currently active branching rule for this section points to 'end'
-    const visibleQuestions = getOrderedVisibleQuestions(currentSection.questions, answers);
+    const allQuestions = [...(currentSection.questions || [])];
+    if (currentSection.subsections) {
+      currentSection.subsections.forEach((sub: any) => {
+        allQuestions.push(...(sub.questions || []));
+      });
+    }
+
+    const visibleQuestions = getOrderedVisibleQuestions(allQuestions, answers);
     for (const q of visibleQuestions) {
-      const answer = answers[q.id];
-      if (answer) {
-        const rule = branchingRules.find(r => 
+      const qId = q.id || q._id;
+      const answer = answers[qId];
+      if (answer !== undefined && answer !== null) {
+        // Check rules for main section
+        let rule = branchingRules.find(r => 
           r.sectionId === currentSection.id && 
-          r.questionId === q.id && 
-          (r.optionLabel === answer || (r.isOtherOption && !q.options?.includes(answer)))
+          r.questionId === qId && 
+          (r.optionLabel === answer || (typeof answer === 'string' && r.optionLabel?.toLowerCase() === answer.toLowerCase()) || (r.isOtherOption && !q.options?.includes(answer)))
         );
-        if (rule?.targetSectionId === 'end') return true;
+
+        // Check rules for subsections if not found
+        if (!rule && currentSection.subsections) {
+          for (const sub of currentSection.subsections) {
+             rule = branchingRules.find(r => 
+              r.sectionId === sub.id && 
+              r.questionId === qId && 
+              (r.optionLabel === answer || (typeof answer === 'string' && r.optionLabel?.toLowerCase() === answer.toLowerCase()) || (r.isOtherOption && !q.options?.includes(answer)))
+            );
+            if (rule) break;
+          }
+        }
+
+        if (rule?.targetSectionId && rule.targetSectionId.toLowerCase() === 'end') return true;
       }
     }
 
     // 3. Sequential check (if no branching/navigation override)
-    const hasNextSequential = getNextSequentialSectionIndex(currentSectionIndex) !== -1;
-    const hasBranchingToSection = currentSection.questions.some(q => 
-      branchingRules.some(rule => rule.sectionId === currentSection.id && rule.questionId === q.id)
-    );
-    const hasDirectLink = !!currentSection.nextSectionId && currentSection.nextSectionId !== 'end';
+    const nextSequentialIndex = getNextSequentialSectionIndex(currentSectionIndex);
+    const hasNextSequential = nextSequentialIndex !== -1;
+    const hasBranchingToSection = allQuestions.some(q => {
+      const qId = q.id || q._id;
+      return branchingRules.some(rule => 
+        (rule.sectionId === currentSection.id || (currentSection.subsections?.some((s:any) => s.id === rule.sectionId))) && 
+        rule.questionId === qId && 
+        rule.targetSectionId && 
+        rule.targetSectionId.toLowerCase() !== 'end'
+      );
+    });
+    const hasDirectLink = !!currentSection.nextSectionId && 
+                         currentSection.nextSectionId.toLowerCase() !== 'end' &&
+                         sections.some(s => s.id === currentSection.nextSectionId);
     
     return !hasNextSequential && !hasBranchingToSection && !hasDirectLink;
   })();
@@ -749,12 +927,16 @@ export default function PreviewForm({
         <form onSubmit={handleSubmit} className="mt-12 space-y-10">
           {sections.length > 1 && (
             <SectionProgress
-              currentSection={Array.from(visitedSectionIndices)
-                .sort()
-                .indexOf(currentSectionIndex)}
+              currentSection={currentSectionIndex}
               totalSections={sections.length}
               visitedCount={visitedSectionIndices.size}
               totalCount={sections.length}
+              viewType={viewType}
+              sectionTitle={currentSection.title}
+              questionIndex={currentSection.questionIndex}
+              totalQuestionsInSection={currentSection.totalQuestionsInSection}
+              originalSectionIndex={currentSection.originalSectionIndex}
+              totalOriginalSections={currentSection.totalOriginalSections}
             />
           )}
 
@@ -768,12 +950,18 @@ export default function PreviewForm({
             </button>
           </div>
 
-          <SectionContent
-            section={currentSection}
-            formTitle={question.title}
-            answers={answers}
-            onAnswerChange={handleAnswerChange}
-          />
+          <div
+            className={`transition-all duration-400 transform ${
+              isTransitioning ? "opacity-0 translate-y-4" : "opacity-100 translate-y-0"
+            }`}
+          >
+            <SectionContent
+              section={currentSection}
+              formTitle={question.title}
+              answers={answers}
+              onAnswerChange={handleAnswerChange}
+            />
+          </div>
 
           <NavigationButtons
             isFirstSection={isFirstSection}
