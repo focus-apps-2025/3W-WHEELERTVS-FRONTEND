@@ -44,9 +44,10 @@ import {
 } from "../../utils/exportUtils";
 import AnswerTemplateImport from "../AnswerTemplateImport";
 import type { Question as FormQuestion } from "../../types";
-import { Mail, MessageCircle } from "lucide-react";
+import { Mail, MessageCircle, MessageSquare } from "lucide-react";
 import EmailInviteModal from "../EmailInviteModal";
 import WhatsAppInviteModal from "../WhatsAppInviteModal";
+import SMSInviteModal from "../SMSInviteModal";
 
 // Add this interface for the dropdown options
 interface TemplateOption {
@@ -231,6 +232,12 @@ export default function FormsAnalytics() {
     formTitle: string;
   }>({ open: false, formId: null, formTitle: "" });
 
+  const [smsInviteModal, setSmsInviteModal] = useState<{
+    open: boolean;
+    formId: string | null;
+    formTitle: string;
+  }>({ open: false, formId: null, formTitle: "" });
+
   const [inviteCounts, setInviteCounts] = useState<Record<string, number>>({});
 
   // Add these functions with your other handlers
@@ -249,6 +256,17 @@ export default function FormsAnalytics() {
     const form = forms.find((f) => f.id === formId || f._id === formId);
     if (form) {
       setWhatsappInviteModal({
+        open: true,
+        formId,
+        formTitle: form.title,
+      });
+    }
+  };
+
+  const openSMSInviteModal = (formId: string) => {
+    const form = forms.find((f) => f.id === formId || f._id === formId);
+    if (form) {
+      setSmsInviteModal({
         open: true,
         formId,
         formTitle: form.title,
@@ -922,6 +940,16 @@ export default function FormsAnalytics() {
                     >
                       <MessageCircle className="w-4 h-4 text-green-600 group-hover:text-green-700" />
                     </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openSMSInviteModal(formId);
+                      }}
+                      title="Send SMS Invites"
+                      className="p-1.5 rounded-lg hover:bg-purple-100 transition-colors group"
+                    >
+                      <MessageSquare className="w-4 h-4 text-purple-600 group-hover:text-purple-700" />
+                    </button>
                   </div>
                   <div className="flex items-center gap-3">
                     {/* 3-dot menu */}
@@ -1585,6 +1613,14 @@ export default function FormsAnalytics() {
         }
         formId={whatsappInviteModal.formId || ""}
         formTitle={whatsappInviteModal.formTitle}
+      />
+      <SMSInviteModal
+        isOpen={smsInviteModal.open}
+        onClose={() =>
+          setSmsInviteModal((prev) => ({ ...prev, open: false }))
+        }
+        formId={smsInviteModal.formId || ""}
+        formTitle={smsInviteModal.formTitle}
       />
     </div>
   );

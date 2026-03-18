@@ -28,6 +28,9 @@ import {
   List,
   RefreshCw,
   Upload,
+  Mail,
+  MessageCircle,
+  MessageSquare,
 } from "lucide-react";
 import { Bar, Line, Pie, Radar } from "react-chartjs-2";
 import {
@@ -3354,6 +3357,24 @@ const getRankStyle = (answer: any, darkMode: boolean = false) => {
                             {response.submissionMetadata?.source === 'internal' && (
                               <span className="text-xs font-semibold px-2 py-1 rounded-md bg-purple-200 dark:bg-purple-900/40 text-purple-900 dark:text-purple-300">
                                 Internal Submission
+                              </span>
+                            )}
+                            {response.submissionMetadata?.source === 'whatsapp' && (
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800/50">
+                                <MessageCircle className="w-3 h-3" />
+                                WhatsApp
+                              </span>
+                            )}
+                            {response.submissionMetadata?.source === 'email' && (
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800/50">
+                                <Mail className="w-3 h-3" />
+                                Email
+                              </span>
+                            )}
+                            {response.submissionMetadata?.source === 'sms' && (
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
+                                <MessageSquare className="w-3 h-3" />
+                                SMS
                               </span>
                             )}
                           </div>
