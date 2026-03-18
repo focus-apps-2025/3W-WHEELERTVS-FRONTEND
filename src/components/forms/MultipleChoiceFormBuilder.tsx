@@ -31,6 +31,7 @@ interface FollowUpQuestion {
   text: string;
   type: string;
   required: boolean;
+  trackResponseRank?: boolean;
   options?: string[];
   parentId: string;
   showWhen?: {
@@ -44,6 +45,7 @@ interface FormQuestion {
   text: string;
   type: "text" | "radio" | "paragraph" | "checkbox" | "select" | "search-select" | "yesNoNA" | "productNPSTGWBuckets";
   required: boolean;
+  trackResponseRank?: boolean;
   options?: string[];
   followUpQuestions?: FollowUpQuestion[];
   followUpConfig?: Record<
@@ -612,6 +614,7 @@ export const MultipleChoiceFormBuilder: React.FC<
       text: "",
       type: "text",
       required: false,
+      trackResponseRank: true,
     };
 
     setFormData((prev) => ({
@@ -781,6 +784,7 @@ export const MultipleChoiceFormBuilder: React.FC<
       text: `Follow-up for "${option}"`,
       type: "shortText",
       required: false,
+      trackResponseRank: true,
       parentId: question.id,
       showWhen: {
         questionId: question.id,
@@ -1486,21 +1490,41 @@ export const MultipleChoiceFormBuilder: React.FC<
                           className="border border-gray-200 dark:border-gray-700 p-4 rounded-lg mb-4 bg-white dark:bg-gray-900"
                         >
                           <div className="flex items-center justify-between mb-4">
-                            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                              Question {questionIndex + 1}
-                            </span>
-                            {section.questions.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  removeQuestion(sectionIndex, questionIndex)
-                                }
-                                className="flex items-center px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
-                              >
-                                <Trash2 className="h-3 w-3 mr-1" />
-                                Delete
-                              </button>
-                            )}
+                            <div className="flex items-center space-x-4">
+                              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+                                Question {questionIndex + 1}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                              <label className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md" title="Track Response Rank">
+                                <input
+                                  type="checkbox"
+                                  checked={question.trackResponseRank || false}
+                                  onChange={(e) =>
+                                    handleQuestionChange(
+                                      sectionIndex,
+                                      questionIndex,
+                                      "trackResponseRank",
+                                      e.target.checked
+                                    )
+                                  }
+                                  className="h-3.5 w-3.5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Rank</span>
+                              </label>
+                              {section.questions.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    removeQuestion(sectionIndex, questionIndex)
+                                  }
+                                  className="flex items-center px-2 py-1 text-xs text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                                >
+                                  <Trash2 className="h-3 w-3 mr-1" />
+                                  Delete
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
@@ -1784,27 +1808,29 @@ export const MultipleChoiceFormBuilder: React.FC<
                             </div>
                           )}
 
-                          <div className="flex items-center mb-4">
-                            <input
-                              id={`question-${sectionIndex}-${questionIndex}-required`}
-                              type="checkbox"
-                              checked={question.required}
-                              onChange={(e) =>
-                                handleQuestionChange(
-                                  sectionIndex,
-                                  questionIndex,
-                                  "required",
-                                  e.target.checked
-                                )
-                              }
-                              className="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
-                            />
-                            <label
-                              htmlFor={`question-${sectionIndex}-${questionIndex}-required`}
-                              className="ml-2 block text-sm text-gray-700 dark:text-gray-300"
-                            >
-                              Required
-                            </label>
+                          <div className="flex items-center space-x-4 mb-4">
+                            <div className="flex items-center">
+                              <input
+                                id={`question-${sectionIndex}-${questionIndex}-required`}
+                                type="checkbox"
+                                checked={question.required}
+                                onChange={(e) =>
+                                  handleQuestionChange(
+                                    sectionIndex,
+                                    questionIndex,
+                                    "required",
+                                    e.target.checked
+                                  )
+                                }
+                                className="h-4 w-4 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
+                              />
+                              <label
+                                htmlFor={`question-${sectionIndex}-${questionIndex}-required`}
+                                className="ml-2 block text-sm text-gray-700 dark:text-gray-300"
+                              >
+                                Required
+                              </label>
+                            </div>
                           </div>
 
                           {/* Multiple Choice/Checkboxes/Dropdown/YesNoNA Options */}
@@ -2094,24 +2120,44 @@ export const MultipleChoiceFormBuilder: React.FC<
                                               className="bg-white dark:bg-gray-900 p-3 rounded-lg border border-blue-200"
                                             >
                                               <div className="flex items-start justify-between mb-2">
-                                                <span className="text-xs font-medium text-blue-600">
-                                                  Shown when: "
-                                                  {followUp.showWhen?.value}"
-                                                </span>
-                                                <button
-                                                  type="button"
-                                                  onClick={() =>
-                                                    removeFollowUp(
-                                                      sectionIndex,
-                                                      questionIndex,
-                                                      followUpIndex
-                                                    )
-                                                  }
-                                                  className="text-red-600 hover:text-red-800"
-                                                  aria-label="Remove follow-up"
-                                                >
-                                                  <Trash2 className="h-4 w-4" />
-                                                </button>
+                                                <div className="flex items-center space-x-3">
+                                                  <span className="text-xs font-medium text-blue-600">
+                                                    Shown when: "{followUp.showWhen?.value}"
+                                                  </span>
+                                                </div>
+                                                <div className="flex items-center space-x-2">
+                                                  <label className="flex items-center space-x-1 cursor-pointer px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md" title="Track Response Rank">
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={followUp.trackResponseRank || false}
+                                                      onChange={(e) =>
+                                                        updateFollowUp(
+                                                          sectionIndex,
+                                                          questionIndex,
+                                                          followUpIndex,
+                                                          "trackResponseRank",
+                                                          e.target.checked
+                                                        )
+                                                      }
+                                                      className="h-3 w-3 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Rank</span>
+                                                  </label>
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      removeFollowUp(
+                                                        sectionIndex,
+                                                        questionIndex,
+                                                        followUpIndex
+                                                      )
+                                                    }
+                                                    className="text-red-600 hover:text-red-800 p-1 hover:bg-red-50 rounded"
+                                                    aria-label="Remove follow-up"
+                                                  >
+                                                    <Trash2 className="h-4 w-4" />
+                                                  </button>
+                                                </div>
                                               </div>
 
                                               <input

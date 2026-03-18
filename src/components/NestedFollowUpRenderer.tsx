@@ -221,13 +221,31 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-500">Follow-up Question</span>
               </div>
-              <button
-                onClick={() => onDelete(sectionId, followUpQ.id, path)}
-                className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
-                title="Delete follow-up question"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              <div className="flex items-center space-x-2">
+                <label className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg transition-colors" title="Track Response Rank">
+                  <input
+                    type="checkbox"
+                    checked={followUpQ.trackResponseRank || false}
+                    onChange={(e) =>
+                      onUpdate(
+                        sectionId,
+                        followUpQ.id,
+                        { trackResponseRank: e.target.checked },
+                        path
+                      )
+                    }
+                    className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                  />
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Rank</span>
+                </label>
+                <button
+                  onClick={() => onDelete(sectionId, followUpQ.id, path)}
+                  className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
+                  title="Delete follow-up question"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Parameter Display */}
@@ -430,27 +448,29 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                 </span>
                 Options
               </label>
-              <div className="flex items-center h-[42px] px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
-                <input
-                  type="checkbox"
-                  id={`required-${followUpQ.id}`}
-                  checked={followUpQ.required}
-                  onChange={(e) =>
-                    onUpdate(
-                      sectionId,
-                      followUpQ.id,
-                      { required: e.target.checked },
-                      path
-                    )
-                  }
-                  className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
-                />
-                <label
-                  htmlFor={`required-${followUpQ.id}`}
-                  className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer"
-                >
-                  Required Question
-                </label>
+              <div className="flex flex-col gap-2 p-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-800">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={`required-${followUpQ.id}`}
+                    checked={followUpQ.required}
+                    onChange={(e) =>
+                      onUpdate(
+                        sectionId,
+                        followUpQ.id,
+                        { required: e.target.checked },
+                        path
+                      )
+                    }
+                    className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                  />
+                  <label
+                    htmlFor={`required-${followUpQ.id}`}
+                    className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer"
+                  >
+                    Required Question
+                  </label>
+                </div>
               </div>
             </div>
 

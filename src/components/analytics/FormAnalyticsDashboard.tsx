@@ -46,6 +46,7 @@ import { isImageUrl } from "../../utils/answerTemplateUtils";
 import ImageLink from "../ImageLink";
 import FilePreview from "../FilePreview";
 import TableColumnFilter from "./TableColumnFilter";
+import { useTheme } from "../../context/ThemeContext";
 
 
 ChartJS.register(
@@ -87,6 +88,7 @@ interface Response {
       longitude?: number;
     };
   };
+  responseRanks?: Record<string, number>;
 }
 
 // Helper function to get the timestamp from response (handles both timestamp and createdAt)
@@ -446,6 +448,30 @@ const extractYesNoValues = (value: any): string[] => {
 
 const recognizedYesNoValues = ["yes", "no", "n/a", "na", "not applicable"];
 
+const getRankStyle = (answer: any, darkMode: boolean = false) => {
+  if (answer === null || answer === undefined) return "";
+  // Ensure we stringify object/array answers for consistent hashing
+  const str = typeof answer === 'object' ? JSON.stringify(answer) : String(answer).trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    { l: "bg-blue-50 text-blue-700 border-blue-200", d: "bg-blue-900/30 text-blue-300 border-blue-800" },
+    { l: "bg-emerald-50 text-emerald-700 border-emerald-200", d: "bg-emerald-900/30 text-emerald-300 border-emerald-800" },
+    { l: "bg-amber-50 text-amber-700 border-amber-200", d: "bg-amber-900/30 text-amber-300 border-amber-800" },
+    { l: "bg-orange-50 text-orange-700 border-orange-200", d: "bg-orange-900/30 text-orange-300 border-orange-800" },
+    { l: "bg-rose-50 text-rose-700 border-rose-200", d: "bg-rose-900/30 text-rose-300 border-rose-800" },
+    { l: "bg-purple-50 text-purple-700 border-purple-200", d: "bg-purple-900/30 text-purple-300 border-purple-800" },
+    { l: "bg-pink-50 text-pink-700 border-pink-200", d: "bg-pink-900/30 text-pink-300 border-pink-800" },
+    { l: "bg-indigo-50 text-indigo-700 border-indigo-200", d: "bg-indigo-900/30 text-indigo-300 border-indigo-800" },
+    { l: "bg-teal-50 text-teal-700 border-teal-200", d: "bg-teal-900/30 text-teal-300 border-teal-800" },
+    { l: "bg-cyan-50 text-cyan-700 border-cyan-200", d: "bg-cyan-900/30 text-cyan-300 border-cyan-800" }
+  ];
+  const color = colors[Math.abs(hash) % colors.length];
+  return darkMode ? color.d : color.l;
+};
+
 const computeSectionPerformanceStats = (
   form: Form | null,
   responses: Response[]
@@ -645,6 +671,7 @@ const getSectionYesNoStats = (
 };
 
 export default function FormAnalyticsDashboard() {
+  const { darkMode } = useTheme();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [responses, setResponses] = useState<Response[]>([]);
@@ -3989,6 +4016,11 @@ export default function FormAnalyticsDashboard() {
                                         ) : (
                                           <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
                                             {renderAnswerDisplay(answer, q)}
+                                            {q.trackResponseRank && response.responseRanks?.[q.id] && (
+                                              <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(answer, darkMode)}`}>
+                                                #{response.responseRanks[q.id]}
+                                              </span>
+                                            )}
                                           </div>
                                         )}
                                       </td>
@@ -4089,8 +4121,13 @@ export default function FormAnalyticsDashboard() {
                       return (
                         <div key={question.id} className="border-l-4 border-blue-300 dark:border-blue-700 pl-4">
                           <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{question.text}</p>
-                          <div className="text-gray-900 dark:text-gray-100">
+                          <div className="text-gray-900 dark:text-gray-100 flex flex-col gap-1">
                             {hasAnswerValue(answer) ? renderAnswerDisplay(answer, question) : <span className="text-gray-400">No response</span>}
+                            {question.trackResponseRank && selectedResponse.responseRanks?.[question.id] && (
+                              <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}>
+                                #{selectedResponse.responseRanks[question.id]}
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
@@ -4108,8 +4145,13 @@ export default function FormAnalyticsDashboard() {
                       return (
                         <div key={question.id} className="border-l-4 border-purple-300 dark:border-purple-700 pl-4">
                           <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{question.text}</p>
-                          <div className="text-gray-900 dark:text-gray-100">
+                          <div className="text-gray-900 dark:text-gray-100 flex flex-col gap-1">
                             {hasAnswerValue(answer) ? renderAnswerDisplay(answer, question) : <span className="text-gray-400">No response</span>}
+                            {question.trackResponseRank && selectedResponse.responseRanks?.[question.id] && (
+                              <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}>
+                                #{selectedResponse.responseRanks[question.id]}
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
@@ -4837,8 +4879,13 @@ export default function FormAnalyticsDashboard() {
                                   return (
                                     <td key={`${response.id}-${question.id}`} className="text-center px-3 py-2 border border-gray-200 dark:border-gray-700 min-w-[120px]">
                                       {hasAnswer ? (
-                                        <div className="flex items-center justify-center max-w-[200px] overflow-auto max-h-[150px]">
+                                        <div className="flex flex-col items-center justify-center max-w-[200px] overflow-auto max-h-[150px] gap-1">
                                           {renderAnswerDisplay(answer, question)}
+                                          {response.responseRanks?.[question.id] && (
+                                            <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}>
+                                              #{response.responseRanks[question.id]}
+                                            </span>
+                                          )}
                                         </div>
                                       ) : (
                                         <span className="text-xs text-gray-400 dark:text-gray-500">—</span>

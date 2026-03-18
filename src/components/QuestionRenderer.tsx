@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import type { FollowUpQuestion } from "../types";
 import { questionTypes } from "../utils/questionTypes";
 import DateTimeInput from "./QuestionTypes/DateTimeInput";
@@ -15,6 +15,7 @@ import SliderFeedback from "./QuestionTypes/SliderFeedback";
 import EmojiStarFeedback from "./QuestionTypes/EmojiStarFeedback";
 import EmojiReactionFeedback from "./QuestionTypes/EmojiReactionFeedback";
 import ProductNPSBuckets from "./forms/ProductNPSBuckets";
+import { apiClient } from "../api/client";
 
 interface QuestionRendererProps {
   question: FollowUpQuestion;
@@ -22,6 +23,8 @@ interface QuestionRendererProps {
   onChange?: (value: any) => void;
   readOnly?: boolean;
   isFollowUp?: boolean;
+  formId?: string;
+  tenantSlug?: string;
 }
 
 export default function QuestionRenderer({
@@ -30,8 +33,45 @@ export default function QuestionRenderer({
   onChange,
   readOnly = false,
   isFollowUp = false,
+  formId,
+  tenantSlug,
 }: QuestionRendererProps) {
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [rank, setRank] = useState<number | null>(null);
+  const [loadingRank, setLoadingRank] = useState(false);
+
+  useEffect(() => {
+    const fetchRank = async () => {
+      if (
+        question.trackResponseRank &&
+        value !== undefined &&
+        value !== null &&
+        value !== "" &&
+        formId
+      ) {
+        try {
+          setLoadingRank(true);
+          const response = await apiClient.getResponseRank(
+            formId,
+            question.id,
+            value,
+            tenantSlug
+          );
+          if (response && typeof response.rank === 'number') {
+            setRank(response.rank);
+          }
+        } catch (err) {
+          console.error("Failed to fetch rank:", err);
+        } finally {
+          setLoadingRank(false);
+        }
+      } else {
+        setRank(null);
+      }
+    };
+
+    fetchRank();
+  }, [question.trackResponseRank, value, question.id, formId, tenantSlug]);
 
   const validateEmail = (email: string) => {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -380,6 +420,16 @@ export default function QuestionRenderer({
         <label className={`block ${isFollowUp ? "text-sm font-medium text-blue-700 dark:text-blue-300" : "font-medium text-gray-700 dark:text-gray-300"}`}>
           {questionText}
           {question.required && <span className="text-red-500 ml-1">*</span>}
+          {loadingRank && (
+            <span className="ml-2 inline-flex items-center">
+              <span className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full"></span>
+            </span>
+          )}
+          {rank !== null && !loadingRank && (
+            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+              {rank} Rank
+            </span>
+          )}
         </label>
       ) : null}
       {question.description ? (

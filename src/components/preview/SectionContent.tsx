@@ -9,6 +9,8 @@ interface SectionContentProps {
   answers: Record<string, any>;
   onAnswerChange: (questionId: string, value: any) => void;
   readOnly?: boolean;
+  formId?: string;
+  tenantSlug?: string;
 }
 
 export default function SectionContent({
@@ -17,6 +19,8 @@ export default function SectionContent({
   answers,
   onAnswerChange,
   readOnly = false,
+  formId,
+  tenantSlug,
 }: SectionContentProps) {
   const { getOrderedVisibleQuestions } = useQuestionLogic();
   const visibleQuestions = getOrderedVisibleQuestions(
@@ -60,6 +64,8 @@ export default function SectionContent({
               onChange={(value) => onAnswerChange(q.id || q._id, value)}
               readOnly={readOnly}
               isFollowUp={!!q.showWhen}
+              formId={formId}
+              tenantSlug={tenantSlug}
             />
           </div>
         ))}
@@ -97,6 +103,8 @@ export default function SectionContent({
                       onChange={(value) => onAnswerChange(q.id || q._id, value)}
                       readOnly={readOnly}
                       isFollowUp={!!q.showWhen}
+                      formId={formId}
+                      tenantSlug={tenantSlug}
                     />
                   </div>
                 ))}

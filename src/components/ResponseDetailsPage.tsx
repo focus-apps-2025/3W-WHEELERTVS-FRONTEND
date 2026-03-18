@@ -95,6 +95,29 @@ function formatSectionLabel(label: string, maxLength = 20): string {
     : formatted;
 }
 
+const getRankStyle = (answer: any, darkMode: boolean = false) => {
+  if (answer === null || answer === undefined) return "";
+  const str = typeof answer === 'object' ? JSON.stringify(answer) : String(answer).trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    { l: "bg-blue-50 text-blue-700 border-blue-200", d: "bg-blue-900/30 text-blue-300 border-blue-800" },
+    { l: "bg-emerald-50 text-emerald-700 border-emerald-200", d: "bg-emerald-900/30 text-emerald-300 border-emerald-800" },
+    { l: "bg-amber-50 text-amber-700 border-amber-200", d: "bg-amber-900/30 text-amber-300 border-amber-800" },
+    { l: "bg-orange-50 text-orange-700 border-orange-200", d: "bg-orange-900/30 text-orange-300 border-orange-800" },
+    { l: "bg-rose-50 text-rose-700 border-rose-200", d: "bg-rose-900/30 text-rose-300 border-rose-800" },
+    { l: "bg-purple-50 text-purple-700 border-purple-200", d: "bg-purple-900/30 text-purple-300 border-purple-800" },
+    { l: "bg-pink-50 text-pink-700 border-pink-200", d: "bg-pink-900/30 text-pink-300 border-pink-800" },
+    { l: "bg-indigo-50 text-indigo-700 border-indigo-200", d: "bg-indigo-900/30 text-indigo-300 border-indigo-800" },
+    { l: "bg-teal-50 text-teal-700 border-teal-200", d: "bg-teal-900/30 text-teal-300 border-teal-800" },
+    { l: "bg-cyan-50 text-cyan-700 border-cyan-200", d: "bg-cyan-900/30 text-cyan-300 border-cyan-800" }
+  ];
+  const color = colors[Math.abs(hash) % colors.length];
+  return darkMode ? color.d : color.l;
+};
+
 interface Form {
   _id: string;
   id?: string;
@@ -141,6 +164,7 @@ interface Response {
     yes: number;
     total: number;
   };
+  responseRanks?: Record<string, number>;
   submissionMetadata?: SubmissionMetadata;
   dealerName?: string;
 }
@@ -154,6 +178,7 @@ type SectionStat = {
   correct: number;
   wrong: number;
   total: number;
+  answeredCount: number;
   weightage: number;
   hasYesNo: boolean;
 };
@@ -905,7 +930,7 @@ const handleBulkDownloadZip = async () => {
   ): SectionStat[] {
     const stats =
       form.sections?.map((section: any) => {
-        const counts = { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 };
+        const counts = { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0, answeredCount: 0 };
         let hasYesNo = false;
         const weightageNumber = Number(section.weightage);
         const weightage = Number.isFinite(weightageNumber)
@@ -940,15 +965,20 @@ const handleBulkDownloadZip = async () => {
           counts.total += 1;
           
           if (!hasValue) {
-            if (isCompliance) {
-              counts.no += 1;
-            } else {
-              counts.wrong += 1;
+            if (question.required) {
+              counts.answeredCount += 1;
+              if (isCompliance) {
+                counts.no += 1;
+              } else {
+                counts.wrong += 1;
+              }
             }
             // For unanswered questions, we still check follow-ups 
             question.followUpQuestions?.forEach(processQuestion);
             return;
           }
+
+          counts.answeredCount += 1;
           
           if (isAccuracy) {
             const isNA = normalizedValues.some(v => ["n/a", "na", "not applicable"].includes(v));
@@ -1008,7 +1038,7 @@ const handleBulkDownloadZip = async () => {
 
         section.questions?.forEach(processQuestion);
 
-        if (!counts.total) {
+        if (!counts.answeredCount && !section.weightage) {
           return null;
         }
 
@@ -1021,6 +1051,7 @@ const handleBulkDownloadZip = async () => {
           correct: counts.correct,
           wrong: counts.wrong,
           total: counts.total,
+          answeredCount: counts.answeredCount,
           weightage,
           hasYesNo,
         };
@@ -1056,7 +1087,7 @@ const handleBulkDownloadZip = async () => {
       if (supportedTypes.includes(question.type) && question.id) {
         const rawValue = response.answers?.[question.id];
         const normalizedValues = extractYesNoValues(rawValue);
-        const counts = { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 };
+        const counts = { yes: 0, no: 0, na: 0, total: 1, correct: 0, wrong: 0, answeredCount: 0 };
         const isCompliance = question.type === "yesNoNA";
         const isAccuracy = !isCompliance;
 
@@ -1064,15 +1095,20 @@ const handleBulkDownloadZip = async () => {
                         (!Array.isArray(rawValue) || rawValue.length > 0) &&
                         (typeof rawValue !== 'object' || Object.keys(rawValue).length > 0);
 
-        counts.total = 1;
-
         if (!hasValue) {
-          if (isCompliance) {
-            counts.no = 1;
+          if (question.required) {
+            counts.answeredCount = 1;
+            if (isCompliance) {
+              counts.no = 1;
+            } else {
+              counts.wrong = 1;
+            }
           } else {
-            counts.wrong = 1;
+            // Optional unanswered questions are skipped from stats
+            return;
           }
         } else {
+          counts.answeredCount = 1;
           if (isAccuracy) {
             const isNA = normalizedValues.some(v => ["n/a", "na", "not applicable"].includes(v));
             if (isNA) {
@@ -2017,16 +2053,10 @@ const handleBulkDownloadZip = async () => {
                         </p>
                         <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
                           {(() => {
-                            const totalQuestions = summaryTotals.total;
-                            const totalCorrect = summaryTotals.correct;
-                            const totalYes = summaryTotals.yes;
+                            const scoringTotal = summaryTotals.yes + summaryTotals.no + summaryTotals.correct + summaryTotals.wrong;
+                            const totalSuccess = summaryTotals.yes + summaryTotals.correct;
                             
-                            // If it's strictly a quiz form (no hasAnyYesNo), use accuracy
-                            if (!summaryTotals.hasAnyYesNo && summaryTotals.correct + summaryTotals.wrong > 0) {
-                              return totalQuestions > 0 ? ((totalCorrect / totalQuestions) * 100).toFixed(1) : "0.0";
-                            }
-                            // Otherwise use combined yes/correct rate
-                            return totalQuestions > 0 ? ((totalYes / totalQuestions) * 100).toFixed(1) : "0.0";
+                            return scoringTotal > 0 ? ((totalSuccess / scoringTotal) * 100).toFixed(1) : "0.0";
                           })()}%
                         </p>
                       </div>
@@ -2064,7 +2094,7 @@ const handleBulkDownloadZip = async () => {
                         <p className="text-lg font-bold text-green-900 dark:text-green-100">
                           {(() => {
                             const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
-                            const totalAnswered = filteredSectionStats.reduce((sum, stat) => sum + stat.yes + stat.no + stat.na, 0);
+                            const totalAnswered = filteredSectionStats.reduce((sum, stat) => sum + stat.answeredCount, 0);
                             return totalQuestions > 0 ? ((totalAnswered / totalQuestions) * 100).toFixed(1) : "0.0";
                           })()}%
                         </p>
@@ -2081,9 +2111,9 @@ const handleBulkDownloadZip = async () => {
                             const totalYes = filteredSectionStats.reduce((sum, stat) => sum + stat.yes, 0);
                             const totalNo = filteredSectionStats.reduce((sum, stat) => sum + stat.no, 0);
                             const totalNA = filteredSectionStats.reduce((sum, stat) => sum + stat.na, 0);
-                            const totalAnswered = totalYes + totalNo + totalNA;
                             const totalCorrect = filteredSectionStats.reduce((sum, stat) => sum + stat.correct, 0);
                             const totalWrong = filteredSectionStats.reduce((sum, stat) => sum + stat.wrong, 0);
+                            const totalAnswered = filteredSectionStats.reduce((sum, stat) => sum + stat.answeredCount, 0);
                             const yesPercent = totalAnswered > 0 ? ((totalYes / totalAnswered) * 100).toFixed(1) : "0.0";
                             const noPercent = totalAnswered > 0 ? ((totalNo / totalAnswered) * 100).toFixed(1) : "0.0";
                             const naPercent = totalAnswered > 0 ? ((totalNA / totalAnswered) * 100).toFixed(1) : "0.0";
@@ -2206,9 +2236,18 @@ const handleBulkDownloadZip = async () => {
                                       {question.text || question.label || question.id}
                                     </p>
                                   </div>
-                                  <div className="mt-1">
+                                  <div className="mt-1 flex flex-col gap-1">
                                     {answer !== undefined && answer !== null && answer !== '' 
-                                      ? renderHighlightedAnswer(answer, question)
+                                      ? (
+                                        <>
+                                          {renderHighlightedAnswer(answer, question)}
+                                          {question.trackResponseRank && response.responseRanks?.[question.id] && (
+                                            <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(answer, document.documentElement.classList.contains("dark"))}`}>
+                                              #{response.responseRanks[question.id]}
+                                            </span>
+                                          )}
+                                        </>
+                                      )
                                       : <span className="text-gray-400 italic text-xs">No answer</span>
                                     }
                                   </div>
@@ -3244,7 +3283,30 @@ const handleBulkDownloadZip = async () => {
 
                     {/* Main Parameters Table */}
                     {(() => {
-                    const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
+                    const allSectionQuestions = getSectionQuestionsWithFollowUps(section.id);
+                    
+                    // Filter: Only show main questions that have at least one answered follow-up question
+                    // We check if any of the follow-ups for THIS main question have an actual answer
+                    const sectionQuestions = allSectionQuestions.filter((q: any) => {
+                      return q.followUpQuestions?.some((fq: any) => {
+                        const checkIsImage = (val: any): boolean => {
+                          if (!val) return false;
+                          if (Array.isArray(val)) return val.some(v => checkIsImage(v));
+                          if (typeof val === 'object') {
+                            if (val.url && isImageUrl(String(val.url))) return true;
+                            if (val.answer && isImageUrl(String(val.answer))) return true;
+                            return Object.values(val).some(v => checkIsImage(v));
+                          }
+                          return isImageUrl(String(val));
+                        };
+
+                        const hasActualAnswer = fq.answer !== undefined && fq.answer !== null && fq.answer !== "" && 
+                          fq.answer !== "N/A" && fq.answer !== "n/a" && 
+                          String(fq.answer).toLowerCase() !== complianceLabels.na.toLowerCase();
+
+                        return hasActualAnswer || checkIsImage(fq.answer);
+                      });
+                    });
 
                     if (sectionQuestions.length === 0) {
                       return null;
@@ -3508,6 +3570,11 @@ const handleBulkDownloadZip = async () => {
                                                   <div className="font-medium text-gray-800 dark:text-gray-200">
                                                     {renderValue(item.answer)}
                                                   </div>
+                                                  {response?.responseRanks?.[item.question?.id] && (
+                                                    <div className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(item.answer, document.documentElement.classList.contains("dark"))}`}>
+                                                      #{response.responseRanks[item.question.id]}
+                                                    </div>
+                                                  )}
                                                 </div>
                                               );
                                             })}

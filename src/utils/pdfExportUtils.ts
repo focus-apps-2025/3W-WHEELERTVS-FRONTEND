@@ -149,131 +149,153 @@ const renderAnswerHTML = (value: any, color: string = "#1f2937"): string => {
 function getSectionYesNoStats(form: any, answers: Record<string, any>): any[] {
   if (!form || !form.sections) return [];
 
-  return form.sections.map((section: any) => {
-    const counts = { yes: 0, no: 0, na: 0, total: 0, correct: 0, wrong: 0 };
-    const weightage = Number(section.weightage) || 0;
+  return form.sections
+    .map((section: any) => {
+      const counts = {
+        yes: 0,
+        no: 0,
+        na: 0,
+        total: 0,
+        correct: 0,
+        wrong: 0,
+        answeredCount: 0,
+      };
+      const weightage = Number(section.weightage) || 0;
 
-    const processQuestion = (question: any) => {
-      if (!question || !question.id) return;
+      const processQuestion = (question: any) => {
+        if (!question || !question.id) return;
 
-      const supportedTypes = [
-        "yesNoNA",
-        "radio",
-        "checkbox",
-        "search-select",
-        "radio-image",
-        "rating",
-        "scale",
-      ];
-      if (!supportedTypes.includes(question.type)) {
-        question.followUpQuestions?.forEach(processQuestion);
-        return;
-      }
-
-      const isCompliance = question.type === "yesNoNA";
-      const isAccuracy = !isCompliance;
-
-      const rawValue = answers?.[question.id];
-      const normalizedValues = extractYesNoValues(rawValue);
-      const hasValue =
-        rawValue !== null &&
-        rawValue !== undefined &&
-        rawValue !== "" &&
-        (!Array.isArray(rawValue) || rawValue.length > 0) &&
-        (typeof rawValue !== "object" || Object.keys(rawValue).length > 0);
-
-      counts.total += 1;
-
-      if (!hasValue) {
-        if (isCompliance) {
-          counts.no += 1;
-        } else {
-          counts.wrong += 1;
+        const supportedTypes = [
+          "yesNoNA",
+          "radio",
+          "checkbox",
+          "search-select",
+          "radio-image",
+          "rating",
+          "scale",
+        ];
+        if (!supportedTypes.includes(question.type)) {
+          question.followUpQuestions?.forEach(processQuestion);
+          return;
         }
-      } else if (isAccuracy) {
-        let isCorrect = false;
-        const isArray = Array.isArray(rawValue);
-        const strValue = isArray ? rawValue.join(", ") : String(rawValue || "");
-        const normalized = strValue.trim().toLowerCase();
 
-        if (question.correctAnswers && question.correctAnswers.length > 0) {
-          if (isArray) {
-            isCorrect =
-              rawValue.length === question.correctAnswers.length &&
-              rawValue.every((a: any) =>
-                question.correctAnswers!.some(
-                  (ca: any) =>
-                    String(ca).toLowerCase() === String(a).toLowerCase(),
-                ),
+        const isCompliance = question.type === "yesNoNA";
+        const isAccuracy = !isCompliance;
+
+        const rawValue = answers?.[question.id];
+        const normalizedValues = extractYesNoValues(rawValue);
+        const hasValue =
+          rawValue !== null &&
+          rawValue !== undefined &&
+          rawValue !== "" &&
+          (!Array.isArray(rawValue) || rawValue.length > 0) &&
+          (typeof rawValue !== "object" || Object.keys(rawValue).length > 0);
+
+        counts.total += 1;
+
+        if (!hasValue) {
+          if (question.required) {
+            counts.answeredCount += 1;
+            if (isCompliance) {
+              counts.no += 1;
+            } else {
+              counts.wrong += 1;
+            }
+          }
+        } else {
+          counts.answeredCount += 1;
+          if (isAccuracy) {
+            let isCorrect = false;
+            const isArray = Array.isArray(rawValue);
+            const strValue = isArray
+              ? rawValue.join(", ")
+              : String(rawValue || "");
+            const normalized = strValue.trim().toLowerCase();
+
+            if (question.correctAnswers && question.correctAnswers.length > 0) {
+              if (isArray) {
+                isCorrect =
+                  rawValue.length === question.correctAnswers.length &&
+                  rawValue.every((a: any) =>
+                    question.correctAnswers!.some(
+                      (ca: any) =>
+                        String(ca).toLowerCase() === String(a).toLowerCase(),
+                    ),
+                  );
+              } else {
+                isCorrect = question.correctAnswers.some(
+                  (ca: any) => String(ca).toLowerCase() === normalized,
+                );
+              }
+            } else if (question.correctAnswer) {
+              isCorrect =
+                String(question.correctAnswer).toLowerCase() === normalized;
+            } else {
+              // Fallback for accuracy questions without explicit correct answers:
+              // If it has a value and it's not "N/A", it's considered "Correct" (Answered)
+              const isNA = normalizedValues.some((v) =>
+                ["n/a", "na", "not applicable"].includes(v),
               );
-          } else {
-            isCorrect = question.correctAnswers.some(
-              (ca: any) => String(ca).toLowerCase() === normalized,
-            );
+              isCorrect = !isNA;
+            }
+
+            if (isCorrect) {
+              counts.correct += 1;
+            } else {
+              counts.wrong += 1;
+            }
+          } else if (isCompliance) {
+            const options = question.options || [];
+            if (options.length >= 3) {
+              const yesOption = String(options[0]).toLowerCase().trim();
+              const noOption = String(options[1]).toLowerCase().trim();
+              const naOption = String(options[2]).toLowerCase().trim();
+
+              if (normalizedValues.includes(yesOption)) {
+                counts.yes += 1;
+              } else if (normalizedValues.includes(noOption)) {
+                counts.no += 1;
+              } else if (normalizedValues.includes(naOption)) {
+                counts.na += 1;
+              } else {
+                counts.yes += 1;
+              }
+            } else {
+              // Fallback to recognized values
+              if (normalizedValues.includes("yes")) {
+                counts.yes += 1;
+              } else if (normalizedValues.includes("no")) {
+                counts.no += 1;
+              } else if (
+                normalizedValues.includes("n/a") ||
+                normalizedValues.includes("na") ||
+                normalizedValues.includes("not applicable")
+              ) {
+                counts.na += 1;
+              } else {
+                counts.yes += 1;
+              }
+            }
           }
-        } else if (question.correctAnswer) {
-          isCorrect =
-            String(question.correctAnswer).toLowerCase() === normalized;
-        } else {
-          // Fallback for accuracy questions without explicit correct answers:
-          // If it has a value and it's not "N/A", it's considered "Correct" (Answered)
-          const isNA = normalizedValues.some((v) =>
-            ["n/a", "na", "not applicable"].includes(v),
-          );
-          isCorrect = !isNA;
         }
 
-        if (isCorrect) {
-          counts.correct += 1;
-        } else {
-          counts.wrong += 1;
-        }
-      } else if (isCompliance) {
-        const options = question.options || [];
-        if (options.length >= 3) {
-          const yesOption = String(options[0]).toLowerCase().trim();
-          const noOption = String(options[1]).toLowerCase().trim();
-          const naOption = String(options[2]).toLowerCase().trim();
+        question.followUpQuestions?.forEach(processQuestion);
+      };
 
-          if (normalizedValues.includes(yesOption)) {
-            counts.yes += 1;
-          } else if (normalizedValues.includes(noOption)) {
-            counts.no += 1;
-          } else if (normalizedValues.includes(naOption)) {
-            counts.na += 1;
-          } else {
-            counts.yes += 1;
-          }
-        } else {
-          // Fallback to recognized values
-          if (normalizedValues.includes("yes")) {
-            counts.yes += 1;
-          } else if (normalizedValues.includes("no")) {
-            counts.no += 1;
-          } else if (
-            normalizedValues.includes("n/a") ||
-            normalizedValues.includes("na") ||
-            normalizedValues.includes("not applicable")
-          ) {
-            counts.na += 1;
-          } else {
-            counts.yes += 1;
-          }
-        }
+      section.questions?.forEach(processQuestion);
+
+      if (!counts.answeredCount && !weightage) {
+        return null;
       }
 
-      question.followUpQuestions?.forEach(processQuestion);
-    };
-
-    section.questions?.forEach(processQuestion);
-
-    return {
-      id: section.id,
-      title: section.title || section.name,
-      ...counts,
-      weightage,
-    };
-  });
+      return {
+        id: section.id,
+        title: section.title || section.name,
+        ...counts,
+        weightage,
+      };
+    })
+    .filter((s) => s !== null);
 }
 
 function getSectionYesNoQuestionStats(
@@ -309,10 +331,15 @@ function getSectionYesNoQuestionStats(
         (typeof rawValue !== "object" || Object.keys(rawValue).length > 0);
 
       if (!hasValue) {
-        if (isCompliance) {
-          counts.no = 1;
+        if (question.required) {
+          if (isCompliance) {
+            counts.no = 1;
+          } else {
+            counts.wrong = 1;
+          }
         } else {
-          counts.wrong = 1;
+          // Optional unanswered questions are skipped
+          return;
         }
       } else if (isAccuracy) {
         let isCorrect = false;

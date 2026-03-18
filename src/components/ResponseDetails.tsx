@@ -7,6 +7,7 @@ import SubmissionMetadata from "./SubmissionMetadata";
 import ImageLink from "./ImageLink";
 import { isImageUrl } from "../utils/answerTemplateUtils";
 import { useNotification } from "../context/NotificationContext";
+import { useTheme } from "../context/ThemeContext";
 
 interface ResponseDetailsProps {
   response: Response;
@@ -14,11 +15,36 @@ interface ResponseDetailsProps {
   onClose: () => void;
 }
 
+const getRankStyle = (answer: any, darkMode: boolean = false) => {
+  if (answer === null || answer === undefined) return "";
+  // Ensure we stringify object/array answers for consistent hashing
+  const str = typeof answer === 'object' ? JSON.stringify(answer) : String(answer).trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    { l: "bg-blue-600 text-white border-blue-700", d: "bg-blue-500 text-white border-blue-600" },
+    { l: "bg-emerald-600 text-white border-emerald-700", d: "bg-emerald-500 text-white border-emerald-600" },
+    { l: "bg-amber-600 text-white border-amber-700", d: "bg-amber-500 text-white border-amber-600" },
+    { l: "bg-orange-600 text-white border-orange-700", d: "bg-orange-500 text-white border-orange-600" },
+    { l: "bg-rose-600 text-white border-rose-700", d: "bg-rose-500 text-white border-rose-600" },
+    { l: "bg-purple-600 text-white border-purple-700", d: "bg-purple-500 text-white border-purple-600" },
+    { l: "bg-pink-600 text-white border-pink-700", d: "bg-pink-500 text-white border-pink-600" },
+    { l: "bg-indigo-600 text-white border-indigo-700", d: "bg-indigo-500 text-white border-indigo-600" },
+    { l: "bg-teal-600 text-white border-teal-700", d: "bg-teal-500 text-white border-teal-600" },
+    { l: "bg-cyan-600 text-white border-cyan-700", d: "bg-cyan-500 text-white border-cyan-600" }
+  ];
+  const color = colors[Math.abs(hash) % colors.length];
+  return darkMode ? color.d : color.l;
+};
+
 export default function ResponseDetails({
   response,
   question,
   onClose,
 }: ResponseDetailsProps) {
+  const { darkMode } = useTheme();
   const { showInfo } = useNotification();
 
   const renderHighlightedAnswer = (val: any, questionObj?: any) => {
@@ -194,11 +220,30 @@ export default function ResponseDetails({
     return renderHighlightedAnswer(answer, q);
   };
 
+  // Recursive helper to collect all questions including nested ones
+  const collectAllQuestions = (questions: any[], result: any[] = []) => {
+    if (!questions) return result;
+    questions.forEach(q => {
+      result.push(q);
+      if (q.followUpQuestions && Array.isArray(q.followUpQuestions)) {
+        collectAllQuestions(q.followUpQuestions, result);
+      }
+    });
+    return result;
+  };
+
   // Get all questions from sections or fallback to followUpQuestions
-  const allQuestions =
-    question.sections.length > 0
-      ? question.sections.flatMap((section) => section.questions)
-      : question.followUpQuestions;
+  const allQs: any[] = [];
+  if (question.sections && question.sections.length > 0) {
+    question.sections.forEach(section => {
+      if (section.questions) {
+        collectAllQuestions(section.questions, allQs);
+      }
+    });
+  } else if (question.followUpQuestions) {
+    collectAllQuestions(question.followUpQuestions, allQs);
+  }
+  const allQuestions = allQs;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -250,6 +295,11 @@ export default function ResponseDetails({
                   <div className="text-gray-700 dark:text-gray-300">
                     {renderAnswer(q, answer)}
                   </div>
+                  {response.responseRanks?.[q.id] && (
+                    <div className={`mt-2 text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer)}`}>
+                      #{response.responseRanks[q.id]}
+                    </div>
+                  )}
                 </div>
               );
             })}

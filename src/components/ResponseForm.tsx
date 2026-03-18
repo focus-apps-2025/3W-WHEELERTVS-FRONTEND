@@ -798,6 +798,8 @@ export default function ResponseForm({
                       question={q}
                       value={answers[q.id]}
                       onChange={(value) => handleAnswerChange(q.id, value)}
+                      formId={id}
+                      tenantSlug={tenantSlug}
                     />
                   </div>
                 ))}
@@ -832,6 +834,8 @@ export default function ResponseForm({
                             question={q}
                             value={answers[q.id]}
                             onChange={(value) => handleAnswerChange(q.id, value)}
+                            formId={id}
+                            tenantSlug={tenantSlug}
                           />
                         </div>
                       ))}

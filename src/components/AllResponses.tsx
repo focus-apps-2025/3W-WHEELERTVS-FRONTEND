@@ -49,6 +49,7 @@ import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
 import { useLogo } from "../context/LogoContext";
+import { useTheme } from "../context/ThemeContext";
 import { generateResponseExcelReport, generateResponseExcelBlob } from "../utils/responseExportUtils";
 import { generateAndDownloadPDF, exportAllResponsesToZip } from "../utils/pdfExportUtils";
 import JSZip from "jszip";
@@ -139,6 +140,7 @@ interface Response {
   formId?: string;
   parentResponseId?: string;
   answers: Record<string, any>;
+  responseRanks?: Record<string, number>;
   createdAt: string;
   updatedAt: string;
   assignedTo?: string;
@@ -166,6 +168,7 @@ type SectionStat = {
 };
 
 export default function AllResponses() {
+  const { darkMode } = useTheme();
   const navigate = useNavigate();
   const { showSuccess, showError, showConfirm } = useNotification();
   const { logo } = useLogo();
@@ -948,11 +951,11 @@ const handleCancelWeightageEdit = () => {
       });
 
       // Helper function to extract dealer name from answers using form structure
-      const extractDealerName = (response: Response, form: Form | undefined): string | null => {
-        if (!form || !response.answers) return null;
+      const extractDealerName = (response: Response, form: Form | undefined): { name: string | null, rank: number | null } => {
+        if (!form || !response.answers) return { name: null, rank: null };
         
         const formId = form._id || form.id;
-        if (!formId) return null;
+        if (!formId) return { name: null, rank: null };
 
         // Try to get from pre-calculated map first
         const dealerQuestionId = dealerQuestionMap.get(formId);
@@ -960,7 +963,10 @@ const handleCancelWeightageEdit = () => {
           const answer = response.answers[dealerQuestionId];
           if (answer && hasAnswerValue(answer)) {
             const q = form.sections.flatMap(s => s.questions || []).find(q => q.id === dealerQuestionId);
-            return renderAnswerDisplay(answer, q) as string;
+            return { 
+              name: renderAnswerDisplay(answer, q) as string,
+              rank: response.responseRanks?.[dealerQuestionId] || null
+            };
           }
         }
 
@@ -972,19 +978,22 @@ const handleCancelWeightageEdit = () => {
              for (const question of firstSection.questions) {
                const answer = response.answers[question.id];
                if (answer && hasAnswerValue(answer)) {
-                 return renderAnswerDisplay(answer, question) as string;
+                 return { 
+                   name: renderAnswerDisplay(answer, question) as string,
+                   rank: response.responseRanks?.[question.id] || null
+                 };
                }
              }
            }
         }
 
-        return null;
+        return { name: null, rank: null };
       };
 
       const responsesWithTitles = responsesData.responses.map(
         (response: Response) => {
           const form = formsMap[response.questionId];
-          const dealerName = extractDealerName(response, form);
+          const dealerInfo = extractDealerName(response, form);
 
           return {
             ...response,
@@ -992,7 +1001,8 @@ const handleCancelWeightageEdit = () => {
             yesNoScore: form
               ? computeYesNoScore(response.answers, form)
               : undefined,
-            dealerName: dealerName || "Unknown", // Add dealer name here
+            dealerName: dealerInfo.name || "Unknown",
+            dealerRank: dealerInfo.rank,
           };
         }
       );
@@ -1638,6 +1648,30 @@ const handleCancelWeightageEdit = () => {
 
     return stats.filter((stat): stat is SectionStat => Boolean(stat));
   }
+
+const getRankStyle = (answer: any, darkMode: boolean = false) => {
+  if (answer === null || answer === undefined) return "";
+  // Ensure we stringify object/array answers for consistent hashing
+  const str = typeof answer === 'object' ? JSON.stringify(answer) : String(answer).trim().toLowerCase();
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colors = [
+    { l: "bg-blue-50 text-blue-700 border-blue-200", d: "bg-blue-900/30 text-blue-300 border-blue-800" },
+    { l: "bg-emerald-50 text-emerald-700 border-emerald-200", d: "bg-emerald-900/30 text-emerald-300 border-emerald-800" },
+    { l: "bg-amber-50 text-amber-700 border-amber-200", d: "bg-amber-900/30 text-amber-300 border-amber-800" },
+    { l: "bg-orange-50 text-orange-700 border-orange-200", d: "bg-orange-900/30 text-orange-300 border-orange-800" },
+    { l: "bg-rose-50 text-rose-700 border-rose-200", d: "bg-rose-900/30 text-rose-300 border-rose-800" },
+    { l: "bg-purple-50 text-purple-700 border-purple-200", d: "bg-purple-900/30 text-purple-300 border-purple-800" },
+    { l: "bg-pink-50 text-pink-700 border-pink-200", d: "bg-pink-900/30 text-pink-300 border-pink-800" },
+    { l: "bg-indigo-50 text-indigo-700 border-indigo-200", d: "bg-indigo-900/30 text-indigo-300 border-indigo-800" },
+    { l: "bg-teal-50 text-teal-700 border-teal-200", d: "bg-teal-900/30 text-teal-300 border-teal-800" },
+    { l: "bg-cyan-50 text-cyan-700 border-cyan-200", d: "bg-cyan-900/30 text-cyan-300 border-cyan-800" }
+  ];
+  const color = colors[Math.abs(hash) % colors.length];
+  return darkMode ? color.d : color.l;
+};
 
   const hasAnswerValue = (value: any) => {
     if (value === null || value === undefined) {
@@ -2805,8 +2839,13 @@ const handleCancelWeightageEdit = () => {
                       {question.subParam1}
                     </div>
                   )}
-                  <div className="mt-3 text-slate-700 dark:text-slate-300 ml-7 text-base">
+                  <div className="mt-3 text-slate-700 dark:text-slate-300 ml-7 text-base flex flex-col gap-1">
                     {renderAnswerDisplay(answer, question)}
+                    {selectedResponse.responseRanks?.[question.id] && (
+                      <div className={`mt-1 text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}>
+                        #{selectedResponse.responseRanks[question.id]}
+                      </div>
+                    )}
                   </div>
                   {question.followUpQuestions?.map((followUp: any) => {
                     const followAnswer = selectedResponse.answers[followUp.id];
@@ -2845,13 +2884,20 @@ const handleCancelWeightageEdit = () => {
                           </div>
                         )}
                         <div
-                          className={`mt-2 ml-6 ${hasAnswer
+                          className={`mt-2 ml-6 flex flex-col gap-1 ${hasAnswer
                             ? "text-blue-700 dark:text-blue-300"
                             : "text-gray-600 dark:text-gray-400"
                             }`}
                         >
                           {hasAnswer ? (
-                            renderAnswerDisplay(followAnswer, followUp)
+                            <>
+                              {renderAnswerDisplay(followAnswer, followUp)}
+                              {selectedResponse.responseRanks?.[followUp.id] && (
+                                <div className={`mt-1 text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(followAnswer, darkMode)}`}>
+                                  #{selectedResponse.responseRanks[followUp.id]}
+                                </div>
+                              )}
+                            </>
                           ) : (
                             <span className="italic font-light">
                               Not answered
@@ -3314,11 +3360,16 @@ const handleCancelWeightageEdit = () => {
 
                           {/* Dealer Name, Location and Submission Time */}
                           <div className="flex flex-col sm:flex-row sm:items-center text-xs gap-2 sm:gap-3">
-                            {dealerName && dealerName !== "Unknown" && (
+                            {response.dealerName && response.dealerName !== "Unknown" && (
                               <div className="inline-flex items-center text-gray-600 dark:text-gray-400">
                                 <User className="w-4 h-4 mr-1.5 flex-shrink-0" />
-                                <span className="font-medium truncate" title={dealerName}>
-                                  {dealerName}
+                                <span className="font-medium truncate" title={response.dealerName}>
+                                  {response.dealerName}
+                                  {response.dealerRank && (
+                                    <span className={`ml-2 text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full inline-flex items-center justify-center border shadow-sm ${getRankStyle(response.dealerName, darkMode)}`}>
+                                      #{response.dealerRank}
+                                    </span>
+                                  )}
                                 </span>
                               </div>
                             )}

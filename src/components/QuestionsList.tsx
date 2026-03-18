@@ -240,9 +240,23 @@ export default function QuestionsList({
   };
 
   const updateQuestion = (id: string, updates: Partial<FollowUpQuestion>) => {
-    onQuestionsChange(
-      questions.map((q) => (q.id === id ? { ...q, ...updates } : q))
-    );
+    // Helper to update question recursively in a list
+    const updateInList = (list: any[]): any[] => {
+      return list.map((q) => {
+        if (q.id === id) {
+          return { ...q, ...updates };
+        }
+        if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+          return {
+            ...q,
+            followUpQuestions: updateInList(q.followUpQuestions),
+          };
+        }
+        return q;
+      });
+    };
+
+    onQuestionsChange(updateInList(questions));
   };
 
   const handleImageUpload = async (
@@ -316,6 +330,19 @@ export default function QuestionsList({
             >
               <Copy className="w-5 h-5" />
             </button>
+            <label className="flex items-center space-x-1 cursor-pointer p-2 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100" title="Track Response Rank">
+              <input
+                type="checkbox"
+                checked={q.trackResponseRank || false}
+                onChange={(e) =>
+                  updateQuestion(q.id, {
+                    trackResponseRank: e.target.checked,
+                  })
+                }
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded border-gray-300"
+              />
+              <span className="text-xs font-bold text-blue-600 whitespace-nowrap">Track Rank</span>
+            </label>
             {needsOptions(q.type) && (
               <button
                 type="button"

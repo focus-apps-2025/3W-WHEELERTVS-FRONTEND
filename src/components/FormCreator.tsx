@@ -72,6 +72,8 @@ interface Question {
   allowedFileTypes?: string[];
   description?: string;
   imageUrl?: string;
+  suggestion?: string;
+  trackResponseRank?: boolean;
   subParam1?: string;
   subParam2?: string;
   followUpQuestions?: FollowUpQuestion[];
@@ -91,7 +93,6 @@ interface Question {
     targetSectionId: string;
     isOtherOption?: boolean;
   }>;
-  suggestion?: string;
   hierarchyLevels?: Array<{
     levelNumber: number;
     name: string;
@@ -121,6 +122,8 @@ interface FollowUpQuestion {
   allowedFileTypes?: string[];
   description?: string;
   imageUrl?: string;
+  suggestion?: string;
+  trackResponseRank?: boolean;
   subParam1?: string;
   subParam2?: string;
   showWhen?: ShowWhen;
@@ -411,6 +414,7 @@ export default function FormCreator() {
                 imageUrl: question.imageUrl || undefined,
                 subParam1: question.subParam1 || undefined,
                 subParam2: question.subParam2 || undefined,
+                trackResponseRank: question.trackResponseRank || false,
                 followUpQuestions: question.followUpQuestions || [],
                 showWhen: question.showWhen || undefined,
                 parentId: question.parentId || undefined,
@@ -2322,10 +2326,24 @@ export default function FormCreator() {
     const section = form.sections.find((s) => s.id === sectionId);
     if (!section) return;
 
+    // Helper to update question recursively in a list (main or follow-up)
+    const updateInList = (list: any[]): any[] => {
+      return list.map((q) => {
+        if (q.id === questionId) {
+          return { ...q, ...updates };
+        }
+        if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+          return {
+            ...q,
+            followUpQuestions: updateInList(q.followUpQuestions),
+          };
+        }
+        return q;
+      });
+    };
+
     updateSection(sectionId, {
-      questions: section.questions.map((q) =>
-        q.id === questionId ? { ...q, ...updates } : q
-      ),
+      questions: updateInList(section.questions),
     });
   };
 
@@ -4269,6 +4287,23 @@ export default function FormCreator() {
 
                                 {/* Action Buttons */}
                                 <div className="flex items-center gap-1">
+                                  <label className="flex items-center space-x-1.5 cursor-pointer px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:border-blue-400 transition-all shadow-sm mr-2" title="Track Response Rank">
+                                    <input
+                                      type="checkbox"
+                                      checked={question.trackResponseRank || false}
+                                      onChange={(e) =>
+                                        updateQuestion(
+                                          section.id,
+                                          question.id,
+                                          {
+                                            trackResponseRank: e.target.checked,
+                                          }
+                                        )
+                                      }
+                                      className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all"
+                                    />
+                                    <span className="text-xs font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">Track Rank</span>
+                                  </label>
                                   {/* Move Up */}
                                   <button
                                     onClick={() =>
@@ -4632,9 +4667,9 @@ export default function FormCreator() {
                                           }
                                         )
                                       }
-                                      className="mb-4 w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all"
+                                      className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all"
                                     />
-                                    <span className="ml-1.5 text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-700 font-small transition-colors mb-4">
+                                    <span className="ml-1.5 text-sm text-gray-700 dark:text-gray-300 group-hover:text-blue-700 font-small transition-colors">
                                       Required question
                                     </span>
                                   </label>

@@ -49,6 +49,7 @@ interface Response {
   id: string;
   questionId: string;
   answers: Record<string, any>;
+  responseRanks?: Record<string, number>;
   createdAt: string;
   updatedAt: string;
   assignedTo?: string;
@@ -128,18 +129,28 @@ export default function FormResponses() {
   const questionColumns = useMemo(() => {
     if (!form) return [] as Array<{ id: string; text: string }>;
 
-    const sectionQuestions = (form.sections ?? []).flatMap(
-      (section) => section.questions ?? []
-    );
-    const followUpQuestions = form.followUpQuestions ?? [];
-
     const uniqueQuestions = new Map<string, Question>();
 
-    [...sectionQuestions, ...followUpQuestions].forEach((questionItem) => {
-      if (questionItem && !uniqueQuestions.has(questionItem.id)) {
-        uniqueQuestions.set(questionItem.id, questionItem);
-      }
-    });
+    const collectRecursive = (questions: any[]) => {
+      questions.forEach((q) => {
+        if (q && !uniqueQuestions.has(q.id)) {
+          uniqueQuestions.set(q.id, q);
+        }
+        if (q.followUpQuestions && Array.isArray(q.followUpQuestions)) {
+          collectRecursive(q.followUpQuestions);
+        }
+      });
+    };
+
+    if (form.sections) {
+      form.sections.forEach((section) => {
+        if (section.questions) collectRecursive(section.questions);
+      });
+    }
+
+    if (form.followUpQuestions) {
+      collectRecursive(form.followUpQuestions);
+    }
 
     return Array.from(uniqueQuestions.values()).map(({ id, text }) => ({
       id,
@@ -225,15 +236,29 @@ export default function FormResponses() {
       }
       setForm(formData.form);
 
+      // Recursive helper to collect all questions including nested ones
+      const collectAllQuestions = (questions: any[], result: any[] = []) => {
+        questions.forEach(q => {
+          result.push(q);
+          if (q.followUpQuestions && Array.isArray(q.followUpQuestions)) {
+            collectAllQuestions(q.followUpQuestions, result);
+          }
+        });
+        return result;
+      };
+
       // Collect all questions from sections and followUpQuestions
-      const allQs: Question[] = [];
+      const allQs: any[] = [];
       if (formData.form.sections) {
         formData.form.sections.forEach((section) => {
-          if (section.questions) allQs.push(...section.questions);
+          if (section.questions) {
+            collectAllQuestions(section.questions, allQs);
+          }
         });
       }
-      if (formData.form.followUpQuestions)
-        allQs.push(...formData.form.followUpQuestions);
+      if (formData.form.followUpQuestions) {
+        collectAllQuestions(formData.form.followUpQuestions, allQs);
+      }
       setAllQuestions(allQs);
 
       // Filter responses for this form
@@ -824,7 +849,7 @@ export default function FormResponses() {
 
                         return (
                           <div
-                            className={`p-3 rounded-lg ${
+                            className={`p-3 rounded-lg flex flex-col gap-1 ${
                               isQuiz
                                 ? correct
                                   ? "bg-green-50 text-green-700"
@@ -832,7 +857,12 @@ export default function FormResponses() {
                                 : "bg-primary-50 text-primary-600"
                             }`}
                           >
-                            {renderValue(value)}
+                            <div>{renderValue(value)}</div>
+                            {selectedResponse.responseRanks?.[key] && (
+                              <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-1">
+                                #{selectedResponse.responseRanks[key]}
+                              </div>
+                            )}
                           </div>
                         );
                       })()}
@@ -921,8 +951,13 @@ export default function FormResponses() {
                                   <div className="text-sm font-medium text-purple-800 mb-1">
                                     {getQuestionText(key)}
                                   </div>
-                                  <div className="text-sm text-purple-700 bg-white dark:bg-gray-900 p-2 rounded border border-purple-100">
-                                    {renderValue(value)}
+                                  <div className="text-sm text-purple-700 bg-white dark:bg-gray-900 p-2 rounded border border-purple-100 flex flex-col gap-1">
+                                    <div>{renderValue(value)}</div>
+                                    {childResponse.responseRanks?.[key] && (
+                                      <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
+                                        #{childResponse.responseRanks[key]}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               )
@@ -1016,7 +1051,15 @@ export default function FormResponses() {
                               key={`${responseItem._id}-${column.id}-value`}
                               className="px-4 py-3 text-sm text-primary-600 align-top whitespace-pre-wrap"
                             >
-                              {getAnswerDisplay(responseItem, column.id)}
+                              <div className="flex flex-col">
+                                <span>{getAnswerDisplay(responseItem, column.id)}</span>
+                                {responseItem.responseRanks && responseItem.responseRanks[column.id] !== undefined && (
+                                  <span className="text-[10px] font-bold text-blue-700 bg-blue-50 dark:bg-blue-900/40 dark:text-blue-200 px-2 py-0.5 rounded-full w-fit mt-1.5 border border-blue-200 dark:border-blue-700 flex items-center shadow-sm">
+                                    <span className="mr-1">Rank:</span>
+                                    <span>{responseItem.responseRanks[column.id]}</span>
+                                  </span>
+                                )}
+                              </div>
                             </td>
                           ))}
                         </tr>

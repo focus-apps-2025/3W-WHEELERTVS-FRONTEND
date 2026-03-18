@@ -61,6 +61,18 @@ export default function QuestionEditor({
                 Required
               </span>
             </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={question.trackResponseRank || false}
+                onChange={(e) => onUpdate({ trackResponseRank: e.target.checked })}
+                className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                Track Rank
+              </span>
+            </label>
           </div>
         </div>
 
