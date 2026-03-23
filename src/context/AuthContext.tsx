@@ -48,7 +48,8 @@ interface AuthContextType {
   login: (
     email: string,
     password: string,
-    tenantSlug?: string
+    tenantSlug?: string,
+    location?: any
   ) => Promise<boolean>;
   signup: (signupData: {
     name: string;
@@ -72,12 +73,12 @@ const AuthContext = createContext<AuthContextType>({
   tenant: null,
   login: async () => false,
   signup: async () => false,
-  logout: () => {},
+  logout: () => { },
   isAuthenticated: false,
   loading: false,
   error: null,
-  updateTenant: () => {},
-  updateUser: () => {},
+  updateTenant: () => { },
+  updateUser: () => { },
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -152,7 +153,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (
     email: string,
     password: string,
-    tenantSlug?: string
+    tenantSlug?: string,
+    location?: any
   ) => {
     setLoading(true);
     setError(null);
@@ -162,10 +164,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         password,
         ...(tenantSlug && { tenantSlug }),
+        ...(location && { location }),
       });
 
       setUser(response.user);
       updateTenantState(response.tenant || null);
+
+      // Store sessionLogId for logout tracking
+      if (response.sessionLogId) {
+        localStorage.setItem('session_log_id', response.sessionLogId);
+      }
 
       setLoading(false);
       return true;
@@ -220,7 +228,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    apiClient.logout();
+    const sessionLogId = localStorage.getItem('session_log_id');
+    apiClient.logout(sessionLogId || undefined);
+    localStorage.removeItem('session_log_id');
     setUser(null);
     updateTenantState(null);
     setError(null);

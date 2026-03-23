@@ -113,11 +113,14 @@ class FormWithFollowUpService {
   /**
    * Submit form response
    */
-  async submitResponse(responseData: {
+   async submitResponse(responseData: {
     questionId: string;
     answers: Record<string, any>;
     timestamp: string;
     parentResponseId?: string;
+    startedAt?: string;
+    completedAt?: string;
+    sessionId?: string;
   }): Promise<ApiResponse<any>> {
     const response = await fetch("/api/responses", {
       method: "POST",
@@ -127,7 +130,6 @@ class FormWithFollowUpService {
 
     return this.handleResponse(response);
   }
-
   /**
    * Get all forms (with pagination)
    */

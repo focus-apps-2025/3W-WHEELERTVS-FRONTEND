@@ -58,6 +58,7 @@ export const FormWithSectionLinksResponder: React.FC<
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [autoAdvanceMessage, setAutoAdvanceMessage] = useState<string | null>(null);
+  const [startedAt] = useState<Date>(new Date());
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
@@ -175,6 +176,8 @@ export const FormWithSectionLinksResponder: React.FC<
         formId,
         answers: responses,
         sectionFlow,
+        startedAt: startedAt.toISOString(),
+        completedAt: new Date().toISOString()
       };
 
       const result = await apiClient.submitResponse(formId, responseData);

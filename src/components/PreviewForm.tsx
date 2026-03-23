@@ -122,6 +122,22 @@ interface PreviewFormProps {
   onSubmit: (response: Response) => Promise<void> | void;
   branchingRules?: any[];
   viewType?: "section-wise" | "question-wise";
+  // NEW props for tracking
+  onQuestionChange?: (
+    questionId: string,
+    questionText: string,
+    questionType: string,
+    sectionId: string,
+    sectionTitle: string,
+    answer?: any
+  ) => void;
+  onSectionComplete?: (
+    sectionId: string,
+    sectionTitle: string,
+    timeSpentSeconds: number,
+    questionCount: number
+  ) => void;
+  formSessionId?: string | null;
 }
 
 export default function PreviewForm({
@@ -129,6 +145,10 @@ export default function PreviewForm({
   onSubmit,
   branchingRules: propBranchingRules = [],
   viewType = "section-wise",
+  // NEW props
+  onQuestionChange,
+  onSectionComplete,
+  formSessionId
 }: PreviewFormProps) {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -150,6 +170,15 @@ export default function PreviewForm({
   const [isTransitioning, setIsTransitioning] = useState(false);
   const { getOrderedVisibleQuestions } = useQuestionLogic();
   const isMounted = useRef(true);
+
+  const [previousQuestionId, setPreviousQuestionId] = useState<string | null>(null);
+  const [sectionStartTime, setSectionStartTime] = useState<Date>(new Date());
+  const [sectionQuestionCount, setSectionQuestionCount] = useState(0);
+
+   
+
+
+
 
   useEffect(() => {
     return () => {
@@ -393,6 +422,7 @@ export default function PreviewForm({
   }, [question, viewType, answers]);
 
   let sections = groupedSections;
+  const currentSection = sections[currentSectionIndex];
 
   // Get sections that are linked in branching rules (section isolation)
   const getLinkedSectionIds = (): Set<string> => {
@@ -593,12 +623,28 @@ export default function PreviewForm({
     }
   };
 
-  const handleAnswerChange = (questionId: string, value: any) => {
+   const handleAnswerChange = (questionId: string, value: any) => {
+    // If this is the first time answering this question, track it
+    if (!answers[questionId] && value && onQuestionChange && currentSection) {
+      const question = currentSection.questions?.find((q: any) => q.id === questionId);
+      if (question) {
+        onQuestionChange(
+          questionId,
+          question.text || "Unknown Question",
+          question.type || "unknown",
+          currentSection.id,
+          currentSection.title || "Untitled Section",
+          value
+        );
+      }
+    }
+
     setAnswers((prev) => ({
       ...prev,
       [questionId]: value,
     }));
   };
+
 
   const transitionToSection = (index: number) => {
     setIsTransitioning(true);
@@ -617,6 +663,30 @@ export default function PreviewForm({
       alert("Please fill in all required fields before moving to the next section.");
       return;
     }
+    if (onSectionComplete && formSessionId) {
+      const timeSpentSeconds = Math.floor(
+        (new Date().getTime() - sectionStartTime.getTime()) / 1000
+      );
+      
+      // Count questions in this section (including subsections)
+      let questionCount = currentSection.questions?.length || 0;
+      if (currentSection.subsections) {
+        currentSection.subsections.forEach((sub: any) => {
+          questionCount += sub.questions?.length || 0;
+        });
+      }
+
+      onSectionComplete(
+        currentSection.id,
+        currentSection.title || "Untitled Section",
+        timeSpentSeconds,
+        questionCount
+      );
+    }
+
+    // Reset section timer for next section
+    setSectionStartTime(new Date());
+
 
     // Collect all visible questions from main section and subsections to check branching
     const allQuestionsToProcess = [...(currentSection.questions || [])];
@@ -751,6 +821,22 @@ export default function PreviewForm({
     }
   };
 
+  useEffect(() => {
+    if (viewType === "question-wise" && currentSection && onQuestionChange) {
+      const currentQuestion = currentSection.questions?.[0];
+      if (currentQuestion && currentQuestion.id !== previousQuestionId) {
+        onQuestionChange(
+          currentQuestion.id,
+          currentQuestion.text || "Unknown Question",
+          currentQuestion.type || "unknown",
+          currentSection.id,
+          currentSection.title || "Untitled Section"
+        );
+        setPreviousQuestionId(currentQuestion.id);
+      }
+    }
+  }, [currentSectionIndex, viewType, currentSection, onQuestionChange]);
+  
   const handlePrevious = () => {
     console.log(
       "[handlePrevious] Current navigation history:",
@@ -841,7 +927,6 @@ export default function PreviewForm({
     setAnswers(sampleAnswers);
   };
 
-  const currentSection = sections[currentSectionIndex];
   const nextAvailableIndex = getNextSequentialSectionIndex(currentSectionIndex);
   // isLastSection is true only if we're at the absolute last section with no more sections after
   const isLastSection = (() => {

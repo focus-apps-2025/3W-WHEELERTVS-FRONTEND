@@ -11,7 +11,9 @@ import {
   Users,
   LogOut,
   Menu,
-  X
+  X,
+  History,
+  Clock
 } from "lucide-react";
 import { useLogo } from "../context/LogoContext";
 import { useAuth } from "../context/AuthContext";
@@ -76,6 +78,18 @@ export default function Header() {
       icon: FileText,
       path: "/superadmin/forms",
       description: "Manage forms across all tenants",
+    },
+    {
+      title: "Activity Logs",
+      icon: History,
+      path: "/admin/activity-logs",
+      description: "View user logins and activity logs",
+    },
+    {
+      title: "Attendance",
+      icon: Clock,
+      path: "/admin/attendance",
+      description: "Track user attendance and working hours",
     },
   ];
 
@@ -147,6 +161,20 @@ export default function Header() {
 
     if (user.role === "admin") {
       filteredItems.push(adminManagementMenuItem);
+      filteredItems.push({
+        title: "Activity Logs",
+        icon: History,
+        path: "/admin/activity-logs",
+        description: "View user logins and activity logs",
+        roles: ["admin"],
+      });
+      filteredItems.push({
+        title: "Attendance",
+        icon: Clock,
+        path: "/admin/attendance",
+        description: "Track user attendance and working hours",
+        roles: ["admin"],
+      });
     }
 
     return filteredItems;
@@ -197,10 +225,9 @@ export default function Header() {
                     to={item.path}
                     className={`
                       flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
-                      ${
-                        isActive
-                          ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                      ${isActive
+                        ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                       }
                     `}
                   >
@@ -225,7 +252,7 @@ export default function Header() {
                 <Moon className="w-4 h-4 text-gray-600 dark:text-gray-400" />
               )}
             </button>
-            
+
             {isAuthenticated && (
               <>
                 <button
@@ -251,7 +278,7 @@ export default function Header() {
                 >
                   <User className="w-5 h-5" />
                 </button>
-                
+
                 <button
                   onClick={handleLogout}
                   className="p-2 rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
@@ -279,10 +306,9 @@ export default function Header() {
                     onClick={closeMobile}
                     className={`
                       flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200
-                      ${
-                        isActive
-                          ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                      ${isActive
+                        ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                       }
                     `}
                   >

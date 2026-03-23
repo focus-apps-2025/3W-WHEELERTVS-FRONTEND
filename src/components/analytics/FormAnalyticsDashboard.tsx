@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { exportDashboardToPDF, exportFormAnalyticsToPDF } from '../../utils/formanalyticsexport';
 import {
   Users,
@@ -46,6 +46,7 @@ import { isImageUrl } from "../../utils/answerTemplateUtils";
 import ImageLink from "../ImageLink";
 import FilePreview from "../FilePreview";
 import TableColumnFilter from "./TableColumnFilter";
+
 import { useTheme } from "../../context/ThemeContext";
 
 
@@ -88,6 +89,8 @@ interface Response {
       longitude?: number;
     };
   };
+  questionTimings?: Array<{ questionId: string; timeSpent: number }>;
+  totalTimeSpent?: number;
   responseRanks?: Record<string, number>;
 }
 
@@ -112,6 +115,7 @@ interface FollowUpQuestion {
   options?: string[];
   description?: string;
   followUpQuestions?: FollowUpQuestion[];
+  correctAnswer?: any;
 }
 
 interface Form {
@@ -208,7 +212,7 @@ const getSectionQualityBreakdown = (section: Section, responses: Response[]): Ar
     no: number;
     na: number;
     total: number;
-    questions: Question[];
+    questions: FollowUpQuestion[];
     isRealParameter: boolean;
   }>();
 
@@ -674,6 +678,7 @@ export default function FormAnalyticsDashboard() {
   const { darkMode } = useTheme();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [responses, setResponses] = useState<Response[]>([]);
   const [form, setForm] = useState<Form | null>(null);
   const [loading, setLoading] = useState(true);
@@ -734,17 +739,17 @@ export default function FormAnalyticsDashboard() {
   const complianceLabels = useMemo(() => {
     const defaultLabels = { yes: "Yes", no: "No", na: "N/A" };
     let labels = { ...defaultLabels };
-    
+
     if (form?.sections) {
       for (const section of form.sections) {
         if (section.questions) {
           for (const question of section.questions) {
             if (question.type === "yesNoNA" && question.options && question.options.length >= 2) {
-              const hasCustomLabels = 
-                question.options[0] !== "Yes" || 
-                question.options[1] !== "No" || 
+              const hasCustomLabels =
+                question.options[0] !== "Yes" ||
+                question.options[1] !== "No" ||
                 (question.options[2] && question.options[2] !== "N/A");
-              
+
               if (hasCustomLabels) {
                 return {
                   yes: question.options[0] || "Yes",
@@ -752,7 +757,7 @@ export default function FormAnalyticsDashboard() {
                   na: question.options[2] || "N/A"
                 };
               }
-              
+
               if (labels.yes === "Yes") {
                 labels.yes = question.options[0] || "Yes";
                 labels.no = question.options[1] || "No";
@@ -908,11 +913,11 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         const meta = response.submissionMetadata?.location;
         if (!meta) return false;
-        
+
         const city = meta.city || '';
         const country = meta.country || '';
         const locationStr = city && country ? `${city}, ${country}` : country || 'Unknown';
-        
+
         return locationFilter.includes(locationStr);
       });
     }
@@ -930,13 +935,13 @@ export default function FormAnalyticsDashboard() {
 
           // Handle different answer types
           if (Array.isArray(answer)) {
-            return answer.some((item) => 
-              selectedAnswers.some((selectedAnswer) => 
+            return answer.some((item) =>
+              selectedAnswers.some((selectedAnswer) =>
                 String(item).toLowerCase() === selectedAnswer.toLowerCase()
               )
             );
           }
-          return selectedAnswers.some((selectedAnswer) => 
+          return selectedAnswers.some((selectedAnswer) =>
             String(answer).toLowerCase() === selectedAnswer.toLowerCase()
           );
         });
@@ -952,7 +957,7 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         return columnFiltersArray.every(([questionId, selectedValues]) => {
           const answer = response.answers[questionId];
-          
+
           if (selectedValues === null || selectedValues.length === 0) {
             return true;
           }
@@ -963,14 +968,14 @@ export default function FormAnalyticsDashboard() {
 
           // Handle different answer types
           if (Array.isArray(answer)) {
-            return answer.some((item) => 
-              selectedValues.some((selectedValue) => 
+            return answer.some((item) =>
+              selectedValues.some((selectedValue) =>
                 String(item).trim().toLowerCase() === selectedValue.toLowerCase()
               )
             );
           }
-          
-          return selectedValues.some((selectedValue) => 
+
+          return selectedValues.some((selectedValue) =>
             String(answer).trim().toLowerCase() === selectedValue.toLowerCase()
           );
         });
@@ -1263,7 +1268,7 @@ export default function FormAnalyticsDashboard() {
           </a>
         );
       }
-      
+
       const trimmed = value.trim();
       return trimmed ? (
         trimmed
@@ -1276,7 +1281,7 @@ export default function FormAnalyticsDashboard() {
       if (value.length === 0) {
         return <span className="text-gray-400">No response</span>;
       }
-      
+
       const previews = value
         .map((entry: any, index: number) => {
           const fileData = resolveFileData(entry);
@@ -1299,7 +1304,7 @@ export default function FormAnalyticsDashboard() {
           );
         })
         .filter(Boolean);
-        
+
       if (previews.length) {
         return <div className="flex flex-wrap gap-2">{previews}</div>;
       }
@@ -1321,11 +1326,11 @@ export default function FormAnalyticsDashboard() {
           return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
         }
       }
-      
+
       if (!Object.keys(value).length) {
         return <span className="text-gray-400">No response</span>;
       }
-      
+
       const entries = Object.entries(value);
       return (
         <div className="flex flex-col gap-2">
@@ -1849,6 +1854,7 @@ export default function FormAnalyticsDashboard() {
         },
         legend: {
           position: 'bottom',
+
           labels: {
             color: document.documentElement.classList.contains("dark")
               ? "#e5e7eb"
@@ -2088,17 +2094,26 @@ export default function FormAnalyticsDashboard() {
   const overallStats = useMemo(() => {
     let totalCorrect = 0;
     let totalWrong = 0;
-    
+    let totalTime = 0;
+    let timeCount = 0;
+
     filteredResponses.forEach(response => {
       const { correct, wrong } = calculateScores(response);
       totalCorrect += correct;
       totalWrong += wrong;
+
+      if (response.totalTimeSpent !== undefined && response.totalTimeSpent !== null) {
+        totalTime += response.totalTimeSpent;
+        timeCount++;
+      }
     });
 
     const totalQuestions = totalCorrect + totalWrong;
-    const averageAccuracy = totalQuestions > 0 
-      ? ((totalCorrect / totalQuestions) * 100).toFixed(1) 
+    const averageAccuracy = totalQuestions > 0
+      ? ((totalCorrect / totalQuestions) * 100).toFixed(1)
       : "0.0";
+
+    const averageTimeSpent = timeCount > 0 ? Math.round(totalTime / timeCount) : 0;
 
     return {
       totalQuizQuestions: quizQuestions.length,
@@ -2125,7 +2140,7 @@ export default function FormAnalyticsDashboard() {
               isFollowUp: !!isFollowUp,
               correctAnswer: q.correctAnswer
             });
-            
+
             // Prepare common answer row data
             if (q.correctAnswer !== undefined) {
               const corrStr = Array.isArray(q.correctAnswer) ? q.correctAnswer.join(", ") : String(q.correctAnswer);
@@ -2138,7 +2153,7 @@ export default function FormAnalyticsDashboard() {
       });
 
       const wsData: any[][] = [headerRow, commonAnswerRow];
-      
+
       responses.forEach((response: Response) => {
         const scores = calculateScores(response);
         const correctPercent = totalQuizQuestions > 0 ? ((scores.correct / totalQuizQuestions) * 100).toFixed(1) : "0";
@@ -2177,13 +2192,13 @@ export default function FormAnalyticsDashboard() {
 
       const headerFill = { fgColor: { rgb: "FF4F46E5" } };
       const headerFont = { color: { rgb: "FFFFFFFF" }, bold: true };
-      
+
       // Style Header Row
       for (let i = 0; i < headerRow.length; i++) {
         const cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
-        ws[cellRef].s = { 
-          fill: headerFill, 
-          font: headerFont, 
+        ws[cellRef].s = {
+          fill: headerFill,
+          font: headerFont,
           alignment: { horizontal: "center", vertical: "center", wrapText: true },
           border: {
             top: { style: "thin" },
@@ -2214,14 +2229,14 @@ export default function FormAnalyticsDashboard() {
       const lastResponseRowIdx = responses.length + 2;
       for (let rowIdx = 2; rowIdx < lastResponseRowIdx; rowIdx++) {
         const response = responses[rowIdx - 2];
-        
+
         // Style Timestamp, Correct, Wrong columns
         for (let colIdx = 0; colIdx < 3; colIdx++) {
           const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
           let fgColor = "FFF9FAFB";
           if (colIdx === 1) fgColor = "FFDCFCE7"; // Light green for Correct
           if (colIdx === 2) fgColor = "FFFEE2E2"; // Light red for Wrong
-          
+
           ws[cellRef].s = {
             fill: { fgColor: { rgb: fgColor } },
             font: { bold: colIdx > 0 },
@@ -2240,15 +2255,15 @@ export default function FormAnalyticsDashboard() {
           const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 3 });
           const info = columnInfo[colIdx];
           const answer = response.answers?.[info.questionId];
-          
+
           let bgColor = info.isFollowUp ? "FFE9D5FF" : "FFFFFFFF";
-          
+
           if (info.correctAnswer !== undefined && answer !== undefined && answer !== null && answer !== "") {
             const answerStr = Array.isArray(answer) ? answer.join(", ").toLowerCase() : String(answer).toLowerCase();
             const correctStr = Array.isArray(info.correctAnswer) ? info.correctAnswer.join(", ").toLowerCase() : String(info.correctAnswer).toLowerCase();
             bgColor = answerStr === correctStr ? "FFDCFCE7" : "FFFEE2E2";
           }
-          
+
           ws[cellRef].s = {
             fill: { fgColor: { rgb: bgColor } },
             alignment: { vertical: "center", wrapText: true },
@@ -2335,17 +2350,17 @@ export default function FormAnalyticsDashboard() {
 
   const handleSaveEdit = async () => {
     if (!editingResponseId) return;
-    
+
     try {
       setIsSaving(true);
       await apiClient.updateResponse(editingResponseId, { answers: editFormData });
-      
-      setResponses(responses.map(r => 
-        r.id === editingResponseId 
+
+      setResponses(responses.map(r =>
+        r.id === editingResponseId
           ? { ...r, answers: editFormData }
           : r
       ));
-      
+
       setEditingResponseId(null);
       setEditFormData({});
       showToast("Response updated successfully!", "success");
@@ -2372,13 +2387,13 @@ export default function FormAnalyticsDashboard() {
 
   const handleDeleteResponse = async () => {
     if (!deletingResponseId) return;
-    
+
     try {
       setIsDeleting(true);
       await apiClient.deleteResponse(deletingResponseId);
-      
+
       setResponses(responses.filter(r => r.id !== deletingResponseId));
-      
+
       setShowDeleteConfirm(false);
       setDeletingResponseId(null);
       showToast("Response deleted successfully!", "success");
@@ -2392,14 +2407,14 @@ export default function FormAnalyticsDashboard() {
 
   const handleBulkDeleteResponses = async () => {
     if (selectedResponseIds.length === 0) return;
-    
+
     try {
       setIsDeleting(true);
-      
+
       for (const responseId of selectedResponseIds) {
         await apiClient.deleteResponse(responseId);
       }
-      
+
       setResponses(responses.filter(r => !selectedResponseIds.includes(r.id)));
       setSelectedResponseIds([]);
       setShowBulkDeleteConfirm(false);
@@ -2443,121 +2458,121 @@ export default function FormAnalyticsDashboard() {
     <div className="px-4 py-3 space-y-3" id="analytics-scroll-container">
       {/* Header with Tabs - Single Row */}
       {form && (
-      <div className="flex items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-700">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-            {form?.title || "Form"}
-          </h1>
-        </div>
-        
-        {/* Tabs - Center */}
-        <div className="flex items-center gap-1 flex-1 justify-center overflow-x-auto px-4">
-          <button
-            onClick={() => setAnalyticsView("dashboard")}
-            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "dashboard"
-              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-              }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            Dashboard
-          </button>
-          <button
-            onClick={() => setAnalyticsView("question")}
-            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "question"
-              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-              }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            Questions
-          </button>
-          <button
-            onClick={() => setAnalyticsView("section")}
-            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "section"
-              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-              }`}
-          >
-            <FileText className="w-4 h-4" />
-            Sections
-          </button>
-          <button
-            onClick={() => setAnalyticsView("table")}
-            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "table"
-              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-              }`}
-          >
-            <Table className="w-4 h-4" />
-            Table
-          </button>
-          <button
-            onClick={() => setAnalyticsView("responses")}
-            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "responses"
-              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-              }`}
-          >
-            <Users className="w-4 h-4" />
-            Responses
-          </button>
-          <button
-            onClick={() => setAnalyticsView("comparison")}
-            className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "comparison"
-              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-              : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-              }`}
-          >
-            <Users className="w-4 h-4" />
-            Comparison
-          </button>
-        </div>
-        
-        {/* Right Side - Count and Actions */}
-        <div className="flex items-center gap-3 whitespace-nowrap">
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-            <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <div className="text-right">
-              <div className="text-base font-bold text-gray-900 dark:text-white">
-                {analytics.total}
+        <div className="flex items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-700">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              {form?.title || "Form"}
+            </h1>
+          </div>
+
+          {/* Tabs - Center */}
+          <div className="flex items-center gap-1 flex-1 justify-center overflow-x-auto px-4">
+            <button
+              onClick={() => setAnalyticsView("dashboard")}
+              className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "dashboard"
+                ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Dashboard
+            </button>
+            <button
+              onClick={() => setAnalyticsView("question")}
+              className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "question"
+                ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
+            >
+              <BarChart3 className="w-4 h-4" />
+              Questions
+            </button>
+            <button
+              onClick={() => setAnalyticsView("section")}
+              className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "section"
+                ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
+            >
+              <FileText className="w-4 h-4" />
+              Sections
+            </button>
+            <button
+              onClick={() => setAnalyticsView("table")}
+              className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "table"
+                ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
+            >
+              <Table className="w-4 h-4" />
+              Table
+            </button>
+            <button
+              onClick={() => setAnalyticsView("responses")}
+              className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "responses"
+                ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
+            >
+              <Users className="w-4 h-4" />
+              Responses
+            </button>
+            <button
+              onClick={() => setAnalyticsView("comparison")}
+              className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "comparison"
+                ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
+            >
+              <Users className="w-4 h-4" />
+              Comparison
+            </button>
+          </div>
+
+          {/* Right Side - Count and Actions */}
+          <div className="flex items-center gap-3 whitespace-nowrap">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <div className="text-right">
+                <div className="text-base font-bold text-gray-900 dark:text-white">
+                  {analytics.total}
+                </div>
               </div>
             </div>
-          </div>
-          <button
-            onClick={() => setShowFilterModal(true)}
+            <button
+              onClick={() => setShowFilterModal(true)}
             className={`p-1.5 rounded transition-colors relative ${
               appliedFilters.length > 0 
-                ? "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 bg-indigo-50 dark:bg-indigo-900/20" 
-                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            }`}
-            title="Advanced Filters"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-            </svg>
-            {appliedFilters.length > 0 && (
-              <span className="absolute top-0 right-0 flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full -translate-y-1 translate-x-1">
-                {appliedFilters.length}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={handleDownloadPDF}
-            className="flex items-center gap-2 px-2 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-            title="Download as PDF"
-          >
-            <Download className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => navigate(-1)}
-            className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-            title="Go back"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+                  ? "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 bg-indigo-50 dark:bg-indigo-900/20"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                }`}
+              title="Advanced Filters"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              {appliedFilters.length > 0 && (
+                <span className="absolute top-0 right-0 flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full -translate-y-1 translate-x-1">
+                  {appliedFilters.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={handleDownloadPDF}
+              className="flex items-center gap-2 px-2 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              title="Download as PDF"
+            >
+              <Download className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => navigate(-1)}
+              className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+              title="Go back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+          </div>
         </div>
-      </div>
       )}
 
 
@@ -2567,127 +2582,127 @@ export default function FormAnalyticsDashboard() {
         <>
           <div className="flex items-center justify-center min-h-screen px-4 py-24" id="summary-cards">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
-            {/* Response Trend Chart - COMPACT */}
-            <div className="p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg mr-2">
-                  <BarChart3 className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-md font-bold text-primary-900 dark:text-white">
-                    Response Trend
-                  </h3>
-                  <p className="text-xs text-primary-500 dark:text-primary-400">
-                    Last 7 days
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {Object.keys(analytics.responseTrend).length === 0 ? (
-              <div className="flex-1 flex items-center justify-center min-h-[280px]">
-                <div className="text-center">
-                  <div className="mb-2">
-                    <BarChart3 className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto" />
+              {/* Response Trend Chart - COMPACT */}
+              <div className="p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center">
+                    <div className="p-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg mr-2">
+                      <BarChart3 className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-md font-bold text-primary-900 dark:text-white">
+                        Response Trend
+                      </h3>
+                      <p className="text-xs text-primary-500 dark:text-primary-400">
+                        Last 7 days
+                      </p>
+                    </div>
                   </div>
-                  <p className="text-sm text-primary-500 dark:text-primary-400 font-medium">
-                    No responses yet
-                  </p>
                 </div>
-              </div>
-            ) : (
-              <div className="flex-1 flex flex-col">
-                <div style={{ height: "293px" }} id="response-trend-chart">
-                  <Line
-                    data={{
-                      labels: analytics.last7Days.map((date) =>
-                        new Date(date).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })
-                      ),
-                      datasets: [
-                        {
-                          label: "Responses %",
-                          data: analytics.percentageData,
-                          borderColor: "rgb(59, 130, 246)",
-                          backgroundColor: "rgba(59, 130, 246, 0.1)",
-                          fill: true,
-                          tension: 0.4,
-                          pointRadius: 4,
-                          pointHoverRadius: 6,
-                          pointBackgroundColor: "rgb(59, 130, 246)",
-                          pointBorderColor: "#fff",
-                          pointBorderWidth: 2,
-                          borderWidth: 2,
-                        },
-                      ],
-                    }}
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          display: false,
-                        },
-                        tooltip: {
-                          backgroundColor: "rgba(0, 0, 0, 0.8)",
-                          titleColor: "#fff",
-                          bodyColor: "#fff",
-                          cornerRadius: 6,
-                          padding: 10,
-                          titleFont: { size: 11, weight: "bold" },
-                          bodyFont: { size: 11 },
-                          callbacks: {
-                            label: function (context) {
-                              return `${context.parsed.y}%`;
+
+                {Object.keys(analytics.responseTrend).length === 0 ? (
+                  <div className="flex-1 flex items-center justify-center min-h-[280px]">
+                    <div className="text-center">
+                      <div className="mb-2">
+                        <BarChart3 className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto" />
+                      </div>
+                      <p className="text-sm text-primary-500 dark:text-primary-400 font-medium">
+                        No responses yet
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 flex flex-col">
+                    <div style={{ height: "293px" }} id="response-trend-chart">
+                      <Line
+                        data={{
+                          labels: analytics.last7Days.map((date) =>
+                            new Date(date).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                            })
+                          ),
+                          datasets: [
+                            {
+                              label: "Responses %",
+                              data: analytics.percentageData,
+                              borderColor: "rgb(59, 130, 246)",
+                              backgroundColor: "rgba(59, 130, 246, 0.1)",
+                              fill: true,
+                              tension: 0.4,
+                              pointRadius: 4,
+                              pointHoverRadius: 6,
+                              pointBackgroundColor: "rgb(59, 130, 246)",
+                              pointBorderColor: "#fff",
+                              pointBorderWidth: 2,
+                              borderWidth: 2,
+                            },
+                          ],
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: false,
+                          plugins: {
+                            legend: {
+                              display: false,
+                            },
+                            tooltip: {
+                              backgroundColor: "rgba(0, 0, 0, 0.8)",
+                              titleColor: "#fff",
+                              bodyColor: "#fff",
+                              cornerRadius: 6,
+                              padding: 10,
+                              titleFont: { size: 11, weight: "bold" },
+                              bodyFont: { size: 11 },
+                              callbacks: {
+                                label: function (context) {
+                                  return `${context.parsed.y}%`;
+                                },
+                              },
                             },
                           },
-                        },
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          max: 100,
-                          grid: {
-                            color: "rgba(0, 0, 0, 0.05)",
-                            drawBorder: false,
-                          },
-                          ticks: {
-                            color: "rgb(107, 114, 128)",
-                            font: { size: 10 },
-                            callback: function (value) {
-                              return value + "%";
+                          scales: {
+                            y: {
+                              beginAtZero: true,
+                              max: 100,
+                              grid: {
+                                color: "rgba(0, 0, 0, 0.05)",
+                                drawBorder: false,
+                              },
+                              ticks: {
+                                color: "rgb(107, 114, 128)",
+                                font: { size: 10 },
+                                callback: function (value) {
+                                  return value + "%";
+                                },
+                              },
+                            },
+                            x: {
+                              grid: {
+                                display: false,
+                                drawBorder: false,
+                              },
+                              ticks: {
+                                color: "rgb(107, 114, 128)",
+                                font: { size: 10 },
+                              },
                             },
                           },
-                        },
-                        x: {
-                          grid: {
-                            display: false,
-                            drawBorder: false,
-                          },
-                          ticks: {
-                            color: "rgb(107, 114, 128)",
-                            font: { size: 10 },
-                          },
-                        },
-                      },
-                    }}
-                  />
-                </div>
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Location Heatmap - Self-contained component */}
-          <LocationHeatmap
-            responses={filteredResponses}
-            title="Response Locations Heatmap" id="location-heatmap"
-          />
+              {/* Location Heatmap - Self-contained component */}
+              <LocationHeatmap
+                responses={filteredResponses}
+                title="Response Locations Heatmap" id="location-heatmap"
+              />
 
-          {/* Pie Chart - COMPACT */}
-          <OverallQualityPieChart />
+              {/* Pie Chart - COMPACT */}
+              <OverallQualityPieChart />
             </div>
           </div>
         </>
@@ -2811,7 +2826,7 @@ export default function FormAnalyticsDashboard() {
                               showWeightageColumns
                                 ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-700'
                                 : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
-                            }`}
+                              }`}
                           >
                             {showWeightageColumns ? 'Hide' : 'Show'} Weight
                           </button>
@@ -2966,7 +2981,7 @@ export default function FormAnalyticsDashboard() {
                                   >
                                     {/* Section Column */}
                                     <td className="px-4 py-2.5 cursor-pointer">
-                                      <button 
+                                      <button
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           if (!redistributionMode) {
@@ -3270,145 +3285,145 @@ export default function FormAnalyticsDashboard() {
 
                       {/* Radar Chart - Always displayed on right side */}
                       <div className="w-96 flex-shrink-0">
-                          <div className="card p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg h-full">
-                            <div className="flex items-center justify-between mb-6">
-                              <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-                                Section Performance Radar
-                              </h4>
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <span className="text-xs text-gray-600 dark:text-gray-400">Yes</span>
-                                <div className="w-2 h-2 bg-red-500 rounded-full ml-2"></div>
-                                <span className="text-xs text-gray-600 dark:text-gray-400">No</span>
-                                <div className="w-2 h-2 bg-gray-400 rounded-full ml-2"></div>
-                                <span className="text-xs text-gray-600 dark:text-gray-400">N/A</span>
-                              </div>
-                            </div>
-
-                            {/* Radar Chart Container */}
-                            <div className="h-96">
-                              {/* Prepare data for radar chart */}
-                              {(() => {
-                                // Prepare radar chart data
-                                const radarChartData = {
-                                  labels: visibleSectionStats.map(stat =>
-                                    stat.title.length > 15 ? stat.title.substring(0, 15) + '...' : stat.title
-                                  ),
-
-                                  datasets: [
-                                    {
-                                      label: 'Yes %',
-                                      data: visibleSectionStats.map(stat =>
-                                        stat.total > 0 ? (stat.yes / stat.total) * 100 : 0
-                                      ),
-                                      backgroundColor: 'rgba(34, 197, 94, 0.2)',
-                                      borderColor: 'rgba(34, 197, 94, 1)',
-                                      borderWidth: 2,
-                                      pointBackgroundColor: 'rgba(34, 197, 94, 1)',
-                                      pointBorderColor: '#fff',
-                                      pointHoverBackgroundColor: '#fff',
-                                      pointHoverBorderColor: 'rgba(34, 197, 94, 1)',
-                                    },
-                                    {
-                                      label: 'No %',
-                                      data: visibleSectionStats.map(stat =>
-                                        stat.total > 0 ? (stat.no / stat.total) * 100 : 0
-                                      ),
-                                      backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                                      borderColor: 'rgba(239, 68, 68, 1)',
-                                      borderWidth: 2,
-                                      pointBackgroundColor: 'rgba(239, 68, 68, 1)',
-                                      pointBorderColor: '#fff',
-                                      pointHoverBackgroundColor: '#fff',
-                                      pointHoverBorderColor: 'rgba(239, 68, 68, 1)',
-                                    },
-                                    {
-                                      label: 'N/A %',
-                                      data: visibleSectionStats.map(stat =>
-                                        stat.total > 0 ? (stat.na / stat.total) * 100 : 0
-                                      ),
-                                      backgroundColor: 'rgba(156, 163, 175, 0.2)',
-                                      borderColor: 'rgba(156, 163, 175, 1)',
-                                      borderWidth: 2,
-                                      pointBackgroundColor: 'rgba(156, 163, 175, 1)',
-                                      pointBorderColor: '#fff',
-                                      pointHoverBackgroundColor: '#fff',
-                                      pointHoverBorderColor: 'rgba(156, 163, 175, 1)',
-                                    },
-                                  ],
-                                };
-
-                                const radarOptions = {
-                                  responsive: true,
-                                  maintainAspectRatio: false,
-                                  scales: {
-                                    r: {
-                                      angleLines: {
-                                        display: true,
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? 'rgba(147, 197, 253, 0.4)'
-                                          : 'rgba(59, 130, 246, 0.4)',
-                                        lineWidth: 1.5,
-                                      },
-                                      grid: {
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? 'rgba(147, 197, 253, 0.3)'
-                                          : 'rgba(59, 130, 246, 0.3)',
-                                        lineWidth: 1.5,
-                                      },
-                                      pointLabels: {
-                                        font: {
-                                          size: 10,
-                                        },
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "#e5e7eb"
-                                          : "#374151",
-                                      },
-                                      ticks: {
-                                        backdropColor: 'transparent',
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "#9ca3af"
-                                          : "#6b7280",
-                                        font: {
-                                          size: 11,
-                                        },
-                                      },
-                                      suggestedMin: 0,
-                                      suggestedMax: 100,
-                                    },
-                                  },
-                                  plugins: {
-                                    datalabels: {
-                                      display: false
-                                    },
-                                    legend: {
-                                      position: 'bottom',
-                                      labels: {
-                                        color: document.documentElement.classList.contains("dark")
-                                          ? "#e5e7eb"
-                                          : "#374151",
-                                        font: {
-                                          size: 10,
-                                        },
-                                        padding: 15,
-                                      },
-                                    },
-                                    tooltip: {
-                                      callbacks: {
-                                        label: function (context) {
-                                          return `${context.dataset.label}: ${context.raw.toFixed(1)}%`;
-                                        }
-                                      }
-                                    }
-                                  },
-                                };
-
-                                return (
-                                  <Radar data={radarChartData} options={radarOptions} />
-                                );
-                              })()}
+                        <div className="card p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg h-full">
+                          <div className="flex items-center justify-between mb-6">
+                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+                              Section Performance Radar
+                            </h4>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              <span className="text-xs text-gray-600 dark:text-gray-400">Yes</span>
+                              <div className="w-2 h-2 bg-red-500 rounded-full ml-2"></div>
+                              <span className="text-xs text-gray-600 dark:text-gray-400">No</span>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full ml-2"></div>
+                              <span className="text-xs text-gray-600 dark:text-gray-400">N/A</span>
                             </div>
                           </div>
+
+                          {/* Radar Chart Container */}
+                          <div className="h-96">
+                            {/* Prepare data for radar chart */}
+                            {(() => {
+                              // Prepare radar chart data
+                              const radarChartData = {
+                                labels: visibleSectionStats.map(stat =>
+                                  stat.title.length > 15 ? stat.title.substring(0, 15) + '...' : stat.title
+                                ),
+
+                                datasets: [
+                                  {
+                                    label: 'Yes %',
+                                    data: visibleSectionStats.map(stat =>
+                                      stat.total > 0 ? (stat.yes / stat.total) * 100 : 0
+                                    ),
+                                    backgroundColor: 'rgba(34, 197, 94, 0.2)',
+                                    borderColor: 'rgba(34, 197, 94, 1)',
+                                    borderWidth: 2,
+                                    pointBackgroundColor: 'rgba(34, 197, 94, 1)',
+                                    pointBorderColor: '#fff',
+                                    pointHoverBackgroundColor: '#fff',
+                                    pointHoverBorderColor: 'rgba(34, 197, 94, 1)',
+                                  },
+                                  {
+                                    label: 'No %',
+                                    data: visibleSectionStats.map(stat =>
+                                      stat.total > 0 ? (stat.no / stat.total) * 100 : 0
+                                    ),
+                                    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                                    borderColor: 'rgba(239, 68, 68, 1)',
+                                    borderWidth: 2,
+                                    pointBackgroundColor: 'rgba(239, 68, 68, 1)',
+                                    pointBorderColor: '#fff',
+                                    pointHoverBackgroundColor: '#fff',
+                                    pointHoverBorderColor: 'rgba(239, 68, 68, 1)',
+                                  },
+                                  {
+                                    label: 'N/A %',
+                                    data: visibleSectionStats.map(stat =>
+                                      stat.total > 0 ? (stat.na / stat.total) * 100 : 0
+                                    ),
+                                    backgroundColor: 'rgba(156, 163, 175, 0.2)',
+                                    borderColor: 'rgba(156, 163, 175, 1)',
+                                    borderWidth: 2,
+                                    pointBackgroundColor: 'rgba(156, 163, 175, 1)',
+                                    pointBorderColor: '#fff',
+                                    pointHoverBackgroundColor: '#fff',
+                                    pointHoverBorderColor: 'rgba(156, 163, 175, 1)',
+                                  },
+                                ],
+                              };
+
+                              const radarOptions = {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                scales: {
+                                  r: {
+                                    angleLines: {
+                                      display: true,
+                                      color: document.documentElement.classList.contains("dark")
+                                        ? 'rgba(147, 197, 253, 0.4)'
+                                        : 'rgba(59, 130, 246, 0.4)',
+                                      lineWidth: 1.5,
+                                    },
+                                    grid: {
+                                      color: document.documentElement.classList.contains("dark")
+                                        ? 'rgba(147, 197, 253, 0.3)'
+                                        : 'rgba(59, 130, 246, 0.3)',
+                                      lineWidth: 1.5,
+                                    },
+                                    pointLabels: {
+                                      font: {
+                                        size: 10,
+                                      },
+                                      color: document.documentElement.classList.contains("dark")
+                                        ? "#e5e7eb"
+                                        : "#374151",
+                                    },
+                                    ticks: {
+                                      backdropColor: 'transparent',
+                                      color: document.documentElement.classList.contains("dark")
+                                        ? "#9ca3af"
+                                        : "#6b7280",
+                                      font: {
+                                        size: 11,
+                                      },
+                                    },
+                                    suggestedMin: 0,
+                                    suggestedMax: 100,
+                                  },
+                                },
+                                plugins: {
+                                  datalabels: {
+                                    display: false
+                                  },
+                                  legend: {
+                                      position: 'bottom',
+                                    labels: {
+                                      color: document.documentElement.classList.contains("dark")
+                                        ? "#e5e7eb"
+                                        : "#374151",
+                                      font: {
+                                        size: 10,
+                                      },
+                                      padding: 15,
+                                    },
+                                  },
+                                  tooltip: {
+                                    callbacks: {
+                                      label: function (context) {
+                                        return `${context.dataset.label}: ${context.raw.toFixed(1)}%`;
+                                      }
+                                    }
+                                  }
+                                },
+                              };
+
+                              return (
+                                <Radar data={radarChartData} options={radarOptions} />
+                              );
+                            })()}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3444,7 +3459,7 @@ export default function FormAnalyticsDashboard() {
                       tableViewType === "question"
                         ? "bg-indigo-600 text-white shadow-md"
                         : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
-                    }`}
+                      }`}
                   >
                     Question Based
                   </button>
@@ -3454,7 +3469,7 @@ export default function FormAnalyticsDashboard() {
                       tableViewType === "section"
                         ? "bg-indigo-600 text-white shadow-md"
                         : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
-                    }`}
+                      }`}
                   >
                     Section Based
                   </button>
@@ -3486,7 +3501,7 @@ export default function FormAnalyticsDashboard() {
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {form.sections.map((section: Section, sectionIdx: number) => {
                           const allQuestionsInSection = section.questions || [];
-                          
+
                           return (
                             <React.Fragment key={`section-${section.id}`}>
                               <tr className="bg-indigo-100 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40">
@@ -3510,18 +3525,18 @@ export default function FormAnalyticsDashboard() {
                                 }).length;
                                 const total = questionResponses.length;
                                 const yesPercentage = total > 0 ? ((yesCount / total) * 100).toFixed(1) : "0.0";
-                                
+
                                 const isFollowUp = question.parentId || question.showWhen?.questionId;
 
                                 return (
                                   <tr key={question.id} className={`hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors ${
                                     isFollowUp 
-                                      ? "bg-purple-50 dark:bg-purple-900/20" 
+                                      ? "bg-purple-50 dark:bg-purple-900/20"
                                       : "bg-white dark:bg-gray-800"
-                                  }`}>
+                                    }`}>
                                     <td className={`px-6 py-4 text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium max-w-sm ${
                                       isFollowUp ? "pl-12" : ""
-                                    }`}>
+                                      }`}>
                                       <div className="truncate" title={question.text || "Unnamed Question"}>
                                         {question.text || "Unnamed Question"}
                                       </div>
@@ -3680,7 +3695,7 @@ export default function FormAnalyticsDashboard() {
                             </button>
                           </div>
                         </div>
-                        
+
                         <div className="p-4 max-h-96 overflow-y-auto space-y-2">
                           {form?.sections && form.sections.length > 0 ? (
                             form.sections.map((section: Section) => (
@@ -3712,7 +3727,7 @@ export default function FormAnalyticsDashboard() {
                             <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No sections available</p>
                           )}
                         </div>
-                        
+
                         <div className="sticky bottom-0 px-4 py-3 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700">
                           <p className="text-xs text-gray-600 dark:text-gray-400 text-center">
                             {selectedResponsesSectionIds.length} of {form?.sections?.length || 0} sections selected
@@ -3722,7 +3737,7 @@ export default function FormAnalyticsDashboard() {
                     )}
                   </div>
                 </div>
-                
+
                 {selectedResponsesSectionIds.length > 0 ? (
                   <>
                     {/* Overall Quiz Statistics Summary Bar */}
@@ -3737,15 +3752,15 @@ export default function FormAnalyticsDashboard() {
                             <p className="text-lg font-bold text-gray-900 dark:text-white">Form Performance</p>
                           </div>
                         </div>
-                        
+
                         <div className="flex flex-wrap items-center gap-8">
                           <div className="flex flex-col">
                             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Quiz Questions</span>
                             <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{overallStats.totalQuizQuestions}</span>
                           </div>
-                          
+
                           <div className="h-10 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
-                          
+
                           <div className="flex flex-col">
                             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total Correct</span>
                             <div className="flex items-baseline gap-1">
@@ -3753,7 +3768,7 @@ export default function FormAnalyticsDashboard() {
                               <CheckCircle className="w-3.5 h-3.5 text-green-500" />
                             </div>
                           </div>
-                          
+
                           <div className="flex flex-col">
                             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Total Wrong</span>
                             <div className="flex items-baseline gap-1">
@@ -3761,287 +3776,311 @@ export default function FormAnalyticsDashboard() {
                               <XCircle className="w-3.5 h-3.5 text-red-500" />
                             </div>
                           </div>
-                          
+
                           <div className="h-10 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
-                          
+
                           <div className="flex flex-col bg-indigo-50 dark:bg-indigo-900/20 px-4 py-2 rounded-lg border border-indigo-100 dark:border-indigo-800">
                             <span className="text-xs text-indigo-600 dark:text-indigo-400 font-semibold uppercase">Average Accuracy</span>
                             <span className="text-2xl font-black text-indigo-700 dark:text-indigo-300">{overallStats.averageAccuracy}%</span>
+                          </div>
+
+                          <div className="flex flex-col bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-lg border border-blue-100 dark:border-blue-800">
+                            <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase">Avg Time Spent</span>
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-2xl font-black text-blue-700 dark:text-blue-300">
+                                {overallStats.averageTimeSpent > 60
+                                  ? `${Math.floor(overallStats.averageTimeSpent / 60)}m ${overallStats.averageTimeSpent % 60}s`
+                                  : `${overallStats.averageTimeSpent}s`}
+                              </span>
+                              <Clock className="w-3.5 h-3.5 text-blue-500" />
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
 
                     <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                    <table className="text-sm border-collapse">
-                      <thead className="sticky top-0 z-10">
-                        <tr className="bg-indigo-50 dark:bg-indigo-900/20">
-                          <td className="px-3 py-3 border border-indigo-200 dark:border-indigo-700"></td>
-                          <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
-                          <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
+                      <table className="text-sm border-collapse">
+                        <thead className="sticky top-0 z-10">
+                          <tr className="bg-indigo-50 dark:bg-indigo-900/20">
+                            <td className="px-3 py-3 border border-indigo-200 dark:border-indigo-700"></td>
+                            <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
+                            <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                           <td colSpan={2} className="px-6 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">Performance</td>
-                          {form?.sections?.map((section: Section) => {
-                            const sectionQuestionsCount = section.questions?.length || 0;
-                            return (
-                              selectedResponsesSectionIds.includes(section.id) && (
-                                <td key={`header-${section.id}`} colSpan={sectionQuestionsCount} className="px-6 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">
-                                  {section.title}
-                                </td>
-                              )
-                            );
-                          })}
-                        </tr>
-                        
-                        <tr className="bg-gray-100 dark:bg-gray-800">
-                          <th className="sticky left-0 z-20 text-center px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-                            <input
-                              type="checkbox"
-                              checked={selectedResponseIds.length > 0 && selectedResponseIds.length === filteredResponses.length}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedResponseIds(filteredResponses.map(r => r.id));
-                                } else {
-                                  setSelectedResponseIds([]);
-                                }
-                              }}
-                              className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
-                            />
-                          </th>
-                          <th className="sticky left-12 z-20 text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-100 dark:bg-gray-800">Actions</th>
-                          <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">Timestamp</th>
-                          <th className="text-center px-4 py-3 font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">Correct</th>
-                          <th className="text-center px-4 py-3 font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">Wrong</th>
-                          {form?.sections?.map((section: Section) => (
-                            selectedResponsesSectionIds.includes(section.id) && (
-                              section.questions?.map((q: any) => {
-                                const isFollowUp = q.parentId || q.showWhen?.questionId;
-                                const columnOptions = getUniqueColumnValues(q.id, responses);
-                                
-                                return (
-                                  <th key={q.id} className={`text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider border border-gray-200 dark:border-gray-700 max-w-xs ${isFollowUp ? 'bg-purple-100 dark:bg-purple-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                                    <div className="flex items-center justify-between gap-2">
-                                      <div className="line-clamp-2 overflow-hidden text-ellipsis flex-1">{q.text || "Question"}</div>
-                                      <TableColumnFilter
-                                        columnId={q.id}
-                                        title={q.text || "Question"}
-                                        options={columnOptions}
-                                        selectedValues={columnFilters[q.id] || null}
-                                        onFilterChange={(columnId, values) => {
-                                          setColumnFilters(prev => ({
-                                            ...prev,
-                                            [columnId]: values
-                                          }));
-                                        }}
-                                      />
-                                    </div>
-                                  </th>
-                                );
-                              })
-                            )
-                          ))}
-                        </tr>
-
-                        {/* Common Answer Row */}
-                        <tr className="bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-200 dark:border-amber-800">
-                          <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                          <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 sticky left-12 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">Correct Answer</td>
-                          <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                          <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                          <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                          {form?.sections?.map((section: Section) => (
-                            selectedResponsesSectionIds.includes(section.id) && (
-                              section.questions?.map((q: any) => {
-                                const isFollowUp = q.parentId || q.showWhen?.questionId;
-                                const hasCorrectAnswer = q.correctAnswer !== undefined;
-                                return (
-                                  <td key={`correct-${q.id}`} className={`px-4 py-3 text-xs font-bold border border-gray-200 dark:border-gray-700 ${isFollowUp ? 'bg-purple-50 dark:bg-purple-900/10' : ''} ${hasCorrectAnswer ? 'text-green-700 dark:text-green-400' : 'text-gray-400 italic'}`}>
-                                    {hasCorrectAnswer ? (
-                                      <div className="flex flex-col gap-1">
-                                        <span className="text-[10px] uppercase text-gray-500 opacity-70">Correct Answer:</span>
-                                        <span>{Array.isArray(q.correctAnswer) ? q.correctAnswer.join(", ") : String(q.correctAnswer)}</span>
-                                      </div>
-                                    ) : "-"}
-                                  </td>
-                                );
-                              })
-                            )
-                          ))}
-                        </tr>
-                      </thead>
-                      
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {filteredResponses.length > 0 ? (
-                          filteredResponses.map((response: Response, idx: number) => (
-                            <tr key={response.id} className={`${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
-                              <td className={`px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 z-20 ${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedResponseIds.includes(response.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedResponseIds([...selectedResponseIds, response.id]);
-                                    } else {
-                                      setSelectedResponseIds(selectedResponseIds.filter(id => id !== response.id));
-                                    }
-                                  }}
-                                  className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
-                                />
-                              </td>
-                              <td className={`px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-12 z-20 ${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
-                                <div className="flex items-center gap-2">
-                                  {editingResponseId === response.id ? (
-                                    <>
-                                      <button
-                                        onClick={handleSaveEdit}
-                                        disabled={isSaving}
-                                        title="Save Response"
-                                        className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors disabled:opacity-50"
-                                      >
-                                        <CheckCircle className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={handleCancelEdit}
-                                        disabled={isSaving}
-                                        title="Cancel"
-                                        className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
-                                      >
-                                        <XCircle className="w-4 h-4" />
-                                      </button>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <button
-                                        onClick={() => handleEditStart(response)}
-                                        title="Edit Response"
-                                        className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition-colors"
-                                      >
-                                        <Edit className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          setDeletingResponseId(response.id);
-                                          setShowDeleteConfirm(true);
-                                        }}
-                                        title="Delete Response"
-                                        className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
-                                      >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                      <div className="relative z-30">
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleViewDetails(response);
-                                          }}
-                                          className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-all duration-200"
-                                          title="View Details"
-                                        >
-                                          <Eye className="w-4 h-4" />
-                                        </button>
-                                      </div>
-                                    </>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
-                                {getResponseTimestamp(response) ? new Date(getResponseTimestamp(response)!).toLocaleString() : "-"}
-                              </td>
-                              <td className="px-6 py-3 text-sm text-center font-bold text-green-600 dark:text-green-400 border border-gray-200 dark:border-gray-700">
-                                {(() => {
-                                  const { correct } = calculateScores(response);
-                                  const total = quizQuestions.length;
-                                  const percentage = total > 0 ? ((correct / total) * 100).toFixed(1) : "0.0";
-                                  return (
-                                    <div className="flex flex-col items-center">
-                                      <span>{correct}</span>
-                                      <span className="text-[10px] font-medium text-green-500 opacity-80">{percentage}%</span>
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-                              <td className="px-6 py-3 text-sm text-center font-bold text-red-600 dark:text-red-400 border border-gray-200 dark:border-gray-700">
-                                {(() => {
-                                  const { wrong } = calculateScores(response);
-                                  const total = quizQuestions.length;
-                                  const percentage = total > 0 ? ((wrong / total) * 100).toFixed(1) : "0.0";
-                                  return (
-                                    <div className="flex flex-col items-center">
-                                      <span>{wrong}</span>
-                                      <span className="text-[10px] font-medium text-red-500 opacity-80">{percentage}%</span>
-                                    </div>
-                                  );
-                                })()}
-                              </td>
-                              {form?.sections?.map((section: Section) => (
+                            {form?.sections?.map((section: Section) => {
+                              const sectionQuestionsCount = section.questions?.length || 0;
+                              return (
                                 selectedResponsesSectionIds.includes(section.id) && (
-                                  section.questions?.map((q: any) => {
-                                    const isFollowUp = q.parentId || q.showWhen?.questionId;
-                                    const isEditing = editingResponseId === response.id;
-                                    const hasCorrectAnswer = q.correctAnswer !== undefined;
-                                    const answer = response.answers?.[q.id];
-                                    
-                                    let isCorrect = false;
-                                    if (hasCorrectAnswer && answer !== undefined && answer !== null && answer !== "") {
-                                      const answerStr = Array.isArray(answer)
-                                        ? answer.join(", ").toLowerCase()
-                                        : String(answer).toLowerCase();
-                                      const correctStr = Array.isArray(q.correctAnswer)
-                                        ? q.correctAnswer.join(", ").toLowerCase()
-                                        : String(q.correctAnswer).toLowerCase();
-                                      isCorrect = answerStr === correctStr;
-                                    }
+                                  <td key={`header-${section.id}`} colSpan={sectionQuestionsCount} className="px-6 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">
+                                    {section.title}
+                                  </td>
+                                )
+                              );
+                            })}
+                          </tr>
 
+                          <tr className="bg-gray-100 dark:bg-gray-800">
+                            <th className="sticky left-0 z-20 text-center px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+                              <input
+                                type="checkbox"
+                                checked={selectedResponseIds.length > 0 && selectedResponseIds.length === filteredResponses.length}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedResponseIds(filteredResponses.map(r => r.id));
+                                  } else {
+                                    setSelectedResponseIds([]);
+                                  }
+                                }}
+                                className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
+                              />
+                            </th>
+                            <th className="sticky left-12 z-20 text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-100 dark:bg-gray-800">Actions</th>
+                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">Timestamp</th>
+                            <th className="text-center px-4 py-3 font-semibold text-green-600 dark:text-green-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">Correct</th>
+                            <th className="text-center px-4 py-3 font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">Wrong</th>
+                            <th className="text-center px-4 py-3 font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">Time Taken</th>
+                            {form?.sections?.map((section: Section) => (
+                              selectedResponsesSectionIds.includes(section.id) && (
+                                section.questions?.map((q: any) => {
+                                  const isFollowUp = q.parentId || q.showWhen?.questionId;
+                                  const columnOptions = getUniqueColumnValues(q.id, responses);
+
+                                  return (
+                                    <th key={q.id} className={`text-left px-4 py-3 font-semibold text-xs uppercase tracking-wider border border-gray-200 dark:border-gray-700 max-w-xs ${isFollowUp ? 'bg-purple-100 dark:bg-purple-900/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="line-clamp-2 overflow-hidden text-ellipsis flex-1">{q.text || "Question"}</div>
+                                        <TableColumnFilter
+                                          columnId={q.id}
+                                          title={q.text || "Question"}
+                                          options={columnOptions}
+                                          selectedValues={columnFilters[q.id] || null}
+                                          onFilterChange={(columnId, values) => {
+                                            setColumnFilters(prev => ({
+                                              ...prev,
+                                              [columnId]: values
+                                            }));
+                                          }}
+                                        />
+                                      </div>
+                                    </th>
+                                  );
+                                })
+                              )
+                            ))}
+                          </tr>
+
+                          {/* Common Answer Row */}
+                          <tr className="bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-200 dark:border-amber-800">
+                            <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
+                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 sticky left-12 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">Correct Answer</td>
+                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
+                            <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
+                            <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
+                            <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
+                            {form?.sections?.map((section: Section) => (
+                              selectedResponsesSectionIds.includes(section.id) && (
+                                section.questions?.map((q: any) => {
+                                  const isFollowUp = q.parentId || q.showWhen?.questionId;
+                                  const hasCorrectAnswer = q.correctAnswer !== undefined;
+                                  return (
+                                    <td key={`correct-${q.id}`} className={`px-4 py-3 text-xs font-bold border border-gray-200 dark:border-gray-700 ${isFollowUp ? 'bg-purple-50 dark:bg-purple-900/10' : ''} ${hasCorrectAnswer ? 'text-green-700 dark:text-green-400' : 'text-gray-400 italic'}`}>
+                                      {hasCorrectAnswer ? (
+                                        <div className="flex flex-col gap-1">
+                                          <span className="text-[10px] uppercase text-gray-500 opacity-70">Correct Answer:</span>
+                                          <span>{Array.isArray(q.correctAnswer) ? q.correctAnswer.join(", ") : String(q.correctAnswer)}</span>
+                                        </div>
+                                      ) : "-"}
+                                    </td>
+                                  );
+                                })
+                              )
+                            ))}
+                          </tr>
+                        </thead>
+
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {filteredResponses.length > 0 ? (
+                            filteredResponses.map((response: Response, idx: number) => (
+                              <tr key={response.id} className={`${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+                                <td className={`px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 z-20 ${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedResponseIds.includes(response.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedResponseIds([...selectedResponseIds, response.id]);
+                                      } else {
+                                        setSelectedResponseIds(selectedResponseIds.filter(id => id !== response.id));
+                                      }
+                                    }}
+                                    className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
+                                  />
+                                </td>
+                                <td className={`px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-12 z-20 ${editingResponseId === response.id ? 'bg-blue-50 dark:bg-blue-900/20' : idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}`}>
+                                  <div className="flex items-center gap-2">
+                                    {editingResponseId === response.id ? (
+                                      <>
+                                        <button
+                                          onClick={handleSaveEdit}
+                                          disabled={isSaving}
+                                          title="Save Response"
+                                          className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors disabled:opacity-50"
+                                        >
+                                          <CheckCircle className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={handleCancelEdit}
+                                          disabled={isSaving}
+                                          title="Cancel"
+                                          className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                                        >
+                                          <XCircle className="w-4 h-4" />
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          onClick={() => handleEditStart(response)}
+                                          title="Edit Response"
+                                          className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition-colors"
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setDeletingResponseId(response.id);
+                                            setShowDeleteConfirm(true);
+                                          }}
+                                          title="Delete Response"
+                                          className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                        <div className="relative z-30">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleViewDetails(response);
+                                            }}
+                                            className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-all duration-200"
+                                            title="View Details"
+                                          >
+                                            <Eye className="w-4 h-4" />
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
+                                  {getResponseTimestamp(response) ? new Date(getResponseTimestamp(response)!).toLocaleString() : "-"}
+                                </td>
+                                <td className="px-6 py-3 text-sm text-center font-bold text-green-600 dark:text-green-400 border border-gray-200 dark:border-gray-700">
+                                  {(() => {
+                                    const { correct } = calculateScores(response);
+                                    const total = quizQuestions.length;
+                                    const percentage = total > 0 ? ((correct / total) * 100).toFixed(1) : "0.0";
                                     return (
-                                      <td 
-                                        key={`${response.id}-${q.id}`} 
+                                      <div className="flex flex-col items-center">
+                                        <span>{correct}</span>
+                                        <span className="text-[10px] font-medium text-green-500 opacity-80">{percentage}%</span>
+                                      </div>
+                                    );
+                                  })()}
+                                </td>
+                                <td className="px-6 py-3 text-sm text-center font-bold text-red-600 dark:text-red-400 border border-gray-200 dark:border-gray-700">
+                                  {(() => {
+                                    const { wrong } = calculateScores(response);
+                                    const total = quizQuestions.length;
+                                    const percentage = total > 0 ? ((wrong / total) * 100).toFixed(1) : "0.0";
+                                    return (
+                                      <div className="flex flex-col items-center">
+                                        <span>{wrong}</span>
+                                        <span className="text-[10px] font-medium text-red-500 opacity-80">{percentage}%</span>
+                                      </div>
+                                    );
+                                  })()}
+                                </td>
+                                <td className="px-6 py-3 text-sm text-center font-bold text-blue-600 dark:text-blue-400 border border-gray-200 dark:border-gray-700 whitespace-nowrap">
+                                  {response.totalTimeSpent !== undefined && response.totalTimeSpent !== null ? (
+                                    <div className="flex items-center justify-center gap-1">
+                                      <Clock className="w-3.5 h-3.5" />
+                                      {response.totalTimeSpent > 60
+                                        ? `${Math.floor(response.totalTimeSpent / 60)}m ${response.totalTimeSpent % 60}s`
+                                        : `${response.totalTimeSpent}s`}
+                                    </div>
+                                  ) : "-"}
+                                </td>
+                                {form?.sections?.map((section: Section) => (
+                                  selectedResponsesSectionIds.includes(section.id) && (
+                                    section.questions?.map((q: any) => {
+                                      const isFollowUp = q.parentId || q.showWhen?.questionId;
+                                      const isEditing = editingResponseId === response.id;
+                                      const hasCorrectAnswer = q.correctAnswer !== undefined;
+                                      const answer = response.answers?.[q.id];
+
+                                      let isCorrect = false;
+                                      if (hasCorrectAnswer && answer !== undefined && answer !== null && answer !== "") {
+                                        const answerStr = Array.isArray(answer)
+                                          ? answer.join(", ").toLowerCase()
+                                          : String(answer).toLowerCase();
+                                        const correctStr = Array.isArray(q.correctAnswer)
+                                          ? q.correctAnswer.join(", ").toLowerCase()
+                                          : String(q.correctAnswer).toLowerCase();
+                                        isCorrect = answerStr === correctStr;
+                                      }
+
+                                      return (
+                                        <td
+                                          key={`${response.id}-${q.id}`}
                                         className={`px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-64 break-words ${
                                           isFollowUp ? 'bg-purple-50 dark:bg-purple-900/10' : ''
                                         } ${
                                           hasCorrectAnswer && !isEditing
-                                            ? isCorrect 
-                                              ? 'bg-green-100 dark:bg-green-900/30' 
-                                              : 'bg-red-100 dark:bg-red-900/30'
-                                            : ''
-                                        }`}
-                                      >
-                                        {isEditing ? (
-                                          <input
-                                            type="text"
-                                            value={editFormData[q.id] || ""}
-                                            onChange={(e) => setEditFormData({ ...editFormData, [q.id]: e.target.value })}
-                                            className="w-full px-2 py-1 border border-blue-400 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                            placeholder="Enter answer"
-                                          />
-                                        ) : (
-                                          <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
-                                            {renderAnswerDisplay(answer, q)}
+                                              ? isCorrect
+                                                ? 'bg-green-100 dark:bg-green-900/30'
+                                                : 'bg-red-100 dark:bg-red-900/30'
+                                              : ''
+                                            }`}
+                                        >
+                                          {isEditing ? (
+                                            <input
+                                              type="text"
+                                              value={editFormData[q.id] || ""}
+                                              onChange={(e) => setEditFormData({ ...editFormData, [q.id]: e.target.value })}
+                                              className="w-full px-2 py-1 border border-blue-400 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                              placeholder="Enter answer"
+                                            />
+                                          ) : (
+                                            <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
+                                              {renderAnswerDisplay(answer, q)}
                                             {q.trackResponseRank && response.responseRanks?.[q.id] && (
                                               <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(answer, darkMode)}`}>
                                                 #{response.responseRanks[q.id]}
                                               </span>
                                             )}
-                                          </div>
-                                        )}
-                                      </td>
-                                    );
-                                  })
-                                )
-                              ))}
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
+                                            </div>
+                                          )}
+                                        </td>
+                                      );
+                                    })
+                                  )
+                                ))}
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
                             <td colSpan={4 + (form?.sections?.reduce((acc: number, sec: Section) => (selectedResponsesSectionIds.includes(sec.id) ? acc + (sec.questions?.length || 0) : acc), 0) || 0)} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
-                              No responses yet
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              ) : (
+                                No responses yet
+                              </td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (
                   <div className="p-6 text-center text-gray-500 dark:text-gray-400">
                     Select at least one section to view responses
                   </div>
@@ -4105,9 +4144,20 @@ export default function FormAnalyticsDashboard() {
                 <div>
                   <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">Submitted</p>
                   <p className="text-gray-900 dark:text-white">
-                    {getResponseTimestamp(selectedResponse) 
-                      ? new Date(getResponseTimestamp(selectedResponse)!).toLocaleString() 
+                    {getResponseTimestamp(selectedResponse)
+                      ? new Date(getResponseTimestamp(selectedResponse)!).toLocaleString()
                       : "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">Time Taken</p>
+                  <p className="text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    {(selectedResponse.totalTimeSpent || 0) > 0 ? (
+                      (selectedResponse.totalTimeSpent || 0) > 60
+                        ? `${Math.floor((selectedResponse.totalTimeSpent || 0) / 60)}m ${(selectedResponse.totalTimeSpent || 0) % 60}s`
+                        : `${(selectedResponse.totalTimeSpent || 0)}s`
+                    ) : "N/A"}
                   </p>
                 </div>
               </div>
@@ -4592,7 +4642,7 @@ export default function FormAnalyticsDashboard() {
                     comparisonViewMode === "dashboard"
                       ? "text-white shadow-sm"
                       : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
-                  }`}
+                    }`}
                   style={{ backgroundColor: comparisonViewMode === "dashboard" ? "#1e3a8a" : "transparent" }}
                 >
                   <BarChart3 className="w-4 h-4" />
@@ -4604,7 +4654,7 @@ export default function FormAnalyticsDashboard() {
                     comparisonViewMode === "responses"
                       ? "text-white shadow-sm"
                       : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
-                  }`}
+                    }`}
                   style={{ backgroundColor: comparisonViewMode === "responses" ? "#1e3a8a" : "transparent" }}
                 >
                   <FileText className="w-4 h-4" />
@@ -4648,13 +4698,13 @@ export default function FormAnalyticsDashboard() {
                     const filteredSectionStats = sectionStats.filter(
                       (stat) => stat.yes > 0 || stat.no > 0 || stat.na > 0 || stat.weightage > 0
                     );
-                    
+
                     const totalQuestions = filteredSectionStats.reduce((sum, stat) => sum + stat.total, 0);
                     const totalYes = filteredSectionStats.reduce((sum, stat) => sum + stat.yes, 0);
                     const totalNo = filteredSectionStats.reduce((sum, stat) => sum + stat.no, 0);
                     const totalNA = filteredSectionStats.reduce((sum, stat) => sum + stat.na, 0);
                     const totalAnswered = totalYes + totalNo + totalNA;
-                    
+
                     const overallScore = totalQuestions > 0 ? ((totalYes / totalQuestions) * 100).toFixed(1) : "0.0";
                     const responseRate = totalQuestions > 0 ? ((totalAnswered / totalQuestions) * 100).toFixed(1) : "0.0";
                     const yesPercent = totalAnswered > 0 ? ((totalYes / totalAnswered) * 100).toFixed(1) : "0.0";
@@ -4667,7 +4717,7 @@ export default function FormAnalyticsDashboard() {
                           <div className="flex flex-col items-center text-center">
                             <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase mb-1">Submission #{idx + 1}</p>
                             <p className="text-xs text-gray-600 dark:text-gray-400">
-                              {getResponseTimestamp(response) 
+                              {getResponseTimestamp(response)
                                 ? new Date(getResponseTimestamp(response)!).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
                                 : "N/A"
                               }
@@ -4720,7 +4770,7 @@ export default function FormAnalyticsDashboard() {
                                   const yesPercent = total > 0 ? ((row.yes / total) * 100).toFixed(1) : 0;
                                   const noPercent = total > 0 ? ((row.no / total) * 100).toFixed(1) : 0;
                                   const naPercent = total > 0 ? ((row.na / total) * 100).toFixed(1) : 0;
-                                  
+
                                   const chartData = {
                                     labels: [`Yes (${yesPercent}%)`, `No (${noPercent}%)`, `N/A (${naPercent}%)`],
                                     datasets: [
@@ -4733,11 +4783,11 @@ export default function FormAnalyticsDashboard() {
                                       }
                                     ]
                                   };
-                                  
+
                                   return (
                                     <div key={row.id} className="p-3 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/40 dark:to-gray-800/40 rounded-lg border border-gray-200 dark:border-gray-600">
                                       <p className="font-semibold text-gray-900 dark:text-white text-[11px] mb-3">{row.title}</p>
-                                      
+
                                       <div className="flex gap-3">
                                         <div className="flex-1 flex items-center justify-center">
                                           <div className="w-24 h-24">
@@ -4779,7 +4829,7 @@ export default function FormAnalyticsDashboard() {
                                             />
                                           </div>
                                         </div>
-                                        
+
                                         <div className="flex-1 flex flex-col justify-center gap-2 text-xs">
                                           <div className="flex items-center gap-2">
                                             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#1e3a8a' }}></div>
@@ -4843,7 +4893,7 @@ export default function FormAnalyticsDashboard() {
                               <div className="flex flex-col gap-0.5">
                                 <span className="text-xs text-gray-600 dark:text-gray-400 leading-tight font-medium">Sub #{idx + 1}</span>
                                 <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 leading-tight">
-                                  {getResponseTimestamp(response) 
+                                  {getResponseTimestamp(response)
                                     ? new Date(getResponseTimestamp(response)!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
                                     : "N/A"
                                   }
@@ -4861,7 +4911,7 @@ export default function FormAnalyticsDashboard() {
                               const dateB = new Date(getResponseTimestamp(b)!).getTime();
                               return dateB - dateA;
                             }).slice(0, 5);
-                            
+
                             return (
                               <tr key={question.id} className={qIdx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50 dark:bg-gray-800/50'}>
                                 <td className="sticky left-0 z-10 px-4 py-3 font-medium text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 min-w-60">
@@ -4875,7 +4925,7 @@ export default function FormAnalyticsDashboard() {
                                 {last5Responses.map((response) => {
                                   const answer = response.answers?.[question.id];
                                   const hasAnswer = answer !== null && answer !== undefined && answer !== '';
-                                  
+
                                   return (
                                     <td key={`${response.id}-${question.id}`} className="text-center px-3 py-2 border border-gray-200 dark:border-gray-700 min-w-[120px]">
                                       {hasAnswer ? (
@@ -5003,9 +5053,9 @@ export default function FormAnalyticsDashboard() {
       {toast && (
         <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 ${
           toast.type === 'success' 
-            ? 'bg-green-500 dark:bg-green-600' 
+            ? 'bg-green-500 dark:bg-green-600'
             : 'bg-red-500 dark:bg-red-600'
-        }`}>
+          }`}>
           <div className="flex items-center gap-2">
             {toast.type === 'success' ? (
               <CheckCircle className="w-5 h-5" />

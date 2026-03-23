@@ -138,12 +138,13 @@ class ApiClient {
   }
 
   // Authentication
-  async login(credentials: {
+   async login(credentials: {
     email: string;
     password: string;
     tenantSlug?: string;
+    location?: any;
   }) {
-    const data = await this.request<{ user: any; token: string; tenant?: any }>(
+    const data = await this.request<{ user: any; token: string; tenant?: any; sessionLogId?: string }>(
       "/auth/login",
       {
         method: "POST",
@@ -155,9 +156,21 @@ class ApiClient {
     return data;
   }
 
-  async logout() {
-    this.clearToken();
+  async logout(sessionLogId?: string) {
+    try {
+      if (this.token) {
+        await this.request("/auth/logout", {
+          method: "POST",
+          body: JSON.stringify({ sessionLogId })
+        });
+      }
+    } catch (e) {
+      console.warn("Logout request failed:", e);
+    } finally {
+      this.clearToken();
+    }
   }
+
 
   async getProfile() {
     return this.request<{ user: any }>("/auth/profile");
@@ -174,11 +187,29 @@ class ApiClient {
   }
 
   // Users
-  async getUsers(params?: {
+  async getUsersHierarchy(params?: { role?: string }) {
+    return this.request<{ users: any[] }>(`/users/hierarchy${params?.role ? `?role=${params.role}` : ''}`);
+  }
+
+  async getUserActivityLogs(params?: { page?: number; limit?: number; search?: string; startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", params.page.toString());
+    if (params?.limit) query.set("limit", params.limit.toString());
+    if (params?.search) query.set("search", params.search);
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+
+    return this.request<{ logs: any[]; pagination: any }>(`/users/activity-logs?${query.toString()}`);
+  }
+
+
+  // Users
+   async getUsers(params?: {
     role?: string;
     search?: string;
     page?: number;
     limit?: number;
+    tenantId?: string;
   }) {
     const query = new URLSearchParams();
 
@@ -198,10 +229,15 @@ class ApiClient {
       query.set("limit", params.limit.toString());
     }
 
+    if (params?.tenantId) {
+      query.set("tenantId", params.tenantId);
+    }
+
     const endpoint = `/users${query.toString() ? `?${query.toString()}` : ""}`;
 
     return this.request<{ users: any[]; pagination: any }>(endpoint);
   }
+
 
   async createUser(userData: any) {
     return this.request<{ user: any }>("/users", {
@@ -284,9 +320,19 @@ class ApiClient {
 
     return data.data;
   }
-  async submitPublicResponse(
+   async submitPublicResponse(
     formId: string,
-    data: { inviteId: string; answers: any; location?: any },
+    data: {
+      inviteId: string;
+      answers: any;
+      location?: any;
+      submissionMetadata?: any;
+      startedAt?: Date | string;
+      completedAt?: Date | string;
+      sessionId?: string;
+      isSectionSubmit?: boolean;
+      sectionIndex?: number;
+    },
   ) {
     const url = `${this.baseUrl}/forms/${formId}/public/submit`;
 
@@ -307,6 +353,9 @@ class ApiClient {
         result.message || "Submission failed",
       );
     }
+
+    // Log to see what's being returned
+    console.log("submitPublicResponse result:", result.data);
 
     return result.data;
   }
@@ -442,7 +491,16 @@ class ApiClient {
     });
   }
 
-  async submitResponse(formId: string, responseData: any) {
+   async submitResponse(
+    formId: string,
+    responseData: any & {
+      startedAt?: Date | string;
+      completedAt?: Date | string;
+      sessionId?: string;
+      isSectionSubmit?: boolean;
+      sectionIndex?: number;
+    }
+  ) {
     return this.request<{ response: any }>(`/responses/${formId}`, {
       method: "POST",
       body: JSON.stringify(responseData),
@@ -498,6 +556,7 @@ class ApiClient {
   async getFormAnalytics(formId: string) {
     return this.request<any>(`/analytics/form/${formId}`);
   }
+  
 
   // Rank tracking
   async getResponseRank(
@@ -531,10 +590,69 @@ class ApiClient {
     return this.request<any>("/analytics/users");
   }
 
+    async getAdminPerformance(adminId: string, params?: { startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+
+    const endpoint = `/analytics/admin/${adminId}/performance${query.toString() ? `?${query.toString()}` : ""}`;
+    return this.request<any>(endpoint);
+  }
+
+  async getAdminActivity(adminId: string, params?: { startDate?: string; endDate?: string; limit?: number }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    if (params?.limit !== undefined) query.set("limit", params.limit.toString());
+
+    const endpoint = `/analytics/admin/${adminId}/activity${query.toString() ? `?${query.toString()}` : ""}`;
+    return this.request<any>(endpoint);
+  }
+  // Roles
+  
+   async getAdminResponseDetails(adminId: string, params?: { startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+
+    const endpoint = `/analytics/admin/${adminId}/response-details${query.toString() ? `?${query.toString()}` : ""}`;
+    return this.request<{
+      totalResponses: number;
+      statusBreakdown: { pending: number; verified: number; rejected: number };
+      yesNoNA: { yes: number; no: number; na: number };
+      formBreakdown: {
+        formId: string;
+        formTitle: string;
+        yes: number;
+        no: number;
+        na: number;
+        responseCount: number; // Updated name
+        avgTimeSpent?: number;
+        sessionCount?: number;
+      }[];
+      personalSubmissions?: {
+        id: string;
+        formTitle: string;
+        submittedAt: string;
+        status: string;
+      }[];
+    }>(endpoint);
+  }
+
+  async getTenantSubmissionStats(tenantId?: string) {
+    const query = tenantId ? `?tenantId=${tenantId}` : "";
+    return this.request<any>(`/analytics/tenant/stats${query}`);
+  }
+  async getTenantForms(tenantId?: string) {
+    // Re-uses the newly added tenant submission stats.
+    return this.getTenantSubmissionStats(tenantId);
+  }
+
   // Roles
   async getRoles() {
     return this.request<{ roles: any[] }>("/roles");
   }
+
 
   async createRole(roleData: any) {
     return this.request<{ role: any }>("/roles", {
@@ -1210,9 +1328,222 @@ class ApiClient {
       data: response,
     };
   }
+
+  async getUnassignedResponses(params?: {
+    tenantId?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.tenantId) query.set("tenantId", params.tenantId);
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    if (params?.limit) query.set("limit", params.limit.toString());
+
+    const endpoint = `/responses/unassigned${query.toString() ? `?${query.toString()}` : ""}`;
+    return this.request<{ responses: any[]; total: number; hasMore: boolean }>(endpoint);
+  }
+
+  async assignResponses(data: {
+    responseIds: string[];
+    adminId: string;
+  }) {
+    return this.request<{ modifiedCount: number }>("/responses/assign", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async autoAssignResponse(responseId: string, data: {
+    tenantId: string;
+  }) {
+    console.log(`[API] Calling autoAssignResponse with:`, { responseId, data });
+    try {
+      const result = await this.request<{
+        responseId: string;
+        assignedTo: string;
+        adminLoad: Record<string, number>;
+      }>(`/responses/${responseId}/auto-assign`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      console.log(`[API] autoAssignResponse result:`, result);
+      return result;
+    } catch (error) {
+      console.error(`[API] autoAssignResponse error:`, error);
+      throw error;
+    }
+  }
+
+  // Also add this helper method to get available admins for assignment
+  async getAvailableAdmins(params?: {
+    tenantId?: string;
+    role?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.tenantId) query.set("tenantId", params.tenantId);
+    if (params?.role) query.set("role", params.role);
+
+    const endpoint = `/users/available${query.toString() ? `?${query.toString()}` : ""}`;
+    return this.request<{ users: any[] }>(endpoint);
+  }async sendHeartbeat(data: { url: string; sessionId?: string; formSessionId?: string }) {
+    return this.request("/activity/heartbeat", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async startFormSession(formId: string, formTitle: string) {
+    return this.request<{ sessionId: string }>(`/forms/${formId}/track/start`, {
+      method: "POST",
+      body: JSON.stringify({ formTitle }),
+    });
+  }
+
+  async trackQuestionTime(formId: string, data: {
+    sessionId: string;
+    questionId: string;
+    questionText: string;
+    questionType: string;
+    sectionId?: string;
+    sectionTitle?: string;
+    timeSpent: number;
+    answer?: any;
+  }) {
+    return this.request(`/forms/${formId}/track/question`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async trackFormProgress(formId: string, data: {
+    sessionId: string;
+    sectionId: string;
+    sectionTitle: string;
+    timeSpent: number;
+    questionCount: number;
+  }) {
+    return this.request(`/forms/${formId}/track/progress`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async trackFormComplete(formId: string, data: {
+    sessionId: string;
+    answers: any;
+  }) {
+    return this.request(`/forms/${formId}/track/complete`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Activity Analytics
+  async getTenantActivitySummary(tenantId: string, params?: { startDate?: string; endDate?: string; role?: string }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    if (params?.role) query.set("role", params.role);
+
+    return this.request<any>(`/activity/tenant/${tenantId}/summary${query.toString() ? `?${query.toString()}` : ""}`);
+  }
+
+  async getUserTimeline(userId: string, params?: { limit?: number; startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set("limit", params.limit.toString());
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+
+    return this.request<any>(`/activity/user/${userId}/timeline${query.toString() ? `?${query.toString()}` : ""}`);
+  }
+
+  async getFormSessions(formId: string, params?: { startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+
+    return this.request<any>(`/activity/forms/${formId}/sessions${query.toString() ? `?${query.toString()}` : ""}`);
+  }
+
+  // Attendance
+  async getAttendance(params?: {
+    startDate?: string;
+    endDate?: string;
+    userId?: string;
+    page?: number;
+    limit?: number;
+    tenantId?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    if (params?.userId) query.set("userId", params.userId);
+    if (params?.page) query.set("page", params.page.toString());
+    if (params?.limit) query.set("limit", params.limit.toString());
+    if (params?.tenantId) query.set("tenantId", params.tenantId);
+
+    return this.request<{ logs: any[]; pagination: any }>(`/attendance${query.toString() ? `?${query.toString()}` : ""}`);
+  }
+
+  async getAttendanceSummary(date?: string) {
+    const query = date ? `?date=${date}` : "";
+    return this.request<{ date: string; totalUsers: number; present: number; absent: number; activeNow: number; users: any[] }>(`/attendance/summary${query}`);
+  }
+
+  async getMyAttendance(params?: {
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    if (params?.page) query.set("page", params.page.toString());
+    if (params?.limit) query.set("limit", params.limit.toString());
+
+    return this.request<{ logs: any[]; summary: any; pagination: any }>(`/attendance/my${query.toString() ? `?${query.toString()}` : ""}`);
+  }
+
+  async getAttendanceUsers() {
+    return this.request<{ users: any[] }>("/attendance/users");
+  }
+
+  async exportAttendance(params?: {
+    startDate?: string;
+    endDate?: string;
+    userId?: string;
+    tenantId?: string;
+  }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    if (params?.userId) query.set("userId", params.userId);
+    if (params?.tenantId) query.set("tenantId", params.tenantId);
+
+    return this.request<any[]>(`/attendance/export${query.toString() ? `?${query.toString()}` : ""}`);
+  }
+
+  async updateLastActive(sessionLogId: string) {
+    return this.request("/attendance/heartbeat", {
+      method: "POST",
+      body: JSON.stringify({ sessionLogId }),
+    });
+  }
+
+  async updateLoginLocation(sessionLogId: string, location: any) {
+    return this.request("/attendance/login-location", {
+      method: "PUT",
+      body: JSON.stringify({ sessionLogId, location }),
+    });
+  }
 }
 
 // Create and export a singleton instance
 export const apiClient = new ApiClient();
 export { ApiError };
 export type { ApiResponse };
+
+

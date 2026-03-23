@@ -42,7 +42,6 @@ export interface FollowUpQuestion {
   imageUrl?: string;
   description?: string;
   suggestion?: string;
-  trackResponseRank?: boolean;
   sectionId?: string;
   subParam1?: string;
   subParam2?: string;
@@ -82,7 +81,6 @@ export interface Response {
   id: string;
   questionId: string;
   answers: Record<string, any>;
-  responseRanks?: Record<string, number>;
   timestamp: string;
   parentResponseId?: string;
   assignedTo?: string;
@@ -120,7 +118,13 @@ export interface Response {
     };
     submittedAt?: string;
     source?: string;
+    formSessionId?: string | null;
   };
+  totalTimeSpent?: number;
+  questionTimings?: Array<{
+    questionId: string;
+    timeSpent: number;
+  }>;
 }
 
 export interface Profile {

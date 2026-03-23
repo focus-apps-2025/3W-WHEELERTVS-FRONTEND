@@ -1,12 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Send, ArrowLeft, AlertCircle } from "lucide-react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import type { Question, Response, FollowUpQuestion } from "../types";
 import QuestionRenderer from "./QuestionRenderer";
 import { useQuestionLogic } from "../hooks/useQuestionLogic";
 import ThankYouMessage from "./ThankYouMessage";
-import { responsesApi } from "../api/storage";
-import ParentResponseSelector from "./ParentResponseSelector";
 import { apiClient } from "../api/client";
 
 const SAMPLE_IMAGE_DATA =
@@ -106,22 +104,6 @@ const createSampleAnswer = (question: FollowUpQuestion): any => {
   }
 };
 
-const normalizeTriggerValue = (
-  question: FollowUpQuestion | undefined,
-  value: any
-) => {
-  if (value === undefined || value === null) {
-    return value;
-  }
-  if (!question) {
-    return value;
-  }
-  if (question.type === "checkbox") {
-    return Array.isArray(value) ? value : [value];
-  }
-  return value;
-};
-
 const isValidFileInput = (value: any): boolean => {
   if (!value) return false;
   
@@ -145,7 +127,6 @@ interface ResponseFormProps {
 }
 
 export default function ResponseForm({
-  questions: propQuestions,
   onSubmit,
 }: ResponseFormProps) {
   const { id, tenantSlug } = useParams();
@@ -153,7 +134,7 @@ export default function ResponseForm({
   const [searchParams] = useSearchParams();
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [submitted, setSubmitted] = useState(false);
-  const [selectedParentResponse, setSelectedParentResponse] =
+  const [selectedParentResponse] =
     useState<Response | null>(null);
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [form, setForm] = useState<any>(null);
@@ -161,10 +142,9 @@ export default function ResponseForm({
   const [error, setError] = useState<string | null>(null);
   const { getOrderedVisibleQuestions } = useQuestionLogic();
   const [showDuplicateMessage, setShowDuplicateMessage] = useState(false);
-  const [duplicateInfo, setDuplicateInfo] = useState<{ isDuplicate: boolean; email: string }>({
-    isDuplicate: false,
-    email: ''
-  });
+  const [sessionTrackingId, setSessionTrackingId] = useState<string | null>(null);
+  const [startedAt] = useState<Date>(new Date());
+  const lastInteractionTime = useRef<number>(Date.now());
 
   // Derived sections logic
   const allFormSections = React.useMemo(() => {
@@ -181,34 +161,34 @@ export default function ResponseForm({
           ];
 
     // Flatten sections to handle nested follow-up questions
-    return rawSections.map((section: any) => {
-      const allQuestions: any[] = [];
+    return rawSections.map((s: any) => {
+      const allQs: any[] = [];
 
-      const flattenQuestions = (questions: any[], parentId?: string) => {
-        questions.forEach((question: any) => {
-          const { followUpQuestions, ...mainQuestion } = question;
+      const flatten = (qs: any[], pId?: string) => {
+        qs.forEach((q: any) => {
+          const { followUpQuestions, ...mainQuestion } = q;
           
-          if (parentId && !mainQuestion.showWhen) {
+          if (pId && !mainQuestion.showWhen) {
             mainQuestion.showWhen = {
-              questionId: parentId,
+              questionId: pId,
               value: "", 
             };
           }
           
-          allQuestions.push(mainQuestion);
+          allQs.push(mainQuestion);
 
           if (followUpQuestions && followUpQuestions.length > 0) {
-            flattenQuestions(followUpQuestions, question.id);
+            flatten(followUpQuestions, q.id);
           }
         });
       };
 
-      flattenQuestions(section.questions || []);
+      flatten(s.questions || []);
 
       return {
-        ...section,
-        id: section.id || section._id,
-        questions: allQuestions,
+        ...s,
+        id: s.id || s._id,
+        questions: allQs,
       };
     });
   }, [form]);
@@ -227,15 +207,15 @@ export default function ResponseForm({
       if (!section.linkedToOption && !section.linkedToQuestionId) {
         baseSections.push(section);
       } else {
-        const allQuestions = allFormSections
-          .flatMap((s) => s?.questions || [])
-          .filter((q) => q && !q.showWhen);
+        const allQs: any[] = allFormSections
+          .flatMap((s: any) => s?.questions || [])
+          .filter((q: any) => q && !q.showWhen);
 
-        for (const question of allQuestions) {
-          const answer = answers[question.id];
+        for (const qItem of allQs) {
+          const answer = answers[qItem.id];
           if (
             answer &&
-            question.followUpConfig?.[answer]?.linkedSectionId === section.id
+            qItem.followUpConfig?.[answer]?.linkedSectionId === section.id
           ) {
             linkedSections.push(section);
             break;
@@ -252,7 +232,7 @@ export default function ResponseForm({
       addedSectionIds.add(baseSection.id);
 
       const questionsInSection = (baseSection.questions || []).filter(
-        (q) => q && !q.showWhen
+        (q: any) => q && !q.showWhen
       );
 
       for (const question of questionsInSection) {
@@ -373,16 +353,30 @@ export default function ResponseForm({
         setLoading(true);
         const inviteId = searchParams.get('inviteId');
         
-        let response;
+        let response: any;
         if (inviteId) {
           response = await apiClient.getPublicForm(id, tenantSlug);
-          setForm(response.form || response);
+          setForm(response?.form || response);
         } else {
           response = await apiClient.getFormById(id);
-          setForm(response.form);
+          setForm(response?.form);
         }
         
         setError(null);
+
+        // Start Tracking Session
+        try {
+          if (response) {
+            const formTitle = response.form?.title || response.title || 'Unknown Form';
+            const sessionData = await apiClient.startFormSession(id, formTitle);
+            if (sessionData?.sessionId) {
+              setSessionTrackingId(sessionData.sessionId);
+              lastInteractionTime.current = Date.now();
+            }
+          }
+        } catch (trackErr) {
+          console.warn("Failed to start tracking session:", trackErr);
+        }
       } catch (err: any) {
         console.error("Error fetching form:", err);
         setError(err.message || "Failed to load form");
@@ -409,8 +403,6 @@ export default function ResponseForm({
   }, [formSections.length, currentSectionIndex]);
 
   const question = form;
-  const isChildForm = question?.parentFormId !== undefined;
-  const parentForm = null;
 
   const findLinkedFormInAnswers = (): string | null => {
     const checkQuestionRecursively = (
@@ -498,7 +490,8 @@ export default function ResponseForm({
       timestamp: new Date().toISOString(),
       parentResponseId: selectedParentResponse?.id,
       submissionMetadata: {
-        source: 'internal'
+        source: 'internal',
+        formSessionId: sessionTrackingId
       }
     };
 
@@ -533,25 +526,50 @@ export default function ResponseForm({
           await apiClient.submitPublicResponse(question.id, {
             inviteId,
             answers: submitData.answers,
-            location: submitData.location
+            location: submitData.location,
+            submissionMetadata: submitData.submissionMetadata,
+            startedAt: startedAt.toISOString(),
+            completedAt: new Date().toISOString(),
+            sessionId: sessionTrackingId || undefined
           });
+          
+          // Complete Tracking Session
+          if (sessionTrackingId) {
+            await apiClient.trackFormComplete(question.id, {
+              sessionId: sessionTrackingId,
+              answers: submitData.answers
+            });
+          }
+
           setSubmitted(true);
         } catch (err: any) {
           console.error("Error submitting response:", err);
           if (err.response?.message === 'ALREADY_SUBMITTED' || err.message?.includes('already been used')) {
-            const email = err.response?.data?.email || '';
-            setDuplicateInfo({
-              isDuplicate: true,
-              email: email
-            });
             setShowDuplicateMessage(true);
           } else {
             alert("Failed to submit response. Please try again.");
           }
         }
       } else {
-        await apiClient.submitResponse(question.id, submitData);
+        await apiClient.submitResponse(question.id, {
+          ...submitData,
+          startedAt: startedAt.toISOString(),
+          completedAt: new Date().toISOString(),
+          sessionId: sessionTrackingId || undefined
+        });
         
+        // Complete Tracking Session for non-invite submissions
+        if (sessionTrackingId) {
+          try {
+            await apiClient.trackFormComplete(question.id, {
+              sessionId: sessionTrackingId,
+              answers: submitData.answers
+            });
+          } catch (trackErr) {
+            console.warn("Failed to complete tracking session:", trackErr);
+          }
+        }
+
         const linkedFormId = findLinkedFormInAnswers();
         if (linkedFormId) {
           setTimeout(() => {
@@ -573,11 +591,35 @@ export default function ResponseForm({
     }
   };
 
-  const handleAnswerChange = (questionId: string, value: any) => {
+  const handleAnswerChange = async (questionId: string, value: any) => {
+    // 1. Update State
     setAnswers((prev) => ({
       ...prev,
       [questionId]: value,
     }));
+
+    // 2. Track Timing
+    if (sessionTrackingId) {
+      const now = Date.now();
+      const timeSpent = Math.max(1, Math.floor((now - lastInteractionTime.current) / 1000));
+      
+      // Find question details for tracking
+      const allQs = formSections.flatMap(s => s.questions || []);
+      const q = allQs.find(q => q.id === questionId);
+
+      if (q) {
+        apiClient.trackQuestionTime(question.id, {
+          sessionId: sessionTrackingId,
+          questionId,
+          questionText: q.text || q.label || '',
+          questionType: q.type,
+          timeSpent,
+          answer: value
+        }).catch(() => {});
+      }
+      
+      lastInteractionTime.current = now;
+    }
   };
 
   const handleNext = () => {
@@ -623,7 +665,7 @@ export default function ResponseForm({
   const handleLoadSampleAnswers = () => {
     const allQuestions: FollowUpQuestion[] = [];
     formSections.forEach((section) => {
-      (section.questions || []).forEach((item) => {
+      (section.questions || []).forEach((item: any) => {
         allQuestions.push(item);
       });
       if (section.subsections) {
@@ -689,7 +731,7 @@ export default function ResponseForm({
   }
 
   if (showDuplicateMessage) {
-    return <ThankYouMessage isDuplicate={true} email={duplicateInfo.email} />;
+    return <ThankYouMessage />;
   }
 
   const currentSection = formSections[currentSectionIndex];
@@ -798,8 +840,6 @@ export default function ResponseForm({
                       question={q}
                       value={answers[q.id]}
                       onChange={(value) => handleAnswerChange(q.id, value)}
-                      formId={id}
-                      tenantSlug={tenantSlug}
                     />
                   </div>
                 ))}
@@ -834,14 +874,12 @@ export default function ResponseForm({
                             question={q}
                             value={answers[q.id]}
                             onChange={(value) => handleAnswerChange(q.id, value)}
-                            formId={id}
-                            tenantSlug={tenantSlug}
                           />
                         </div>
                       ))}
                     </div>
                   </div>
-                ))}
+              ))} 
             </div>
 
             {/* Navigation Buttons */}
