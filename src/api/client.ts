@@ -10,11 +10,10 @@ const API_BASE_URL = (() => {
 
   const baseUrl = isLocal
     ? "http://127.0.0.1:5000/api"
-    : "https://formsapi.focusengineeringapp.com/api";
+    : "https://3wheelertvsbackend.focusengineeringapp.com/api";
 
   console.log(
-    `🔗 API Base URL: ${baseUrl} (Environment: ${
-      isLocal ? "Local" : "Production"
+    `🔗 API Base URL: ${baseUrl} (Environment: ${isLocal ? "Local" : "Production"
     })`,
   );
   return baseUrl;
@@ -138,7 +137,7 @@ class ApiClient {
   }
 
   // Authentication
-   async login(credentials: {
+  async login(credentials: {
     email: string;
     password: string;
     tenantSlug?: string;
@@ -204,7 +203,7 @@ class ApiClient {
 
 
   // Users
-   async getUsers(params?: {
+  async getUsers(params?: {
     role?: string;
     search?: string;
     page?: number;
@@ -320,7 +319,7 @@ class ApiClient {
 
     return data.data;
   }
-   async submitPublicResponse(
+  async submitPublicResponse(
     formId: string,
     data: {
       inviteId: string;
@@ -491,7 +490,7 @@ class ApiClient {
     });
   }
 
-   async submitResponse(
+  async submitResponse(
     formId: string,
     responseData: any & {
       startedAt?: Date | string;
@@ -556,7 +555,7 @@ class ApiClient {
   async getFormAnalytics(formId: string) {
     return this.request<any>(`/analytics/form/${formId}`);
   }
-  
+
 
   // Rank tracking
   async getResponseRank(
@@ -590,7 +589,7 @@ class ApiClient {
     return this.request<any>("/analytics/users");
   }
 
-    async getAdminPerformance(adminId: string, params?: { startDate?: string; endDate?: string }) {
+  async getAdminPerformance(adminId: string, params?: { startDate?: string; endDate?: string }) {
     const query = new URLSearchParams();
     if (params?.startDate) query.set("startDate", params.startDate);
     if (params?.endDate) query.set("endDate", params.endDate);
@@ -609,8 +608,8 @@ class ApiClient {
     return this.request<any>(endpoint);
   }
   // Roles
-  
-   async getAdminResponseDetails(adminId: string, params?: { startDate?: string; endDate?: string }) {
+
+  async getAdminResponseDetails(adminId: string, params?: { startDate?: string; endDate?: string }) {
     const query = new URLSearchParams();
     if (params?.startDate) query.set("startDate", params.startDate);
     if (params?.endDate) query.set("endDate", params.endDate);
@@ -1045,9 +1044,8 @@ class ApiClient {
       query.set("formId", params.formId);
     }
 
-    const endpoint = `/parameters${
-      query.toString() ? `?${query.toString()}` : ""
-    }`;
+    const endpoint = `/parameters${query.toString() ? `?${query.toString()}` : ""
+      }`;
 
     return this.request<{ parameters: any[] }>(endpoint);
   }
@@ -1131,8 +1129,8 @@ class ApiClient {
         console.error("API Error Response:", errorData);
         throw new Error(
           errorData.details ||
-            errorData.error ||
-            `PDF generation failed: ${response.statusText}`,
+          errorData.error ||
+          `PDF generation failed: ${response.statusText}`,
         );
       }
 
@@ -1235,9 +1233,8 @@ class ApiClient {
       });
     }
 
-    const endpoint = `/forms/${formId}/invites${
-      query.toString() ? `?${query.toString()}` : ""
-    }`;
+    const endpoint = `/forms/${formId}/invites${query.toString() ? `?${query.toString()}` : ""
+      }`;
     const url = `${this.baseUrl}${endpoint}`;
 
     const headers: Record<string, string> = {
@@ -1387,7 +1384,7 @@ class ApiClient {
 
     const endpoint = `/users/available${query.toString() ? `?${query.toString()}` : ""}`;
     return this.request<{ users: any[] }>(endpoint);
-  }async sendHeartbeat(data: { url: string; sessionId?: string; formSessionId?: string }) {
+  } async sendHeartbeat(data: { url: string; sessionId?: string; formSessionId?: string }) {
     return this.request("/activity/heartbeat", {
       method: "POST",
       body: JSON.stringify(data),
