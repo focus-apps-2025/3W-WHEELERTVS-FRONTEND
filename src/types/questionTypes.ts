@@ -22,4 +22,9 @@ export type QuestionType =
   | "emoji-reaction-feedback"
   | "rating-number"
   | "satisfaction-rating"
-  | "productNPSTGWBuckets";
+  | "productNPSTGWBuckets"
+  | "select"
+  | "number"
+  | "chassisNumber"
+  | "chassis-with-zone"
+  | "chassis-without-zone";

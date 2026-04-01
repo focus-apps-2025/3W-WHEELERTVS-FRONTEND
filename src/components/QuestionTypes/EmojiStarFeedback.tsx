@@ -6,6 +6,7 @@ interface EmojiStarFeedbackProps {
   value: string;
   onChange: (value: string) => void;
   readOnly?: boolean;
+  isApplied?: boolean;
 }
 
 const STAR_EMOJIS = ['⭐', '⭐', '⭐', '⭐', '⭐'];
@@ -15,6 +16,7 @@ export default function EmojiStarFeedback({
   value,
   onChange,
   readOnly = false,
+  isApplied = false,
 }: EmojiStarFeedbackProps) {
   const currentValue = parseInt(value) || 0;
 

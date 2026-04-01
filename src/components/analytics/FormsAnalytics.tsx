@@ -49,6 +49,8 @@ import EmailInviteModal from "../EmailInviteModal";
 import WhatsAppInviteModal from "../WhatsAppInviteModal";
 import SMSInviteModal from "../SMSInviteModal";
 
+import { useAuth } from "../../context/AuthContext";
+
 // Add this interface for the dropdown options
 interface TemplateOption {
   id: "flat" | "nested" | "linking";
@@ -56,11 +58,12 @@ interface TemplateOption {
   description: string;
 }
 
-
 interface FormItem {
   _id: string;
   id?: string;
   title: string;
+  tenantId?: string;
+  chassisTenantAssignments?: any[];
   description?: string;
   isVisible?: boolean;
   locationEnabled?: boolean;
@@ -85,6 +88,7 @@ interface ResponseData {
 
 export default function FormsAnalytics() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { showSuccess, showError, showConfirm } = useNotification();
   const [searchTerm, setSearchTerm] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -892,7 +896,7 @@ export default function FormsAnalytics() {
             if (!parent) return null;
 
             const formId = parent.id || parent._id;
-            const responseCount = responseCounts[formId] || 0;
+            const responseCount = responseCounts[formId] || parent.responseCount || 0;
             const isLocationEnabled = parent.locationEnabled !== false;
 
             return (
@@ -915,41 +919,45 @@ export default function FormsAnalytics() {
                   <div className="flex items-center">
                     <Users className="w-3 h-3 mr-1" />
                     {responseCount} responses
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openEmailInviteModal(formId);
-                      }}
-                      title="Send Email Invites"
-                      className="p-1.5 rounded-lg hover:bg-blue-100 transition-colors group relative"
-                    >
-                      <Mail className="w-4 h-4 text-blue-600 group-hover:text-blue-700" />
-                      {inviteCounts[formId] > 0 && (
-                        <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                          {inviteCounts[formId]}
-                        </span>
-                      )}
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openWhatsAppInviteModal(formId);
-                      }}
-                      title="Send WhatsApp Invites"
-                      className="p-1.5 rounded-lg hover:bg-green-100 transition-colors group"
-                    >
-                      <MessageCircle className="w-4 h-4 text-green-600 group-hover:text-green-700" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openSMSInviteModal(formId);
-                      }}
-                      title="Send SMS Invites"
-                      className="p-1.5 rounded-lg hover:bg-purple-100 transition-colors group"
-                    >
-                      <MessageSquare className="w-4 h-4 text-purple-600 group-hover:text-purple-700" />
-                    </button>
+                    {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEmailInviteModal(formId);
+                          }}
+                          title="Send Email Invites"
+                          className="p-1.5 rounded-lg hover:bg-blue-100 transition-colors group relative"
+                        >
+                          <Mail className="w-4 h-4 text-blue-600 group-hover:text-blue-700" />
+                          {inviteCounts[formId] > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                              {inviteCounts[formId]}
+                            </span>
+                          )}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openWhatsAppInviteModal(formId);
+                          }}
+                          title="Send WhatsApp Invites"
+                          className="p-1.5 rounded-lg hover:bg-green-100 transition-colors group"
+                        >
+                          <MessageCircle className="w-4 h-4 text-green-600 group-hover:text-green-700" />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openSMSInviteModal(formId);
+                          }}
+                          title="Send SMS Invites"
+                          className="p-1.5 rounded-lg hover:bg-purple-100 transition-colors group"
+                        >
+                          <MessageSquare className="w-4 h-4 text-purple-600 group-hover:text-purple-700" />
+                        </button>
+                      </>
+                    )}
                   </div>
                   <div className="flex items-center gap-3">
                     {/* 3-dot menu */}
@@ -1201,65 +1209,84 @@ export default function FormsAnalytics() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex space-x-2">
-                    <button
-                      onClick={() => navigate(`/forms/${formId}/preview`)}
-                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
-                    >
-                      View
-                    </button>
-                    <button
-                      onClick={() => navigate(`/forms/${formId}/edit`)}
-                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
-                      title="Edit form"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => navigate(`/forms/${formId}/analytics`)}
-                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
-                      title="View analytics"
-                    >
-                      <BarChart3 className="w-4 h-4" />
-                      Analytics
-                    </button>
-                    {/* <button
-                      onClick={() => navigate(`/forms/${formId}/responses`)}
-                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
-                      title="View responses"
-                    >
-                      <List className="w-4 h-4" />
-                      Responses
-                    </button> */}
-                    <button
-                      onClick={() => navigate(`/forms/${formId}/uploads`)}
-                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
-                      title="View uploads"
-                    >
-                      <Folder className="w-4 h-4" />
-                      Uploads
-                    </button>
+                    {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && (
+                      <button
+                        onClick={() => navigate(`/forms/${formId}/preview`)}
+                        className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
+                      >
+                        View
+                      </button>
+                    )}
+                    {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) ? (
+                      <>
+                        <button
+                          onClick={() => navigate(`/forms/${formId}/edit`)}
+                          className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
+                          title="Edit form"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => navigate(`/forms/${formId}/analytics`)}
+                          className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
+                          title="View analytics"
+                        >
+                          <BarChart3 className="w-4 h-4" />
+                          Analytics
+                        </button>
+                        <button
+                          onClick={() => navigate(`/forms/${formId}/uploads`)}
+                          className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
+                          title="View uploads"
+                        >
+                          <Folder className="w-4 h-4" />
+                          Uploads
+                        </button>
+                      </>
+                    ) : (
+                      <div className="flex space-x-2">
+                        <button
+                          onClick={() => navigate(`/forms/${formId}/analytics`)}
+                          className="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg transition-colors hover:bg-indigo-700 flex items-center gap-2"
+                          title="View Shared Responses"
+                        >
+                          <List className="w-4 h-4" />
+                          Analytics
+                        </button>
+                        <button
+                          onClick={() => navigate(`/forms/${formId}/uploads`)}
+                          className="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg transition-colors hover:bg-indigo-700 flex items-center gap-2"
+                          title="View Shared Uploads"
+                        >
+                          <Folder className="w-4 h-4" />
+                          Uploads
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleDuplicate(formId)}
-                      className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
-                      title="Duplicate form"
-                      disabled={duplicateMutation.loading}
-                    >
-                      <Copy className="w-4 h-4" />
-                      Duplicate
-                    </button>
-                    <button
-                      onClick={() => handleDelete(formId, parent.title)}
-                      className="px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700 flex items-center gap-2"
-                      title="Delete form"
-                      disabled={deleteMutation.loading}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Delete
-                    </button>
-                  </div>
+                  {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && (
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleDuplicate(formId)}
+                        className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
+                        title="Duplicate form"
+                        disabled={duplicateMutation.loading}
+                      >
+                        <Copy className="w-4 h-4" />
+                        Duplicate
+                      </button>
+                      <button
+                        onClick={() => handleDelete(formId, parent.title)}
+                        className="px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700 flex items-center gap-2"
+                        title="Delete form"
+                        disabled={deleteMutation.loading}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {children.length > 0 && (
@@ -1351,52 +1378,59 @@ export default function FormsAnalytics() {
 
                               {/* Quick action buttons */}
                               <div className="flex items-center justify-between gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                <button
-                                  onClick={() =>
-                                    navigate(`/forms/${childId}/preview`)
-                                  }
-                                  className="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-gradient-to-r from-primary-500 to-primary-600 text-white hover:from-primary-600 hover:to-primary-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center gap-1"
-                                  title="View form"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                  View
-                                </button>
-                                <button
-                                  onClick={() =>
-                                    navigate(`/forms/${childId}/edit`)
-                                  }
-                                  className="p-1.5 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50 transition-colors"
-                                  title="Edit form"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
+                                {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && (
+                                  <>
+                                    <button
+                                      onClick={() =>
+                                        navigate(`/forms/${childId}/preview`)
+                                      }
+                                      className="flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-gradient-to-r from-primary-500 to-primary-600 text-white hover:from-primary-600 hover:to-primary-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center gap-1"
+                                      title="View form"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                      View
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        navigate(`/forms/${childId}/edit`)
+                                      }
+                                      className="p-1.5 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50 transition-colors"
+                                      title="Edit form"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </>
+                                )}
                                 <button
                                   onClick={() =>
                                     navigate(`/forms/${childId}/analytics`)
                                   }
-                                  className="p-1.5 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50 transition-colors"
+                                  className={`${(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) ? 'p-1.5 border border-primary-200 text-primary-600' : 'flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm flex items-center justify-center gap-1'} transition-all flex items-center justify-center`}
                                   title="Analytics"
                                 >
                                   <BarChart3 className="w-3.5 h-3.5" />
+                                  {!(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && <span className="ml-1">Analytics</span>}
                                 </button>
                                 <button
                                   onClick={() =>
                                     navigate(`/forms/${childId}/responses`)
                                   }
-                                  className="p-1.5 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50 transition-colors"
+                                  className={`${(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) ? 'p-1.5 border border-primary-200 text-primary-600' : 'p-1.5 border border-indigo-200 text-indigo-600 hover:bg-indigo-50'} transition-all rounded-lg flex items-center justify-center`}
                                   title="Responses"
                                 >
                                   <List className="w-3.5 h-3.5" />
                                 </button>
-                                <button
-                                  onClick={() =>
-                                    handleDelete(childId, child.title || "")
-                                  }
-                                  className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && (
+                                  <button
+                                    onClick={() =>
+                                      handleDelete(childId, child.title || "")
+                                    }
+                                    className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                                    title="Delete"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </div>

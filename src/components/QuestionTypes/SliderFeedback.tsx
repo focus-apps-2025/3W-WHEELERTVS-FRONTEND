@@ -6,6 +6,7 @@ interface SliderFeedbackProps {
   value: string;
   onChange: (value: string) => void;
   readOnly?: boolean;
+  isApplied?: boolean;
 }
 
 const EMOJI_LEVELS = [
@@ -20,10 +21,12 @@ export default function SliderFeedback({
   value,
   onChange,
   readOnly = false,
+  isApplied = false,
 }: SliderFeedbackProps) {
   const currentValue = parseInt(value) || 5;
 
   const getColor = (val: number) => {
+    if (isApplied) return 'from-emerald-500 to-emerald-600';
     if (val <= 3) return 'from-red-500 to-orange-500';
     if (val <= 5) return 'from-orange-500 to-yellow-500';
     if (val <= 7) return 'from-yellow-500 to-lime-500';

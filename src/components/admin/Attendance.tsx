@@ -34,6 +34,7 @@ interface AttendanceRecord {
     loginTime: string | null;
     logoutTime: string | null;
     workingHours: number;
+    workingMinutes?: number; 
     isPresent: boolean;
     presentStatus: string;
     location?: {
@@ -535,69 +536,61 @@ export default function Attendance() {
 
     // Render date cell with detailed stats for UI (keeping original UI)
     const renderDateCell = (record: AttendanceRecord | undefined, isFuture: boolean) => {
-        if (isFuture) {
-            return (
-                <div className="flex flex-col gap-0.5 p-1">
-                    <span className="text-gray-400 text-xs">-</span>
-                </div>
-            );
-        }
+  if (isFuture) {
+    return <div className="text-gray-400 text-xs">-</div>;
+  }
 
-        if (!record || !record.loginTime) {
-            return (
-                <div className="flex flex-col gap-0.5 p-1">
-                    <span className="text-gray-400 text-xs">-</span>
-                </div>
-            );
-        }
+  if (!record || !record.loginTime) {
+    return <div className="text-gray-400 text-xs">-</div>;
+  }
 
-        const workingHours = calculateWorkingHours(record.loginTime, record.logoutTime, record.workingHours);
-        const isActive = !record.logoutTime && record.isActive;
+  // Use workingMinutes if available, otherwise calculate from workingHours
+  let workingMinutes = record.workingMinutes || Math.round(record.workingHours * 60);
+  
+  // For active sessions, calculate real-time minutes
+  if (!record.logoutTime && record.isActive) {
+    const loginDate = new Date(record.loginTime);
+    const now = new Date();
+    const isToday = loginDate.toDateString() === now.toDateString();
+    
+    if (isToday) {
+      workingMinutes = Math.floor((now.getTime() - loginDate.getTime()) / (1000 * 60));
+    }
+  }
 
-        return (
-            <div className="flex flex-col gap-0.5 p-1 text-xs">
-                {/* Login Time */}
-                <div className="flex items-center gap-1">
-                    <span className="text-blue-600 font-medium">{formatTime(record.loginTime)}</span>
-                </div>
+  const formatMinutes = (minutes: number): string => {
+    if (!minutes || minutes <= 0) return '-';
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    
+    if (hours === 0) return `${mins}m`;
+    if (mins === 0) return `${hours}h`;
+    return `${hours}h ${mins}m`;
+  };
 
-                {/* Logout Time */}
-                <div className="flex items-center gap-1">
-                    <span className="text-orange-600">{formatTime(record.logoutTime)}</span>
-                </div>
-
-                {/* Working Hours */}
-                <div className="flex items-center gap-1">
-                    <Clock className="w-2.5 h-2.5 text-gray-400" />
-                    <span className="text-gray-600">{workingHours > 0 ? `${Math.round(workingHours * 60)}m` : '-'}</span>
-                </div>
-
-                {/* Status */}
-                <div className="mt-0.5">
-                    {isActive ? (
-                        <div className="flex items-center gap-1">
-                            <Wifi className="w-3 h-3 text-green-500" />
-                            <span className="text-green-600 text-xs font-medium">Active</span>
-                        </div>
-                    ) : record.isPresent ? (
-                        <span className="text-green-600 text-xs font-bold">P</span>
-                    ) : (
-                        <span className="text-gray-400 text-xs">-</span>
-                    )}
-                </div>
-
-                {/* Location */}
-                {record.location?.city && (
-                    <div className="flex items-center gap-1 text-gray-500 mt-0.5">
-                        <MapPin className="w-2.5 h-2.5" />
-                        <span className="truncate max-w-[60px]" title={record.location.city}>
-                            {record.location.city}
-                        </span>
-                    </div>
-                )}
-            </div>
-        );
-    };
+  return (
+    <div className="flex flex-col gap-0.5 p-1 text-xs">
+      <div className="flex items-center gap-1">
+        <span className="text-blue-600 font-medium">{formatTime(record.loginTime)}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <span className="text-orange-600">{formatTime(record.logoutTime)}</span>
+      </div>
+      <div className="flex items-center gap-1">
+        <Clock className="w-2.5 h-2.5 text-gray-400" />
+        <span className="text-gray-600">{formatMinutes(workingMinutes)}</span>
+      </div>
+      {!record.logoutTime && record.isActive && (
+        <div className="mt-0.5">
+          <div className="flex items-center gap-1">
+            <Wifi className="w-3 h-3 text-green-500 animate-pulse" />
+            <span className="text-green-600 text-xs font-medium">Active</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
     // Get role badge color
     const getRoleBadgeColor = (role: string) => {

@@ -2242,9 +2242,16 @@ const handleBulkDownloadZip = async () => {
                                         <>
                                           {renderHighlightedAnswer(answer, question)}
                                           {question.trackResponseRank && response.responseRanks?.[question.id] && (
-                                            <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(answer, document.documentElement.classList.contains("dark"))}`}>
-                                              #{response.responseRanks[question.id]}
-                                            </span>
+                                             <div className="flex flex-col gap-1 mt-2">
+                                              {question.trackResponseRankLabel && (
+                                                <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tight leading-none">
+                                                  {question.trackResponseRankLabel}
+                                                </span>
+                                              )}
+                                              <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit ${getRankStyle(answer, document.documentElement.classList.contains("dark"))}`}>
+                                                #{response.responseRanks[question.id]}
+                                              </span>
+                                            </div>
                                           )}
                                         </>
                                       )

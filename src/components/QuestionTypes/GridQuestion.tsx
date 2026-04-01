@@ -7,6 +7,7 @@ interface GridQuestionProps {
   onChange: (value: Record<string, string | string[]>) => void;
   type: "radio" | "checkbox";
   readOnly?: boolean;
+  isApplied?: boolean;
 }
 
 export default function GridQuestion({
@@ -15,6 +16,7 @@ export default function GridQuestion({
   onChange,
   type,
   readOnly = false,
+  isApplied = false,
 }: GridQuestionProps) {
   if (!question.gridOptions) return null;
   const { rows, columns } = question.gridOptions;
@@ -84,7 +86,7 @@ export default function GridQuestion({
                     }
                     onChange={(e) => handleChange(row, col, e.target.checked)}
                     disabled={readOnly}
-                    className={`h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 ${
+                    className={`h-4 w-4 ${isApplied ? 'text-emerald-600 focus:ring-emerald-500' : 'text-blue-600 focus:ring-blue-500'} border-gray-300 ${
                       readOnly ? "cursor-not-allowed" : ""
                     }`}
                     required={

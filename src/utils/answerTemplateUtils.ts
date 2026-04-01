@@ -182,9 +182,16 @@ export function generateAnswerTemplate(form: Question) {
       // Add main question
       const mainLabel = mainQuestion.text || "Untitled Question";
       const mainType = mainQuestion.type || "text";
-      const mainOptions = mainQuestion.options
+      let mainOptions = mainQuestion.options
         ? mainQuestion.options.join("|")
         : "";
+
+      // Provide format hint for special types
+      if (mainType === "chassis-with-zone") {
+        mainOptions = "Format: Chassis: [ID]; Status: [Accepted/Rejected/Rework]; Zones: [Zone A, Zone B]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
+      } else if (mainType === "chassis-without-zone") {
+        mainOptions = "Format: Chassis: [ID]; Status: [Accepted/Rejected/Rework]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
+      }
 
       allQuestions.push({
         label: mainLabel,
@@ -244,9 +251,16 @@ export function generateAnswerTemplate(form: Question) {
 
           const followUpLabel = followUp.text || "Follow-up Question";
           const followUpType = followUp.type || "text";
-          const followUpOptions = followUp.options
+          let followUpOptions = followUp.options
             ? followUp.options.join("|")
             : "";
+
+          // Provide format hint for special types
+          if (followUpType === "chassis-with-zone") {
+            followUpOptions = "Format: Chassis: [ID]; Status: [Accepted/Rejected/Rework]; Zones: [Zone A, Zone B]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
+          } else if (followUpType === "chassis-without-zone") {
+            followUpOptions = "Format: Chassis: [ID]; Status: [Accepted/Rejected/Rework]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
+          }
 
           allQuestions.push({
             label: followUpLabel,
@@ -300,16 +314,18 @@ export function generateAnswerTemplate(form: Question) {
     "Question ID", // HIDDEN - for mapping
     "Type",
     "Options",
+    "Image/File URL",
     "Answer",
   ];
 
-  // Add headers for follow-ups (6 columns per follow-up - including hidden ID)
+  // Add headers for follow-ups (7 columns per follow-up - including hidden ID)
   for (let i = 0; i < maxFollowUpsPerRow; i++) {
     headerRow.push(`FU No.`);
     headerRow.push(`Follow-up Question`);
     headerRow.push(`Question ID`); // HIDDEN - for mapping
     headerRow.push(`Type`);
     headerRow.push(`Options`);
+    headerRow.push(`Image/File URL`);
     headerRow.push(`Answer`);
   }
 
@@ -324,7 +340,7 @@ export function generateAnswerTemplate(form: Question) {
 
       // Create row with Question ID columns
       const excelRow: Array<string | number> = new Array(
-        7 + maxFollowUpsPerRow * 6, // 7 main columns + (follow-ups * 6 columns each)
+        8 + maxFollowUpsPerRow * 7, // 8 main columns + (follow-ups * 7 columns each)
       ).fill("");
 
       excelRow[0] = firstRowInSection ? section.title : "";
@@ -337,12 +353,13 @@ export function generateAnswerTemplate(form: Question) {
       excelRow[3] = mainQuestion.id; // Question ID (hidden)
       excelRow[4] = mainQuestion.type;
       excelRow[5] = mainQuestion.options;
-      excelRow[6] = ""; // Answer column
+      excelRow[6] = (mainQuestion.question as any).imageUrl || ""; // Image URL
+      excelRow[7] = ""; // Answer column
 
       // Fill follow-up columns with Question IDs
       for (let i = 0; i < totalFollowUps; i++) {
         const followUp = row.allQuestions[i + 1];
-        const columnOffset = 7 + i * 6; // 6 columns per follow-up
+        const columnOffset = 8 + i * 7; // 7 columns per follow-up
 
         // Column 1: FU No.
         excelRow[columnOffset] = followUp.questionNumber;
@@ -360,8 +377,11 @@ export function generateAnswerTemplate(form: Question) {
         // Column 5: Options
         excelRow[columnOffset + 4] = followUp.options;
 
-        // Column 6: Answer
-        excelRow[columnOffset + 5] = "";
+        // Column 6: Image URL
+        excelRow[columnOffset + 5] = (followUp.question as any).imageUrl || "";
+
+        // Column 7: Answer
+        excelRow[columnOffset + 6] = "";
       }
 
       data.push(excelRow);
@@ -445,7 +465,7 @@ export function generateAnswerTemplate(form: Question) {
     }
 
     // Style main question cells (skip Question ID column)
-    for (let colIndex = 1; colIndex <= 5; colIndex++) {
+    for (let colIndex = 1; colIndex <= 6; colIndex++) {
       const cellAddress = utils.encode_cell({ r: rowIndex, c: colIndex });
       if (!worksheet[cellAddress]) {
         worksheet[cellAddress] = { t: "s", v: row[colIndex] };
@@ -501,7 +521,7 @@ export function generateAnswerTemplate(form: Question) {
     };
 
     // Style main answer cell
-    styleAnswerCell(6);
+    styleAnswerCell(7);
 
     // Style follow-up cells (compact)
     for (
@@ -509,7 +529,7 @@ export function generateAnswerTemplate(form: Question) {
       followUpIndex < maxFollowUpsPerRow;
       followUpIndex++
     ) {
-      const baseColumnOffset = 7 + followUpIndex * 6;
+      const baseColumnOffset = 8 + followUpIndex * 7;
 
       if (row[baseColumnOffset]) {
         // Style FU No. cell (compact)
@@ -601,8 +621,8 @@ export function generateAnswerTemplate(form: Question) {
           },
         };
 
-        // Style Type and Options cells (compact)
-        for (let offset = 3; offset <= 4; offset++) {
+        // Style Type, Options, and Image cells (compact)
+        for (let offset = 3; offset <= 5; offset++) {
           const typeCell = utils.encode_cell({
             r: rowIndex,
             c: baseColumnOffset + offset,
@@ -631,7 +651,7 @@ export function generateAnswerTemplate(form: Question) {
         }
 
         // Style follow-up answer cell
-        styleAnswerCell(baseColumnOffset + 5);
+        styleAnswerCell(baseColumnOffset + 6);
       }
     }
   }
@@ -644,16 +664,18 @@ export function generateAnswerTemplate(form: Question) {
     { wch: 0 }, // Question ID - HIDDEN (width 0)
     { wch: 8 }, // Type - Reduced from 10
     { wch: 15 }, // Options - Reduced from 20
+    { wch: 25 }, // Image/File URL - Added
     { wch: 20 }, // Answer - Reduced from 30
   ];
 
-  // COMPACT widths for follow-up columns (6 columns per follow-up)
+  // COMPACT widths for follow-up columns (7 columns per follow-up)
   for (let i = 0; i < maxFollowUpsPerRow; i++) {
     columnWidths.push({ wch: 8 }); // FU No. - Reduced from 12
     columnWidths.push({ wch: 25 }); // Follow-up Question - Reduced from 30
     columnWidths.push({ wch: 0 }); // Question ID - HIDDEN (width 0)
     columnWidths.push({ wch: 8 }); // Type - Reduced from 10
     columnWidths.push({ wch: 15 }); // Options - Reduced from 20
+    columnWidths.push({ wch: 25 }); // Image/File URL - Added
     columnWidths.push({ wch: 20 }); // Answer - Reduced from 30
   }
 
@@ -664,7 +686,7 @@ export function generateAnswerTemplate(form: Question) {
 
   // Calculate and hide all follow-up Question ID columns
   for (let i = 0; i < maxFollowUpsPerRow; i++) {
-    hiddenColumns.push(7 + i * 6 + 2); // Add follow-up Question ID columns
+    hiddenColumns.push(8 + i * 7 + 2); // Add follow-up Question ID columns
   }
   worksheet["!hiddenCols"] = hiddenColumns;
 
@@ -824,7 +846,7 @@ export async function parseAnswerWorkbook(
       if (header === "Question ID" && colIndex > mainQuestionIdCol) {
         // This is a follow-up Question ID column
         const questionId = row[colIndex]?.toString().trim() || "";
-        const answerColIndex = colIndex + 3; // Answer is 3 columns after Question ID
+        const answerColIndex = colIndex + 4; // Answer is 4 columns after Question ID (Question ID, Type, Options, Image/File URL, Answer)
         const answerValue = row[answerColIndex]?.toString().trim() || "";
 
         if (questionId && answerValue) {
@@ -885,6 +907,73 @@ export async function parseAnswerWorkbook(
   return answers;
 }
 
+function parseChassisAnswer(value: string, type: string) {
+  if (!value || typeof value !== "string") return value;
+
+  const result: any = {
+    chassisNumber: "",
+    status: "",
+    defectCategory: "",
+    defects: [],
+  };
+
+  if (type === "chassis-with-zone") {
+    result.zone = [];
+  }
+
+  // Split by semicolon
+  const parts = value.split(";").map((p) => p.trim());
+
+  parts.forEach((part) => {
+    const lowerPart = part.toLowerCase();
+    if (lowerPart.startsWith("chassis:")) {
+      result.chassisNumber = part.split(":")[1]?.trim() || "";
+    } else if (lowerPart.startsWith("status:")) {
+      result.status = part.split(":")[1]?.trim() || "";
+    } else if (lowerPart.startsWith("zones:") && type === "chassis-with-zone") {
+      const zonesStr = part.split(":")[1]?.trim() || "";
+      result.zone = zonesStr
+        .split(",")
+        .map((z) => z.trim())
+        .filter(Boolean);
+    } else if (lowerPart.startsWith("category:")) {
+      result.defectCategory = part.split(":")[1]?.trim() || "";
+    } else if (lowerPart.startsWith("defects:")) {
+      const defectsStr = part.split(":")[1]?.trim() || "";
+      // Split defects by comma, but be careful of commas inside remarks/brackets
+      // Simple split for now, assuming defects are comma separated
+      const defectItems = defectsStr.split(",").map((d) => d.trim()).filter(Boolean);
+      
+      result.defects = defectItems.map(item => {
+        // Look for remark in () and URL in {}
+        const remarkMatch = item.match(/\((.*?)\)/);
+        const urlMatch = item.match(/\{(.*?)\}/);
+        
+        let name = item;
+        if (remarkMatch) name = name.replace(remarkMatch[0], "");
+        if (urlMatch) name = name.replace(urlMatch[0], "");
+        
+        return {
+          name: name.trim(),
+          remark: remarkMatch ? remarkMatch[1] : "",
+          fileUrl: urlMatch ? urlMatch[1] : ""
+        };
+      });
+    } else if (lowerPart.startsWith("evidence:")) {
+      const evidenceStr = part.split(":")[1]?.trim() || "";
+      const urlMatch = evidenceStr.match(/\{(.*?)\}/);
+      result.evidenceUrl = urlMatch ? urlMatch[1] : (evidenceStr || "");
+    }
+  });
+
+  // Fallback for simple status-only input
+  if (!result.status && (value === "Accepted" || value === "Rejected" || value === "Rework")) {
+    result.status = value;
+  }
+
+  return result;
+}
+
 export function formatAnswersForSubmission(
   form: Question,
   parsedAnswers: ParsedAnswers,
@@ -921,6 +1010,12 @@ export function formatAnswersForSubmission(
             .split("|")
             .map((a) => a.trim())
             .filter(Boolean);
+        } else if (
+          (question.type === "chassis-with-zone" ||
+            question.type === "chassis-without-zone") &&
+          typeof answerValue === "string"
+        ) {
+          answers[question.id] = parseChassisAnswer(answerValue, question.type);
         } else if (question.type === "multipleChoice") {
           answers[question.id] = answerValue;
         } else if (question.type === "number" || question.type === "rating") {

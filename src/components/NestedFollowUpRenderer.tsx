@@ -11,6 +11,10 @@ interface FollowUpQuestion {
   text: string;
   type: string;
   required: boolean;
+  trackResponseRank?: boolean;
+  trackResponseRankLabel?: string;
+  trackResponseRankType?: string;
+
   options?: string[];
   allowedFileTypes?: string[];
   description?: string;
@@ -141,7 +145,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
   };
 
   const requiresFollowUp = (type: string): boolean => {
-    return ["radio", "checkbox", "select", "search-select"].includes(type);
+    return ["radio", "checkbox", "select", "search-select","yesNoNA"].includes(type);
   };
 
   const getIndentClass = (depth: number): string => {
@@ -222,7 +226,23 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                 <span className="text-xs text-gray-500 dark:text-gray-500">Follow-up Question</span>
               </div>
               <div className="flex items-center space-x-2">
-                <label className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg transition-colors" title="Track Response Rank">
+                 <label className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg transition-colors" title="Track Question">
+                  <input
+                    type="checkbox"
+                    checked={followUpQ.trackResponseRank || false}
+                    onChange={(e) =>
+                      onUpdate(
+                        sectionId,
+                        followUpQ.id,
+                        { trackResponseRank: e.target.checked },
+                        path
+                      )
+                    }
+                    className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                  />
+                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Question</span>
+                </label>
+                <label className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg transition-colors" title="Track Rank">
                   <input
                     type="checkbox"
                     checked={followUpQ.trackResponseRank || false}
@@ -374,25 +394,52 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
               </label>
               <select
                 value={followUpQ.type}
-                onChange={(e) => {
-                  const nextType = e.target.value;
-                  const updates: Partial<FollowUpQuestion> = {
+              onChange={(e) => {
+              const nextType = e.target.value;
+              const updates: Partial<FollowUpQuestion> = {
                     type: nextType,
                     options:
                       requiresFollowUp(nextType) && !followUpQ.options
                         ? ["Option 1", "Option 2"]
                         : followUpQ.options,
                   };
-                  if (nextType === "file") {
-                    updates.allowedFileTypes =
-                      followUpQ.allowedFileTypes && followUpQ.allowedFileTypes.length > 0
-                        ? followUpQ.allowedFileTypes
-                        : ["image", "pdf", "excel"];
-                  } else if (followUpQ.allowedFileTypes) {
-                    updates.allowedFileTypes = undefined;
-                  }
-                  onUpdate(sectionId, followUpQ.id, updates, path);
-                }}
+
+  
+  // Handle Yes/No/NA type - initialize with default options but make them editable
+  if (nextType === "yesNoNA") {
+    // Only set default options if there are no existing options
+    if (!followUpQ.options || followUpQ.options.length === 0) {
+      updates.options = ["Yes", "No", "N/A"];
+    }
+    updates.correctAnswer = "Yes";
+  }
+  // Handle other multiple choice types
+  else if (requiresFollowUp(nextType)) {
+    if (!followUpQ.options || followUpQ.options.length === 0) {
+      updates.options = ["Option 1", "Option 2"];
+    }
+    // Clear correctAnswer if switching from Yes/No/NA
+    if (followUpQ.type === "yesNoNA") {
+      updates.correctAnswer = undefined;
+    }
+  } 
+  // Handle non-option types
+  else {
+    updates.options = undefined;
+    updates.correctAnswer = undefined;
+  }
+  
+  if (nextType === "file") {
+    updates.allowedFileTypes =
+      followUpQ.allowedFileTypes && followUpQ.allowedFileTypes.length > 0
+        ? followUpQ.allowedFileTypes
+        : ["image", "pdf", "excel"];
+  } else if (followUpQ.allowedFileTypes) {
+    updates.allowedFileTypes = undefined;
+  }
+  
+  onUpdate(sectionId, followUpQ.id, updates, path);
+}}
                 className="w-full px-4 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
               >
                 {questionTypes.map((type) => (
@@ -402,6 +449,114 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                 ))}
               </select>
             </div>
+                        {/* Track Rank Configuration */}
+            {followUpQ.trackResponseRank && (
+              <div className="lg:col-span-2 mt-2 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                  <h4 className="text-sm font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">Track Rank Configuration</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
+                      Track Rank Question Label
+                    </label>
+                    <input
+                      type="text"
+                      value={followUpQ.trackResponseRankLabel || ""}
+                      onChange={(e) =>
+                        onUpdate(
+                          sectionId,
+                          followUpQ.id,
+                          { trackResponseRankLabel: e.target.value },
+                          path
+                        )
+                      }
+                      className="w-full px-3 py-2.5 border-2 border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm bg-white dark:bg-gray-900"
+                      placeholder="Enter label for rank tracking"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
+                      Track Rank Question Type
+                    </label>
+                    <select
+                      value={followUpQ.trackResponseRankType || "text"}
+                      onChange={(e) =>
+                        onUpdate(
+                          sectionId,
+                          followUpQ.id,
+                          { trackResponseRankType: e.target.value },
+                          path
+                        )
+                      }
+                      className="w-full px-3 py-2.5 border-2 border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm bg-white dark:bg-gray-900"
+                    >
+                      {questionTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {followUpQ.trackResponseQuestion && (
+              <div className="lg:col-span-2 mt-2 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-4">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
+                  <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-100 uppercase tracking-wider">Track Question Configuration</h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2 uppercase tracking-wide">
+                      Track Question Label
+                    </label>
+                    <input
+                      type="text"
+                      value={followUpQ.trackResponseQuestionLabel || ""}
+                      onChange={(e) =>
+                        onUpdate(
+                          sectionId,
+                          followUpQ.id,
+                          { trackResponseQuestionLabel: e.target.value },
+                          path
+                        )
+                      }
+                      className="w-full px-3 py-2.5 border-2 border-indigo-200 dark:border-indigo-800 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-sm bg-white dark:bg-gray-900"
+                      placeholder="Enter label for tracking question"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2 uppercase tracking-wide">
+                      Track Question Type
+                    </label>
+                    <select
+                      value={followUpQ.trackResponseQuestionType || "text"}
+                      onChange={(e) =>
+                        onUpdate(
+                          sectionId,
+                          followUpQ.id,
+                          { trackResponseQuestionType: e.target.value },
+                          path
+                        )
+                      }
+                      className="w-full px-3 py-2.5 border-2 border-indigo-200 dark:border-indigo-800 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-sm bg-white dark:bg-gray-900"
+                    >
+                      {questionTypes.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
+
+
 
             {followUpQ.type === "file" ? (
               <div className="lg:col-span-2">
@@ -561,122 +716,155 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
             </div>
 
             {/* Options for radio, checkbox, select, search-select - Full Width */}
-            {requiresFollowUp(followUpQ.type) && (
-              <div className="lg:col-span-2">
-                <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
-                    8
-                  </span>
-                  Answer Options
-                </label>
-                <div className="space-y-2">
-                  {followUpQ.options?.map((option, index) => (
-                    <div key={index} className="relative">
-                      <div className="flex items-center space-x-2">
-                        <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg text-xs font-medium">
-                          {index + 1}
-                        </span>
-                        <input
-                          type="text"
-                          value={option}
-                          onChange={(e) =>
-                            onUpdateOption(
+       {requiresFollowUp(followUpQ.type) && (
+  <div className="lg:col-span-2">
+    <label className="flex items-center text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs mr-2">
+        8
+      </span>
+      Answer Options
+    </label>
+    <div className="space-y-2">
+      {followUpQ.options?.map((option, index) => {
+        // For follow-up questions, Yes/No/NA options should be editable
+        // Only make them read-only if it's the main question (check if depth === 0 and it's the root level)
+        const isMainQuestionYesNoNA = false; // Since this is a follow-up renderer, all questions here are follow-ups
+        
+        // Alternatively, if you want to allow editing for ALL Yes/No/NA follow-ups:
+        const isReadOnly = false; // Allow editing for follow-up questions
+        
+        return (
+          <div key={index} className="relative">
+            <div className="flex items-center space-x-2">
+              <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-lg text-xs font-medium">
+                {index + 1}
+              </span>
+              
+              {/* Option input - Editable for follow-up questions */}
+              <input
+                type="text"
+                value={option}
+                onChange={(e) =>
+                  onUpdateOption(
+                    sectionId,
+                    followUpQ.id,
+                    index,
+                    e.target.value,
+                    path
+                  )
+                }
+                className={`flex-1 px-4 py-2 border-2 rounded-lg transition-colors text-sm ${
+                  isReadOnly
+                    ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-600 cursor-not-allowed"
+                    : "border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                }`}
+                placeholder={`Option ${index + 1}`}
+                disabled={isReadOnly}
+                readOnly={isReadOnly}
+              />
+              
+              {/* Three-dot menu - ALWAYS show for ALL options */}
+              <div className="relative flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleMenu(`${followUpQ.id}-${index}`);
+                  }}
+                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all duration-200"
+                  title="More options"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+
+                {openMenus[`${followUpQ.id}-${index}`] && (
+                  <>
+                    {/* Backdrop to close menu */}
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => closeMenu(`${followUpQ.id}-${index}`)}
+                    />
+                    <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md z-50 min-w-[200px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onAddNested(sectionId, followUpQ.id, option, [
+                            ...path,
+                            followUpQ.id,
+                          ]);
+                          closeMenu(`${followUpQ.id}-${index}`);
+                        }}
+                        className="block w-full text-left px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 transition-colors first:rounded-t-lg"
+                      >
+                        📝 Add a question for this option
+                      </button>
+
+                      {onAddFollowUpSection && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onAddFollowUpSection(
                               sectionId,
                               followUpQ.id,
-                              index,
-                              e.target.value,
-                              path
-                            )
-                          }
-                          className="flex-1 px-4 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
-                          placeholder={`Option ${index + 1}`}
-                        />
-                        <div className="relative">
-                          <button
-                            type="button"
-                            onClick={() => toggleMenu(`${followUpQ.id}-${index}`)}
-                            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-all duration-200"
-                            title="More options"
-                          >
-                            <MoreVertical className="w-4 h-4" />
-                          </button>
-
-                          {openMenus[`${followUpQ.id}-${index}`] && (
-                            <div className="absolute top-10 right-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md z-50 min-w-max">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  onAddNested(sectionId, followUpQ.id, option, [
-                                    ...path,
-                                    followUpQ.id,
-                                  ]);
-                                  closeMenu(`${followUpQ.id}-${index}`);
-                                }}
-                                className="block w-full text-left px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 transition-colors first:rounded-t-lg"
-                              >
-                                Add a question for this option
-                              </button>
-
-                              {onAddFollowUpSection && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onAddFollowUpSection(
-                                      sectionId,
-                                      followUpQ.id,
-                                      option,
-                                      [...path, followUpQ.id]
-                                    );
-                                    closeMenu(`${followUpQ.id}-${index}`);
-                                  }}
-                                  className="block w-full text-left px-4 py-2.5 text-sm text-green-600 hover:bg-green-50 transition-colors"
-                                >
-                                  Add a section for this option
-                                </button>
-                              )}
-
-                              {onAddFollowUpForm && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    onAddFollowUpForm(
-                                      sectionId,
-                                      followUpQ.id,
-                                      option,
-                                      [...path, followUpQ.id]
-                                    );
-                                    closeMenu(`${followUpQ.id}-${index}`);
-                                  }}
-                                  className="block w-full text-left px-4 py-2.5 text-sm text-purple-600 hover:bg-purple-50 transition-colors last:rounded-b-lg"
-                                >
-                                  Link a form for this option
-                                </button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <button
-                          onClick={() =>
-                            onRemoveOption(sectionId, followUpQ.id, index, path)
-                          }
-                          className="p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
-                          title="Remove option"
+                              option,
+                              [...path, followUpQ.id]
+                            );
+                            closeMenu(`${followUpQ.id}-${index}`);
+                          }}
+                          className="block w-full text-left px-4 py-2.5 text-sm text-green-600 hover:bg-green-50 transition-colors"
                         >
-                          <X className="w-4 h-4" />
+                          📄 Add a section for this option
                         </button>
-                      </div>
+                      )}
+
+                      {onAddFollowUpForm && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onAddFollowUpForm(
+                              sectionId,
+                              followUpQ.id,
+                              option,
+                              [...path, followUpQ.id]
+                            );
+                            closeMenu(`${followUpQ.id}-${index}`);
+                          }}
+                          className="block w-full text-left px-4 py-2.5 text-sm text-purple-600 hover:bg-purple-50 transition-colors last:rounded-b-lg"
+                        >
+                          🔗 Link a form for this option
+                        </button>
+                      )}
                     </div>
-                  ))}
-                  <button
-                    onClick={() => onAddOption(sectionId, followUpQ.id, path)}
-                    className="flex items-center px-4 py-2 text-blue-600 hover:text-white hover:bg-blue-600 border-2 border-blue-600 rounded-lg transition-all duration-200 text-sm font-medium"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Option
-                  </button>
-                </div>
+                  </>
+                )}
               </div>
-            )}
+
+              {/* Delete button - Always show for follow-up questions */}
+              <button
+                onClick={() =>
+                  onRemoveOption(sectionId, followUpQ.id, index, path)
+                }
+                className="flex-shrink-0 p-2 text-red-500 hover:text-white hover:bg-red-500 rounded-lg transition-all duration-200"
+                title="Remove option"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        );
+      })}
+      
+      {/* Add Option button - Always show for follow-up questions */}
+      <button
+        onClick={() => onAddOption(sectionId, followUpQ.id, path)}
+        className="flex items-center px-4 py-2 text-blue-600 hover:text-white hover:bg-blue-600 border-2 border-blue-600 rounded-lg transition-all duration-200 text-sm font-medium"
+      >
+        <Plus className="w-4 h-4 mr-2" />
+        Add Option
+      </button>
+    </div>
+  </div>
+)}
 
             {/* Correct Answer Section */}
             {followUpQ.options && followUpQ.options.length > 0 && (

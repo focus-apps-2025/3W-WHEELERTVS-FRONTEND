@@ -6,6 +6,7 @@ interface EmojiReactionFeedbackProps {
   value: string;
   onChange: (value: string) => void;
   readOnly?: boolean;
+  isApplied?: boolean;
 }
 
 const EMOJI_REACTIONS = [
@@ -20,39 +21,49 @@ export default function EmojiReactionFeedback({
   value,
   onChange,
   readOnly = false,
+  isApplied = false,
 }: EmojiReactionFeedbackProps) {
   const selectedReaction = EMOJI_REACTIONS.find(r => r.value === value);
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center gap-3">
-        {EMOJI_REACTIONS.map((reaction) => (
-          <button
-            key={reaction.value}
-            type="button"
-            onClick={() => !readOnly && onChange(reaction.value)}
-            disabled={readOnly}
-            className={`relative flex flex-col items-center gap-2 p-3 rounded-lg transition-all transform ${
-              readOnly ? 'cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'
-            } ${
-              value === reaction.value
-                ? 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500 scale-110'
-                : 'bg-gray-50 dark:bg-gray-800'
-            }`}
-          >
-            <span className="text-4xl">{reaction.emoji}</span>
-            <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-              {reaction.label}
-            </span>
-            {value === reaction.value && (
-              <div className="absolute top-1 right-1 w-3 h-3 bg-blue-500 rounded-full"></div>
-            )}
-          </button>
-        ))}
+        {EMOJI_REACTIONS.map((reaction) => {
+          const isSelected = value === reaction.value;
+          return (
+            <button
+              key={reaction.value}
+              type="button"
+              onClick={() => !readOnly && onChange(reaction.value)}
+              disabled={readOnly}
+              className={`relative flex flex-col items-center gap-2 p-3 rounded-lg transition-all duration-300 transform ${
+                readOnly ? 'cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer'
+              } ${
+                isSelected
+                  ? isApplied
+                    ? 'bg-emerald-50 dark:bg-emerald-900/30 ring-2 ring-emerald-500 scale-110'
+                    : 'bg-blue-50 dark:bg-blue-900/30 ring-2 ring-blue-500 scale-110'
+                  : 'bg-gray-50 dark:bg-gray-800'
+              }`}
+            >
+              <span className="text-4xl">{reaction.emoji}</span>
+              <span className={`text-xs font-medium ${isSelected && isApplied ? 'text-emerald-700 dark:text-emerald-300' : 'text-gray-600 dark:text-gray-400'}`}>
+                {reaction.label}
+              </span>
+              {isSelected && (
+                <div className={`absolute top-1 right-1 w-3 h-3 ${isApplied ? 'bg-emerald-500' : 'bg-blue-500'} rounded-full`}></div>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {selectedReaction && (
-        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-center">
+        <div className={`p-4 rounded-lg text-center border transition-all duration-300 ${
+          isApplied 
+            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700' 
+            : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700'
+        }`}>
           <div className="text-2xl mb-2">{selectedReaction.emoji}</div>
           <div className="font-semibold text-gray-900 dark:text-white">
             {selectedReaction.label}

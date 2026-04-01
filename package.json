@@ -18,7 +18,6 @@
     "chart.js": "^4.4.1",
     "chartjs-plugin-datalabels": "^2.2.0",
     "clsx": "^2.1.1",
-    "exceljs": "^4.4.0",
     "generate-password": "^1.7.1",
     "html2pdf.js": "^0.12.1",
     "jszip": "^3.10.1",

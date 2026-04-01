@@ -8,6 +8,8 @@ import { utils } from "xlsx";
 const { utils: styleUtils, writeFile } = XLSX_STYLE;
 const { utils: baseUtils, read } = XLSX;
 
+const VALID_FILE_TYPES = ["image", "pdf", "excel", "stp", "pvz", "doc", "docx", "xls", "xlsx"];
+
 // Add this interface at the top of your file
 interface FormRowData {
   [key: string]: string | undefined;
@@ -130,6 +132,8 @@ function collectQuestions(section: Section) {
             .map((rule: any) => `${rule.optionLabel}:${rule.targetSectionId}`)
             .join("|")
         : "",
+      "Ranking Logic": question.trackResponseRank ? "TRUE" : "FALSE",
+      "Track Question": question.trackResponseQuestion ? "TRUE" : "FALSE",
     });
     if (question.followUpQuestions && question.followUpQuestions.length > 0) {
       question.followUpQuestions.forEach((child) => visit(child));
@@ -257,6 +261,8 @@ export function exportFormStructureToExcel(form: Question) {
       "Correct Answer",
       "Correct Answers",
       "SectionBranching",
+      "Ranking Logic",
+      "Track Question",
     ],
   });
 
@@ -792,6 +798,9 @@ export function downloadNestedFormImportTemplate() {
     "Allowed File Types",
     "Correct Answer",
     "Correct Answers",
+    "Ranking Logic",
+    "Track Question",
+    "Image/File URL",
   ];
 
   const followUpHeaders = [];
@@ -807,7 +816,11 @@ export function downloadNestedFormImportTemplate() {
       `FU${level1}: SubParam2`,
       `FU${level1}: Question Text`,
       `FU${level1}: Options`,
-      `FU${level1}: Correct Answer`
+      `FU${level1}: Correct Answer`,
+      `FU${level1}: Ranking Logic`,
+      `FU${level1}: Track Question`,
+      `FU${level1}: Image/File URL`,
+      `FU${level1}: Description`
     );
 
     // Level 2 follow-ups (FU1.1:, FU1.2:, etc.)
@@ -820,7 +833,11 @@ export function downloadNestedFormImportTemplate() {
         `FU${level1}.${level2}: SubParam2`,
         `FU${level1}.${level2}: Question Text`,
         `FU${level1}.${level2}: Options`,
-        `FU${level1}.${level2}: Correct Answer`
+        `FU${level1}.${level2}: Correct Answer`,
+        `FU${level1}.${level2}: Ranking Logic`,
+        `FU${level1}.${level2}: Track Question`,
+        `FU${level1}.${level2}: Image/File URL`,
+        `FU${level1}.${level2}: Description`
       );
 
       // Level 3 follow-ups (FU1.1.1:, FU1.1.2:, etc.)
@@ -833,7 +850,11 @@ export function downloadNestedFormImportTemplate() {
           `FU${level1}.${level2}.${level3}: SubParam2`,
           `FU${level1}.${level2}.${level3}: Question Text`,
           `FU${level1}.${level2}.${level3}: Options`,
-          `FU${level1}.${level2}.${level3}: Correct Answer`
+          `FU${level1}.${level2}.${level3}: Correct Answer`,
+          `FU${level1}.${level2}.${level3}: Ranking Logic`,
+          `FU${level1}.${level2}.${level3}: Track Question`,
+          `FU${level1}.${level2}.${level3}: Image/File URL`,
+          `FU${level1}.${level2}.${level3}: Description`
         );
       }
     }
@@ -866,19 +887,60 @@ export function downloadNestedFormImportTemplate() {
     "For file: allowed file types (image,pdf,excel) - comma-separated",
     "For quiz: correct answer value",
     "For quiz: multiple correct answers separated by |",
+    "Enable ranking/tracking for this question (TRUE/FALSE)",
+    "Enable response tracking for this question (TRUE/FALSE)",
+    "URL for question image or file (Images, STP, or PVZ files)",
   ];
 
-  for (let i = 1; i <= 10; i++) {
+  for (let level1 = 1; level1 <= 5; level1++) {
     descriptions.push(
-      `Follow-up #${i}: Which option triggers this follow-up (must match main options)`,
-      `Follow-up #${i}: Question type`,
-      `Follow-up #${i}: Required (TRUE/FALSE)`,
-      `Follow-up #${i}: SubParam1`,
-      `Follow-up #${i}: SubParam2`,
-      `Follow-up #${i}: The follow-up question text`,
-      `Follow-up #${i}: Options (comma-separated)`,
-      `Follow-up #${i}: Correct answer (if quiz)`
+      `Follow-up #${level1}: Which option triggers this follow-up (must match main options)`,
+      `Follow-up #${level1}: Question type`,
+      `Follow-up #${level1}: Required (TRUE/FALSE)`,
+      `Follow-up #${level1}: SubParam1`,
+      `Follow-up #${level1}: SubParam2`,
+      `Follow-up #${level1}: The follow-up question text`,
+      `Follow-up #${level1}: Options (comma-separated)`,
+      `Follow-up #${level1}: Correct answer (if quiz)`,
+      `Follow-up #${level1}: Ranking Logic (TRUE/FALSE)`,
+      `Follow-up #${level1}: Track Question (TRUE/FALSE)`,
+      `Follow-up #${level1}: Image/File URL`,
+      `Follow-up #${level1}: Description`
     );
+
+    for (let level2 = 1; level2 <= 3; level2++) {
+      descriptions.push(
+        `Follow-up #${level1}.${level2}: Which option triggers this follow-up`,
+        `Follow-up #${level1}.${level2}: Question type`,
+        `Follow-up #${level1}.${level2}: Required (TRUE/FALSE)`,
+        `Follow-up #${level1}.${level2}: SubParam1`,
+        `Follow-up #${level1}.${level2}: SubParam2`,
+        `Follow-up #${level1}.${level2}: The follow-up question text`,
+        `Follow-up #${level1}.${level2}: Options`,
+        `Follow-up #${level1}.${level2}: Correct answer`,
+        `Follow-up #${level1}.${level2}: Ranking Logic (TRUE/FALSE)`,
+        `Follow-up #${level1}.${level2}: Track Question (TRUE/FALSE)`,
+        `Follow-up #${level1}.${level2}: Image/File URL`,
+        `Follow-up #${level1}.${level2}: Description`
+      );
+
+      for (let level3 = 1; level3 <= 2; level3++) {
+        descriptions.push(
+          `Follow-up #${level1}.${level2}.${level3}: Which option triggers this follow-up`,
+          `Follow-up #${level1}.${level2}.${level3}: Question type`,
+          `Follow-up #${level1}.${level2}.${level3}: Required (TRUE/FALSE)`,
+          `Follow-up #${level1}.${level2}.${level3}: SubParam1`,
+          `Follow-up #${level1}.${level2}.${level3}: SubParam2`,
+          `Follow-up #${level1}.${level2}.${level3}: The follow-up question text`,
+          `Follow-up #${level1}.${level2}.${level3}: Options`,
+          `Follow-up #${level1}.${level2}.${level3}: Correct answer`,
+          `Follow-up #${level1}.${level2}.${level3}: Ranking Logic (TRUE/FALSE)`,
+          `Follow-up #${level1}.${level2}.${level3}: Track Question (TRUE/FALSE)`,
+          `Follow-up #${level1}.${level2}.${level3}: Image/File URL`,
+          `Follow-up #${level1}.${level2}.${level3}: Description`
+        );
+      }
+    }
   }
 
   const headerRow = headers.reduce((obj, header) => {
@@ -925,6 +987,7 @@ export function downloadNestedFormImportTemplate() {
       "Allowed File Types": "",
       "Correct Answer": "",
       "Correct Answers": "",
+      "Image/File URL": "",
     },
     {
       "Section Weightage": "30",
@@ -938,6 +1001,7 @@ export function downloadNestedFormImportTemplate() {
       "Allowed File Types": "",
       "Correct Answer": "",
       "Correct Answers": "",
+      "Image/File URL": "",
     },
     {
       "Section Weightage": "30",
@@ -951,6 +1015,7 @@ export function downloadNestedFormImportTemplate() {
       "Allowed File Types": "",
       "Correct Answer": "",
       "Correct Answers": "",
+      "Image/File URL": "",
     },
     {
       "Section Weightage": "30",
@@ -964,6 +1029,7 @@ export function downloadNestedFormImportTemplate() {
       "Allowed File Types": "",
       "Correct Answer": "",
       "Correct Answers": "",
+      "Image/File URL": "",
     },
     {
       "Section Number": "2",
@@ -981,6 +1047,7 @@ export function downloadNestedFormImportTemplate() {
       "Allowed File Types": "",
       "Correct Answer": "",
       "Correct Answers": "",
+      "Image/File URL": "",
     },
     {
       "Section Weightage": "40",
@@ -994,6 +1061,7 @@ export function downloadNestedFormImportTemplate() {
       "Allowed File Types": "",
       "Correct Answer": "",
       "Correct Answers": "",
+      "Image/File URL": "",
     },
     {
       "Section Weightage": "40",
@@ -1015,6 +1083,9 @@ export function downloadNestedFormImportTemplate() {
       "FU1: Question Text": "Which aspect of our service would you highlight?",
       "FU1: Options": "",
       "FU1: Correct Answer": "",
+      "FU1: Ranking Logic": "FALSE",
+      "FU1: Track Question": "FALSE",
+      "FU1: Image/File URL": "",
       "FU2: Option": "No",
       "FU2: Question Type": "longText",
       "FU2: Required": "TRUE",
@@ -1023,6 +1094,9 @@ export function downloadNestedFormImportTemplate() {
       "FU2: Question Text": "What specific improvements would you suggest?",
       "FU2: Options": "",
       "FU2: Correct Answer": "",
+      "FU2: Ranking Logic": "FALSE",
+      "FU2: Track Question": "FALSE",
+      "FU2: Image/File URL": "",
       "FU3: Option": "N/A",
       "FU3: Question Type": "longText",
       "FU3: Required": "FALSE",
@@ -1031,6 +1105,9 @@ export function downloadNestedFormImportTemplate() {
       "FU3: Question Text": "Why is this not applicable to your situation?",
       "FU3: Options": "",
       "FU3: Correct Answer": "",
+      "FU3: Ranking Logic": "FALSE",
+      "FU3: Track Question": "FALSE",
+      "FU3: Image/File URL": "",
     },
     {
       "Section Weightage": "40",
@@ -1309,6 +1386,9 @@ export function downloadNestedFormImportTemplate() {
       "Allowed File Types": row["Allowed File Types"] || "",
       "Correct Answer": row["Correct Answer"] || "",
       "Correct Answers": row["Correct Answers"] || "",
+      "Ranking Logic": row["Ranking Logic"] || "FALSE",
+      "Track Question": row["Track Question"] || "FALSE",
+      "Image/File URL": row["Image/File URL"] || "",
     };
 
     // Add merge instructions for section columns (3-8) when same section has multiple questions
@@ -1321,15 +1401,52 @@ export function downloadNestedFormImportTemplate() {
       }`;
     }
 
-    for (let i = 1; i <= 10; i++) {
-      fullRow[`FU${i}: Option`] = row[`FU${i}: Option`] || "";
-      fullRow[`FU${i}: Question Type`] = row[`FU${i}: Question Type`] || "";
-      fullRow[`FU${i}: Required`] = row[`FU${i}: Required`] || "";
-      fullRow[`FU${i}: SubParam1`] = row[`FU${i}: SubParam1`] || "";
-      fullRow[`FU${i}: SubParam2`] = row[`FU${i}: SubParam2`] || "";
-      fullRow[`FU${i}: Question Text`] = row[`FU${i}: Question Text`] || "";
-      fullRow[`FU${i}: Options`] = row[`FU${i}: Options`] || "";
-      fullRow[`FU${i}: Correct Answer`] = row[`FU${i}: Correct Answer`] || "";
+    for (let level1 = 1; level1 <= 5; level1++) {
+      const fu1Prefix = `FU${level1}`;
+      fullRow[`${fu1Prefix}: Option`] = row[`${fu1Prefix}: Option`] || "";
+      fullRow[`${fu1Prefix}: Question Type`] = row[`${fu1Prefix}: Question Type`] || "";
+      fullRow[`${fu1Prefix}: Required`] = row[`${fu1Prefix}: Required`] || "";
+      fullRow[`${fu1Prefix}: SubParam1`] = row[`${fu1Prefix}: SubParam1`] || "";
+      fullRow[`${fu1Prefix}: SubParam2`] = row[`${fu1Prefix}: SubParam2`] || "";
+      fullRow[`${fu1Prefix}: Question Text`] = row[`${fu1Prefix}: Question Text`] || "";
+      fullRow[`${fu1Prefix}: Description`] = row[`${fu1Prefix}: Description`] || "";
+      fullRow[`${fu1Prefix}: Options`] = row[`${fu1Prefix}: Options`] || "";
+      fullRow[`${fu1Prefix}: Correct Answer`] = row[`${fu1Prefix}: Correct Answer`] || "";
+      fullRow[`${fu1Prefix}: Ranking Logic`] = row[`${fu1Prefix}: Ranking Logic`] || "FALSE";
+      fullRow[`${fu1Prefix}: Track Question`] = row[`${fu1Prefix}: Track Question`] || "FALSE";
+      fullRow[`${fu1Prefix}: Image/File URL`] = row[`${fu1Prefix}: Image/File URL`] || "";
+
+      for (let level2 = 1; level2 <= 3; level2++) {
+        const fu2Prefix = `FU${level1}.${level2}`;
+        fullRow[`${fu2Prefix}: Option`] = row[`${fu2Prefix}: Option`] || "";
+        fullRow[`${fu2Prefix}: Question Type`] = row[`${fu2Prefix}: Question Type`] || "";
+        fullRow[`${fu2Prefix}: Required`] = row[`${fu2Prefix}: Required`] || "";
+        fullRow[`${fu2Prefix}: SubParam1`] = row[`${fu2Prefix}: SubParam1`] || "";
+        fullRow[`${fu2Prefix}: SubParam2`] = row[`${fu2Prefix}: SubParam2`] || "";
+        fullRow[`${fu2Prefix}: Question Text`] = row[`${fu2Prefix}: Question Text`] || "";
+        fullRow[`${fu2Prefix}: Description`] = row[`${fu2Prefix}: Description`] || "";
+        fullRow[`${fu2Prefix}: Options`] = row[`${fu2Prefix}: Options`] || "";
+        fullRow[`${fu2Prefix}: Correct Answer`] = row[`${fu2Prefix}: Correct Answer`] || "";
+        fullRow[`${fu2Prefix}: Ranking Logic`] = row[`${fu2Prefix}: Ranking Logic`] || "FALSE";
+        fullRow[`${fu2Prefix}: Track Question`] = row[`${fu2Prefix}: Track Question`] || "FALSE";
+        fullRow[`${fu2Prefix}: Image/File URL`] = row[`${fu2Prefix}: Image/File URL`] || "";
+
+        for (let level3 = 1; level3 <= 2; level3++) {
+          const fu3Prefix = `FU${level1}.${level2}.${level3}`;
+          fullRow[`${fu3Prefix}: Option`] = row[`${fu3Prefix}: Option`] || "";
+          fullRow[`${fu3Prefix}: Question Type`] = row[`${fu3Prefix}: Question Type`] || "";
+          fullRow[`${fu3Prefix}: Required`] = row[`${fu3Prefix}: Required`] || "";
+          fullRow[`${fu3Prefix}: SubParam1`] = row[`${fu3Prefix}: SubParam1`] || "";
+          fullRow[`${fu3Prefix}: SubParam2`] = row[`${fu3Prefix}: SubParam2`] || "";
+          fullRow[`${fu3Prefix}: Question Text`] = row[`${fu3Prefix}: Question Text`] || "";
+          fullRow[`${fu3Prefix}: Description`] = row[`${fu3Prefix}: Description`] || "";
+          fullRow[`${fu3Prefix}: Options`] = row[`${fu3Prefix}: Options`] || "";
+          fullRow[`${fu3Prefix}: Correct Answer`] = row[`${fu3Prefix}: Correct Answer`] || "";
+          fullRow[`${fu3Prefix}: Ranking Logic`] = row[`${fu3Prefix}: Ranking Logic`] || "FALSE";
+          fullRow[`${fu3Prefix}: Track Question`] = row[`${fu3Prefix}: Track Question`] || "FALSE";
+          fullRow[`${fu3Prefix}: Image/File URL`] = row[`${fu3Prefix}: Image/File URL`] || "";
+        }
+      }
     }
 
     templateData.push(fullRow);
@@ -1564,6 +1681,9 @@ export function downloadFormImportTemplate() {
     "Allowed File Types",
     "Correct Answer",
     "Correct Answers",
+    "Ranking Logic",
+    "Track Question",
+    "Image/File URL",
   ];
 
   const followUpHeaders = [];
@@ -1577,8 +1697,12 @@ export function downloadFormImportTemplate() {
       `FU${fuIndex}: SubParam1`,
       `FU${fuIndex}: SubParam2`,
       `FU${fuIndex}: Question Text`,
+      `FU${fuIndex}: Description`,
       `FU${fuIndex}: Options`,
-      `FU${fuIndex}: Correct Answer`
+      `FU${fuIndex}: Correct Answer`,
+      `FU${fuIndex}: Ranking Logic`,
+      `FU${fuIndex}: Track Question`,
+      `FU${fuIndex}: Image/File URL`
     );
   }
 
@@ -1610,6 +1734,9 @@ export function downloadFormImportTemplate() {
     "For file: allowed file types (image,pdf,excel) - comma-separated",
     "For quiz: correct answer value",
     "For quiz: multiple correct answers separated by |",
+    "Enable ranking/tracking for this question (TRUE/FALSE)",
+    "Enable response tracking for this question (TRUE/FALSE)",
+    "URL for question image or file (Images, STP, or PVZ files)",
   ];
 
   // Add descriptions for follow-up columns
@@ -1621,8 +1748,12 @@ export function downloadFormImportTemplate() {
       `Follow-up #${i}: SubParam1`,
       `Follow-up #${i}: SubParam2`,
       `Follow-up #${i}: The follow-up question text`,
+      `Follow-up #${i}: Description`,
       `Follow-up #${i}: Options (comma-separated)`,
-      `Follow-up #${i}: Correct answer (if quiz)`
+      `Follow-up #${i}: Correct answer (if quiz)`,
+      `Follow-up #${i}: Ranking Logic (TRUE/FALSE)`,
+      `Follow-up #${i}: Track Question (TRUE/FALSE)`,
+      `Follow-up #${i}: Image/File URL`
     );
   }
 
@@ -1670,6 +1801,7 @@ export function downloadFormImportTemplate() {
       "Allowed File Types": "",
       "Correct Answer": "",
       "Correct Answers": "",
+      "Image/File URL": "",
     },
     {
       "Section Number": "2",
@@ -1695,6 +1827,9 @@ export function downloadFormImportTemplate() {
       "FU1: Question Text": "Which aspect of our service would you highlight?",
       "FU1: Options": "",
       "FU1: Correct Answer": "",
+      "FU1: Ranking Logic": "FALSE",
+      "FU1: Track Question": "FALSE",
+      "FU1: Image/File URL": "",
       "FU2: Option": "No",
       "FU2: Question Type": "longText",
       "FU2: Required": "TRUE",
@@ -1703,6 +1838,9 @@ export function downloadFormImportTemplate() {
       "FU2: Question Text": "What specific improvements would you suggest?",
       "FU2: Options": "",
       "FU2: Correct Answer": "",
+      "FU2: Ranking Logic": "FALSE",
+      "FU2: Track Question": "FALSE",
+      "FU2: Image/File URL": "",
       "FU3: Option": "N/A",
       "FU3: Question Type": "longText",
       "FU3: Required": "FALSE",
@@ -1711,6 +1849,9 @@ export function downloadFormImportTemplate() {
       "FU3: Question Text": "Why is this not applicable to your situation?",
       "FU3: Options": "",
       "FU3: Correct Answer": "",
+      "FU3: Ranking Logic": "FALSE",
+      "FU3: Track Question": "FALSE",
+      "FU3: Image/File URL": "",
       // Can add FU4, FU5, ... up to FU99 here
     },
     {
@@ -1728,6 +1869,7 @@ export function downloadFormImportTemplate() {
       "Allowed File Types": "",
       "Correct Answer": "",
       "Correct Answers": "",
+      "Image/File URL": "",
     },
   ];
 
@@ -1793,6 +1935,9 @@ export function downloadFormImportTemplate() {
       "Allowed File Types": row["Allowed File Types"] || "",
       "Correct Answer": row["Correct Answer"] || "",
       "Correct Answers": row["Correct Answers"] || "",
+      "Ranking Logic": row["Ranking Logic"] || "FALSE",
+      "Track Question": row["Track Question"] || "FALSE",
+      "Image/File URL": row["Image/File URL"] || "",
     };
 
     // Add merge instructions for section columns (3-8) when same section has multiple questions
@@ -1813,8 +1958,12 @@ export function downloadFormImportTemplate() {
       fullRow[`FU${i}: SubParam1`] = row[`FU${i}: SubParam1`] || "";
       fullRow[`FU${i}: SubParam2`] = row[`FU${i}: SubParam2`] || "";
       fullRow[`FU${i}: Question Text`] = row[`FU${i}: Question Text`] || "";
+      fullRow[`FU${i}: Description`] = row[`FU${i}: Description`] || "";
       fullRow[`FU${i}: Options`] = row[`FU${i}: Options`] || "";
       fullRow[`FU${i}: Correct Answer`] = row[`FU${i}: Correct Answer`] || "";
+      fullRow[`FU${i}: Ranking Logic`] = row[`FU${i}: Ranking Logic`] || "FALSE";
+      fullRow[`FU${i}: Track Question`] = row[`FU${i}: Track Question`] || "FALSE";
+      fullRow[`FU${i}: Image/File URL`] = row[`FU${i}: Image/File URL`] || "";
     }
 
     templateData.push(fullRow);
@@ -2069,6 +2218,7 @@ function parseNewTemplateFormat(
 ): Partial<Question> & { sections: Section[] } {
   const sectionsMap = new Map<string, Section>();
   const formTitle = rows[0]["Form Title"]?.toString().trim() || "Imported Form";
+  const formDescription = rows[0]["Form Description"]?.toString().trim() || "";
   let currentSectionNo: string | null = null;
   const sectionLinkMap = new Map<
     string,
@@ -2217,6 +2367,12 @@ function parseNewTemplateFormat(
       const childSubParam2 = childData["SubParam2"] || undefined;
       const childOptionsStr = childData["Options"] || "";
       const childCorrectAnswer = childData["Correct Answer"] || undefined;
+      const childRankingLogicRaw = childData["Ranking Logic"] || "FALSE";
+      const childRankingLogic = childRankingLogicRaw.toLowerCase() === "true" || childRankingLogicRaw === "1";
+      const childTrackQuestionRaw = childData["Track Question"] || "FALSE";
+      const childTrackQuestion = childTrackQuestionRaw.toLowerCase() === "true" || childTrackQuestionRaw === "1";
+      const childImageUrl = childData["Image/File URL"] || undefined;
+      const childDescription = childData["Description"] || undefined;
 
       const childOptions = childOptionsStr
         ? childOptionsStr
@@ -2232,6 +2388,8 @@ function parseNewTemplateFormat(
         type: normalizeQuestionType(childType) as FollowUpQuestion["type"],
         required: childRequired,
         options: childOptions,
+        description: childDescription,
+        imageUrl: childImageUrl,
         followUpQuestions: [],
         sectionId: parentQuestion.sectionId,
         correctAnswer: childCorrectAnswer,
@@ -2241,6 +2399,8 @@ function parseNewTemplateFormat(
         },
         subParam1: childSubParam1,
         subParam2: childSubParam2,
+        trackResponseRank: childRankingLogic,
+        trackResponseQuestion: childTrackQuestion,
         allowedFileTypes: undefined,
       };
 
@@ -2372,6 +2532,9 @@ function parseNewTemplateFormat(
       return;
     }
 
+    const questionId = generateId();
+    const branchingRules: any[] = [];
+
     if (sectionNo) {
       currentSectionNo = sectionNo;
       const sectionWeightage = parseNumber(row["Section Weightage"]);
@@ -2437,7 +2600,8 @@ function parseNewTemplateFormat(
     const section = sectionsMap.get(currentSectionNo);
     if (!section) return;
     const suggestion = row["Suggestion"]?.toString().trim();
-    const questionDesc = row["Question Description"]?.toString().trim();
+    const questionDescColumn = findColumnName(availableColumns, ["Question Description", "Description"]);
+    const questionDesc = questionDescColumn ? row[questionDescColumn]?.toString().trim() : undefined;
     const questionTypeRaw = row["Question Type"]?.toString().trim() || "text";
     const questionType = normalizeQuestionType(questionTypeRaw);
     const requiredStr = row["Required"]?.toString().trim().toLowerCase();
@@ -2502,94 +2666,65 @@ function parseNewTemplateFormat(
     const allowedFileTypes = allowedFileTypesStr
       ? allowedFileTypesStr
           .split(",")
-          .map((type) => type.trim())
-          .filter(Boolean)
+          .map((type) => type.trim().toLowerCase())
+          .filter((type) => VALID_FILE_TYPES.includes(type))
       : undefined;
 
-    const questionId = generateId();
+    // Handle the case where the user might have accidentally put a URL or other invalid text in this column
+    const filteredAllowedFileTypes = (allowedFileTypes && allowedFileTypes.length > 0) ? allowedFileTypes : undefined;
 
-    // Parse branching rules for section navigation
-    const branchingRules: Array<{
-      optionLabel: string;
-      targetSectionId: string;
-      isOtherOption?: boolean;
-    }> = [];
+    const rankingLogicRaw = row["Ranking Logic"]?.toString().trim().toLowerCase() || "false";
+    const rankingLogic = rankingLogicRaw === "true" || rankingLogicRaw === "yes" || rankingLogicRaw === "1";
 
-    if (options && options.length > 0) {
-      // 1. Check for individual Option X Route columns (using flexible names)
-      options.forEach((option, idx) => {
-        const optNum = idx + 1;
-        const potentialHeaders = [
-          `Option ${optNum} Route`,
-          `Option ${optNum} Routing`,
-          `Option ${optNum} Action`,
-          `Jump to Section for Option ${optNum}`,
-          `Route for Option ${optNum}`,
-          `Option ${optNum} Navigation`,
-        ];
-        
-        const optionRouteHeader = findColumnName(availableColumns, potentialHeaders);
-        const targetSectionNo = optionRouteHeader ? row[optionRouteHeader]?.toString().trim() : undefined;
-        
-        if (targetSectionNo && targetSectionNo !== "0") {
-          branchingRules.push({
-            optionLabel: option,
-            targetSectionId: targetSectionNo,
-          });
-        }
-      });
+    const trackQuestionRaw = row["Track Question"]?.toString().trim().toLowerCase() || "false";
+    const trackQuestion = trackQuestionRaw === "true" || trackQuestionRaw === "yes" || trackQuestionRaw === "1";
 
-      // 2. Check for advanced "Section Routing" column (Mapping format or Legacy list)
-      // We don't use 'if (!hasIndividualRoutes)' anymore so they can be combined
-      const branchingStr = row[branchingColumnName]?.toString().trim() || "";
-      if (branchingStr) {
-        // Format A: "OptionName -> SectionNo, OptionName -> SectionNo"
-        if (branchingStr.includes("->")) {
-          const rules = branchingStr.split(",").map((s) => s.trim());
-          rules.forEach((rule) => {
-            const [optLabel, targetNo] = rule.split("->").map((s) => s.trim());
-            if (optLabel && targetNo && targetNo !== "0") {
-              // Only add if not already added by individual columns (priority to individual columns)
-              if (!branchingRules.some(r => r.optionLabel === optLabel)) {
-                branchingRules.push({
-                  optionLabel: optLabel,
-                  targetSectionId: targetNo,
-                });
-              }
-            }
-          });
-        } else {
-          // Format B: Legacy format "2,3,4" (comma-separated list for options in order)
-          const branchingNumbers = branchingStr
-            .split(",")
-            .map((n) => n.trim())
-            .filter(Boolean);
+    const imageUrl = row["Image/File URL"]?.toString().trim() || undefined;
 
-          options.forEach((option, idx) => {
-            const targetSectionNo = branchingNumbers[idx];
-            if (targetSectionNo && targetSectionNo !== "0") {
-              // Only add if not already added by individual columns
-              if (!branchingRules.some(r => r.optionLabel === option)) {
-                branchingRules.push({
-                  optionLabel: option,
-                  targetSectionId: targetSectionNo,
-                });
-              }
-            }
-          });
-        }
+    // Process branching rules (Option 1 Route to Option 5 Route)
+    for (let i = 1; i <= 5; i++) {
+      const routeKey = `Option ${i} Route`;
+      const targetSectionNo = row[routeKey]?.toString().trim();
+      if (targetSectionNo && targetSectionNo !== "0" && options && options[i - 1]) {
+        branchingRules.push({
+          questionId: questionId,
+          optionLabel: options[i - 1],
+          targetSectionId: targetSectionNo,
+        });
+
+        rawBranchingRules.push({
+          sectionNo: currentSectionNo!,
+          questionId: questionId,
+          optionLabel: options[i - 1],
+          targetSectionNo: targetSectionNo
+        });
       }
     }
 
-    // Add to global branching rules collection for the form
-    branchingRules.forEach(rule => {
-      rawBranchingRules.push({
-        sectionNo: currentSectionNo!,
-        questionId: questionId,
-        optionLabel: rule.optionLabel,
-        targetSectionNo: rule.targetSectionId
+    // Also handle combined Section Routing column
+    const sectionRouting = row["Section Routing"]?.toString().trim();
+    if (sectionRouting && options) {
+      const routes = sectionRouting.split(",").map(r => r.trim());
+      routes.forEach((targetSectionNo, idx) => {
+        if (targetSectionNo && targetSectionNo !== "0" && options[idx]) {
+          const alreadyAdded = branchingRules.some(r => r.optionLabel === options[idx]);
+          if (!alreadyAdded) {
+            branchingRules.push({
+              questionId: questionId,
+              optionLabel: options[idx],
+              targetSectionId: targetSectionNo,
+            });
+
+            rawBranchingRules.push({
+              sectionNo: currentSectionNo!,
+              questionId: questionId,
+              optionLabel: options[idx],
+              targetSectionNo: targetSectionNo
+            });
+          }
+        }
       });
-    });
+    }
 
     const question: FollowUpQuestion = {
       id: questionId,
@@ -2598,14 +2733,17 @@ function parseNewTemplateFormat(
       required: required,
       options: options || undefined,
       description: questionDesc || undefined,
+      imageUrl: imageUrl,
       suggestion: suggestion || undefined,
       subParam1: subParam1 || undefined,
       subParam2: subParam2 || undefined,
-      allowedFileTypes: allowedFileTypes,
+      allowedFileTypes: filteredAllowedFileTypes,
       followUpQuestions: [],
       sectionId: section.id,
       correctAnswer: correctAnswer || undefined,
       correctAnswers: correctAnswers,
+      trackResponseRank: rankingLogic,
+      trackResponseQuestion: trackQuestion,
       ...(branchingRules.length > 0 && { branchingRules }),
     };
 
@@ -2617,14 +2755,20 @@ function parseNewTemplateFormat(
       const fuSubParam1Key = `FU${fuIndex}: SubParam1` as const;
       const fuSubParam2Key = `FU${fuIndex}: SubParam2` as const;
       const fuTextKey = `FU${fuIndex}: Question Text` as const;
+      const fuDescriptionKey = `FU${fuIndex}: Description` as const;
       const fuOptionsKey = `FU${fuIndex}: Options` as const;
       const fuCorrectAnswerKey = `FU${fuIndex}: Correct Answer` as const;
+      const fuRankingLogicKey = `FU${fuIndex}: Ranking Logic` as const;
+      const fuTrackQuestionKey = `FU${fuIndex}: Track Question` as const;
+      const fuImageUrlKey = `FU${fuIndex}: Image/File URL` as const;
 
       // Type-safe property access
       const fuOption = (row[fuOptionKey] as string)?.toString().trim();
       const fuTypeRaw = (row[fuTypeKey] as string)?.toString().trim();
       const fuType = fuTypeRaw ? normalizeQuestionType(fuTypeRaw) : "text";
       const fuText = (row[fuTextKey] as string)?.toString().trim();
+      const fuDescription = (row[fuDescriptionKey] as string)?.toString().trim();
+      const fuImageUrl = (row[fuImageUrlKey] as string)?.toString().trim();
 
       if (fuOption && fuType && fuText) {
         const fuRequiredStr =
@@ -2636,6 +2780,10 @@ function parseNewTemplateFormat(
           (row[fuOptionsKey] as string)?.toString().trim() || "";
         const fuCorrectAnswer =
           (row[fuCorrectAnswerKey] as string)?.toString().trim() || "";
+        const fuRankingLogicRaw = (row[fuRankingLogicKey] as string)?.toString().trim() || "FALSE";
+        const fuRankingLogic = fuRankingLogicRaw.toLowerCase() === "true" || fuRankingLogicRaw === "1";
+        const fuTrackQuestionRaw = (row[fuTrackQuestionKey] as string)?.toString().trim() || "FALSE";
+        const fuTrackQuestion = fuTrackQuestionRaw.toLowerCase() === "true" || fuTrackQuestionRaw === "1";
 
         const fuOptions = fuOptionsStr
           ? fuOptionsStr
@@ -2651,6 +2799,8 @@ function parseNewTemplateFormat(
           type: fuType as FollowUpQuestion["type"],
           required: fuRequired,
           options: fuOptions,
+          description: fuDescription,
+          imageUrl: fuImageUrl || undefined,
           followUpQuestions: [],
           sectionId: section.id,
           correctAnswer: fuCorrectAnswer || undefined,
@@ -2660,6 +2810,8 @@ function parseNewTemplateFormat(
           },
           subParam1: fuSubParam1 || undefined,
           subParam2: fuSubParam2 || undefined,
+          trackResponseRank: fuRankingLogic,
+          trackResponseQuestion: fuTrackQuestion,
           allowedFileTypes: undefined,
         };
 
@@ -2884,7 +3036,7 @@ function parseNewTemplateFormat(
   const formPayload: Partial<Question> & { sections: Section[]; sectionBranching: any[] } = {
     id: generateId(),
     title: formTitle,
-    description: "Imported form from Excel template",
+    description: formDescription || "Imported form from Excel template",
     isVisible: true,
     sections,
     followUpQuestions: [],

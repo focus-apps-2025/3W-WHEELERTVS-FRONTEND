@@ -11,6 +11,12 @@ interface SectionContentProps {
   readOnly?: boolean;
   formId?: string;
   tenantSlug?: string;
+  suggestedAnswers?: Record<string, any> | null;
+  lastSuggestionSource?: string | null;
+  onApplyFullSuggestion?: (specificAnswers?: Record<string, any>) => void;
+  fetchingSuggestionsForId?: string | null;
+  validationErrors?: Set<string>;
+
 }
 
 export default function SectionContent({
@@ -21,6 +27,11 @@ export default function SectionContent({
   readOnly = false,
   formId,
   tenantSlug,
+  suggestedAnswers,
+  lastSuggestionSource,
+  onApplyFullSuggestion,
+  fetchingSuggestionsForId,
+  validationErrors,
 }: SectionContentProps) {
   const { getOrderedVisibleQuestions } = useQuestionLogic();
   const visibleQuestions = getOrderedVisibleQuestions(
@@ -60,12 +71,19 @@ export default function SectionContent({
           >
             <QuestionRenderer
               question={q}
-              value={answers[q.id || q._id]}
-              onChange={(value) => onAnswerChange(q.id || q._id, value)}
+               value={answers[q.id || (q as any)._id]}
+              trackingValue={answers[`${q.id || (q as any)._id}_tracking`]}
+              onChange={(value) => onAnswerChange(q.id || (q as any)._id, value)}
+              onTrackingChange={(value) => onAnswerChange(`${q.id || (q as any)._id}_tracking`, value)}
               readOnly={readOnly}
               isFollowUp={!!q.showWhen}
               formId={formId}
               tenantSlug={tenantSlug}
+              suggestedAnswers={suggestedAnswers}
+              lastSuggestionSource={lastSuggestionSource}
+              onApplyFullSuggestion={onApplyFullSuggestion}
+              fetchingSuggestionsForId={fetchingSuggestionsForId}
+              error={validationErrors?.has(q.id || (q as any)._id) ? "This field is required" : undefined}
             />
           </div>
         ))}
@@ -90,7 +108,7 @@ export default function SectionContent({
               <div className="space-y-8">
                 {getOrderedVisibleQuestions(sub.questions || [], answers).map((q: any) => (
                   <div
-                    key={q.id || q._id}
+                    key={q.id || (q as any)._id}
                     className={`${
                       q.showWhen
                         ? "mt-3 ml-4 p-3 border-l-4 border-l-blue-400 bg-blue-100 dark:bg-blue-900/30 rounded-r"
@@ -99,12 +117,19 @@ export default function SectionContent({
                   >
                     <QuestionRenderer
                       question={q}
-                      value={answers[q.id || q._id]}
-                      onChange={(value) => onAnswerChange(q.id || q._id, value)}
+                       value={answers[q.id || (q as any)._id]}
+                      trackingValue={answers[`${q.id || (q as any)._id}_tracking`]}
+                      onChange={(value) => onAnswerChange(q.id || (q as any)._id, value)}
+                      onTrackingChange={(value) => onAnswerChange(`${q.id || (q as any)._id}_tracking`, value)}
                       readOnly={readOnly}
                       isFollowUp={!!q.showWhen}
                       formId={formId}
                       tenantSlug={tenantSlug}
+                      suggestedAnswers={suggestedAnswers}
+                      lastSuggestionSource={lastSuggestionSource}
+                      onApplyFullSuggestion={onApplyFullSuggestion}
+                      fetchingSuggestionsForId={fetchingSuggestionsForId}
+                      error={validationErrors?.has(q.id || (q as any)._id) ? "This field is required" : undefined}
                     />
                   </div>
                 ))}

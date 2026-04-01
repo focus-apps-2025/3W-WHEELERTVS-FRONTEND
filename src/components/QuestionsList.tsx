@@ -16,6 +16,34 @@ interface QuestionsListProps {
   onQuestionsChange: (questions: FollowUpQuestion[]) => void;
 }
 
+const getGoogleDriveDirectLink = (url: string) => {
+  if (!url) return url;
+  
+  // Handle Google Drive sharing links
+  if (url.includes('drive.google.com/file/d/')) {
+    const fileId = url.split('/d/')[1]?.split('/')[0];
+    if (fileId) {
+      return `https://docs.google.com/uc?export=download&id=${fileId}`;
+    }
+  }
+  
+  // Handle Google Drive open links
+  if (url.includes('drive.google.com/open?id=')) {
+    const fileId = url.split('id=')[1]?.split('&')[0];
+    if (fileId) {
+      return `https://docs.google.com/uc?export=download&id=${fileId}`;
+    }
+  }
+
+  // Handle uc?id= style
+  if (url.includes('drive.google.com/uc?id=')) {
+    return url.replace('uc?id=', 'uc?export=download&id=');
+  }
+
+  return url;
+};
+
+
 export default function QuestionsList({
   questions,
   onQuestionsChange,
@@ -330,7 +358,20 @@ export default function QuestionsList({
             >
               <Copy className="w-5 h-5" />
             </button>
-            <label className="flex items-center space-x-1 cursor-pointer p-2 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100" title="Track Response Rank">
+ <label className="flex items-center space-x-1 cursor-pointer p-2 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100" title="Track Question">
+              <input
+                type="checkbox"
+                checked={q.trackResponseQuestion || false}
+                onChange={(e) =>
+                  updateQuestion(q.id, {
+                    trackResponseQuestion: e.target.checked,
+                  })
+                }
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded border-gray-300"
+              />
+              <span className="text-xs font-bold text-blue-600 whitespace-nowrap">Track Question</span>
+            </label>
+            <label className="flex items-center space-x-1 cursor-pointer p-2 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100" title="Track Rank">
               <input
                 type="checkbox"
                 checked={q.trackResponseRank || false}
@@ -491,6 +532,100 @@ export default function QuestionsList({
               <span className="text-sm text-primary-600">Required</span>
             </label>
           </div>
+                    {q.trackResponseRank && (
+            <div className="mt-4 p-4 bg-blue-50/50 border border-blue-200 rounded-xl space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider">Track Rank Configuration</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wide">
+                    Track Rank Question Label
+                  </label>
+                  <input
+                    type="text"
+                    value={q.trackResponseRankLabel || ""}
+                    onChange={(e) =>
+                      updateQuestion(q.id, {
+                        trackResponseRankLabel: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
+                    placeholder="Enter label for rank tracking"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wide">
+                    Track Rank Question Type
+                  </label>
+                  <select
+                    value={q.trackResponseRankType || "text"}
+                    onChange={(e) =>
+                      updateQuestion(q.id, {
+                        trackResponseRankType: e.target.value as QuestionType,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
+                  >
+                    {questionTypes.map((type) => (
+                      <option key={`${q.id}-rank-${type.value}`} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {q.trackResponseQuestion && (
+            <div className="mt-4 p-4 bg-indigo-50/50 border border-indigo-200 rounded-xl space-y-4">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-wider">Track Question Configuration</h4>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-indigo-700 mb-2 uppercase tracking-wide">
+                    Track Question Label
+                  </label>
+                  <input
+                    type="text"
+                    value={q.trackResponseQuestionLabel || ""}
+                    onChange={(e) =>
+                      updateQuestion(q.id, {
+                        trackResponseQuestionLabel: e.target.value,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm bg-white"
+                    placeholder="Enter label for tracking question"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-indigo-700 mb-2 uppercase tracking-wide">
+                    Track Question Type
+                  </label>
+                  <select
+                    value={q.trackResponseQuestionType || "text"}
+                    onChange={(e) =>
+                      updateQuestion(q.id, {
+                        trackResponseQuestionType: e.target.value as QuestionType,
+                      })
+                    }
+                    className="w-full px-3 py-2 border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm bg-white"
+                  >
+                    {questionTypes.map((type) => (
+                      <option key={`${q.id}-track-${type.value}`} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
 
           {q.type === "file" ? (
             <div className="mt-4">

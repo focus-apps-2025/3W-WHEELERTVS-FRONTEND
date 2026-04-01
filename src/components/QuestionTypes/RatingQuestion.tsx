@@ -7,6 +7,7 @@ interface RatingQuestionProps {
   value: string;
   onChange: (value: string) => void;
   readOnly?: boolean;
+  isApplied?: boolean;
 }
 
 export default function RatingQuestion({
@@ -14,6 +15,7 @@ export default function RatingQuestion({
   value,
   onChange,
   readOnly = false,
+  isApplied = false,
 }: RatingQuestionProps) {
   const { darkMode } = useTheme();
   
@@ -42,7 +44,9 @@ export default function RatingQuestion({
                 disabled={readOnly}
                 className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full border flex items-center justify-center text-[13px] font-black transition-all duration-300 ${
                   isSelected
-                    ? 'bg-slate-900 border-slate-900 text-white shadow-lg scale-110 z-10'
+                    ? isApplied
+                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg scale-110 z-10'
+                      : 'bg-slate-900 border-slate-900 text-white shadow-lg scale-110 z-10'
                     : darkMode
                       ? 'bg-slate-800 border-slate-700 text-slate-300 hover:border-blue-500'
                       : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400 hover:shadow-sm'

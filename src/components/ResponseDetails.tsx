@@ -184,6 +184,64 @@ export default function ResponseDetails({
     }
 
     if (typeof answer === "object") {
+            // Special handling for Chassis types
+      if (questionType === "chassis-with-zone" || questionType === "chassis-without-zone") {
+        const { chassisNumber, status, zone, defectCategory, defects } = answer;
+        const isFailure = status === 'Rejected' || status === 'Rework';
+
+        return (
+          <div className="space-y-3 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="px-3 py-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Chassis Number</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">{chassisNumber || "N/A"}</span>
+              </div>
+
+              <div className={`px-3 py-1 rounded-lg border shadow-sm ${
+                status === 'Accepted' 
+                  ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400"
+                  : status === 'Rejected'
+                    ? "bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800 text-red-700 dark:text-red-400"
+                    : "bg-amber-50 dark:bg-amber-900/20 border-amber-100 dark:border-amber-800 text-amber-700 dark:text-amber-400"
+              }`}>
+                <span className="text-[10px] font-bold opacity-60 uppercase tracking-wider block">Status</span>
+                <span className="text-sm font-bold">{status || "Unknown"}</span>
+              </div>
+
+              {zone && (
+                <div className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-400 rounded-lg shadow-sm">
+                  <span className="text-[10px] font-bold opacity-60 uppercase tracking-wider block">Zone</span>
+                  <span className="text-sm font-bold">{zone}</span>
+                </div>
+              )}
+            </div>
+
+            {isFailure && defectCategory && (
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Defect Category:</span>
+                    <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
+                      {defectCategory}
+                    </span>
+                  </div>
+                  {defects && defects.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-1">
+                      {defects.map((d: string, i: number) => (
+                        <span key={i} className="px-2 py-0.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-[11px] text-gray-600 dark:text-gray-400 rounded-md shadow-xs">
+                          {d}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+
       // Special handling for Product NPS Buckets (Hierarchy)
       if (answer.level1 || answer.level2 || answer.level3) {
         const breadcrumb = [

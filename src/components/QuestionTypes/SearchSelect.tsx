@@ -15,6 +15,7 @@ interface SearchSelectProps {
   required?: boolean;
   readOnly?: boolean;
   size?: "sm" | "md";
+  isApplied?: boolean;
 }
 
 export default function SearchSelect({
@@ -26,6 +27,7 @@ export default function SearchSelect({
   required = false,
   readOnly = false,
   size = "md",
+  isApplied = false,
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -106,7 +108,9 @@ export default function SearchSelect({
         className={`flex items-center justify-between transition-all duration-300 shadow-sm ${
           isSmall ? "px-3 py-2 border rounded-xl" : "px-5 py-4 border-2 rounded-2xl"
         } ${
-          readOnly
+          isApplied
+            ? "border-emerald-500 bg-emerald-50/30 ring-4 ring-emerald-500/10"
+            : readOnly
             ? "cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-100 dark:border-gray-800"
             : "cursor-pointer bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 hover:border-primary-300 dark:hover:border-primary-700 hover:shadow-md"
         } ${isOpen ? (isSmall ? "ring-2 ring-primary-50 border-primary-500 shadow-md" : "ring-4 ring-primary-50 dark:ring-primary-900/20 border-primary-500 dark:border-primary-500 shadow-lg") : ""}`}

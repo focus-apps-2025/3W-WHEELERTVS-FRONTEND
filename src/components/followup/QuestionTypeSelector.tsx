@@ -26,6 +26,8 @@ export default function QuestionTypeSelector({ value, onChange }: QuestionTypeSe
     { value: 'radio-grid', label: 'Multiple Choice Grid' },
     { value: 'checkbox-grid', label: 'Checkbox Grid' },
     { value: 'radio-image', label: 'Image Choice' },
+    { value: 'chassis-with-zone', label: 'Chassis with Zone' },
+    { value: 'chassis-without-zone', label: 'Chassis without Zone' },
   ];
 
   return (

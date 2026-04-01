@@ -9,7 +9,7 @@ const API_BASE_URL = (() => {
     hostname.startsWith("172.");
 
   const baseUrl = isLocal
-    ? "http://127.0.0.1:5000/api"
+    ? "http://127.0.0.1:5001/api"
     : "https://3wheelertvsbackend.focusengineeringapp.com/api";
 
   console.log(
@@ -56,7 +56,7 @@ class ApiClient {
     localStorage.removeItem("auth_token");
   }
 
-  private async request<T>(
+  public async request<T>(
     endpoint: string,
     options: RequestInit = {},
   ): Promise<T> {
@@ -71,17 +71,21 @@ class ApiClient {
       headers.Authorization = `Bearer ${this.token}`;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
     const config: RequestInit = {
       ...options,
       headers,
+      signal: controller.signal,
     };
 
     try {
       const response = await fetch(url, config);
+      clearTimeout(timeoutId);
       const data: ApiResponse<T> = await response.json();
 
       if (!response.ok) {
-        // Enhanced error message for validation errors
         let errorMessage = data.message || "Request failed";
         if (data.errors && Array.isArray(data.errors)) {
           const errorDetails = data.errors
@@ -109,8 +113,12 @@ class ApiClient {
 
       return data.data as T;
     } catch (error) {
+      clearTimeout(timeoutId);
       if (error instanceof ApiError) {
         throw error;
+      }
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new ApiError(408, null, "Request timed out. The server took too long to respond.");
       }
       throw new ApiError(500, null, "Network error or server unavailable");
     }
@@ -157,13 +165,12 @@ class ApiClient {
 
   async logout(sessionLogId?: string) {
     try {
-      if (this.token) {
-        await this.request("/auth/logout", {
-          method: "POST",
-          body: JSON.stringify({ sessionLogId })
-        });
-      }
-    } catch (e) {
+      await this.request("/auth/logout", {
+        method: "POST",
+        body: JSON.stringify({ sessionLogId }),
+      });
+    } 
+    catch (e) {
       console.warn("Logout request failed:", e);
     } finally {
       this.clearToken();
@@ -199,6 +206,51 @@ class ApiClient {
     if (params?.endDate) query.set("endDate", params.endDate);
 
     return this.request<{ logs: any[]; pagination: any }>(`/users/activity-logs?${query.toString()}`);
+  }
+
+  // SuperAdmin: Get all tenants performance
+  async getAllTenantsPerformance(params?: { startDate?: string; endDate?: string; search?: string; page?: number; limit?: number }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    if (params?.search) query.set("search", params.search);
+    if (params?.page) query.set("page", params.page.toString());
+    if (params?.limit) query.set("limit", params.limit.toString());
+
+    return this.request<{
+      users: any[];
+      pagination: {
+        currentPage: number;
+        totalPages: number;
+        totalUsers: number;
+        hasNextPage: boolean;
+        hasPrevPage: boolean;
+      };
+    }>(`/users/all-tenants-performance?${query.toString()}`);
+  }
+
+  // SuperAdmin: Get response details for a specific tenant
+  async getTenantResponseDetails(tenantId: string, params?: { startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+
+    const endpoint = `/analytics/superadmin/tenant/${tenantId}/response-details${query.toString() ? `?${query.toString()}` : ""}`;
+    return this.request<{
+      totalResponses: number;
+      statusBreakdown: { pending: number; verified: number; rejected: number };
+      yesNoNA: { yes: number; no: number; na: number };
+      formBreakdown: {
+        formId: string;
+        formTitle: string;
+        yes: number;
+        no: number;
+        na: number;
+        responseCount: number;
+        avgTimeSpent?: number;
+        totalTimeSpent?: number;
+      }[];
+    }>(endpoint);
   }
 
 
@@ -266,17 +318,26 @@ class ApiClient {
   }
 
   // Forms
-  async getForms(params?: { isGlobal?: boolean; search?: string }) {
-    const query = new URLSearchParams();
-    if (params?.isGlobal !== undefined) {
-      query.set("isGlobal", params.isGlobal.toString());
-    }
-    if (params?.search) {
-      query.set("search", params.search);
-    }
-    const endpoint = `/forms${query.toString() ? `?${query.toString()}` : ""}`;
-    return this.request<{ forms: any[] }>(endpoint);
+ // In client.ts
+async getForms(params?: { isGlobal?: boolean; search?: string }) {
+  const query = new URLSearchParams();
+  if (params?.isGlobal !== undefined) {
+    query.set("isGlobal", params.isGlobal.toString());
   }
+  if (params?.search) {
+    query.set("search", params.search);
+  }
+  const endpoint = `/forms${query.toString() ? `?${query.toString()}` : ""}`;
+  const result = await this.request<{ forms: any[] }>(endpoint);
+  
+  // DEBUG: Log the response
+  console.log('Forms API Response:', result);
+  result.forms.forEach(form => {
+    console.log(`Form "${form.title}" responseCount: ${form.responseCount}`);
+  });
+  
+  return result;
+}
 
   async getPublicForms(tenantSlug?: string) {
     const endpoint = tenantSlug
@@ -319,45 +380,56 @@ class ApiClient {
 
     return data.data;
   }
-  async submitPublicResponse(
-    formId: string,
-    data: {
-      inviteId: string;
-      answers: any;
-      location?: any;
-      submissionMetadata?: any;
-      startedAt?: Date | string;
-      completedAt?: Date | string;
-      sessionId?: string;
-      isSectionSubmit?: boolean;
-      sectionIndex?: number;
+ async submitPublicResponse(
+  formId: string,
+  data: {
+    inviteId: string;
+    answers: any;
+    location?: any;
+    submissionMetadata?: any;
+    startedAt?: Date | string;
+    completedAt?: Date | string;
+    sessionId?: string;
+    isSectionSubmit?: boolean;
+    sectionIndex?: number;
+  },
+) {
+  const url = `${this.baseUrl}/forms/${formId}/public/submit`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
     },
-  ) {
-    const url = `${this.baseUrl}/forms/${formId}/public/submit`;
+    body: JSON.stringify(data),
+  });
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-    });
+  const result = await response.json();
 
-    const result = await response.json();
+  console.log("Submit response status:", response.status);
+  console.log("Submit response body:", result);
 
-    if (!response.ok || !result.success) {
-      throw new ApiError(
-        response.status,
-        result,
-        result.message || "Submission failed",
-      );
-    }
-
-    // Log to see what's being returned
-    console.log("submitPublicResponse result:", result.data);
-
-    return result.data;
+  if (!response.ok) {
+    throw new ApiError(
+      response.status,
+      result,
+      result.message || "Submission failed",
+    );
   }
+
+  if (!result.success) {
+    throw new ApiError(
+      response.status,
+      result,
+      result.message || "Submission failed",
+    );
+  }
+
+  // Log the data being returned
+  console.log("submitPublicResponse result.data:", result.data);
+
+  return result.data;
+}
   async createForm(formData: any) {
     return this.request<{ form: any }>("/forms", {
       method: "POST",
@@ -463,10 +535,44 @@ class ApiClient {
   }
 
   async createResponse(responseData: any) {
-    return this.request<{ response: any }>("/responses", {
-      method: "POST",
-      body: JSON.stringify(responseData),
-    });
+    const tenantSlug = responseData.tenantSlug;
+    const formId = responseData.questionId || responseData.formId;
+    
+    let url = `${this.baseUrl}/responses`;
+    if (tenantSlug && formId) {
+      url = `${this.baseUrl}/responses/${tenantSlug}/forms/${formId}/responses`;
+    }
+    
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (this.token) headers.Authorization = `Bearer ${this.token}`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(responseData),
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      const json = await res.json();
+      
+      if (!res.ok) {
+        throw new ApiError(res.status, json, json.message || "Failed to create response");
+      }
+      
+      return json;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === "AbortError") {
+        throw new ApiError(408, null, "Request timed out. The server took too long to respond.");
+      }
+      if (err instanceof ApiError) throw err;
+      throw new ApiError(500, null, err.message || "Failed to create response");
+    }
   }
 
   async batchImportResponses(batchData: any) {
@@ -556,6 +662,102 @@ class ApiClient {
     return this.request<any>(`/analytics/form/${formId}`);
   }
 
+  // ── Form Session Tracking ─────────────────────────────────────────────────
+  // Start a time-tracking session when a user opens a form
+  // NOTE: Uses raw fetch because the backend returns { success, sessionId, startedAt }
+  // at the top level (not wrapped in data:{}), so the standard request() wrapper won't work.
+  async startFormSession(formId: string, formTitle?: string): Promise<{ sessionId: string; startedAt: string }> {
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (this.token) headers.Authorization = `Bearer ${this.token}`;
+
+      const res = await fetch(`${this.baseUrl}/forms/${formId}/track/start`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ formTitle }),
+      });
+      const json = await res.json();
+
+      if (json.sessionId) {
+        return { sessionId: json.sessionId, startedAt: json.startedAt || new Date().toISOString() };
+      }
+      // Also handle if backend ever wraps it: { success, data: { sessionId } }
+      if (json.data?.sessionId) {
+        return { sessionId: json.data.sessionId, startedAt: json.data.startedAt || new Date().toISOString() };
+      }
+      throw new Error("No sessionId in response");
+    } catch (err) {
+      console.warn("[apiClient.startFormSession] Failed, using client-side fallback:", err);
+      // Fallback: local session — startedAt still tracked correctly on the client
+      return { sessionId: `local-${Date.now()}`, startedAt: new Date().toISOString() };
+    }
+  }
+
+  // Track time spent on an individual question
+  async trackQuestionTime(formId: string, data: {
+    sessionId: string;
+    questionId: string;
+    questionText?: string;
+    questionType?: string;
+    sectionId?: string;
+    sectionTitle?: string;
+    timeSpent: number;
+    answer?: any;
+  }) {
+    try {
+      return await this.request<any>(`/forms/${formId}/track/question`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    } catch (err) {
+      console.warn("[apiClient.trackQuestionTime] Failed (non-critical):", err);
+    }
+  }
+
+  // Track section completion progress
+  async trackFormProgress(formId: string, data: {
+    sessionId: string;
+    sectionId?: string;
+    sectionTitle?: string;
+    timeSpent?: number;
+    questionCount?: number;
+  }) {
+    try {
+      return await this.request<any>(`/forms/${formId}/track/progress`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    } catch (err) {
+      console.warn("[apiClient.trackFormProgress] Failed (non-critical):", err);
+    }
+  }
+
+  // Mark the session as complete just before form submission
+  async trackFormComplete(formId: string, data: {
+    sessionId: string;
+    answers?: any;
+  }) {
+    try {
+      return await this.request<any>(`/forms/${formId}/track/complete`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    } catch (err) {
+      console.warn("[apiClient.trackFormComplete] Failed (non-critical):", err);
+    }
+  }
+
+  // Send a periodic heartbeat to show the session is still alive
+  async sendHeartbeat(data: { url?: string; formSessionId?: string }) {
+    try {
+      return await this.request<any>(`/activity/heartbeat`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    } catch (err) {
+      // Heartbeat failures are expected (network issues, etc.) – silently ignore
+    }
+  }
 
   // Rank tracking
   async getResponseRank(
@@ -588,6 +790,48 @@ class ApiClient {
   async getUserAnalytics() {
     return this.request<any>("/analytics/users");
   }
+
+    async getSuggestedAnswers(
+    formId: string,
+    questionId: string,
+    answer: any,
+    tenantSlug?: string
+  ) {
+    let endpoint = tenantSlug
+      ? `/responses/${tenantSlug}/forms/${formId}/suggestions`
+      : `/responses/suggestions`;
+
+    const queryParams = new URLSearchParams({
+      formId,
+      questionId,
+      answer: String(answer),
+    });
+
+    return this.request<{ suggestedAnswers: Record<string, any> }>(
+      `${endpoint}?${queryParams.toString()}`
+    );
+  }
+
+  async getQuestionPreviousAnswers(
+    formId: string,
+    questionId: string,
+    tenantSlug?: string
+  ) {
+    let endpoint = tenantSlug
+      ? `/responses/${tenantSlug}/forms/${formId}/previous-answers`
+      : `/responses/previous-answers`;
+
+    const queryParams = new URLSearchParams({
+      formId,
+      questionId,
+    });
+
+    return this.request<{ answers: string[] }>(
+      `${endpoint}?${queryParams.toString()}`
+    );
+  }
+
+
 
   async getAdminPerformance(adminId: string, params?: { startDate?: string; endDate?: string }) {
     const query = new URLSearchParams();
@@ -638,9 +882,12 @@ class ApiClient {
     }>(endpoint);
   }
 
-  async getTenantSubmissionStats(tenantId?: string) {
-    const query = tenantId ? `?tenantId=${tenantId}` : "";
-    return this.request<any>(`/analytics/tenant/stats${query}`);
+  async getTenantSubmissionStats(tenantId?: string, params?: { startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (tenantId) query.set("tenantId", tenantId);
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    return this.request<any>(`/analytics/tenant/stats${query.toString() ? `?${query.toString()}` : ""}`);
   }
   async getTenantForms(tenantId?: string) {
     // Re-uses the newly added tenant submission stats.
@@ -847,7 +1094,7 @@ class ApiClient {
       if (error instanceof ApiError) {
         throw error;
       }
-      throw new ApiError(500, null, `Upload failed: ${error.message}`);
+      throw new ApiError(500, null, `Upload failed: ${(error as Error).message}`);
     }
   }
 
@@ -954,10 +1201,14 @@ class ApiClient {
   }
 
   // Tenants (SuperAdmin only)
-  async getTenants(search: string = "", status: string = "all") {
+ async getTenants(search: string = "", status: string = "all") {
     return this.request<{ tenants: any[]; total: number }>(
       `/tenants?search=${search}&status=${status}`,
     );
+  }
+
+  async getTenantsMinimal() {
+    return this.request<{ tenants: any[] }>("/tenants/minimal");
   }
 
   async getTenant(tenantId: string) {
@@ -1261,6 +1512,7 @@ class ApiClient {
 
     return data.data;
   }
+  
 
   // WhatsApp Invite Management
   async uploadWhatsAppInvites(formId: string, formData: FormData) {
@@ -1384,57 +1636,6 @@ class ApiClient {
 
     const endpoint = `/users/available${query.toString() ? `?${query.toString()}` : ""}`;
     return this.request<{ users: any[] }>(endpoint);
-  } async sendHeartbeat(data: { url: string; sessionId?: string; formSessionId?: string }) {
-    return this.request("/activity/heartbeat", {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async startFormSession(formId: string, formTitle: string) {
-    return this.request<{ sessionId: string }>(`/forms/${formId}/track/start`, {
-      method: "POST",
-      body: JSON.stringify({ formTitle }),
-    });
-  }
-
-  async trackQuestionTime(formId: string, data: {
-    sessionId: string;
-    questionId: string;
-    questionText: string;
-    questionType: string;
-    sectionId?: string;
-    sectionTitle?: string;
-    timeSpent: number;
-    answer?: any;
-  }) {
-    return this.request(`/forms/${formId}/track/question`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async trackFormProgress(formId: string, data: {
-    sessionId: string;
-    sectionId: string;
-    sectionTitle: string;
-    timeSpent: number;
-    questionCount: number;
-  }) {
-    return this.request(`/forms/${formId}/track/progress`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
-  }
-
-  async trackFormComplete(formId: string, data: {
-    sessionId: string;
-    answers: any;
-  }) {
-    return this.request(`/forms/${formId}/track/complete`, {
-      method: "POST",
-      body: JSON.stringify(data),
-    });
   }
 
   // Activity Analytics

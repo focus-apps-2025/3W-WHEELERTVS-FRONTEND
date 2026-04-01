@@ -75,7 +75,11 @@ export default function ResponseEdit({
               key={q.id}
               question={q}
               value={answers[q.id]}
+              trackingValue={answers[`${q.id}_tracking`]}
+
               onChange={(value) => setAnswers({ ...answers, [q.id]: value })}
+              onTrackingChange={(value) => setAnswers({ ...answers, [`${q.id}_tracking`]: value })}
+
             />
           ))}
         </form>

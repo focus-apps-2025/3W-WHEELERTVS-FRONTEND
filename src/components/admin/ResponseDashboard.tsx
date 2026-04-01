@@ -59,24 +59,47 @@ interface Activity {
 interface ResponseDetails {
   totalResponses: number;
   statusBreakdown: { pending: number; verified: number; rejected: number };
-  yesNoNA: { yes: number; no: number; na: number };
+  answerDistribution?: { [option: string]: number };
+  yesNoNA?: { yes: number; no: number; na: number };
   formBreakdown: {
     formId: string;
     formTitle: string;
-    yes: number;
-    no: number;
-    na: number;
+    answerDistribution?: { [option: string]: number };
+    yes?: number;
+    no?: number;
+    na?: number;
     responseCount: number;
-    avgTimeSpent?: number; // In seconds
-    totalTimeSpent?: number; // In seconds
-    sessionCount?: number;
+    avgTimeSpent?: number;
+    totalTimeSpent?: number;
   }[];
-  personalSubmissions?: {
-    id: string;
-    formTitle: string;
-    submittedAt: string;
-    status: string;
-  }[];
+  followUpTree?: {
+    [formId: string]: {
+      formId: string;
+      formTitle: string;
+      mainQuestion: { id: string; text: string; options: string[] } | null;
+      followUpTree: { triggerOption: string; questions: FollowUpNode[] }[];
+    };
+  };
+  followUpAnswers?: {
+    [formId: string]: {
+      responseId: string;
+      mainAnswer: string;
+      followUpData: { [questionId: string]: any };
+      submittedBy: string;
+      createdAt: string;
+    }[];
+  };
+  personalSubmissions?: any[];
+}
+
+interface FollowUpNode {
+  id: string;
+  text: string;
+  type: string;
+  options: string[];
+  triggeredBy: string;
+  level: number;
+  children: FollowUpNode[];
 }
 
 interface DateRange {
@@ -85,8 +108,277 @@ interface DateRange {
 }
 
 // ─── Enhanced Donut Chart Component ───────────────────────────────────────────
-function DonutChart({ yes, no, na, showLabels = true }: { yes: number; no: number; na: number; showLabels?: boolean }) {
-  const total = yes + no + na;
+// Enhanced Donut Chart Component that can handle any options
+
+// ─── Follow-Up Questions Table ─────────────────────────────────────────────
+function FollowUpQuestionsTable({
+  followUpTree,
+  formBreakdown,
+  followUpAnswers
+}: {
+  followUpTree: ResponseDetails['followUpTree'];
+  formBreakdown: ResponseDetails['formBreakdown'];
+  followUpAnswers?: ResponseDetails['followUpAnswers'];
+}) {
+  if (!followUpTree || Object.keys(followUpTree).length === 0) return null;
+
+  const collectAllNodes = (nodes: FollowUpNode[]): FollowUpNode[] => {
+    const result: FollowUpNode[] = [];
+    const queue = [...nodes];
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      result.push(node);
+      if (node.children?.length > 0) queue.push(...node.children);
+    }
+    return result;
+  };
+
+  const renderAnswerValue = (value: any) => {
+    if (value === null || value === undefined || value === '') {
+      return <span className="text-gray-300 dark:text-gray-600 text-xs italic">—</span>;
+    }
+    if (typeof value === 'string') {
+      return <span className="text-sm text-gray-800 dark:text-gray-200">{value}</span>;
+    }
+    if (Array.isArray(value)) {
+      return (
+        <div className="flex flex-wrap gap-1">
+          {value.map((v, i) => (
+            <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300">
+              {String(v)}
+            </span>
+          ))}
+        </div>
+      );
+    }
+    if (typeof value === 'object') {
+      // Handle complex objects (remarks, actionInitiated etc.)
+      const parts = Object.entries(value)
+        .filter(([, v]) => v !== null && v !== undefined && v !== '')
+        .map(([k, v]) => `${k}: ${v}`);
+      if (parts.length === 0) return <span className="text-gray-300 dark:text-gray-600 text-xs italic">—</span>;
+      return (
+        <div className="space-y-0.5">
+          {parts.map((part, i) => (
+            <div key={i} className="text-xs text-gray-600 dark:text-gray-400">{part}</div>
+          ))}
+        </div>
+      );
+    }
+    return <span className="text-sm text-gray-800 dark:text-gray-200">{String(value)}</span>;
+  };
+
+  return (
+    <div className="space-y-6">
+      {Object.values(followUpTree).map(formData => {
+        if (!formData.mainQuestion || formData.followUpTree.length === 0) return null;
+
+        const mainOptions = formData.mainQuestion.options;
+        const triggerOptions = mainOptions.filter((_, i) => i > 0);
+
+        // Collect all unique follow-up nodes
+        const allFollowUpNodes: FollowUpNode[] = [];
+        const seenIds = new Set<string>();
+        formData.followUpTree.forEach(branch => {
+          collectAllNodes(branch.questions).forEach(node => {
+            if (!seenIds.has(node.id)) {
+              seenIds.add(node.id);
+              allFollowUpNodes.push(node);
+            }
+          });
+        });
+
+        if (allFollowUpNodes.length === 0) return null;
+
+        const form = formBreakdown.find(f => f.formId === formData.formId);
+        const formResponses = followUpAnswers?.[formData.formId] || [];
+
+        // Group responses by mainAnswer
+        const responsesByOption: Record<string, typeof formResponses> = {};
+        formResponses.forEach(r => {
+          if (!responsesByOption[r.mainAnswer]) responsesByOption[r.mainAnswer] = [];
+          responsesByOption[r.mainAnswer].push(r);
+        });
+
+        return (
+          <div key={formData.formId} className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-4">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <BarChart2 className="w-4 h-4" />
+                {formData.formTitle} — Follow-up Answers
+              </h3>
+              <p className="text-indigo-200 text-xs mt-1">
+                Showing actual answers for:{' '}
+                {triggerOptions.map(o => (
+                  <span key={o} className="inline-block bg-white/20 px-2 py-0.5 rounded-full mx-1 font-semibold">{o}</span>
+                ))}
+              </p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm border-collapse">
+                <thead>
+                  <tr>
+                    {/* Column 1: Main Question answer + submitter */}
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-900/50 border-b border-r border-gray-200 dark:border-gray-700 min-w-[160px] sticky left-0 z-10">
+                      {formData.mainQuestion.text}
+                    </th>
+
+                    {/* One column per follow-up question */}
+                    {allFollowUpNodes.map(node => (
+                      <th
+                        key={node.id}
+                        className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider border-b border-r border-gray-200 dark:border-gray-700 min-w-[180px] ${
+                          node.level === 1
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                            : node.level === 2
+                            ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+                            : 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
+                        }`}
+                      >
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1">
+                            {node.level > 1 && (
+                              <span className="text-gray-400">{'↳'.repeat(node.level - 1)}</span>
+                            )}
+                            <span className="leading-tight">{node.text}</span>
+                          </div>
+                          <span className={`text-[10px] font-normal px-1.5 py-0.5 rounded-full w-fit ${
+                            node.level === 1
+                              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-500 dark:text-blue-400'
+                              : 'bg-purple-100 dark:bg-purple-900/40 text-purple-500 dark:text-purple-400'
+                          }`}>
+                            {node.level === 1 ? 'Follow-up' : `Nested L${node.level}`}
+                            {node.triggeredBy ? ` · ${node.triggeredBy}` : ''}
+                          </span>
+                        </div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                  {triggerOptions.map(option => {
+                    const optionResponses = responsesByOption[option] || [];
+                    const optionCount = form?.answerDistribution?.[option] ?? 0;
+
+                    // Get which nodes belong to this trigger option
+                    const branch = formData.followUpTree.find(b => b.triggerOption === option);
+                    const branchNodeIds = new Set(
+                      branch ? collectAllNodes(branch.questions).map(n => n.id) : []
+                    );
+
+                    if (optionResponses.length === 0) {
+                      // No responses for this option — show empty row
+                      return (
+                        <tr key={option} className="bg-white dark:bg-gray-900">
+                          <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-700 sticky left-0 bg-white dark:bg-gray-900 z-10">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${
+                              option.toLowerCase().includes('reject')
+                                ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+                                : option.toLowerCase().includes('rework')
+                                ? 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
+                                : 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400'
+                            }`}>
+                              {option}
+                            </span>
+                            <div className="text-xs text-gray-400 mt-1">No responses</div>
+                          </td>
+                          {allFollowUpNodes.map(node => (
+                            <td key={node.id} className="px-4 py-3 border-r border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30">
+                              <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    }
+
+                    // One row per actual response
+                    return optionResponses.map((resp, respIdx) => (
+                      <tr
+                        key={`${option}-${resp.responseId}`}
+                        className={`${
+                          respIdx % 2 === 0
+                            ? 'bg-white dark:bg-gray-900'
+                            : 'bg-gray-50/40 dark:bg-gray-800/20'
+                        } hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors`}
+                      >
+                        {/* Main answer cell */}
+                        <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-700 sticky left-0 bg-inherit z-10">
+                          <div className="flex flex-col gap-1">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border w-fit ${
+                              option.toLowerCase().includes('reject')
+                                ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800'
+                                : option.toLowerCase().includes('rework')
+                                ? 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400 dark:border-yellow-800'
+                                : 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400'
+                            }`}>
+                              {option}
+                            </span>
+                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                              {resp.submittedBy}
+                            </span>
+                            <span className="text-[10px] text-gray-300 dark:text-gray-600">
+                              {new Date(resp.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Follow-up answer cells */}
+                        {allFollowUpNodes.map(node => {
+                          const isRelevant = branchNodeIds.has(node.id);
+                          const answerValue = resp.followUpData[node.id];
+
+                          return (
+                            <td
+                              key={node.id}
+                              className={`px-4 py-3 border-r border-gray-100 dark:border-gray-800 align-top ${
+                                !isRelevant
+                                  ? 'bg-gray-50/60 dark:bg-gray-800/40'
+                                  : node.level === 1
+                                  ? 'bg-blue-50/20 dark:bg-blue-900/5'
+                                  : 'bg-purple-50/20 dark:bg-purple-900/5'
+                              }`}
+                            >
+                              {isRelevant
+                                ? renderAnswerValue(answerValue)
+                                : <span className="text-gray-200 dark:text-gray-700 text-xs">—</span>
+                              }
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ));
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Legend */}
+            <div className="px-5 py-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4">
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-300" />
+                <span className="text-xs text-gray-500">Level 1 Follow-up</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-sm bg-purple-100 border border-purple-300" />
+                <span className="text-xs text-gray-500">Level 2+ Nested</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-3 h-3 rounded-sm bg-gray-100 border border-gray-300" />
+                <span className="text-xs text-gray-500">Not applicable</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+function DonutChart({ data }: { data: { [key: string]: number } }) {
+  const total = Object.values(data).reduce((sum, val) => sum + val, 0);
+  
   if (total === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-48">
@@ -97,16 +389,27 @@ function DonutChart({ yes, no, na, showLabels = true }: { yes: number; no: numbe
     );
   }
 
+  // Generate colors dynamically based on number of options
+  const getColorForOption = (index: number, total: number) => {
+    const colors = [
+      '#22c55e', '#ef4444', '#94a3b8', '#3b82f6', '#f59e0b', 
+      '#8b5cf6', '#ec489a', '#14b8a6', '#f97316', '#6366f1'
+    ];
+    return colors[index % colors.length];
+  };
+
   const radius = 60;
   const cx = 80;
   const cy = 80;
   const circumference = 2 * Math.PI * radius;
 
-  const segments = [
-    { value: yes, color: '#22c55e', label: 'Yes' },
-    { value: no, color: '#ef4444', label: 'No' },
-    { value: na, color: '#94a3b8', label: 'N/A' },
-  ].filter(s => s.value > 0);
+  const segments = Object.entries(data)
+    .filter(([_, value]) => value > 0)
+    .map(([label, value], index) => ({
+      label,
+      value,
+      color: getColorForOption(index, Object.keys(data).length)
+    }));
 
   let offset = 0;
   const paths = segments.map((seg) => {
@@ -137,28 +440,21 @@ function DonutChart({ yes, no, na, showLabels = true }: { yes: number; no: numbe
               style={{ transition: 'stroke-dasharray 0.5s ease' }}
             />
           ))}
-          {/* center hole */}
           <circle cx={cx} cy={cy} r={40} fill="white" className="dark:fill-gray-800" />
           <text x={cx} y={cy - 6} textAnchor="middle" className="fill-gray-700 dark:fill-gray-200" fontSize="18" fontWeight="700">{total}</text>
           <text x={cx} y={cy + 12} textAnchor="middle" className="fill-gray-400" fontSize="10">answers</text>
         </svg>
       </div>
-      {showLabels && (
-        <div className="flex items-center gap-6 flex-wrap justify-center">
-          {[
-            { color: '#22c55e', label: 'Yes', value: yes },
-            { color: '#ef4444', label: 'No', value: no },
-            { color: '#94a3b8', label: 'N/A', value: na },
-          ].map((item) => (
-            <div key={item.label} className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-              <span className="text-sm text-gray-600 dark:text-gray-400">{item.label}</span>
-              <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{item.value}</span>
-              <span className="text-xs text-gray-400">({total > 0 ? Math.round((item.value / total) * 100) : 0}%)</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="flex items-center gap-4 flex-wrap justify-center">
+        {segments.map((seg) => (
+          <div key={seg.label} className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: seg.color }} />
+            <span className="text-sm text-gray-600 dark:text-gray-400">{seg.label}</span>
+            <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{seg.value}</span>
+            <span className="text-xs text-gray-400">({total > 0 ? Math.round((seg.value / total) * 100) : 0}%)</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -276,7 +572,10 @@ export default function ResponseDashboard() {
   const fetchTotalTenantStats = useCallback(async () => {
     if (!tenant) return { totalForms: 0, totalSubmissions: 0, userWiseSubmissions: [] };
     try {
-      const statsResponse = await apiClient.getTenantSubmissionStats(tenant._id);
+      const statsResponse = await apiClient.getTenantSubmissionStats(tenant._id, {
+        startDate: dateRange.start,
+        endDate: dateRange.end
+      });
       const totalForms = statsResponse.totalForms || 0;
       const totalSubmissions = statsResponse.totalSubmissions || 0;
       const userWise = statsResponse.userWiseSubmissions || [];
@@ -291,7 +590,7 @@ export default function ResponseDashboard() {
       setUserWiseSubmissions([]);
       return { totalForms: 0, totalSubmissions: 0, userWiseSubmissions: [] };
     }
-  }, [tenant]);
+  }, [tenant, dateRange]);
 
   // ── Load admin list + per-admin performance ─────────────────────────────────
   const loadAdminPerformances = useCallback(async () => {
@@ -861,13 +1160,13 @@ export default function ResponseDashboard() {
                     { label: 'Rejected', value: selectedAdmin.metrics.formsRejected, color: 'text-red-600 dark:text-red-400', icon: <XCircle className="w-4 h-4" /> },
                     { label: 'Pending', value: selectedAdmin.metrics.pendingForms, color: 'text-yellow-600 dark:text-yellow-400', icon: <Clock className="w-4 h-4" /> },*/
                     { label: 'Active mins', value: selectedAdmin.metrics.activeDurationMinutes || 0, color: 'text-orange-600 dark:text-orange-400', icon: <Activity className="w-4 h-4" /> },
-                    { 
-                      label: 'Last Submission', 
-                      value: selectedAdmin.formsByUser?.[0]?.forms?.[0]?.submittedAt 
-                        ? new Date(selectedAdmin.formsByUser[0].forms[0].submittedAt).toLocaleString() 
-                        : 'No submissions', 
-                      color: 'text-green-500 dark:text-green-400 text-sm', 
-                      icon: <Clock className="w-4 h-4" /> 
+                    {
+                      label: 'Last Submission',
+                      value: selectedAdmin.formsByUser?.[0]?.forms?.[0]?.submittedAt
+                        ? new Date(selectedAdmin.formsByUser[0].forms[0].submittedAt).toLocaleString()
+                        : 'No submissions',
+                      color: 'text-green-500 dark:text-green-400 text-sm',
+                      icon: <Clock className="w-4 h-4" />
                     }
                   ].map((stat) => (
                     <div key={stat.label} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 text-center">
@@ -941,87 +1240,171 @@ export default function ResponseDashboard() {
 
 
                   {/* Yes / No / N/A Chart */}
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-6">Yes / No / N/A Answer Distribution</h3>
-                    <div className="bg-gray-50 dark:bg-gray-700/30 rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
-                      <DonutChart
-                        yes={responseDetails.yesNoNA.yes}
-                        no={responseDetails.yesNoNA.no}
-                        na={responseDetails.yesNoNA.na}
-                      />
+                {/* Yes / No / N/A Chart */}
+<div>
+  <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-6">
+    Answer Distribution
+  </h3>
+  <div className="bg-gray-50 dark:bg-gray-700/30 rounded-2xl p-6 border border-gray-200 dark:border-gray-700">
+    {/* Use dynamic distribution instead of hardcoded yes/no/na */}
+    {responseDetails.answerDistribution && Object.keys(responseDetails.answerDistribution).length > 0 ? (
+      <DonutChart data={responseDetails.answerDistribution} />
+    ) : responseDetails.yesNoNA ? (
+      // Fallback for backward compatibility
+      <DonutChart data={{
+        Yes: responseDetails.yesNoNA.yes,
+        No: responseDetails.yesNoNA.no,
+        'N/A': responseDetails.yesNoNA.na
+      }} />
+    ) : (
+      <div className="text-center py-8 text-gray-500">No answer data available</div>
+    )}
+  </div>
+</div>
 
-                      {/* Bar breakdown */}
-                      {(responseDetails.yesNoNA.yes + responseDetails.yesNoNA.no + responseDetails.yesNoNA.na) > 0 && (
-                        <div className="mt-6 space-y-3">
-                          {[
-                            { label: 'Yes', value: responseDetails.yesNoNA.yes, color: 'bg-green-500', icon: <ThumbsUp className="w-4 h-4 text-green-600" /> },
-                            { label: 'No', value: responseDetails.yesNoNA.no, color: 'bg-red-500', icon: <ThumbsDown className="w-4 h-4 text-red-600" /> },
-                            { label: 'N/A', value: responseDetails.yesNoNA.na, color: 'bg-slate-400', icon: <Minus className="w-4 h-4 text-slate-500" /> },
-                          ].map((item) => {
-                            const total = responseDetails.yesNoNA.yes + responseDetails.yesNoNA.no + responseDetails.yesNoNA.na;
-                            const pct = total > 0 ? Math.round((item.value / total) * 100) : 0;
-                            return (
-                              <div key={item.label} className="flex items-center gap-3">
-                                {item.icon}
-                                <span className="text-sm w-8 text-gray-600 dark:text-gray-400">{item.label}</span>
-                                <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2.5 overflow-hidden">
-                                  <div
-                                    className={`h-2.5 rounded-full ${item.color} transition-all duration-700`}
-                                    style={{ width: `${pct}%` }}
-                                  />
-                                </div>
-                                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 w-8 text-right">{item.value}</span>
-                                <span className="text-xs text-gray-400 w-10 text-right">{pct}%</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+{/* Bar breakdown for answer distribution */}
+{responseDetails.answerDistribution && Object.keys(responseDetails.answerDistribution).length > 0 && (
+  <div className="mt-6 space-y-3">
+    {Object.entries(responseDetails.answerDistribution).map(([label, value], index) => {
+      const total = Object.values(responseDetails.answerDistribution!).reduce((sum, v) => sum + v, 0);
+      const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+      
+      // Color mapping based on label
+      const getColor = (label: string) => {
+        switch(label.toLowerCase()) {
+          case 'approved': return 'bg-green-500';
+          case 'rejected': return 'bg-red-500';
+          case 'reworked': return 'bg-yellow-500';
+          default: return `bg-${['blue', 'purple', 'pink', 'indigo'][index % 4]}-500`;
+        }
+      };
+      
+      const getIcon = (label: string) => {
+        switch(label.toLowerCase()) {
+          case 'approved': return <ThumbsUp className="w-4 h-4 text-green-600" />;
+          case 'rejected': return <ThumbsDown className="w-4 h-4 text-red-600" />;
+          case 'reworked': return <RefreshCw className="w-4 h-4 text-yellow-600" />;
+          default: return <BarChart2 className="w-4 h-4 text-blue-600" />;
+        }
+      };
+      
+      return (
+        <div key={label} className="flex items-center gap-3">
+          {getIcon(label)}
+          <span className="text-sm w-20 text-gray-600 dark:text-gray-400">{label}</span>
+          <div className="flex-1 bg-gray-200 dark:bg-gray-600 rounded-full h-2.5 overflow-hidden">
+            <div
+              className={`h-2.5 rounded-full ${getColor(label)} transition-all duration-700`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 w-8 text-right">{value}</span>
+          <span className="text-xs text-gray-400 w-10 text-right">{pct}%</span>
+        </div>
+      );
+    })}
+  </div>
+)}
+
 
                   {/* Per-Form Breakdown */}
-                  {responseDetails.formBreakdown.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Per-Form Breakdown</h3>
-                      <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-                        <table className="w-full text-sm">
-                          <thead className="bg-gray-50 dark:bg-gray-900/50">
-                            <tr>
-                              {['Form', 'Yes', 'No', 'N/A', 'Responses', 'Total time', 'Detail'].map(h => (
-                                <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                            {responseDetails.formBreakdown.map((row) => (
-                              <tr key={row.formId} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 max-w-xs truncate" title={row.formTitle}>
-                                  {row.formTitle}
-                                </td>
-                                <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold">{row.yes}</td>
-                                <td className="px-4 py-3 text-red-600 dark:text-red-400 font-semibold">{row.no}</td>
-                                <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-semibold">{row.na}</td>
-                                <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-bold">{row.responseCount}</td>
-                                <td className="px-4 py-3 text-blue-600 dark:text-blue-400 font-medium">
-                                  {row.totalTimeSpent ? (row.totalTimeSpent > 60 ? `${Math.floor(row.totalTimeSpent / 60)}m ${row.totalTimeSpent % 60}s` : `${row.totalTimeSpent}s`) : '-'}
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <button
-                                    onClick={() => navigate(`/forms/${row.formId}/analytics?view=responses`)}
-                                    className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md transition-colors"
-                                  >
-                                    <BarChart2 className="w-3.5 h-3.5" />
-                                    View
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
+                 {responseDetails.formBreakdown.length > 0 && (
+  <div>
+    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Per-Form Breakdown</h3>
+    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 dark:bg-gray-900/50">
+          <tr>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Form</th>
+            {responseDetails.formBreakdown[0]?.answerDistribution && 
+              Object.keys(responseDetails.formBreakdown[0].answerDistribution).map(option => (
+                <th key={option} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{option}</th>
+              ))
+            }
+            {/* Fallback for backward compatibility */}
+            {!responseDetails.formBreakdown[0]?.answerDistribution && (
+              <>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Yes</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">No</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">N/A</th>
+              </>
+            )}
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Responses</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total time</th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Detail</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+          {responseDetails.formBreakdown.map((row) => (
+            <tr key={row.formId} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+              <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 max-w-xs truncate" title={row.formTitle}>
+                {row.formTitle}
+              </td>
+              
+              {/* Dynamic answer columns */}
+              {responseDetails.formBreakdown[0]?.answerDistribution ? (
+  Object.keys(responseDetails.formBreakdown[0].answerDistribution).map((option) => (
+    <td key={option} className="px-4 py-3 font-semibold">
+      <span className={`${
+        option === 'Approved' ? 'text-green-600 dark:text-green-400' :
+        option === 'Rejected' ? 'text-red-600 dark:text-red-400' :
+        option === 'Reworked' ? 'text-yellow-600 dark:text-yellow-400' :
+        'text-gray-600 dark:text-gray-400'
+      }`}>
+        {row.answerDistribution?.[option] ?? 0}
+      </span>
+    </td>
+  ))
+) : (
+                // Fallback for backward compatibility
+                <>
+                  <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold">{row.yes || 0}</td>
+                  <td className="px-4 py-3 text-red-600 dark:text-red-400 font-semibold">{row.no || 0}</td>
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-semibold">{row.na || 0}</td>
+                </>
+              )}
+              
+              <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-bold">{row.responseCount}</td>
+              <td className="px-4 py-3 text-blue-600 dark:text-blue-400 font-medium">
+                {row.totalTimeSpent ? 
+                  (row.totalTimeSpent > 60 ? 
+                    `${Math.floor(row.totalTimeSpent / 60)}m ${row.totalTimeSpent % 60}s` : 
+                    `${row.totalTimeSpent}s`) : 
+                  '-'
+                }
+              </td>
+              <td className="px-4 py-3 text-right">
+                <button
+                  onClick={() => navigate(`/forms/${row.formId}/analytics?view=responses`)}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md transition-colors"
+                >
+                  <BarChart2 className="w-3.5 h-3.5" />
+                  View
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+)}
+
+{/*  Follow-up Questions Table - add after Per-Form Breakdown */}
+{responseDetails.followUpTree &&
+  Object.keys(responseDetails.followUpTree).length > 0 && (
+    <div>
+      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
+        Follow-up Questions Structure
+      </h3>
+      <FollowUpQuestionsTable
+        followUpTree={responseDetails.followUpTree}
+        formBreakdown={responseDetails.formBreakdown}
+        followUpAnswers={responseDetails.followUpAnswers}
+      />
+    </div>
+  )
+}
 
                   {/* Personal Submissions List 
                   {responseDetails.personalSubmissions && responseDetails.personalSubmissions.length > 0 && (
@@ -1136,8 +1519,8 @@ export default function ResponseDashboard() {
                         <div
                           key={response.id}
                           className={`flex items-center justify-between p-4 rounded-lg border ${selectedResponses.includes(response.id)
-                              ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700'
-                              : 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-700'
+                            ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-300 dark:border-orange-700'
+                            : 'bg-gray-50 dark:bg-gray-700/30 border-gray-200 dark:border-gray-700'
                             }`}
                         >
                           <div className="flex items-center gap-3">

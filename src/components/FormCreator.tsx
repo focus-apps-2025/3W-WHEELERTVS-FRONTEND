@@ -74,6 +74,8 @@ interface Question {
   imageUrl?: string;
   suggestion?: string;
   trackResponseRank?: boolean;
+  trackResponseRankLabel?: string;
+  trackResponseRankType?: string;
   subParam1?: string;
   subParam2?: string;
   followUpQuestions?: FollowUpQuestion[];
@@ -106,6 +108,11 @@ interface Question {
     level5?: string;
     level6?: string;
   };
+  // For chassisNumber type - stores tenant assignment for each chassis number
+  chassisNumberTenantConfig?: Array<{
+    chassisNumber: string;
+    assignedTenants: string[];
+  }>;
 }
 
 interface ShowWhen {
@@ -124,6 +131,9 @@ interface FollowUpQuestion {
   imageUrl?: string;
   suggestion?: string;
   trackResponseRank?: boolean;
+  trackResponseRankLabel?: string;
+  trackResponseRankType?: string;
+
   subParam1?: string;
   subParam2?: string;
   showWhen?: ShowWhen;
@@ -158,6 +168,7 @@ export default function FormCreator() {
   const [pageWindowStart, setPageWindowStart] = useState<number>(0);
   const [openOptionMenu, setOpenOptionMenu] = useState<string | null>(null); // Track which option's menu is open
   const [openQuestionMenu, setOpenQuestionMenu] = useState<string | null>(null); // Track which question's menu is open
+  const [openChassisMenu, setOpenChassisMenu] = useState<number | null>(null); // Track which chassis's menu is open
   const [showSectionSelector, setShowSectionSelector] = useState(false); // Show modal for selecting a section
   const [pendingSectionLink, setPendingSectionLink] = useState<{
     sectionId: string;
@@ -178,7 +189,17 @@ export default function FormCreator() {
     sectionId: string;
     options: string[];
   } | null>(null);
+  // State for chassis number tenant configuration
+  const [showChassisTenantModal, setShowChassisTenantModal] = useState(false);
+  const [chassisTenantConfig, setChassisTenantConfig] = useState<{
+    chassisNumber: string;
+    index: number;
+  } | null>(null);
+  const [newChassisNumber, setNewChassisNumber] = useState("");
+  const [newPartDescription, setNewPartDescription] = useState("");
+  const [chassisTenantAssignments, setChassisTenantAssignments] = useState<Record<string, string[]>>({});
   const [form, setForm] = useState({
+    id: "",
     title: "",
     description: "",
     isVisible: true,
@@ -192,6 +213,8 @@ export default function FormCreator() {
         questions: [],
       },
     ] as FormSection[],
+    followUpQuestions: [] as FollowUpQuestion[],
+    chassisNumbers: [] as Array<{ chassisNumber: string; partDescription: string }>,
   });
   const [sectionWeightageDrafts, setSectionWeightageDrafts] = useState<
     Record<string, string>
@@ -279,11 +302,11 @@ export default function FormCreator() {
           if (backendForm.tenantId) {
             setSelectedTenantId(backendForm.tenantId);
           }
-          
+
           if (backendForm.isGlobal !== undefined) {
             setIsGlobal(backendForm.isGlobal);
           }
-          
+
           if (backendForm.sharedWithTenants) {
             setSharedWithTenants(backendForm.sharedWithTenants);
           }
@@ -365,9 +388,10 @@ export default function FormCreator() {
             locationEnabled: backendForm.locationEnabled !== false,
             sections: sectionsWithNestedFollowUps,
             followUpQuestions: backendForm.followUpQuestions || [],
+            chassisNumbers: (backendForm.chassisNumbers || []).map((cn: any) => 
+              typeof cn === 'string' ? { chassisNumber: cn, partDescription: '' } : cn
+            ),
           });
-
-          // Load branching rules for the form
           if (backendForm.sectionBranching) {
             setFormSectionBranching(backendForm.sectionBranching);
             console.log(
@@ -375,9 +399,24 @@ export default function FormCreator() {
               backendForm.sectionBranching
             );
           }
-        } catch (error) {
+          // Load chassis number tenant configuration
+          if (Array.isArray(backendForm.chassisTenantAssignments)) {
+            const assignmentsRecord: Record<string, string[]> = {};
+            backendForm.chassisTenantAssignments.forEach((assignment: any) => {
+              const key = assignment.chassisNumber;
+              if (key) {
+                assignmentsRecord[key] = assignment.assignedTenants;
+              }
+            });
+            setChassisTenantAssignments(assignmentsRecord);
+          } else if (backendForm.chassisTenantAssignments) {
+            // Already a record (backward compatibility)
+            setChassisTenantAssignments(backendForm.chassisTenantAssignments);
+          }
+        }
+         catch (error) {
           console.error("Failed to load form:", error);
-          // Fallback to local storage if API fails
+           // Fallback to local storage if API fails
           const existingForm = questionsApi.getById(id);
           if (existingForm) {
             setForm(existingForm);
@@ -394,6 +433,7 @@ export default function FormCreator() {
         if (state.formData) {
           // Load pre-populated form data
           setForm({
+            id: "",
             title: state.formData.title || "",
             description: state.formData.description || "",
             isVisible: state.formData.isVisible !== false,
@@ -423,10 +463,15 @@ export default function FormCreator() {
                 branchingRules: question.branchingRules || undefined,
               })),
             })),
+            followUpQuestions: state.formData.followUpQuestions || [],
+            chassisNumbers: (state.formData.chassisNumbers || []).map((cn: any) => 
+              typeof cn === 'string' ? { chassisNumber: cn, partDescription: '' } : cn
+            ),
           });
         } else {
           // Start with empty form
           setForm({
+            id: "",
             title: "",
             description: "",
             isVisible: true,
@@ -439,7 +484,9 @@ export default function FormCreator() {
                 weightage: 0,
                 questions: [],
               },
-            ] as FormSection[],
+            ],
+            followUpQuestions: [],
+            chassisNumbers: [],
           });
         }
       } else {
@@ -487,6 +534,21 @@ export default function FormCreator() {
     });
   }, [form.sections]);
 
+  // Fetch tenants when chassis modal opens
+  useEffect(() => {
+    if (showChassisTenantModal && tenants.length === 0) {
+      const fetchTenants = async () => {
+        try {
+          const response = await apiClient.getTenantsMinimal();
+          setTenants(response.tenants || []);
+        } catch (error) {
+          console.error("Failed to fetch tenants for modal:", error);
+        }
+      };
+      fetchTenants();
+    }
+  }, [showChassisTenantModal, tenants.length]);
+
   // Fetch parameters
   useEffect(() => {
     const fetchParameters = async () => {
@@ -519,6 +581,33 @@ export default function FormCreator() {
     return isInFollowUps;
   };
 
+  const handleAddChassis = () => {
+    if (!newChassisNumber.trim()) return;
+    const chassisKey = newChassisNumber.trim();
+    if (form.chassisNumbers.some((cn) => cn.chassisNumber === chassisKey)) {
+      showError("Chassis number already exists", "Duplicate Error");
+      return;
+    }
+    setForm((prev) => ({
+      ...prev,
+      chassisNumbers: [...prev.chassisNumbers, { chassisNumber: chassisKey, partDescription: newPartDescription.trim() }],
+    }));
+    setNewChassisNumber("");
+    setNewPartDescription("");
+  };
+
+  const handleRemoveChassis = (index: number) => {
+    const chassisToRemove = form.chassisNumbers[index];
+    setForm((prev) => ({
+      ...prev,
+      chassisNumbers: prev.chassisNumbers.filter((_, i) => i !== index),
+    }));
+    // Clean up assignments
+    const newAssignments = { ...chassisTenantAssignments };
+    delete newAssignments[chassisToRemove.chassisNumber];
+    setChassisTenantAssignments(newAssignments);
+  };
+
   const handleExportTemplate = () => {
     try {
       downloadFormImportTemplate();
@@ -539,11 +628,14 @@ export default function FormCreator() {
       const importedData = await parseFormWorkbook(file);
 
       const newForm = {
-        title: importedData.title || "Imported Form",
-        description: importedData.description || "",
+        id: "",
+        title: (importedData as any).title || "Imported Form",
+        description: (importedData as any).description || "",
         isVisible: true,
         locationEnabled: true,
-        sections: importedData.sections || [],
+        sections: (importedData as any).sections || [],
+        followUpQuestions: [],
+        chassisNumbers: [],
       };
 
       setForm(newForm);
@@ -820,7 +912,12 @@ export default function FormCreator() {
             });
           });
 
-          setForm(sampleForm);
+          setForm({
+            ...sampleForm,
+            id: "",
+            followUpQuestions: [],
+            chassisNumbers: [],
+          });
           showSuccess("Sample data loaded successfully!", "Sample Data");
         }
       );
@@ -970,6 +1067,14 @@ export default function FormCreator() {
       tenantId: tenantId,
       isGlobal: isGlobal,
       sharedWithTenants: sharedWithTenants,
+      chassisNumbers: form.chassisNumbers || [],
+      // Include chassis number tenant configuration (Convert Record to Array of Objects for Mongoose/Mongo indexing)
+      chassisTenantAssignments: Object.entries(chassisTenantAssignments || {}).map(([chassisNumber, tenants]) => {
+        return {
+          chassisNumber,
+          assignedTenants: tenants,
+        };
+      }),
       sections: form.sections.map((section) => {
         const allQuestions: Question[] = [];
 
@@ -1163,6 +1268,7 @@ export default function FormCreator() {
   const handleCreateForm = () => {
     setMode("create");
     setForm({
+      id: "",
       title: "",
       description: "",
       isVisible: true,
@@ -1176,6 +1282,8 @@ export default function FormCreator() {
           questions: [],
         },
       ] as FormSection[],
+      followUpQuestions: [],
+      chassisNumbers: [],
     });
   };
 
@@ -1783,11 +1891,14 @@ export default function FormCreator() {
 
     // Create the form with proper typing
     const formToSet = {
+      id: "",
       title: formTitle,
       description: formDescription,
       isVisible: true,
       locationEnabled: true,
-      sections: sections.map((section) => ({
+      followUpQuestions: [],
+      chassisNumbers: [],
+      sections: (sections as any[]).map((section) => ({
         ...section,
         questions: section.questions.map((question) => {
           // Only add followUpConfig to main questions (not follow-ups)
@@ -2089,10 +2200,10 @@ export default function FormCreator() {
         suggestion: q.suggestion || "",
         followUpQuestions: q.followUpQuestions?.map(
           (fq) =>
-            ({
-              ...duplicateQuestionRecursive(fq),
-              parentId: crypto.randomUUID(),
-            } as FollowUpQuestion)
+          ({
+            ...duplicateQuestionRecursive(fq),
+            parentId: crypto.randomUUID(),
+          } as FollowUpQuestion)
         ),
       };
     };
@@ -2178,10 +2289,10 @@ export default function FormCreator() {
         suggestion: q.suggestion || "",
         followUpQuestions: q.followUpQuestions?.map(
           (fq) =>
-            ({
-              ...duplicateQuestionRecursive(fq),
-              parentId: crypto.randomUUID(), // Will be updated later
-            } as FollowUpQuestion)
+          ({
+            ...duplicateQuestionRecursive(fq),
+            parentId: crypto.randomUUID(), // Will be updated later
+          } as FollowUpQuestion)
         ),
       };
     };
@@ -2478,6 +2589,27 @@ export default function FormCreator() {
     file: File
   ) => {
     try {
+      const isImage = file.type.startsWith("image/");
+      const isSpecialFile = file.name.toLowerCase().endsWith(".stp") || 
+                           file.name.toLowerCase().endsWith(".step") || 
+                           file.name.toLowerCase().endsWith(".pvz");
+
+      if (isSpecialFile) {
+        // For special files, use standard file upload
+        const result = await apiClient.uploadFile(file, "form", questionId);
+        const uploadedUrl = apiClient.resolveUploadedFileUrl(result);
+        if (uploadedUrl) {
+          updateQuestion(sectionId, questionId, { imageUrl: uploadedUrl });
+          showSuccess(`${file.name.split('.').pop()?.toUpperCase()} file uploaded successfully`);
+        }
+        return;
+      }
+
+      if (!isImage) {
+        showError("Please upload an image, STP, or PVZ file", "Invalid File Type");
+        return;
+      }
+
       const compressed = await compressQuestionImage(file);
       updateQuestion(sectionId, questionId, { imageUrl: compressed });
     } catch (error) {
@@ -3171,7 +3303,7 @@ export default function FormCreator() {
 
     const question = section.questions.find((q) => q.id === questionId);
     if (!question) return;
-    if (question.type === "yesNoNA") return;
+    if (question.type === "yesNoNA" || question.type === "chassisNumber") return;
 
     updateQuestion(sectionId, questionId, {
       options: [...(question.options || []), ""],
@@ -3208,7 +3340,7 @@ export default function FormCreator() {
 
     const question = section.questions.find((q) => q.id === questionId);
     if (!question || !question.options) return;
-    if (question.type === "yesNoNA") return;
+    if (question.type === "yesNoNA" || question.type === "chassisNumber") return;
 
     updateQuestion(sectionId, questionId, {
       options: question.options.filter((_, i) => i !== optionIndex),
@@ -3413,7 +3545,7 @@ export default function FormCreator() {
 
   // Helper function to check if a question type requires follow-ups
   const requiresFollowUp = (type: string): boolean => {
-    return ["radio", "checkbox", "select", "search-select", "yesNoNA"].includes(
+    return ["radio", "checkbox", "select", "search-select", "yesNoNA", "chassisNumber"].includes(
       type
     );
   };
@@ -3426,9 +3558,12 @@ export default function FormCreator() {
   ) => {
     const updates: Partial<Question> = { type: newType };
 
-    if (newType === "yesNoNA") {
+    if (newType === "yesNoNA" || newType === "chassisNumber") {
       updates.options = [...YES_NO_NA_OPTIONS];
       updates.correctAnswer = YES_NO_NA_CORRECT;
+      } else if (newType === "chassis-with-zone" || newType === "chassis-without-zone") {
+      updates.options = undefined;
+      updates.correctAnswer = undefined;
     } else if (requiresFollowUp(newType)) {
       const baseOptions =
         currentQuestion.type === "yesNoNA"
@@ -3450,7 +3585,7 @@ export default function FormCreator() {
     if (newType === "file") {
       updates.allowedFileTypes =
         currentQuestion.allowedFileTypes &&
-        currentQuestion.allowedFileTypes.length > 0
+          currentQuestion.allowedFileTypes.length > 0
           ? [...currentQuestion.allowedFileTypes]
           : ["image", "pdf", "excel"];
     } else if (currentQuestion.allowedFileTypes) {
@@ -3520,6 +3655,11 @@ export default function FormCreator() {
       description: "Emoji reactions (sad to laugh)",
     },
     {
+      value: "chassisNumber",
+      label: "Chassis Number (Multi-Tenant)",
+      description: "Yes/No/N/A with tenant-based response sharing",
+    },
+    {
       value: "rating-number",
       label: "Ratings by Number",
       description: "0-10 circular rating scale",
@@ -3534,6 +3674,17 @@ export default function FormCreator() {
       label: "Product NPS TGW Buckets",
       description: "6-level hierarchical complaint categorization: L1 (Groups) → L2 (Sub-issues) → L3 (Questions) → L4 (Answers) → L5 (Details) → L6 (Final Options)",
     },
+        {
+      value: "chassis-with-zone",
+      label: "Chassis with Zone",
+      description: "Chassis number input with zone-based status follow-up",
+    },
+    {
+      value: "chassis-without-zone",
+      label: "Chassis without Zone",
+      description: "Chassis number input with direct status follow-up",
+    },
+
   ];
 
   const fileTypeOptions = [
@@ -3541,6 +3692,10 @@ export default function FormCreator() {
     { value: "image", label: "Images (JPG, PNG, GIF)" },
     { value: "pdf", label: "PDF" },
     { value: "excel", label: "Excel (XLS, XLSX)" },
+    { value: "doc", label: "Word (DOC, DOCX)" },
+    { value: "stp", label: "STP File (.stp)" },
+    { value: "pvz", label: "PVZ File (.pvz)" },
+
   ];
 
   if (mode === "list") {
@@ -3617,11 +3772,10 @@ export default function FormCreator() {
                 {/* Visibility Status */}
                 <div className="flex items-center justify-between mb-4">
                   <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      form.isVisible
-                        ? "bg-green-100 text-green-800"
-                        : "bg-yellow-100 text-yellow-800"
-                    }`}
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${form.isVisible
+                      ? "bg-green-100 text-green-800"
+                      : "bg-yellow-100 text-yellow-800"
+                      }`}
                   >
                     {form.isVisible ? "Public" : "Private"}
                   </span>
@@ -3810,6 +3964,117 @@ export default function FormCreator() {
                   />
                 </div>
 
+                {/* Chassis Number Management */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                  <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+                    Chassis Numbers
+                  </label>
+                  <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800 rounded-xl space-y-4">
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={newChassisNumber}
+                        onChange={(e) => setNewChassisNumber(e.target.value)}
+                        className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                        placeholder="Chassis Number (e.g., GE122879)"
+                        onKeyPress={(e) => e.key === "Enter" && handleAddChassis()}
+                      />
+                      <input
+                        type="text"
+                        value={newPartDescription}
+                        onChange={(e) => setNewPartDescription(e.target.value)}
+                        className="w-full px-4 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm"
+                        placeholder="Part Description (e.g., Chassis N603)"
+                        onKeyPress={(e) => e.key === "Enter" && handleAddChassis()}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddChassis}
+                        className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-bold shadow-sm"
+                      >
+                        Add
+                      </button>
+                    </div>
+
+                    <div className="space-y-2">
+                      {form.chassisNumbers.map((cn, idx) => (
+                        <div
+                          key={`${cn.chassisNumber}-${idx}`}
+                          className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {cn.chassisNumber}
+                              </span>
+                              {cn.partDescription && (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {cn.partDescription}
+                                </span>
+                              )}
+                            </div>
+                            {chassisTenantAssignments[cn.chassisNumber]?.length > 0 && (
+                              <span className="px-1.5 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[10px] rounded-full font-bold">
+                                {chassisTenantAssignments[cn.chassisNumber].length} Tenants
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className="relative">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenChassisMenu(
+                                    openChassisMenu === idx ? null : idx
+                                  )
+                                }
+                                className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              >
+                                <MoreVertical className="w-4 h-4 text-gray-500" />
+                              </button>
+                              {openChassisMenu === idx && (
+                                <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-[40] overflow-hidden border-t-4 border-t-purple-500">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setChassisTenantConfig({
+                                        chassisNumber: cn.chassisNumber,
+                                        index: idx,
+                                      });
+                                      setShowChassisTenantModal(true);
+                                      setOpenChassisMenu(null);
+                                    }}
+                                    className="w-full text-left px-4 py-3 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors border-b border-gray-100 dark:border-gray-700"
+                                  >
+                                    <Users className="w-4 h-4" />
+                                    Link Tenants
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleRemoveChassis(idx);
+                                      setOpenChassisMenu(null);
+                                    }}
+                                    className="w-full text-left px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700/50 flex items-center gap-2 transition-colors"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Remove
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {form.chassisNumbers.length === 0 && (
+                      <p className="text-center text-xs text-gray-500 dark:text-gray-400 italic py-2">
+                        No chassis numbers added yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
                 {/* Tenant Selector for SuperAdmin */}
                 {user?.role === "superadmin" && (
                   <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -3985,11 +4250,10 @@ export default function FormCreator() {
                               <button
                                 key={pageIndex}
                                 onClick={() => handlePageChange(pageIndex)}
-                                className={`w-10 h-10 rounded-lg font-bold text-sm transition-all duration-200 ${
-                                  isActive
-                                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg scale-110"
-                                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                                }`}
+                                className={`w-10 h-10 rounded-lg font-bold text-sm transition-all duration-200 ${isActive
+                                  ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg scale-110"
+                                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                  }`}
                               >
                                 {pageIndex + 1}
                               </button>
@@ -4035,60 +4299,55 @@ export default function FormCreator() {
                 );
                 const sectionLabel = section.isSubsection
                   ? String.fromCharCode(
-                      65 +
-                        form.sections.findIndex(
-                          (s) => s.id === section.parentSectionId
-                        )
-                    ) +
-                    "." +
-                    indexInPage
+                    65 +
+                    form.sections.findIndex(
+                      (s) => s.id === section.parentSectionId
+                    )
+                  ) +
+                  "." +
+                  indexInPage
                   : String.fromCharCode(65 + currentPage); // A, B, C for main sections
 
                 return (
                   <div
                     key={section.id}
-                    className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden ${
-                      section.isSubsection
-                        ? "border-l-4 border-l-green-500 ml-6"
-                        : "border-l-4 border-l-blue-500"
-                    }`}
+                    className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden ${section.isSubsection
+                      ? "border-l-4 border-l-green-500 ml-6"
+                      : "border-l-4 border-l-blue-500"
+                      }`}
                   >
                     {/* Section Header */}
                     <div
-                      className={`px-6 py-4 border-b ${
-                        section.isSubsection
-                          ? "bg-gradient-to-r from-green-50 to-teal-50 border-green-100 dark:from-green-950/60 dark:to-teal-900/60 dark:border-green-900/60"
-                          : "bg-gradient-to-r from-blue-50 to-blue-50 border-blue-100 dark:from-blue-950/60 dark:to-blue-900/60 dark:border-blue-900/60"
-                      }`}
+                      className={`px-6 py-4 border-b ${section.isSubsection
+                        ? "bg-gradient-to-r from-green-50 to-teal-50 border-green-100 dark:from-green-950/60 dark:to-teal-900/60 dark:border-green-900/60"
+                        : "bg-gradient-to-r from-blue-50 to-blue-50 border-blue-100 dark:from-blue-950/60 dark:to-blue-900/60 dark:border-blue-900/60"
+                        }`}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
                             <div
-                              className={`flex items-center justify-center w-8 h-8 rounded-full text-white font-bold text-sm shadow-md ${
-                                section.isSubsection
-                                  ? "bg-green-600"
-                                  : "bg-blue-600"
-                              }`}
+                              className={`flex items-center justify-center w-8 h-8 rounded-full text-white font-bold text-sm shadow-md ${section.isSubsection
+                                ? "bg-green-600"
+                                : "bg-blue-600"
+                                }`}
                             >
                               {sectionLabel}
                             </div>
                             <h3
-                              className={`text-lg font-bold ${
-                                section.isSubsection
-                                  ? "text-green-900 dark:text-green-100"
-                                  : "text-blue-900 dark:text-blue-100"
-                              }`}
+                              className={`text-lg font-bold ${section.isSubsection
+                                ? "text-green-900 dark:text-green-100"
+                                : "text-blue-900 dark:text-blue-100"
+                                }`}
                             >
                               {section.isSubsection ? "Subsection" : "Section"}{" "}
                               {sectionLabel}
                               {section.title && (
                                 <span
-                                  className={`font-normal ml-2 ${
-                                    section.isSubsection
-                                      ? "text-green-600 dark:text-green-300"
-                                      : "text-blue-600 dark:text-blue-300"
-                                  }`}
+                                  className={`font-normal ml-2 ${section.isSubsection
+                                    ? "text-green-600 dark:text-green-300"
+                                    : "text-blue-600 dark:text-blue-300"
+                                    }`}
                                 >
                                   · {section.title}
                                 </span>
@@ -4097,11 +4356,10 @@ export default function FormCreator() {
                           </div>
                           {section.description && (
                             <p
-                              className={`text-sm ml-11 ${
-                                section.isSubsection
-                                  ? "text-green-700 dark:text-green-300"
-                                  : "text-blue-700 dark:text-blue-300"
-                              }`}
+                              className={`text-sm ml-11 ${section.isSubsection
+                                ? "text-green-700 dark:text-green-300"
+                                : "text-blue-700 dark:text-blue-300"
+                                }`}
                             >
                               {section.description}
                             </p>
@@ -4136,14 +4394,14 @@ export default function FormCreator() {
                           </button>
                           {form.sections.filter((s) => !s.isSubsection).length >
                             1 && (
-                            <button
-                              onClick={() => deleteSection(section.id)}
-                              className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete section"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
-                          )}
+                              <button
+                                onClick={() => deleteSection(section.id)}
+                                className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete section"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            )}
                         </div>
                       </div>
                     </div>
@@ -4211,11 +4469,10 @@ export default function FormCreator() {
                                 onClick={() =>
                                   handleSaveSectionWeightage(section.id)
                                 }
-                                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                                  hasPendingWeightageChange(section)
-                                    ? "bg-blue-600 text-white hover:bg-blue-700"
-                                    : "bg-gray-200 text-gray-600 cursor-not-allowed"
-                                }`}
+                                className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors ${hasPendingWeightageChange(section)
+                                  ? "bg-blue-600 text-white hover:bg-blue-700"
+                                  : "bg-gray-200 text-gray-600 cursor-not-allowed"
+                                  }`}
                                 disabled={!hasPendingWeightageChange(section)}
                               >
                                 Save
@@ -4287,8 +4544,24 @@ export default function FormCreator() {
 
                                 {/* Action Buttons */}
                                 <div className="flex items-center gap-1">
-                                  <label className="flex items-center space-x-1.5 cursor-pointer px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:border-blue-400 transition-all shadow-sm mr-2" title="Track Response Rank">
+  <label className="flex items-center space-x-1.5 cursor-pointer px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:border-blue-400 transition-all shadow-sm mr-2" title="Track Question">
                                     <input
+                                      type="checkbox"
+                                      checked={question.trackResponseQuestion || false}
+                                      onChange={(e) =>
+                                        updateQuestion(
+                                          section.id,
+                                          question.id,
+                                          {
+                                            trackResponseQuestion: e.target.checked,
+                                          }
+                                        )
+                                      }
+                                      className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all"
+                                    />
+                                    <span className="text-xs font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">Track Question</span>
+                                  </label>
+                                  <label className="flex items-center space-x-1.5 cursor-pointer px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:border-blue-400 transition-all shadow-sm mr-2" title="Track Rank">                                    <input
                                       type="checkbox"
                                       checked={question.trackResponseRank || false}
                                       onChange={(e) =>
@@ -4402,9 +4675,8 @@ export default function FormCreator() {
                                         <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                                           <img
                                             src={question.imageUrl}
-                                            alt={`Question ${
-                                              questionIndex + 1
-                                            } image`}
+                                            alt={`Question ${questionIndex + 1
+                                              } image`}
                                             className="h-20 w-20 object-contain rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
                                           />
                                           <button
@@ -4425,7 +4697,8 @@ export default function FormCreator() {
                                         <label className="inline-flex items-center justify-center px-3 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
                                           <input
                                             type="file"
-                                            accept="image/*"
+                                            accept="image/*,.stp,.step,.pvz"
+
                                             className="hidden"
                                             onChange={(e) => {
                                               const file = e.target.files?.[0];
@@ -4439,10 +4712,10 @@ export default function FormCreator() {
                                               }
                                             }}
                                           />
-                                          Upload Image
+                                          Upload Image/File
                                         </label>
                                         <p className="text-xs text-gray-500 dark:text-gray-500">
-                                          JPEG or PNG up to 50KB.
+                                            Images, STP, or PVZ files.
                                         </p>
                                       </div>
                                     </div>
@@ -4464,6 +4737,7 @@ export default function FormCreator() {
                                       }
                                       className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
                                     >
+
                                       {questionTypes.map((type) => (
                                         <option
                                           key={type.value}
@@ -4475,6 +4749,99 @@ export default function FormCreator() {
                                     </select>
                                   </div>
                                 </div>
+                                 {question.trackResponseRank && (
+                                  <div className="mt-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl space-y-4">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                      <h4 className="text-sm font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">Track Rank Configuration</h4>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
+                                          Track Rank Question Label
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={question.trackResponseRankLabel || ""}
+                                          onChange={(e) =>
+                                            updateQuestion(section.id, question.id, {
+                                              trackResponseRankLabel: e.target.value,
+                                            })
+                                          }
+                                          className="w-full px-3 py-2.5 border-2 border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm bg-white dark:bg-gray-900"
+                                          placeholder="Enter label for rank tracking"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
+                                          Track Rank Question Type
+                                        </label>
+                                        <select
+                                          value={question.trackResponseRankType || "text"}
+                                          onChange={(e) =>
+                                            updateQuestion(section.id, question.id, {
+                                              trackResponseRankType: e.target.value,
+                                            })
+                                          }
+                                          className="w-full px-3 py-2.5 border-2 border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm bg-white dark:bg-gray-900"
+                                        >
+                                          {questionTypes.map((type) => (
+                                            <option key={type.value} value={type.value}>
+                                              {type.label}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {question.trackResponseQuestion && (
+                                  <div className="mt-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-4">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
+                                      <h4 className="text-sm font-bold text-indigo-900 dark:text-indigo-100 uppercase tracking-wider">Track Question Configuration</h4>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div>
+                                        <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2 uppercase tracking-wide">
+                                          Track Question Label
+                                        </label>
+                                        <input
+                                          type="text"
+                                          value={question.trackResponseQuestionLabel || ""}
+                                          onChange={(e) =>
+                                            updateQuestion(section.id, question.id, {
+                                              trackResponseQuestionLabel: e.target.value,
+                                            })
+                                          }
+                                          className="w-full px-3 py-2.5 border-2 border-indigo-200 dark:border-indigo-800 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-sm bg-white dark:bg-gray-900"
+                                          placeholder="Enter label for tracking question"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2 uppercase tracking-wide">
+                                          Track Question Type
+                                        </label>
+                                        <select
+                                          value={question.trackResponseQuestionType || "text"}
+                                          onChange={(e) =>
+                                            updateQuestion(section.id, question.id, {
+                                              trackResponseQuestionType: e.target.value,
+                                            })
+                                          }
+                                          className="w-full px-3 py-2.5 border-2 border-indigo-200 dark:border-indigo-800 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all text-sm bg-white dark:bg-gray-900"
+                                        >
+                                          {questionTypes.map((type) => (
+                                            <option key={type.value} value={type.value}>
+                                              {type.label}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
 
                                 {(question.type === "productNPSTGWBuckets") && (
                                   <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg">
@@ -4486,7 +4853,7 @@ export default function FormCreator() {
                                       {(() => {
                                         const level1Options = getLevel1Options();
                                         let selectedValues = question.selectedHierarchyValues || {};
-                                        
+
                                         if (!selectedValues.level1 && level1Options.length > 0) {
                                           const defaultLevel1 = level1Options[0];
                                           const level2Options = getLevel2Options(defaultLevel1);
@@ -4495,7 +4862,7 @@ export default function FormCreator() {
                                             level2: level2Options.length > 0 ? level2Options[0] : undefined,
                                           };
                                         }
-                                        
+
                                         const defaultLabels = [
                                           "Complaint Groups",
                                           "Sub-complaints",
@@ -4508,11 +4875,11 @@ export default function FormCreator() {
                                         const handleLevelChange = (levelNum: number, value: string) => {
                                           const newValues = { ...selectedValues };
                                           newValues[`level${levelNum}` as keyof typeof selectedValues] = value;
-                                          
+
                                           for (let i = levelNum + 1; i <= 6; i++) {
                                             newValues[`level${i}` as keyof typeof selectedValues] = undefined;
                                           }
-                                          
+
                                           updateQuestion(section.id, question.id, { selectedHierarchyValues: newValues });
                                         };
 
@@ -4767,239 +5134,264 @@ export default function FormCreator() {
                                   question.type === "checkbox" ||
                                   question.type === "select" ||
                                   question.type === "search-select") && (
-                                  <div className="mt-5 p-4 bg-blue-50 rounded-lg border border-blue-200 shadow-sm transition-all hover:shadow-md">
-                                    {/* Active Config Status Indicators (Badges) */}
-                                    <div className="flex flex-wrap gap-2 mb-4 empty:hidden">
-                                      {question.branchingRules &&
-                                        question.branchingRules.length > 0 && (
-                                          <div className="group relative flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-[10px] font-bold border border-purple-200 shadow-sm">
-                                            <span className="text-xs">🔀</span>
-                                            <span>Routing Active ({question.branchingRules.length})</span>
+                                    <div className="mt-5 p-4 bg-blue-50 rounded-lg border border-blue-200 shadow-sm transition-all hover:shadow-md">
+                                      {/* Active Config Status Indicators (Badges) */}
+                                      <div className="flex flex-wrap gap-2 mb-4 empty:hidden">
+                                        {question.branchingRules &&
+                                          question.branchingRules.length > 0 && (
+                                            <div className="group relative flex items-center gap-2 px-3 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-[10px] font-bold border border-purple-200 shadow-sm">
+                                              <span className="text-xs">🔀</span>
+                                              <span>Routing Active ({question.branchingRules.length})</span>
+                                            </div>
+                                          )}
+                                        {question.followUpConfig &&
+                                          Object.values(
+                                            question.followUpConfig
+                                          ).some((c) => c.linkedFormId) && (
+                                            <div className="group relative flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-[10px] font-bold border border-green-200 shadow-sm">
+                                              <span className="text-xs">🔗</span>
+                                              <span>Forms Linked</span>
+                                            </div>
+                                          )}
+                                        {question.correctAnswer && (
+                                          <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold border border-blue-200 shadow-sm">
+                                            <span className="text-xs">✅</span>
+                                            <span>Key: {question.correctAnswer}</span>
                                           </div>
                                         )}
-                                      {question.followUpConfig &&
-                                        Object.values(
-                                          question.followUpConfig
-                                        ).some((c) => c.linkedFormId) && (
-                                          <div className="group relative flex items-center gap-2 px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-[10px] font-bold border border-green-200 shadow-sm">
-                                            <span className="text-xs">🔗</span>
-                                            <span>Forms Linked</span>
-                                          </div>
-                                        )}
-                                      {question.correctAnswer && (
-                                        <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 text-blue-700 rounded-lg text-[10px] font-bold border border-blue-200 shadow-sm">
-                                          <span className="text-xs">✅</span>
-                                          <span>Key: {question.correctAnswer}</span>
-                                        </div>
-                                      )}
-                                    </div>
+                                      </div>
 
-                                    <label className="block text-xs font-semibold text-blue-800 mb-3 uppercase tracking-wide opacity-70">
-                                      Options
-                                    </label>
-                                    <div className="space-y-2.5">
-                                      {(question.options || []).map(
-                                        (option, index) => {
-                                          const menuKey = `${section.id}-${question.id}-${index}`;
-                                          const isMenuOpen =
-                                            openOptionMenu === menuKey;
-                                          const isYesNoNa =
-                                            question.type === "yesNoNA";
+                                      <label className="block text-xs font-semibold text-blue-800 mb-3 uppercase tracking-wide opacity-70">
+                                        Options
+                                      </label>
+                                      <div className="space-y-2.5">
+                                        {(question.options || []).map(
+                                          (option, index) => {
+                                            const menuKey = `${section.id}-${question.id}-${index}`;
+                                            const isMenuOpen =
+                                              openOptionMenu === menuKey;
+                                            const isYesNoNa =
+                                              question.type === "yesNoNA" || question.type === "chassisNumber";
 
-                                          return (
-                                            <div
-                                              key={index}
-                                              className="flex items-center gap-2 group"
-                                            >
-                                              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 text-blue-700 font-bold text-xs">
-                                                {index + 1}
-                                              </div>
-                                              <input
-                                                type="text"
-                                                value={option}
-                                                onChange={(e) =>
-                                                  updateOption(
-                                                    section.id,
-                                                    question.id,
-                                                    index,
-                                                    e.target.value
-                                                  )
-                                                }
-                                                className="flex-1 px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-100 dark:bg-gray-700"
-                                                placeholder={`Option ${
-                                                  index + 1
-                                                }`}
-                                              />
-                                              {!isYesNoNa && (
-                                                <>
-                                                  <button
-                                                    onClick={() =>
-                                                      duplicateOption(
-                                                        section.id,
-                                                        question.id,
-                                                        index
-                                                      )
-                                                    }
-                                                    className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all"
-                                                    title="Duplicate option"
-                                                  >
-                                                    <Clipboard className="w-5 h-5" />
-                                                  </button>
-                                                  <button
-                                                    onClick={() =>
-                                                      removeOption(
-                                                        section.id,
-                                                        question.id,
-                                                        index
-                                                      )
-                                                    }
-                                                    className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all"
-                                                    title="Delete option"
-                                                  >
-                                                    <X className="w-5 h-5" />
-                                                  </button>
-                                                </>
-                                              )}
+                                            return (
+                                              <div
+                                                key={index}
+                                                className="flex items-center gap-2 group"
+                                              >
+                                                <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-200 text-blue-700 font-bold text-xs">
+                                                  {index + 1}
+                                                </div>
+                                                <input
+                                                  type="text"
+                                                  value={option}
+                                                  onChange={(e) =>
+                                                    updateOption(
+                                                      section.id,
+                                                      question.id,
+                                                      index,
+                                                      e.target.value
+                                                    )
+                                                  }
+                                                  className="flex-1 px-3 py-2 border-2 border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all disabled:bg-gray-100 dark:bg-gray-700"
+                                                  placeholder={`Option ${index + 1
+                                                    }`}
+                                                />
+                                                {!isYesNoNa && (
+                                                  <>
+                                                    <button
+                                                      onClick={() =>
+                                                        duplicateOption(
+                                                          section.id,
+                                                          question.id,
+                                                          index
+                                                        )
+                                                      }
+                                                      className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-lg transition-all"
+                                                      title="Duplicate option"
+                                                    >
+                                                      <Clipboard className="w-5 h-5" />
+                                                    </button>
+                                                    <button
+                                                      onClick={() =>
+                                                        removeOption(
+                                                          section.id,
+                                                          question.id,
+                                                          index
+                                                        )
+                                                      }
+                                                      className="p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-lg transition-all"
+                                                      title="Delete option"
+                                                    >
+                                                      <X className="w-5 h-5" />
+                                                    </button>
+                                                  </>
+                                                )}
 
-                                              {(
-                                                <div className="relative">
-                                                  <button
-                                                    onClick={() =>
-                                                      setOpenOptionMenu(
-                                                        isMenuOpen
-                                                          ? null
-                                                          : menuKey
-                                                      )
-                                                    }
-                                                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-all"
-                                                    title="Follow-up options"
-                                                  >
-                                                    <MoreVertical className="w-5 h-5" />
-                                                  </button>
+                                                {(
+                                                  <div className="relative">
+                                                    <button
+                                                      onClick={() =>
+                                                        setOpenOptionMenu(
+                                                          isMenuOpen
+                                                            ? null
+                                                            : menuKey
+                                                        )
+                                                      }
+                                                      className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 dark:bg-gray-700 rounded-lg transition-all"
+                                                      title="Follow-up options"
+                                                    >
+                                                      <MoreVertical className="w-5 h-5" />
+                                                    </button>
 
-                                                  {isMenuOpen && (
-                                                    <>
-                                                      <div
-                                                        className="fixed inset-0 z-10"
-                                                        onClick={() =>
-                                                          setOpenOptionMenu(
-                                                            null
-                                                          )
-                                                        }
-                                                      />
+                                                    {isMenuOpen && (
+                                                      <>
+                                                        <div
+                                                          className="fixed inset-0 z-10"
+                                                          onClick={() =>
+                                                            setOpenOptionMenu(
+                                                              null
+                                                            )
+                                                          }
+                                                        />
 
-                                                      <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
-                                                        <div className="py-1">
-                                                          <button
-                                                            onClick={() => {
-                                                              addFollowUpQuestion(
-                                                                section.id,
-                                                                question.id,
+                                                        <div className="absolute right-0 mt-1 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-20 overflow-hidden">
+                                                          <div className="py-1">
+                                                            <button
+                                                              onClick={() => {
+                                                                addFollowUpQuestion(
+                                                                  section.id,
+                                                                  question.id,
+                                                                  option
+                                                                );
+                                                                setOpenOptionMenu(
+                                                                  null
+                                                                );
+                                                              }}
+                                                              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                                                            >
+                                                              <span className="text-base">📝</span>
+                                                              Follow-up Question
+                                                            </button>
+
+                                                            <button
+                                                              onClick={() => {
+                                                                openBranchingConfig(
+                                                                  section.id,
+                                                                  question.id,
+                                                                  question.options || []
+                                                                );
+                                                                setOpenOptionMenu(
+                                                                  null
+                                                                );
+                                                              }}
+                                                              className="w-full text-left px-4 py-2 text-sm text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                                                            >
+                                                              <span className="text-base">🔀</span>
+                                                              Section Routing
+                                                            </button>
+
+                                                            <button
+                                                              onClick={() => {
+                                                                openFormRoutingConfig(
+                                                                  section.id,
+                                                                  question.id,
+                                                                  question.options || []
+                                                                );
+                                                                setOpenOptionMenu(
+                                                                  null
+                                                                );
+                                                              }}
+                                                              className="w-full text-left px-4 py-2 text-sm text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                                                            >
+                                                              <span className="text-base">🔗</span>
+                                                              Form Routing
+                                                            </button>
+
+                                                            <button
+                                                              onClick={() => {
+                                                                updateQuestion(
+                                                                  section.id,
+                                                                  question.id,
+                                                                  {
+                                                                    correctAnswer:
+                                                                      question.correctAnswer ===
+                                                                        option
+                                                                        ? undefined
+                                                                        : option,
+                                                                  }
+                                                                );
+                                                                setOpenOptionMenu(
+                                                                  null
+                                                                );
+                                                              }}
+                                                              className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${question.correctAnswer ===
                                                                 option
-                                                              );
-                                                              setOpenOptionMenu(
-                                                                null
-                                                              );
-                                                            }}
-                                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-gray-700 flex items-center gap-2"
-                                                          >
-                                                            <span className="text-base">📝</span>
-                                                            Follow-up Question
-                                                          </button>
-
-                                                          <button
-                                                            onClick={() => {
-                                                              openBranchingConfig(
-                                                                section.id,
-                                                                question.id,
-                                                                question.options || []
-                                                              );
-                                                              setOpenOptionMenu(
-                                                                null
-                                                              );
-                                                            }}
-                                                            className="w-full text-left px-4 py-2 text-sm text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-gray-700 flex items-center gap-2"
-                                                          >
-                                                            <span className="text-base">🔀</span>
-                                                            Section Routing
-                                                          </button>
-
-                                                          <button
-                                                            onClick={() => {
-                                                              openFormRoutingConfig(
-                                                                section.id,
-                                                                question.id,
-                                                                question.options || []
-                                                              );
-                                                              setOpenOptionMenu(
-                                                                null
-                                                              );
-                                                            }}
-                                                            className="w-full text-left px-4 py-2 text-sm text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-gray-700 flex items-center gap-2"
-                                                          >
-                                                            <span className="text-base">🔗</span>
-                                                            Form Routing
-                                                          </button>
-
-                                                          <button
-                                                            onClick={() => {
-                                                              updateQuestion(
-                                                                section.id,
-                                                                question.id,
-                                                                {
-                                                                  correctAnswer:
-                                                                    question.correctAnswer ===
-                                                                    option
-                                                                      ? undefined
-                                                                      : option,
-                                                                }
-                                                              );
-                                                              setOpenOptionMenu(
-                                                                null
-                                                              );
-                                                            }}
-                                                            className={`w-full text-left px-4 py-2 text-sm flex items-center gap-2 ${
-                                                              question.correctAnswer ===
-                                                              option
                                                                 ? "text-green-600 bg-green-50 dark:bg-green-900/30"
                                                                 : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                            }`}
-                                                          >
-                                                            <span className="text-base">
+                                                                }`}
+                                                            >
+                                                              <span className="text-base">
+                                                                {question.correctAnswer ===
+                                                                  option
+                                                                  ? "✅"
+                                                                  : "✔️"}
+                                                              </span>
                                                               {question.correctAnswer ===
-                                                              option
-                                                                ? "✅"
-                                                                : "✔️"}
-                                                            </span>
-                                                            {question.correctAnswer ===
-                                                            option
-                                                              ? "Correct Answer"
-                                                              : "Mark as Correct"}
-                                                          </button>
+                                                                option
+                                                                ? "Correct Answer"
+                                                                : "Mark as Correct"}
+                                                            </button>
+
+                                                            {/* Tenant Visibility for Chassis Number */}
+                                                            {question.type === "chassisNumber" && (
+                                                              <button
+                                                                onClick={() => {
+                                                                  const copiedSections = [...form.sections];
+                                                                  const currentSection = copiedSections.find(s => s.id === section.id);
+                                                                  if (currentSection) {
+                                                                    const currentQuestion = currentSection.questions.find(q => q.id === question.id);
+                                                                    if (currentQuestion && currentQuestion.options) {
+                                                                      setChassisTenantConfig({
+                                                                        questionId: question.id,
+                                                                        sectionId: section.id,
+                                                                        optionIndex: index,
+                                                                        chassisNumber: currentQuestion.options[index],
+                                                                      });
+                                                                      setShowChassisTenantModal(true);
+                                                                      setOpenOptionMenu(null);
+                                                                    }
+                                                                  }
+                                                                }}
+                                                                className="w-full text-left px-4 py-2 text-sm text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-gray-700 flex items-center gap-2"
+                                                              >
+                                                                <span className="text-base">👥</span>
+                                                                Set Tenant Visibility
+                                                              </button>
+                                                            )}
+                                                          </div>
                                                         </div>
-                                                      </div>
-                                                    </>
-                                                  )}
-                                                </div>
-                                              )}
-                                            </div>
-                                          );
-                                        }
-                                      )}
-                                      {question.type !== "yesNoNA" && (
-                                        <button
-                                          onClick={() =>
-                                            addOption(section.id, question.id)
+                                                      </>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
                                           }
-                                          className="flex items-center gap-2 px-4 py-2 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded-lg text-sm font-medium transition-all"
-                                        >
-                                          <Plus className="w-5 h-5" />
-                                          Add Option
-                                        </button>
-                                      )}
+                                        )}
+                                        {question.type !== "yesNoNA" && (
+                                          <button
+                                            onClick={() =>
+                                              addOption(section.id, question.id)
+                                            }
+                                            className="flex items-center gap-2 px-4 py-2 text-blue-700 hover:text-blue-900 hover:bg-blue-100 rounded-lg text-sm font-medium transition-all"
+                                          >
+                                            <Plus className="w-5 h-5" />
+                                            Add Option
+                                          </button>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  )}
 
                                 {/* Follow-up Questions Section - Now with Unlimited Nesting */}
                                 {question.followUpQuestions &&
@@ -5155,15 +5547,13 @@ export default function FormCreator() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <button
                                 onClick={() => updateSection(section.id, { nextSectionId: undefined })}
-                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                                  !section.nextSectionId
-                                    ? "bg-blue-50 border-blue-500 text-blue-700 shadow-sm"
-                                    : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-500 hover:border-blue-200"
-                                }`}
+                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${!section.nextSectionId
+                                  ? "bg-blue-50 border-blue-500 text-blue-700 shadow-sm"
+                                  : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-500 hover:border-blue-200"
+                                  }`}
                               >
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                  !section.nextSectionId ? "bg-blue-600 text-white" : "bg-gray-100 dark:bg-gray-800"
-                                }`}>
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${!section.nextSectionId ? "bg-blue-600 text-white" : "bg-gray-100 dark:bg-gray-800"
+                                  }`}>
                                   <ChevronDown className="w-5 h-5" />
                                 </div>
                                 <span className="text-xs font-bold uppercase tracking-wide">Continue to Next</span>
@@ -5171,40 +5561,36 @@ export default function FormCreator() {
 
                               <button
                                 onClick={() => updateSection(section.id, { nextSectionId: "end" })}
-                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                                  section.nextSectionId === "end"
-                                    ? "bg-red-50 border-red-500 text-red-700 shadow-sm"
-                                    : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-500 hover:border-red-200"
-                                }`}
+                                className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${section.nextSectionId === "end"
+                                  ? "bg-red-50 border-red-500 text-red-700 shadow-sm"
+                                  : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-500 hover:border-red-200"
+                                  }`}
                               >
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                  section.nextSectionId === "end" ? "bg-red-600 text-white" : "bg-gray-100 dark:bg-gray-800"
-                                }`}>
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${section.nextSectionId === "end" ? "bg-red-600 text-white" : "bg-gray-100 dark:bg-gray-800"
+                                  }`}>
                                   <X className="w-5 h-5" />
                                 </div>
                                 <span className="text-xs font-bold uppercase tracking-wide">End Form</span>
                               </button>
 
-                              <div className={`relative flex flex-col gap-2 p-4 rounded-xl border-2 transition-all ${
-                                !!section.nextSectionId && section.nextSectionId !== "end"
-                                  ? "bg-purple-50 border-purple-500 text-purple-700 shadow-sm"
-                                  : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-500 hover:border-purple-200"
-                              }`}>
-                                <div className="flex flex-col items-center gap-2 cursor-pointer" 
-                                     onClick={() => {
-                                       const firstAvailable = form.sections.find(s => s.id !== section.id && !s.isSubsection);
-                                       if (firstAvailable) {
-                                         updateSection(section.id, { nextSectionId: firstAvailable.id });
-                                       }
-                                     }}>
-                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                                    !!section.nextSectionId && section.nextSectionId !== "end" ? "bg-purple-600 text-white" : "bg-gray-100 dark:bg-gray-800"
-                                  }`}>
+                              <div className={`relative flex flex-col gap-2 p-4 rounded-xl border-2 transition-all ${!!section.nextSectionId && section.nextSectionId !== "end"
+                                ? "bg-purple-50 border-purple-500 text-purple-700 shadow-sm"
+                                : "bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800 text-gray-500 hover:border-purple-200"
+                                }`}>
+                                <div className="flex flex-col items-center gap-2 cursor-pointer"
+                                  onClick={() => {
+                                    const firstAvailable = form.sections.find(s => s.id !== section.id && !s.isSubsection);
+                                    if (firstAvailable) {
+                                      updateSection(section.id, { nextSectionId: firstAvailable.id });
+                                    }
+                                  }}>
+                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${!!section.nextSectionId && section.nextSectionId !== "end" ? "bg-purple-600 text-white" : "bg-gray-100 dark:bg-gray-800"
+                                    }`}>
                                     <LinkIcon className="w-5 h-5" />
                                   </div>
                                   <span className="text-xs font-bold uppercase tracking-wide">Jump to Section</span>
                                 </div>
-                                
+
                                 {!!section.nextSectionId && section.nextSectionId !== "end" && (
                                   <select
                                     value={section.nextSectionId}
@@ -5357,7 +5743,7 @@ export default function FormCreator() {
 
                           const sectionWeightage =
                             typeof mainSection?.weightage === "number" &&
-                            !Number.isNaN(mainSection.weightage)
+                              !Number.isNaN(mainSection.weightage)
                               ? mainSection.weightage
                               : null;
 
@@ -5368,10 +5754,9 @@ export default function FormCreator() {
                               onClick={() => handlePageChange(pageIndex)}
                               className={`
                                 w-full p-3 rounded-lg text-left transition-all duration-200
-                                ${
-                                  isCurrent
-                                    ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md scale-105"
-                                    : "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+                                ${isCurrent
+                                  ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md scale-105"
+                                  : "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
                                 }
                               `}
                               title={
@@ -5384,10 +5769,9 @@ export default function FormCreator() {
                                 <div
                                   className={`
                                     flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm flex-shrink-0
-                                    ${
-                                      isCurrent
-                                        ? "bg-white text-blue-600"
-                                        : "bg-blue-600 text-white"
+                                    ${isCurrent
+                                      ? "bg-white text-blue-600"
+                                      : "bg-blue-600 text-white"
                                     }
                                   `}
                                 >
@@ -5395,20 +5779,18 @@ export default function FormCreator() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                   <p
-                                    className={`text-sm font-bold truncate ${
-                                      isCurrent ? "text-white" : "text-blue-900"
-                                    }`}
+                                    className={`text-sm font-bold truncate ${isCurrent ? "text-white" : "text-blue-900"
+                                      }`}
                                   >
                                     {mainSection?.title?.trim().length
                                       ? mainSection.title
                                       : `Page ${pageIndex + 1}`}
                                   </p>
                                   <p
-                                    className={`text-xs ${
-                                      isCurrent
-                                        ? "text-blue-100"
-                                        : "text-blue-600"
-                                    }`}
+                                    className={`text-xs ${isCurrent
+                                      ? "text-blue-100"
+                                      : "text-blue-600"
+                                      }`}
                                   >
                                     {questionCount}{" "}
                                     {questionCount === 1
@@ -5417,11 +5799,10 @@ export default function FormCreator() {
                                   </p>
                                   {sectionWeightage !== null && (
                                     <p
-                                      className={`text-xs font-medium ${
-                                        isCurrent
-                                          ? "text-blue-100"
-                                          : "text-blue-500"
-                                      }`}
+                                      className={`text-xs font-medium ${isCurrent
+                                        ? "text-blue-100"
+                                        : "text-blue-500"
+                                        }`}
                                     >
                                       Weightage:{" "}
                                       {Number(sectionWeightage)
@@ -5432,38 +5813,35 @@ export default function FormCreator() {
                                   )}
                                   {page.filter((s) => s.isSubsection).length >
                                     0 && (
-                                    <div
-                                      className={`text-xs mt-2 pt-2 border-t ${
-                                        isCurrent
+                                      <div
+                                        className={`text-xs mt-2 pt-2 border-t ${isCurrent
                                           ? "border-blue-400"
                                           : "border-blue-200"
-                                      }`}
-                                    >
-                                      <p
-                                        className={`font-semibold mb-1 ${
-                                          isCurrent
+                                          }`}
+                                      >
+                                        <p
+                                          className={`font-semibold mb-1 ${isCurrent
                                             ? "text-blue-100"
                                             : "text-green-700"
-                                        }`}
-                                      >
-                                        Merged:
-                                      </p>
-                                      {page
-                                        .filter((s) => s.isSubsection)
-                                        .map((subsection) => (
-                                          <p
-                                            key={subsection.id}
-                                            className={`ml-2 ${
-                                              isCurrent
+                                            }`}
+                                        >
+                                          Merged:
+                                        </p>
+                                        {page
+                                          .filter((s) => s.isSubsection)
+                                          .map((subsection) => (
+                                            <p
+                                              key={subsection.id}
+                                              className={`ml-2 ${isCurrent
                                                 ? "text-blue-100"
                                                 : "text-green-600"
-                                            }`}
-                                          >
-                                            • {subsection.title || "Subsection"}
-                                          </p>
-                                        ))}
-                                    </div>
-                                  )}
+                                                }`}
+                                            >
+                                              • {subsection.title || "Subsection"}
+                                            </p>
+                                          ))}
+                                      </div>
+                                    )}
                                   {(() => {
                                     const routings = [];
                                     page.forEach((section) => {
@@ -5499,29 +5877,26 @@ export default function FormCreator() {
 
                                     return routings.length > 0 ? (
                                       <div
-                                        className={`text-xs mt-2 pt-2 border-t ${
-                                          isCurrent
-                                            ? "border-blue-400"
-                                            : "border-purple-200"
-                                        }`}
+                                        className={`text-xs mt-2 pt-2 border-t ${isCurrent
+                                          ? "border-blue-400"
+                                          : "border-purple-200"
+                                          }`}
                                       >
                                         <p
-                                          className={`font-semibold mb-1 ${
-                                            isCurrent
-                                              ? "text-blue-100"
-                                              : "text-purple-700"
-                                          }`}
+                                          className={`font-semibold mb-1 ${isCurrent
+                                            ? "text-blue-100"
+                                            : "text-purple-700"
+                                            }`}
                                         >
                                           🔀 Routes:
                                         </p>
                                         {routings.map((routing, idx) => (
                                           <p
                                             key={idx}
-                                            className={`ml-2 text-xs leading-tight ${
-                                              isCurrent
-                                                ? "text-blue-100"
-                                                : "text-purple-600"
-                                            }`}
+                                            className={`ml-2 text-xs leading-tight ${isCurrent
+                                              ? "text-blue-100"
+                                              : "text-purple-600"
+                                              }`}
                                           >
                                             "{routing.option}" → {routing.to}
                                           </p>
@@ -5664,6 +6039,122 @@ export default function FormCreator() {
             setFormRoutingConfigQuestion(null);
           }}
         />
+      )}
+
+      {/* Chassis Number Tenant Configuration Modal */}
+      {showChassisTenantModal && chassisTenantConfig && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                Set Tenant Visibility
+              </h3>
+              <button
+                onClick={() => setShowChassisTenantModal(false)}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Select which tenants can see and respond to this chassis number option.
+            </p>
+
+            {/* Get current option value */}
+            {(() => {
+              const currentChassis = chassisTenantConfig.chassisNumber;
+              const configKey = currentChassis;
+
+              return (
+                <>
+                  <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      Chassis Number: {currentChassis}
+                    </span>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto border-2 border-gray-200 dark:border-gray-700 rounded-lg p-3 mb-4">
+                    {tenants.length > 0 ? (
+                      tenants.map((tenant) => {
+                        const isSelected = (chassisTenantAssignments[configKey] || []).includes(tenant._id);
+                        return (
+                          <label
+                            key={tenant._id}
+                            className="flex items-center gap-3 p-2 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                setChassisTenantAssignments(prev => {
+                                  const current = prev[configKey] || [];
+                                  if (e.target.checked) {
+                                    return { ...prev, [configKey]: [...current, tenant._id] };
+                                  } else {
+                                    return { ...prev, [configKey]: current.filter(id => id !== tenant._id) };
+                                  }
+                                });
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <div className="flex flex-col">
+                              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                                {tenant.companyName || tenant.name}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                {tenant.name}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })
+                    ) : (
+                      <div className="py-8 text-center">
+                        <Users className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          No tenants found or still loading...
+                        </p>
+                        <button
+                          onClick={async () => {
+                            try {
+                              const response = await apiClient.getTenantsMinimal();
+                              setTenants(response.tenants || []);
+                            } catch (err) {
+                              console.error("Failed to fetch tenants:", err);
+                              showError("Failed to fetch tenants", "Error");
+                            }
+                          }}
+                          className="mt-2 text-xs text-blue-600 hover:text-blue-500 font-medium underline"
+                        >
+                          Retry Fetching
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => setShowChassisTenantModal(false)}
+                      className="px-4 py-2 text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowChassisTenantModal(false);
+                        showSuccess("Tenant visibility updated", "Success");
+                      }}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
       )}
     </div>
   );

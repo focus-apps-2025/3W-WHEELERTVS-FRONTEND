@@ -22,6 +22,12 @@ export default function QuestionEditor({
     // Initialize options for types that need them
     if (["radio", "checkbox", "radio-image"].includes(type)) {
       updates.options = [""];
+      
+    }
+    if (type.startsWith("chassis-")) {
+      updates.trackResponseQuestion = true;
+      updates.trackResponseQuestionType = "text";
+      updates.trackResponseQuestionLabel = "Chassis Number";
     }
 
     // Initialize grid options for grid types
@@ -65,6 +71,18 @@ export default function QuestionEditor({
             <label className="flex items-center space-x-2">
               <input
                 type="checkbox"
+                checked={question.trackResponseQuestion || false}
+                onChange={(e) => onUpdate({ trackResponseQuestion: e.target.checked })}
+                className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
+              />
+              <span className="text-sm text-gray-700 dark:text-gray-300">
+                Track Question
+              </span>
+            </label>
+
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
                 checked={question.trackResponseRank || false}
                 onChange={(e) => onUpdate({ trackResponseRank: e.target.checked })}
                 className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
@@ -74,6 +92,59 @@ export default function QuestionEditor({
               </span>
             </label>
           </div>
+          
+          {question.trackResponseRank && (
+            <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl space-y-0">
+              <div className="flex flex-col space-y-2">
+                <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
+                  Track Rank Question Label
+                </label>
+                <input
+                  type="text"
+                  value={question.trackResponseRankLabel || ""}
+                  onChange={(e) => onUpdate({ trackResponseRankLabel: e.target.value })}
+                  placeholder="Enter label for rank tracking"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                />
+              </div>
+              <div className="flex flex-col space-y-2">
+                <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
+                  Track Rank Question Type
+                </label>
+                <QuestionTypeSelector
+                  value={(question.trackResponseRankType as QuestionType) || "text"}
+                  onChange={(type) => onUpdate({ trackResponseRankType: type })}
+                />
+              </div>
+            </div>
+          )}
+
+          {question.trackResponseQuestion && (
+            <div className="grid grid-cols-2 gap-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-0 mt-4">
+              <div className="flex flex-col space-y-2">
+                <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 uppercase tracking-wide">
+                  Track Question Label
+                </label>
+                <input
+                  type="text"
+                  value={question.trackResponseQuestionLabel || ""}
+                  onChange={(e) => onUpdate({ trackResponseQuestionLabel: e.target.value })}
+                  placeholder="Enter label for tracking question"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+                />
+              </div>
+              <div className="flex flex-col space-y-2">
+                <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 uppercase tracking-wide">
+                  Track Question Type
+                </label>
+                <QuestionTypeSelector
+                  value={(question.trackResponseQuestionType as QuestionType) || "text"}
+                  onChange={(type) => onUpdate({ trackResponseQuestionType: type })}
+                />
+              </div>
+            </div>
+          )}
+
         </div>
 
         <button

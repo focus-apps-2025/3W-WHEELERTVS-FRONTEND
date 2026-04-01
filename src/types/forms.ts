@@ -46,6 +46,7 @@ export interface FollowUpQuestion {
   subParam1?: string;
   subParam2?: string;
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
+  trackResponseRank?: boolean;
   branchingRules?: Array<{
     optionLabel: string;
     targetSectionId: string;
@@ -75,6 +76,11 @@ export interface Question {
       linkedFormId?: string;
     }
   >;
+  chassisNumbers?: string[];
+  chassisTenantAssignments?: Array<{
+    chassisNumber: string;
+    assignedTenants: string[];
+  }>;
 }
 
 export interface Response {
@@ -121,6 +127,7 @@ export interface Response {
     formSessionId?: string | null;
   };
   totalTimeSpent?: number;
+  timeSpent?: number; // Backend uses this field name
   questionTimings?: Array<{
     questionId: string;
     timeSpent: number;

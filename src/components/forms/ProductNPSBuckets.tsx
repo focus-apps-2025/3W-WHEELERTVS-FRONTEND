@@ -8,18 +8,20 @@ import {
   getLevel6Options,
 } from "../../config/npsHierarchy";
 import SearchSelect from "../QuestionTypes/SearchSelect";
-import { Layers, ChevronRight, HelpCircle } from "lucide-react";
+import { Layers, ChevronRight, HelpCircle, CheckCircle2 } from "lucide-react";
 
 interface ProductNPSBucketsProps {
   value: any;
   onChange: (value: any) => void;
   disabled?: boolean;
+  isApplied?: boolean;
 }
 
 const ProductNPSBuckets: React.FC<ProductNPSBucketsProps> = ({
   value,
   onChange,
   disabled,
+  isApplied = false,
 }) => {
   const [selections, setSelections] = useState({
     level1: value?.level1 || "",
@@ -138,7 +140,9 @@ const ProductNPSBuckets: React.FC<ProductNPSBucketsProps> = ({
         {/* Level Indicator Dot */}
         <div className={`absolute left-0 top-0 w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all duration-300 z-10 ${
           isSelected 
-            ? "bg-primary-600 border-primary-50 text-white shadow-sm" 
+            ? isApplied
+              ? "bg-emerald-600 border-emerald-50 text-white shadow-sm"
+              : "bg-primary-600 border-primary-50 text-white shadow-sm" 
             : "bg-white dark:bg-gray-800 border-gray-50 dark:border-gray-700 text-gray-400"
         }`}>
           {isSelected ? (
@@ -151,7 +155,7 @@ const ProductNPSBuckets: React.FC<ProductNPSBucketsProps> = ({
         <div className="transition-all duration-300">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <label className="text-[9px] font-bold text-gray-400 uppercase tracking-tight">
+              <label className={`text-[9px] font-bold uppercase tracking-tight ${isSelected && isApplied ? 'text-emerald-500' : 'text-gray-400'}`}>
                 L{num}: {label}
               </label>
             </div>
@@ -162,8 +166,9 @@ const ProductNPSBuckets: React.FC<ProductNPSBucketsProps> = ({
                 value={currentValue}
                 onChange={(val) => handleLevelChange(levelKey, val)}
                 placeholder={placeholder}
-                disabled={disabled}
+                readOnly={disabled}
                 size="sm"
+                isApplied={isApplied && isSelected}
               />
             </div>
           </div>
@@ -173,16 +178,27 @@ const ProductNPSBuckets: React.FC<ProductNPSBucketsProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-950 rounded-xl border border-gray-200 dark:border-gray-800 overflow-visible shadow-sm">
+    <div className={`bg-white dark:bg-gray-950 rounded-xl border overflow-visible shadow-sm transition-all duration-300 ${
+      isApplied ? 'border-emerald-500/30 ring-4 ring-emerald-500/5' : 'border-gray-200 dark:border-gray-800'
+    }`}>
       {/* Header */}
-      <div className="bg-gray-50/50 dark:bg-gray-900 px-4 py-2 border-b border-gray-200 dark:border-gray-800">
+      <div className={`px-4 py-2 border-b transition-colors duration-300 ${
+        isApplied 
+          ? 'bg-emerald-50/50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' 
+          : 'bg-gray-50/50 dark:bg-gray-900 border-gray-200 dark:border-gray-800'
+      }`}>
         <div className="flex items-center gap-2">
-          <div className="p-1 bg-primary-50 dark:bg-primary-900/30 rounded">
-            <Layers className="w-3.5 h-3.5 text-primary-600 dark:text-primary-400" />
+          <div className={`p-1 rounded ${isApplied ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-primary-50 dark:bg-primary-900/30'}`}>
+            <Layers className={`w-3.5 h-3.5 ${isApplied ? 'text-emerald-600 dark:text-emerald-400' : 'text-primary-600 dark:text-primary-400'}`} />
           </div>
-          <h3 className="text-xs font-bold text-gray-900 dark:text-white leading-none">
+          <h3 className={`text-xs font-bold leading-none ${isApplied ? 'text-emerald-900 dark:text-emerald-100' : 'text-gray-900 dark:text-white'}`}>
             Product Hierarchy
           </h3>
+          {isApplied && (
+            <span className="ml-auto flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+              <CheckCircle2 className="h-2 w-2" /> Filled
+            </span>
+          )}
         </div>
       </div>
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import { exportDashboardToPDF, exportFormAnalyticsToPDF } from '../../utils/formanalyticsexport';
 import {
   Users,
@@ -676,6 +677,7 @@ const getSectionYesNoStats = (
 
 export default function FormAnalyticsDashboard() {
   const { darkMode } = useTheme();
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -2541,10 +2543,9 @@ export default function FormAnalyticsDashboard() {
             </div>
             <button
               onClick={() => setShowFilterModal(true)}
-            className={`p-1.5 rounded transition-colors relative ${
-              appliedFilters.length > 0 
-                  ? "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 bg-indigo-50 dark:bg-indigo-900/20"
-                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className={`p-1.5 rounded transition-colors relative ${appliedFilters.length > 0
+                ? "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 bg-indigo-50 dark:bg-indigo-900/20"
+                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                 }`}
               title="Advanced Filters"
             >
@@ -2822,10 +2823,9 @@ export default function FormAnalyticsDashboard() {
                         {totalWeightage > 0 && (
                           <button
                             onClick={() => setShowWeightageColumns(!showWeightageColumns)}
-                            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-                              showWeightageColumns
-                                ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-700'
-                                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
+                            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${showWeightageColumns
+                              ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-700'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
                               }`}
                           >
                             {showWeightageColumns ? 'Hide' : 'Show'} Weight
@@ -3397,7 +3397,7 @@ export default function FormAnalyticsDashboard() {
                                     display: false
                                   },
                                   legend: {
-                                      position: 'bottom',
+                                    position: 'bottom',
                                     labels: {
                                       color: document.documentElement.classList.contains("dark")
                                         ? "#e5e7eb"
@@ -3455,20 +3455,18 @@ export default function FormAnalyticsDashboard() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setTableViewType("question")}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                      tableViewType === "question"
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
+                    className={`px-4 py-2 rounded-lg font-medium transition-all ${tableViewType === "question"
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
                       }`}
                   >
                     Question Based
                   </button>
                   <button
                     onClick={() => setTableViewType("section")}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                      tableViewType === "section"
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
+                    className={`px-4 py-2 rounded-lg font-medium transition-all ${tableViewType === "section"
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
                       }`}
                   >
                     Section Based
@@ -3529,13 +3527,11 @@ export default function FormAnalyticsDashboard() {
                                 const isFollowUp = question.parentId || question.showWhen?.questionId;
 
                                 return (
-                                  <tr key={question.id} className={`hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors ${
-                                    isFollowUp 
-                                      ? "bg-purple-50 dark:bg-purple-900/20"
-                                      : "bg-white dark:bg-gray-800"
+                                  <tr key={question.id} className={`hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors ${isFollowUp
+                                    ? "bg-purple-50 dark:bg-purple-900/20"
+                                    : "bg-white dark:bg-gray-800"
                                     }`}>
-                                    <td className={`px-6 py-4 text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium max-w-sm ${
-                                      isFollowUp ? "pl-12" : ""
+                                    <td className={`px-6 py-4 text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium max-w-sm ${isFollowUp ? "pl-12" : ""
                                       }`}>
                                       <div className="truncate" title={question.text || "Unnamed Question"}>
                                         {question.text || "Unnamed Question"}
@@ -3784,17 +3780,7 @@ export default function FormAnalyticsDashboard() {
                             <span className="text-2xl font-black text-indigo-700 dark:text-indigo-300">{overallStats.averageAccuracy}%</span>
                           </div>
 
-                          <div className="flex flex-col bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-lg border border-blue-100 dark:border-blue-800">
-                            <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase">Avg Time Spent</span>
-                            <div className="flex items-baseline gap-1">
-                              <span className="text-2xl font-black text-blue-700 dark:text-blue-300">
-                                {overallStats.averageTimeSpent > 60
-                                  ? `${Math.floor(overallStats.averageTimeSpent / 60)}m ${overallStats.averageTimeSpent % 60}s`
-                                  : `${overallStats.averageTimeSpent}s`}
-                              </span>
-                              <Clock className="w-3.5 h-3.5 text-blue-500" />
-                            </div>
-                          </div>
+
                         </div>
                       </div>
                     </div>
@@ -3806,7 +3792,7 @@ export default function FormAnalyticsDashboard() {
                             <td className="px-3 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                             <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                             <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
-                          <td colSpan={2} className="px-6 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">Performance</td>
+                            <td colSpan={2} className="px-6 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700">Performance</td>
                             {form?.sections?.map((section: Section) => {
                               const sectionQuestionsCount = section.questions?.length || 0;
                               return (
@@ -3939,23 +3925,27 @@ export default function FormAnalyticsDashboard() {
                                       </>
                                     ) : (
                                       <>
-                                        <button
-                                          onClick={() => handleEditStart(response)}
-                                          title="Edit Response"
-                                          className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition-colors"
-                                        >
-                                          <Edit className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                          onClick={() => {
-                                            setDeletingResponseId(response.id);
-                                            setShowDeleteConfirm(true);
-                                          }}
-                                          title="Delete Response"
-                                          className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        {(user?.role === "superadmin" || !form?.tenantId || form.tenantId === user?.tenantId) && (
+                                          <>
+                                            <button
+                                              onClick={() => handleEditStart(response)}
+                                              title="Edit Response"
+                                              className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition-colors"
+                                            >
+                                              <Edit className="w-4 h-4" />
+                                            </button>
+                                            <button
+                                              onClick={() => {
+                                                setDeletingResponseId(response.id);
+                                                setShowDeleteConfirm(true);
+                                              }}
+                                              title="Delete Response"
+                                              className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
+                                            >
+                                              <Trash2 className="w-4 h-4" />
+                                            </button>
+                                          </>
+                                        )}
                                         <div className="relative z-30">
                                           <button
                                             type="button"
@@ -4003,14 +3993,18 @@ export default function FormAnalyticsDashboard() {
                                   })()}
                                 </td>
                                 <td className="px-6 py-3 text-sm text-center font-bold text-blue-600 dark:text-blue-400 border border-gray-200 dark:border-gray-700 whitespace-nowrap">
-                                  {response.totalTimeSpent !== undefined && response.totalTimeSpent !== null ? (
-                                    <div className="flex items-center justify-center gap-1">
-                                      <Clock className="w-3.5 h-3.5" />
-                                      {response.totalTimeSpent > 60
-                                        ? `${Math.floor(response.totalTimeSpent / 60)}m ${response.totalTimeSpent % 60}s`
-                                        : `${response.totalTimeSpent}s`}
-                                    </div>
-                                  ) : "-"}
+                                  {(() => {
+                                    // Check both timeSpent (backend) and totalTimeSpent (frontend type)
+                                    const timeSpent = response.timeSpent ?? response.totalTimeSpent;
+                                    return timeSpent !== undefined && timeSpent !== null && timeSpent > 0 ? (
+                                      <div className="flex items-center justify-center gap-1">
+                                        <Clock className="w-3.5 h-3.5" />
+                                        {timeSpent > 60
+                                          ? `${Math.floor(timeSpent / 60)}m ${timeSpent % 60}s`
+                                          : `${timeSpent}s`}
+                                      </div>
+                                    ) : "-";
+                                  })()}
                                 </td>
                                 {form?.sections?.map((section: Section) => (
                                   selectedResponsesSectionIds.includes(section.id) && (
@@ -4034,10 +4028,8 @@ export default function FormAnalyticsDashboard() {
                                       return (
                                         <td
                                           key={`${response.id}-${q.id}`}
-                                        className={`px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-64 break-words ${
-                                          isFollowUp ? 'bg-purple-50 dark:bg-purple-900/10' : ''
-                                        } ${
-                                          hasCorrectAnswer && !isEditing
+                                          className={`px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-64 break-words ${isFollowUp ? 'bg-purple-50 dark:bg-purple-900/10' : ''
+                                            } ${hasCorrectAnswer && !isEditing
                                               ? isCorrect
                                                 ? 'bg-green-100 dark:bg-green-900/30'
                                                 : 'bg-red-100 dark:bg-red-900/30'
@@ -4055,11 +4047,11 @@ export default function FormAnalyticsDashboard() {
                                           ) : (
                                             <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
                                               {renderAnswerDisplay(answer, q)}
-                                            {q.trackResponseRank && response.responseRanks?.[q.id] && (
-                                              <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(answer, darkMode)}`}>
-                                                #{response.responseRanks[q.id]}
-                                              </span>
-                                            )}
+                                              {q.trackResponseRank && response.responseRanks?.[q.id] && (
+                                                <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(answer, darkMode)}`}>
+                                                  #{response.responseRanks[q.id]}
+                                                </span>
+                                              )}
                                             </div>
                                           )}
                                         </td>
@@ -4071,7 +4063,7 @@ export default function FormAnalyticsDashboard() {
                             ))
                           ) : (
                             <tr>
-                            <td colSpan={4 + (form?.sections?.reduce((acc: number, sec: Section) => (selectedResponsesSectionIds.includes(sec.id) ? acc + (sec.questions?.length || 0) : acc), 0) || 0)} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                              <td colSpan={4 + (form?.sections?.reduce((acc: number, sec: Section) => (selectedResponsesSectionIds.includes(sec.id) ? acc + (sec.questions?.length || 0) : acc), 0) || 0)} className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
                                 No responses yet
                               </td>
                             </tr>
@@ -4153,11 +4145,14 @@ export default function FormAnalyticsDashboard() {
                   <p className="text-sm font-semibold text-gray-600 dark:text-gray-400">Time Taken</p>
                   <p className="text-blue-600 dark:text-blue-400 font-bold flex items-center gap-1">
                     <Clock className="w-4 h-4" />
-                    {(selectedResponse.totalTimeSpent || 0) > 0 ? (
-                      (selectedResponse.totalTimeSpent || 0) > 60
-                        ? `${Math.floor((selectedResponse.totalTimeSpent || 0) / 60)}m ${(selectedResponse.totalTimeSpent || 0) % 60}s`
-                        : `${(selectedResponse.totalTimeSpent || 0)}s`
-                    ) : "N/A"}
+                    {(() => {
+                      const timeSpent = selectedResponse.timeSpent ?? selectedResponse.totalTimeSpent ?? 0;
+                      return timeSpent > 0 ? (
+                        timeSpent > 60
+                          ? `${Math.floor(timeSpent / 60)}m ${timeSpent % 60}s`
+                          : `${timeSpent}s`
+                      ) : "N/A";
+                    })()}
                   </p>
                 </div>
               </div>
@@ -4315,7 +4310,7 @@ export default function FormAnalyticsDashboard() {
                         <div className="absolute top-12 left-0 right-0 bg-white border-2 border-gray-400 rounded shadow-lg z-10 max-h-64 overflow-y-auto">
                           {(() => {
                             const otherFilters = activeFilters.filter(f => f.questionId !== selectedFilterQuestion.id);
-                            const relevantResponses = otherFilters.length === 0 ? responses : responses.filter(r => 
+                            const relevantResponses = otherFilters.length === 0 ? responses : responses.filter(r =>
                               otherFilters.every(f => {
                                 const answer = r.answers[f.questionId];
                                 if (!answer) return false;
@@ -4343,9 +4338,9 @@ export default function FormAnalyticsDashboard() {
                                   }
                                   return String(ans).toLowerCase() === answer.toLowerCase();
                                 }).length;
-                                
+
                                 const isSelected = selectedAnswers.includes(answer);
-                                
+
                                 return (
                                   <label key={answer} className="flex items-start gap-2 cursor-pointer hover:bg-blue-50 p-2.5 border-b border-gray-200 last:border-b-0 transition-colors">
                                     <input
@@ -4359,7 +4354,7 @@ export default function FormAnalyticsDashboard() {
                                           updatedAnswers = selectedAnswers.filter(a => a !== answer);
                                         }
                                         setSelectedAnswers(updatedAnswers);
-                                        
+
                                         setActiveFilters(prev => {
                                           if (updatedAnswers.length === 0) {
                                             return prev.filter(f => f.questionId !== selectedFilterQuestion.id);
@@ -4396,7 +4391,7 @@ export default function FormAnalyticsDashboard() {
               {/* Right - Common Filters & Summary */}
               <div className="flex-1 overflow-y-auto p-4 flex flex-col bg-gray-50">
                 <p className="text-sm font-bold text-gray-900 mb-3">Common Filters</p>
-                
+
                 {/* Date Range Dropdown */}
                 <div className="mb-4 relative">
                   <button
@@ -4404,9 +4399,9 @@ export default function FormAnalyticsDashboard() {
                     className="w-full p-2.5 border-2 border-gray-400 bg-white text-gray-900 text-xs font-medium rounded flex items-center justify-between hover:bg-gray-50"
                   >
                     <span className="truncate">
-                      {dateFilter.type === 'all' ? 'All Time' : 
-                       dateFilter.type === 'single' ? (dateFilter.startDate || 'Select Date') : 
-                       (dateFilter.startDate && dateFilter.endDate ? `${dateFilter.startDate} - ${dateFilter.endDate}` : 'Select Range')}
+                      {dateFilter.type === 'all' ? 'All Time' :
+                        dateFilter.type === 'single' ? (dateFilter.startDate || 'Select Date') :
+                          (dateFilter.startDate && dateFilter.endDate ? `${dateFilter.startDate} - ${dateFilter.endDate}` : 'Select Range')}
                     </span>
                     <svg className={`w-4 h-4 transition-transform ${showDateDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
@@ -4565,7 +4560,7 @@ export default function FormAnalyticsDashboard() {
                             </div>
                           </div>
                         ))}
-                        
+
                         {dateFilter.type !== 'all' && (
                           <div className="p-2 bg-white border border-gray-300 rounded text-xs">
                             <p className="font-bold text-gray-900 text-[11px]">Date</p>
@@ -4581,7 +4576,7 @@ export default function FormAnalyticsDashboard() {
                             <p className="text-gray-600 mt-0.5 text-[11px]">{locationFilter.join(', ')}</p>
                           </div>
                         )}
-                        
+
                         {activeFilters.length === 0 && dateFilter.type === 'all' && locationFilter.length === 0 && (
                           <p className="text-gray-500 italic text-[11px] text-center py-2">No filters applied</p>
                         )}
@@ -4638,10 +4633,9 @@ export default function FormAnalyticsDashboard() {
               <div className="flex gap-1 bg-white dark:bg-gray-700 rounded-lg p-1 w-fit border border-gray-200 dark:border-gray-600">
                 <button
                   onClick={() => setComparisonViewMode("dashboard")}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                    comparisonViewMode === "dashboard"
-                      ? "text-white shadow-sm"
-                      : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
+                  className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${comparisonViewMode === "dashboard"
+                    ? "text-white shadow-sm"
+                    : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
                     }`}
                   style={{ backgroundColor: comparisonViewMode === "dashboard" ? "#1e3a8a" : "transparent" }}
                 >
@@ -4650,10 +4644,9 @@ export default function FormAnalyticsDashboard() {
                 </button>
                 <button
                   onClick={() => setComparisonViewMode("responses")}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                    comparisonViewMode === "responses"
-                      ? "text-white shadow-sm"
-                      : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
+                  className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${comparisonViewMode === "responses"
+                    ? "text-white shadow-sm"
+                    : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
                     }`}
                   style={{ backgroundColor: comparisonViewMode === "responses" ? "#1e3a8a" : "transparent" }}
                 >
@@ -5051,10 +5044,9 @@ export default function FormAnalyticsDashboard() {
 
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 ${
-          toast.type === 'success' 
-            ? 'bg-green-500 dark:bg-green-600'
-            : 'bg-red-500 dark:bg-red-600'
+        <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 ${toast.type === 'success'
+          ? 'bg-green-500 dark:bg-green-600'
+          : 'bg-red-500 dark:bg-red-600'
           }`}>
           <div className="flex items-center gap-2">
             {toast.type === 'success' ? (

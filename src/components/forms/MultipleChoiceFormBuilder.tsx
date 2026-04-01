@@ -32,6 +32,9 @@ interface FollowUpQuestion {
   type: string;
   required: boolean;
   trackResponseRank?: boolean;
+  trackResponseRankLabel?: string;
+  trackResponseRankType?: string;
+
   options?: string[];
   parentId: string;
   showWhen?: {
@@ -46,6 +49,9 @@ interface FormQuestion {
   type: "text" | "radio" | "paragraph" | "checkbox" | "select" | "search-select" | "yesNoNA" | "productNPSTGWBuckets";
   required: boolean;
   trackResponseRank?: boolean;
+  trackResponseRankLabel?: string;
+  trackResponseRankType?: string;
+
   options?: string[];
   followUpQuestions?: FollowUpQuestion[];
   followUpConfig?: Record<
@@ -75,6 +81,18 @@ interface MultipleChoiceFormBuilderProps {
 }
 
 const YES_NO_NA_OPTIONS = ["Yes", "No", "N/A"];
+const TRACK_RANK_QUESTION_TYPES = [
+  { value: "text", label: "Short Text" },
+  { value: "paragraph", label: "Long Text" },
+  { value: "radio", label: "Multiple Choice" },
+  { value: "yesNoNA", label: "Yes / No / N/A" },
+  { value: "checkbox", label: "Checkboxes" },
+  { value: "select", label: "Dropdown" },
+  { value: "search-select", label: "Searchable Select" },
+  { value: "number", label: "Number" },
+  { value: "email", label: "Email" },
+  { value: "date", label: "Date" },
+];
 
 const DEFAULT_FORM_DATA: FormData = {
   title: "Comprehensive Assessment Form",
@@ -1496,7 +1514,24 @@ export const MultipleChoiceFormBuilder: React.FC<
                               </span>
                             </div>
                             <div className="flex items-center space-x-3">
-                              <label className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md" title="Track Response Rank">
+                              <label className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md" title="Track Question">
+                                <input
+                                  type="checkbox"
+                                  checked={question.trackResponseQuestion || false}
+                                  onChange={(e) =>
+                                    handleQuestionChange(
+                                      sectionIndex,
+                                      questionIndex,
+                                      "trackResponseQuestion",
+                                      e.target.checked
+                                    )
+                                  }
+                                  className="h-3.5 w-3.5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Question</span>
+                              </label>
+                              <label className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md" title="Track Rank">
+
                                 <input
                                   type="checkbox"
                                   checked={question.trackResponseRank || false}
@@ -1659,6 +1694,113 @@ export const MultipleChoiceFormBuilder: React.FC<
                               </select>
                             </div>
                           </div>
+                                                    {question.trackResponseRank && (
+                            <div className="mt-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-xl space-y-4 mb-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                <h4 className="text-xs font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">Track Rank Configuration</h4>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
+                                    Track Rank Question Label
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={question.trackResponseRankLabel || ""}
+                                    onChange={(e) =>
+                                      handleQuestionChange(
+                                        sectionIndex,
+                                        questionIndex,
+                                        "trackResponseRankLabel",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full px-3 py-2 border border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-900"
+                                    placeholder="Enter label for rank tracking"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
+                                    Track Rank Question Type
+                                  </label>
+                                  <select
+                                    value={question.trackResponseRankType || "text"}
+                                    onChange={(e) =>
+                                      handleQuestionChange(
+                                        sectionIndex,
+                                        questionIndex,
+                                        "trackResponseRankType",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full px-3 py-2 border border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-900"
+                                  >
+                                    {TRACK_RANK_QUESTION_TYPES.map((type) => (
+                                      <option key={type.value} value={type.value}>
+                                        {type.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {question.trackResponseQuestion && (
+                            <div className="mt-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800 rounded-xl space-y-4 mb-4">
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                                <h4 className="text-xs font-bold text-indigo-900 dark:text-indigo-100 uppercase tracking-wider">Track Question Configuration</h4>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2 uppercase tracking-wide">
+                                    Track Question Label
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={question.trackResponseQuestionLabel || ""}
+                                    onChange={(e) =>
+                                      handleQuestionChange(
+                                        sectionIndex,
+                                        questionIndex,
+                                        "trackResponseQuestionLabel",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-800 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm bg-white dark:bg-gray-900"
+                                    placeholder="Enter label for tracking question"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2 uppercase tracking-wide">
+                                    Track Question Type
+                                  </label>
+                                  <select
+                                    value={question.trackResponseQuestionType || "text"}
+                                    onChange={(e) =>
+                                      handleQuestionChange(
+                                        sectionIndex,
+                                        questionIndex,
+                                        "trackResponseQuestionType",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-800 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm bg-white dark:bg-gray-900"
+                                  >
+                                    {TRACK_RANK_QUESTION_TYPES.map((type) => (
+                                      <option key={type.value} value={type.value}>
+                                        {type.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+
 
                           {(question.type === "productNPSTGWBuckets") && (
                             <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg">
@@ -2126,7 +2268,25 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                   </span>
                                                 </div>
                                                 <div className="flex items-center space-x-2">
-                                                  <label className="flex items-center space-x-1 cursor-pointer px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md" title="Track Response Rank">
+                                                                                                    <label className="flex items-center space-x-1 cursor-pointer px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md" title="Track Question">
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={followUp.trackResponseRank || false}
+                                                      onChange={(e) =>
+                                                        updateFollowUp(
+                                                          sectionIndex,
+                                                          questionIndex,
+                                                          followUpIndex,
+                                                          "trackResponseRank",
+                                                          e.target.checked
+                                                        )
+                                                      }
+                                                      className="h-3 w-3 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
+                                                    />
+                                                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Question</span>
+                                                  </label>
+                                                  <label className="flex items-center space-x-1 cursor-pointer px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md" title="Track Rank">
+
                                                     <input
                                                       type="checkbox"
                                                       checked={followUp.trackResponseRank || false}
@@ -2233,6 +2393,62 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                   </span>
                                                 </label>
                                               </div>
+                                              
+                                              {followUp.trackResponseRank && (
+                                                <div className="mt-2 p-2 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-lg space-y-2 mb-2">
+                                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                                                    <h4 className="text-[10px] font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">Track Rank Config</h4>
+                                                  </div>
+                                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                    <div>
+                                                      <label className="block text-[10px] font-semibold text-blue-700 dark:text-blue-300 mb-1 uppercase tracking-wide">
+                                                        Rank Question Label
+                                                      </label>
+                                                      <input
+                                                        type="text"
+                                                        value={followUp.trackResponseRankLabel || ""}
+                                                        onChange={(e) =>
+                                                          updateFollowUp(
+                                                            sectionIndex,
+                                                            questionIndex,
+                                                            followUpIndex,
+                                                            "trackResponseRankLabel",
+                                                            e.target.value
+                                                          )
+                                                        }
+                                                        className="w-full px-2 py-1 border border-blue-200 dark:border-blue-800 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent text-[11px] bg-white dark:bg-gray-900"
+                                                        placeholder="Label for rank tracking"
+                                                      />
+                                                    </div>
+                                                    <div>
+                                                      <label className="block text-[10px] font-semibold text-blue-700 dark:text-blue-300 mb-1 uppercase tracking-wide">
+                                                        Rank Question Type
+                                                      </label>
+                                                      <select
+                                                        value={followUp.trackResponseRankType || "text"}
+                                                        onChange={(e) =>
+                                                          updateFollowUp(
+                                                            sectionIndex,
+                                                            questionIndex,
+                                                            followUpIndex,
+                                                            "trackResponseRankType",
+                                                            e.target.value
+                                                          )
+                                                        }
+                                                        className="w-full px-2 py-1 border border-blue-200 dark:border-blue-800 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent text-[11px] bg-white dark:bg-gray-900"
+                                                      >
+                                                        {TRACK_RANK_QUESTION_TYPES.map((type) => (
+                                                          <option key={type.value} value={type.value}>
+                                                            {type.label}
+                                                          </option>
+                                                        ))}
+                                                      </select>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                              )}
+
                                             </div>
                                           )
                                         )}

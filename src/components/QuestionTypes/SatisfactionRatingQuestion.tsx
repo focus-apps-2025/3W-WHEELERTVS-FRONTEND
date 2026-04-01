@@ -7,6 +7,7 @@ interface SatisfactionRatingQuestionProps {
   value: string;
   onChange: (value: string) => void;
   readOnly?: boolean;
+  isApplied?: boolean;
 }
 
 export default function SatisfactionRatingQuestion({
@@ -14,6 +15,7 @@ export default function SatisfactionRatingQuestion({
   value,
   onChange,
   readOnly = false,
+  isApplied = false,
 }: SatisfactionRatingQuestionProps) {
   const { darkMode } = useTheme();
   
@@ -41,7 +43,9 @@ export default function SatisfactionRatingQuestion({
                 disabled={readOnly}
                 className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center text-[15px] font-medium transition-all duration-200 ${
                   isSelected
-                    ? 'bg-slate-900 border-slate-900 text-white shadow-md'
+                    ? isApplied
+                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-md'
+                      : 'bg-slate-900 border-slate-900 text-white shadow-md'
                     : darkMode
                       ? 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-500'
                       : 'bg-white border-slate-300 text-slate-600 hover:border-slate-500'
