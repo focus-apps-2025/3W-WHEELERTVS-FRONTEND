@@ -1201,9 +1201,17 @@ async getForms(params?: { isGlobal?: boolean; search?: string }) {
   }
 
   // Tenants (SuperAdmin only)
- async getTenants(search: string = "", status: string = "all") {
+  async getTenants(search: string = "", status: string = "all", plan: string = "all") {
+    // If plan is 'all', don't send it to backend to maintain legacy behavior
+    // Or if we want to be explicit, but the user says it was working before
+    // Let's go back to exactly what it was doing, but with the 3 parameters to avoid TS errors
+    const query = new URLSearchParams();
+    if (search) query.set("search", search);
+    if (status !== "all") query.set("status", status);
+    if (plan !== "all") query.set("plan", plan);
+
     return this.request<{ tenants: any[]; total: number }>(
-      `/tenants?search=${search}&status=${status}`,
+      `/tenants?${query.toString()}`,
     );
   }
 

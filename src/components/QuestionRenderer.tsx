@@ -67,11 +67,19 @@ const getRankStyle = (answer: any, darkMode: boolean = false) => {
 const getGoogleDriveDirectLink = (url: string) => {
   if (!url) return url;
   
-  // Handle Google Drive sharing links
+  // Handle Google Drive view links (the format you have)
+  if (url.includes('drive.google.com/file/d/') && url.includes('/view')) {
+    const fileId = url.split('/d/')[1]?.split('/')[0];
+    if (fileId) {
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+    }
+  }
+  
+  // Handle standard Google Drive sharing links
   if (url.includes('drive.google.com/file/d/')) {
     const fileId = url.split('/d/')[1]?.split('/')[0];
     if (fileId) {
-      return `https://docs.google.com/uc?export=download&id=${fileId}`;
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
     }
   }
   
@@ -79,13 +87,24 @@ const getGoogleDriveDirectLink = (url: string) => {
   if (url.includes('drive.google.com/open?id=')) {
     const fileId = url.split('id=')[1]?.split('&')[0];
     if (fileId) {
-      return `https://docs.google.com/uc?export=download&id=${fileId}`;
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
     }
   }
 
   // Handle uc?id= style
   if (url.includes('drive.google.com/uc?id=')) {
-    return url.replace('uc?id=', 'uc?export=download&id=');
+    const fileId = url.split('id=')[1]?.split('&')[0];
+    if (fileId) {
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+    }
+  }
+
+  // Handle direct download links
+  if (url.includes('export=download')) {
+    const fileId = url.match(/id=([^&]+)/)?.[1];
+    if (fileId) {
+      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+    }
   }
 
   return url;
@@ -106,6 +125,16 @@ const isImageUrl = (fileUrl: string) => {
   if (fileUrl.startsWith("data:")) {
     return fileUrl.startsWith("data:image");
   }
+  
+  // Check for Google Drive image URLs
+  if (fileUrl.includes('lh3.googleusercontent.com/d/')) {
+    return true;
+  }
+  
+  if (fileUrl.includes('drive.google.com/thumbnail')) {
+    return true;
+  }
+  
   return /\.(png|jpg|jpeg|gif|bmp|webp|svg)$/i.test(fileUrl);
 };
 
@@ -917,39 +946,76 @@ export default function QuestionRenderer({
 
   return (
     <div className="space-y-3" data-error={!!activeError}>
-      {imageUrl ? (
-        <div className="relative inline-flex mb-2">
-          {isImage ? (
-            <img
-              src={imageUrl}
-              alt={questionText || "Question image"}
-              className="max-h-48 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 object-contain shadow-sm"
-            />
-          ) : (
-            <div className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-              <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-                <FileText className="w-5 h-5" />
+ {imageUrl ? (
+  <div className="relative inline-flex mb-2">
+    {isImage ? (
+      <img
+        src={imageUrl}
+        alt={questionText || "Question image"}
+        className="max-h-48 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 object-contain shadow-sm"
+        onError={(e) => {
+          // If image fails to load (e.g., due to permissions), show download option
+          e.currentTarget.style.display = 'none';
+          const parent = e.currentTarget.parentElement;
+          if (parent) {
+            // Extract file ID for download link
+            const fileId = imageUrl.match(/id=([^&]+)/)?.[1];
+            const downloadUrl = fileId 
+              ? `https://drive.google.com/uc?export=download&id=${fileId}`
+              : imageUrl;
+            
+            const downloadDiv = document.createElement('div');
+            downloadDiv.className = 'flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm';
+            downloadDiv.innerHTML = `
+              <div class="p-2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                </svg>
               </div>
-              <div className="flex flex-col">
-                <span className="text-[11px] font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
-                  {imageUrl.split('/').pop() || "Question File"}
+              <div class="flex flex-col">
+                <span class="text-[11px] font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
+                  Google Drive File (Preview Not Available)
                 </span>
-                <a 
-                  href={imageUrl} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold"
-                >
+                <a href="${downloadUrl}" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   class="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold">
                   Download File
                 </a>
               </div>
-            </div>
-          )}
-          {question.required && !showLabel ? (
-            <span className="absolute top-1.5 right-1.5 text-base font-bold text-red-500">*</span>
-          ) : null}
+            `;
+            parent.appendChild(downloadDiv);
+          }
+        }}
+      />
+    ) : (
+      // File download UI for non-images
+      <div className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+        <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+          <FileText className="w-5 h-5" />
         </div>
-      ) : null}
+        <div className="flex flex-col">
+          <span className="text-[11px] font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
+            {imageUrl.split('/').pop() || "Question File"}
+          </span>
+          <a 
+            href={imageUrl.includes('thumbnail') 
+              ? imageUrl.replace('thumbnail', 'uc?export=download')
+              : imageUrl}
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold"
+          >
+            Download File
+          </a>
+        </div>
+      </div>
+    )}
+    {question.required && !showLabel ? (
+      <span className="absolute top-1.5 right-1.5 text-base font-bold text-red-500">*</span>
+    ) : null}
+  </div>
+) : null}
       {showLabel ? (
         <label className={`block font-bold text-[13px] tracking-tight ${darkMode ? 'text-white/90' : 'text-slate-900'}`}>
           <div className="flex items-center gap-2">

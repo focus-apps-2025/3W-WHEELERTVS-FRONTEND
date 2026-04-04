@@ -828,7 +828,7 @@ const handleBulkDownloadZip = async () => {
 
     const answerBox = (
       <div 
-        className={`${compact ? 'w-full px-4 py-2' : 'flex-1 p-3'} ${bgColor} ${textColor} ${borderColor} rounded-lg border text-sm break-words font-medium flex items-center shadow-sm`}
+        className={`${compact ? 'w-full px-4 py-2' : 'flex-1 p-3'} ${bgColor} ${textColor} ${borderColor} rounded-lg border text-sm break-words font-medium flex items-center shadow-sm relative group/answer`}
         style={{
           boxShadow: isQuiz 
             ? (isCorrect ? '0 4px 12px rgba(34, 197, 94, 0.4)' : '0 4px 12px rgba(239, 68, 68, 0.4)')
@@ -893,6 +893,20 @@ const handleBulkDownloadZip = async () => {
                 return renderInnerValue(value);
               })()}
             </div>
+            {/* Rank Tag Display */}
+            {question?.id && response?.responseRanks && response.responseRanks[question.id] !== undefined && (
+              <div 
+                className={`flex-shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-tighter shadow-sm whitespace-nowrap ${
+                  isCorrect || isYes
+                    ? "bg-green-100/50 text-green-700 border-green-200" 
+                    : isNo || (isQuiz && !isCorrect)
+                    ? "bg-red-100/50 text-red-700 border-red-200"
+                    : "bg-blue-100/50 text-blue-700 border-blue-200"
+                }`}
+              >
+                Rank #{response.responseRanks[question.id]}{response.answers[question.id] && `: ${String(typeof response.answers[question.id] === 'object' ? (response.answers[question.id].chassisNumber || JSON.stringify(response.answers[question.id])) : response.answers[question.id])}`}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -3747,8 +3761,15 @@ const handleBulkDownloadZip = async () => {
                                         {question.subParam1}
                                       </span>
                                     )}
-                                    <div className="font-semibold text-gray-900 dark:text-white text-sm">
-                                      {question?.text || key}
+                                    <div className="flex items-center gap-2">
+                                      <div className="font-semibold text-gray-900 dark:text-white text-sm">
+                                        {question?.text || key}
+                                      </div>
+                                      {question?.id && response?.responseRanks && response.responseRanks[question.id] !== undefined && (
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest bg-blue-100/50 text-blue-700 border border-blue-200 shadow-sm">
+                                          Rank #{response.responseRanks[question.id]}{response.answers[question.id] && `: ${String(typeof response.answers[question.id] === 'object' ? (response.answers[question.id].chassisNumber || JSON.stringify(response.answers[question.id])) : response.answers[question.id])}`}
+                                        </span>
+                                      )}
                                     </div>
                                     {question?.description && (
                                       <div 
