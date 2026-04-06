@@ -895,23 +895,35 @@ export default function QuestionRenderer({
       case "chassis-with-zone":
         return renderInputWrapper(
           <div className="space-y-1">
-            <ChassisWithZone
-              value={value}
-              onChange={(val) => {
-                if (onChange) onChange(val);
-                if (
-                  isQuestionTrackingEnabled &&
-                  onTrackingChange &&
-                  val?.chassisNumber !== trackingValue
-                ) {
-                  onTrackingChange(val?.chassisNumber || "");
-                }
-              }}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              disabled={readOnly}
-              isApplied={isApplied}
-            />
+            {isQuestionTrackingEnabled ? (
+              <ChassisWithZone
+                value={value}
+                onChange={(val) => {
+                  if (onChange) onChange(val);
+                  if (
+                    isQuestionTrackingEnabled &&
+                    onTrackingChange &&
+                    val?.chassisNumber !== trackingValue
+                  ) {
+                    onTrackingChange(val?.chassisNumber || "");
+                  }
+                }}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                disabled={readOnly}
+                isApplied={isApplied}
+              />
+            ) : (
+              <ChassisWithZone
+                value={value}
+                onChange={(val) => onChange && onChange(val)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                disabled={readOnly}
+                isApplied={isApplied}
+                hideChassisNumber={true}
+              />
+            )}
             {renderLoadingIndicator()}
             {renderNoMatchIndicator()}
             {renderSuggestions()}
@@ -921,23 +933,35 @@ export default function QuestionRenderer({
       case "chassis-without-zone":
         return renderInputWrapper(
           <div className="space-y-1">
-            <ChassisWithoutZone
-              value={value}
-              onChange={(val) => {
-                if (onChange) onChange(val);
-                if (
-                  isQuestionTrackingEnabled &&
-                  onTrackingChange &&
-                  val?.chassisNumber !== trackingValue
-                ) {
-                  onTrackingChange(val?.chassisNumber || "");
-                }
-              }}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              disabled={readOnly}
-              isApplied={isApplied}
-            />
+            {isQuestionTrackingEnabled ? (
+              <ChassisWithoutZone
+                value={value}
+                onChange={(val) => {
+                  if (onChange) onChange(val);
+                  if (
+                    isQuestionTrackingEnabled &&
+                    onTrackingChange &&
+                    val?.chassisNumber !== trackingValue
+                  ) {
+                    onTrackingChange(val?.chassisNumber || "");
+                  }
+                }}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                disabled={readOnly}
+                isApplied={isApplied}
+              />
+            ) : (
+              <ChassisWithoutZone
+                value={value}
+                onChange={(val) => onChange && onChange(val)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                disabled={readOnly}
+                isApplied={isApplied}
+                hideChassisNumber={true}
+              />
+            )}
             {renderLoadingIndicator()}
             {renderNoMatchIndicator()}
             {renderSuggestions()}

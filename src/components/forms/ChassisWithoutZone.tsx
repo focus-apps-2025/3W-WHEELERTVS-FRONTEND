@@ -10,6 +10,7 @@ interface ChassisWithoutZoneProps {
   onBlur?: () => void;
   disabled?: boolean;
   isApplied?: boolean;
+  hideChassisNumber?: boolean;
 }
 
 const DEFECT_DATA: Record<string, string[]> = {
@@ -50,6 +51,7 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
   onBlur,
   disabled,
   isApplied = false,
+  hideChassisNumber = false,
 }) => {
   const chassisValue = value?.chassisNumber || "";
   const statusValue = value?.status || "";
@@ -143,7 +145,7 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
     }
   };
 
-  const hasChassis = chassisValue.trim().length > 0;
+  const hasChassis = hideChassisNumber || chassisValue.trim().length > 0;
   const isRejectedOrRework = statusValue === 'Rejected' || statusValue === 'Rework';
 
   return (
@@ -153,6 +155,7 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
       onBlur={onBlur}
     >
       {/* Step 1: Chassis Number */}
+      {!hideChassisNumber && (
       <div className="space-y-2">
         <div className="relative">
           <input
@@ -176,6 +179,7 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
           )}
         </div>
       </div>
+      )}
 
       {/* Step 2: Status Selection */}
       {hasChassis && (

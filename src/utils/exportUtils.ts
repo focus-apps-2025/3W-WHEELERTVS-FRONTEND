@@ -872,7 +872,7 @@ export function downloadNestedFormImportTemplate() {
     "Subsection Of: Enter the parent section number (e.g., '1' to make this section a subsection of section 1)",
     "The question text to ask",
     "Additional details about the question",
-    "Type: text, paragraph, radio, checkbox, search-select, yesNoNA, file",
+    "Type: text, paragraph, radio, checkbox, search-select, yesNoNA, file, chassis-with-zone, chassis-without-zone",
     "TRUE/FALSE - is this question required?",
     "For choice questions: Option 1, Option 2, Option 3 (comma-separated)",
     "Jump to Section for Option 1: number (e.g. 2), 'end', or '0' (none)",
@@ -1719,7 +1719,7 @@ export function downloadFormImportTemplate() {
     "Subsection Of: Enter the parent section number (e.g., '1' to make this section a subsection of section 1)",
     "The question text to ask",
     "Additional details about the question",
-    "Type: text, paragraph, radio, checkbox, search-select, yesNoNA, file",
+    "Type: text, paragraph, radio, checkbox, search-select, yesNoNA, file, chassis-with-zone, chassis-without-zone",
     "TRUE/FALSE - is this question required?",
     "For choice questions: Option 1, Option 2, Option 3 (comma-separated)",
     "Jump to Section for Option 1: number (e.g. 2), 'end', or '0' (none)",
@@ -2277,6 +2277,14 @@ function parseNewTemplateFormat(
       "product nps buckets": "productNPSTGWBuckets",
       "productnpstgwbuckets": "productNPSTGWBuckets",
       "hierarchy": "productNPSTGWBuckets",
+
+      // Chassis types
+      "chassis with zone": "chassis-with-zone",
+      "chassis-with-zone": "chassis-with-zone",
+      "chassiswithzone": "chassis-with-zone",
+      "chassis without zone": "chassis-without-zone",
+      "chassis-without-zone": "chassis-without-zone",
+      "chassiswithoutzone": "chassis-without-zone",
     };
 
     // First try exact match after normalization
