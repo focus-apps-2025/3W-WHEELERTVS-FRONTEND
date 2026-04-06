@@ -64,50 +64,51 @@ const getRankStyle = (answer: any, darkMode: boolean = false) => {
   return darkMode ? color.d : color.l;
 };
 
+const extractGoogleDriveFileId = (url: string): string | null => {
+  if (!url) return null;
+  
+  if (url.includes('drive.google.com/file/d/')) {
+    return url.split('/d/')[1]?.split('/')[0];
+  }
+  if (url.includes('drive.google.com/open?id=')) {
+    return url.split('id=')[1]?.split('&')[0];
+  }
+  if (url.includes('drive.google.com/uc?id=')) {
+    return url.split('id=')[1]?.split('&')[0];
+  }
+  if (url.match(/id=([^&]+)/)) {
+    return url.match(/id=([^&]+)/)?.[1];
+  }
+  
+  return null;
+};
+
 const getGoogleDriveDirectLink = (url: string) => {
   if (!url) return url;
   
-  // Handle Google Drive view links (the format you have)
-  if (url.includes('drive.google.com/file/d/') && url.includes('/view')) {
-    const fileId = url.split('/d/')[1]?.split('/')[0];
-    if (fileId) {
-      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
-    }
-  }
+  const fileId = extractGoogleDriveFileId(url);
+  if (!fileId) return url;
   
-  // Handle standard Google Drive sharing links
-  if (url.includes('drive.google.com/file/d/')) {
-    const fileId = url.split('/d/')[1]?.split('/')[0];
-    if (fileId) {
-      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
-    }
-  }
-  
-  // Handle Google Drive open links
-  if (url.includes('drive.google.com/open?id=')) {
-    const fileId = url.split('id=')[1]?.split('&')[0];
-    if (fileId) {
-      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
-    }
-  }
+  return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
+};
 
-  // Handle uc?id= style
-  if (url.includes('drive.google.com/uc?id=')) {
-    const fileId = url.split('id=')[1]?.split('&')[0];
-    if (fileId) {
-      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
-    }
-  }
+const isGoogleDriveUrl = (url: string): boolean => {
+  if (!url) return false;
+  return url.includes('drive.google.com');
+};
 
-  // Handle direct download links
-  if (url.includes('export=download')) {
-    const fileId = url.match(/id=([^&]+)/)?.[1];
-    if (fileId) {
-      return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1000`;
-    }
-  }
+const getGoogleDriveDownloadUrl = (url: string): string => {
+  if (!url) return url;
+  const fileId = extractGoogleDriveFileId(url);
+  if (!fileId) return url;
+  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+};
 
-  return url;
+const getGoogleDriveEmbedUrl = (url: string): string | null => {
+  if (!url) return null;
+  const fileId = extractGoogleDriveFileId(url);
+  if (!fileId) return null;
+  return `https://drive.google.com/file/d/${fileId}/preview`;
 };
 
 const isImageUrl = (fileUrl: string) => {
@@ -946,69 +947,53 @@ export default function QuestionRenderer({
 
   return (
     <div className="space-y-3" data-error={!!activeError}>
- {imageUrl ? (
+  {imageUrl ? (
   <div className="relative inline-flex mb-2">
     {isImage ? (
-      <img
-        src={imageUrl}
-        alt={questionText || "Question image"}
-        className="max-h-48 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 object-contain shadow-sm"
-        onError={(e) => {
-          // If image fails to load (e.g., due to permissions), show download option
-          e.currentTarget.style.display = 'none';
-          const parent = e.currentTarget.parentElement;
-          if (parent) {
-            // Extract file ID for download link
-            const fileId = imageUrl.match(/id=([^&]+)/)?.[1];
-            const downloadUrl = fileId 
-              ? `https://drive.google.com/uc?export=download&id=${fileId}`
-              : imageUrl;
-            
-            const downloadDiv = document.createElement('div');
-            downloadDiv.className = 'flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm';
-            downloadDiv.innerHTML = `
-              <div class="p-2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                </svg>
-              </div>
-              <div class="flex flex-col">
-                <span class="text-[11px] font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
-                  Google Drive File (Preview Not Available)
-                </span>
-                <a href="${downloadUrl}" 
-                   target="_blank" 
-                   rel="noopener noreferrer"
-                   class="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold">
-                  Download File
-                </a>
-              </div>
-            `;
-            parent.appendChild(downloadDiv);
-          }
-        }}
-      />
+      <div className="w-48 h-48 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 group">
+        <iframe 
+          src={getGoogleDriveEmbedUrl(imageUrl) || ''} 
+          className="w-full h-full" 
+          frameBorder="0" 
+          allow="autoplay"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
+        ></iframe>
+        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+          <a 
+            href={getGoogleDriveDownloadUrl(imageUrl)}
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="p-2 rounded-full bg-white/20 hover:bg-white/40 text-white"
+            title="Download"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+          </a>
+          <a 
+            href={imageUrl}
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="p-2 rounded-full bg-white/20 hover:bg-white/40 text-white"
+            title="Open in Google Drive"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+          </a>
+        </div>
+      </div>
     ) : (
       // File download UI for non-images
       <div className="flex items-center gap-2 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
-        <div className="p-2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-          <FileText className="w-5 h-5" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-[11px] font-bold text-slate-900 dark:text-white truncate max-w-[200px]">
-            {imageUrl.split('/').pop() || "Question File"}
-          </span>
-          <a 
-            href={imageUrl.includes('thumbnail') 
-              ? imageUrl.replace('thumbnail', 'uc?export=download')
-              : imageUrl}
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold"
-          >
-            Download File
-          </a>
-        </div>
+        <a 
+          href={getGoogleDriveDownloadUrl(imageUrl)}
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-bold"
+        >
+          Download File
+        </a>
       </div>
     )}
     {question.required && !showLabel ? (
