@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { AlertCircle, CheckCircle, RotateCcw, XCircle, ChevronRight, Layers, MessageSquare, Upload, Loader2, X } from "lucide-react";
 import { apiClient } from "../../api/client";
+import SearchSelect from "../QuestionTypes/SearchSelect";
 
 interface ChassisWithZoneProps {
   value: any;
@@ -32,7 +33,7 @@ const DEFECT_DATA: Record<string, string[]> = {
     "Nut missing", "Nut offset", "Bolt missing", "Bolt lossen", 
     "Assembly not seating", "Bracket tilt"
   ],
-  "sealant defects": [
+  "Sealant defects": [
     "Sealant missing", "Incomplete sealant", "Uneven bead", "Excess sealant", 
     "Selant overflow", "Sealant lifting", "Sealant gap", 
     "Discontinuous sealant", "Sealant crack", "Water leakage", "Sealant peeling"
@@ -57,7 +58,7 @@ const ChassisWithZone: React.FC<ChassisWithZoneProps> = ({
   const chassisValue = value?.chassisNumber || "";
   const statusValue = value?.status || "";
   const zoneValue = value?.zone || []; // Support multiple zones (checkboxes)
-  const categoryValue = value?.defectCategory || "";
+  const categoryValue = value?.defectCategory || []; // Support multiple categories
   const specificDefects = value?.defects || []; // array of objects { name, remark, fileUrl }
   const evidenceUrl = value?.evidenceUrl || "";
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
@@ -109,9 +110,24 @@ const ChassisWithZone: React.FC<ChassisWithZoneProps> = ({
     updateValue({ zone: next });
   };
 
-  const handleCategoryChange = (val: string | string[]) => {
-    const cat = Array.isArray(val) ? val[0] : val;
-    updateValue({ defectCategory: cat, defects: [] });
+  const handleCategoryChange = (cat: string) => {
+    if (disabled) return;
+    const next = categoryValue.includes(cat)
+      ? categoryValue.filter((c: string) => c !== cat)
+      : [...categoryValue, cat];
+    
+    // Filter specific defects to remove those belonging to the deselected category
+    let nextDefects = specificDefects;
+    if (categoryValue.includes(cat)) {
+      const remainingCategories = categoryValue.filter((c: string) => c !== cat);
+      const allowedDefects = new Set(remainingCategories.flatMap((c: string) => DEFECT_DATA[c]));
+      nextDefects = specificDefects.filter((d: any) => {
+        const name = typeof d === 'string' ? d : d.name;
+        return allowedDefects.has(name);
+      });
+    }
+
+    updateValue({ defectCategory: next, defects: nextDefects });
   };
 
   const handleDefectToggle = (defectName: string) => {
@@ -324,54 +340,54 @@ const ChassisWithZone: React.FC<ChassisWithZoneProps> = ({
               <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">
                 Defect Category
               </label>
-              <select
+              <SearchSelect
+                multiple
+                options={Object.keys(DEFECT_DATA).map(cat => ({ value: cat, label: cat }))}
                 value={categoryValue}
-                onChange={(e) => handleCategoryChange(e.target.value)}
-                disabled={disabled}
-                className="w-full px-3 py-2 bg-white dark:bg-gray-950 border border-gray-100 dark:border-gray-800 rounded-lg text-[11px] font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              >
-                <option value="">Select Category...</option>
-                {Object.keys(DEFECT_DATA).map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
+                onChange={(val) => updateValue({ defectCategory: val, defects: [] })}
+                placeholder="Select categories..."
+                readOnly={disabled}
+                size="sm"
+              />
             </div>
           )}
 
           {/* Step 5: Specific Defects */}
-          {categoryValue && (
-            <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-4">
-              <div className="space-y-3">
-                <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider ml-1">
-                  Select Specific Defects
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {DEFECT_DATA[categoryValue].map((defect) => {
-                    const defectObj = specificDefects.find((d: any) => (typeof d === 'string' ? d === defect : d.name === defect));
-                    const isSelected = !!defectObj;
-                    
-                    return (
-                      <button
-                        key={defect}
-                        type="button"
-                        onClick={() => !disabled && handleDefectToggle(defect)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[11px] font-medium transition-all ${
-                          isSelected
-                            ? "bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/10"
-                            : "bg-white dark:bg-gray-950 border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-200"
-                        }`}
-                      >
-                        <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center transition-all ${
-                          isSelected ? "bg-blue-500 border-blue-500" : "border-gray-300"
-                        }`}>
-                          {isSelected && <CheckCircle className="w-2.5 h-2.5 text-white" />}
-                        </div>
-                        {defect}
-                      </button>
-                    );
-                  })}
+          {categoryValue.length > 0 && (
+            <div className="animate-in fade-in slide-in-from-top-2 duration-300 space-y-6">
+              {categoryValue.map((cat: string) => (
+                <div key={cat} className="space-y-3">
+                  <label className="block text-[10px] font-bold text-blue-500 uppercase tracking-wider ml-1">
+                    Specific {cat}
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {DEFECT_DATA[cat].map((defect) => {
+                      const defectObj = specificDefects.find((d: any) => (typeof d === 'string' ? d === defect : d.name === defect));
+                      const isSelected = !!defectObj;
+                      
+                      return (
+                        <button
+                          key={defect}
+                          type="button"
+                          onClick={() => !disabled && handleDefectToggle(defect)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-[11px] font-medium transition-all ${
+                            isSelected
+                              ? "bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 ring-2 ring-blue-500/10"
+                              : "bg-white dark:bg-gray-950 border-gray-100 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-gray-200"
+                          }`}
+                        >
+                          <div className={`w-3.5 h-3.5 rounded-sm border flex items-center justify-center transition-all ${
+                            isSelected ? "bg-blue-500 border-blue-500" : "border-gray-300"
+                          }`}>
+                            {isSelected && <CheckCircle className="w-2.5 h-2.5 text-white" />}
+                          </div>
+                          {defect}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              ))}
 
               {/* Detailed Remarks and Evidence Section (After all checkboxes) */}
               {specificDefects.length > 0 && (
@@ -479,11 +495,11 @@ const ChassisWithZone: React.FC<ChassisWithZoneProps> = ({
       {hasChassis && statusValue && !isApplied && (
         <div className="pt-2">
           {isRejectedOrRework ? (
-            (zoneValue.length === 0 || !categoryValue || specificDefects.length === 0) && (
+            (zoneValue.length === 0 || categoryValue.length === 0 || specificDefects.length === 0) && (
               <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-800/50">
                 <AlertCircle className="w-4 h-4" />
                 <span className="text-[10px] font-bold uppercase tracking-tight">
-                  {zoneValue.length === 0 ? 'Select at least one zone' : (!categoryValue ? 'Select a category' : 'Select at least one defect')}
+                  {zoneValue.length === 0 ? 'Select at least one zone' : (categoryValue.length === 0 ? 'Select a category' : 'Select at least one defect')}
                 </span>
               </div>
             )

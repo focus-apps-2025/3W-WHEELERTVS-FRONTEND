@@ -930,10 +930,32 @@ export default function FormAnalyticsDashboard() {
     );
 
     if (cascadingFiltersArray.length > 0) {
+      // Create a map of all questions for quick lookup
+      const allQuestionsMap = new Map();
+      form?.sections?.forEach(section => {
+        section.questions?.forEach(q => {
+          allQuestionsMap.set(q.id, q);
+        });
+      });
+      form?.followUpQuestions?.forEach(q => {
+        allQuestionsMap.set(q.id, q);
+      });
+
       result = result.filter((response) => {
         return cascadingFiltersArray.every(([questionId, selectedAnswers]) => {
           const answer = response.answers[questionId];
           if (!answer) return false;
+
+          const question = allQuestionsMap.get(questionId);
+
+          if (question?.type === 'chassis-with-zone') {
+            const zones = Array.isArray(answer.zone) ? answer.zone : [answer.zone];
+            return zones.some((z: string) => 
+              selectedAnswers.some(sel => String(z || '').toLowerCase() === String(sel || '').toLowerCase())
+            );
+          } else if (question?.type === 'chassis-without-zone') {
+            return selectedAnswers.some(sel => String(answer.chassisNumber || '').toLowerCase() === String(sel || '').toLowerCase());
+          }
 
           // Handle different answer types
           if (Array.isArray(answer)) {
@@ -4046,12 +4068,16 @@ export default function FormAnalyticsDashboard() {
                                             />
                                           ) : (
                                             <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
-                                              {renderAnswerDisplay(answer, q)}
-                                              {q.trackResponseRank && response.responseRanks?.[q.id] && (
-                                                <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(answer, darkMode)}`}>
-                                                  #{response.responseRanks[q.id]}
-                                                </span>
-                                              )}
+                                              <div className="flex items-center gap-2">
+                                                {q.trackResponseRank && response.responseRanks?.[q.id] && (
+                                                  <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm flex-shrink-0 ${getRankStyle(answer, darkMode)}`}>
+                                                    #{response.responseRanks[q.id]}
+                                                  </span>
+                                                )}
+                                                <div className="flex-1">
+                                                  {renderAnswerDisplay(answer, q)}
+                                                </div>
+                                              </div>
                                             </div>
                                           )}
                                         </td>
@@ -4167,12 +4193,16 @@ export default function FormAnalyticsDashboard() {
                         <div key={question.id} className="border-l-4 border-blue-300 dark:border-blue-700 pl-4">
                           <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{question.text}</p>
                           <div className="text-gray-900 dark:text-gray-100 flex flex-col gap-1">
-                            {hasAnswerValue(answer) ? renderAnswerDisplay(answer, question) : <span className="text-gray-400">No response</span>}
-                            {question.trackResponseRank && selectedResponse.responseRanks?.[question.id] && (
-                              <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}>
-                                #{selectedResponse.responseRanks[question.id]}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {question.trackResponseRank && selectedResponse.responseRanks?.[question.id] && (
+                                <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm flex-shrink-0 ${getRankStyle(answer, darkMode)}`}>
+                                  #{selectedResponse.responseRanks[question.id]}
+                                </span>
+                              )}
+                              <div className="flex-1">
+                                {hasAnswerValue(answer) ? renderAnswerDisplay(answer, question) : <span className="text-gray-400">No response</span>}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       );
@@ -4191,12 +4221,16 @@ export default function FormAnalyticsDashboard() {
                         <div key={question.id} className="border-l-4 border-purple-300 dark:border-purple-700 pl-4">
                           <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">{question.text}</p>
                           <div className="text-gray-900 dark:text-gray-100 flex flex-col gap-1">
-                            {hasAnswerValue(answer) ? renderAnswerDisplay(answer, question) : <span className="text-gray-400">No response</span>}
-                            {question.trackResponseRank && selectedResponse.responseRanks?.[question.id] && (
-                              <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}>
-                                #{selectedResponse.responseRanks[question.id]}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {question.trackResponseRank && selectedResponse.responseRanks?.[question.id] && (
+                                <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm flex-shrink-0 ${getRankStyle(answer, darkMode)}`}>
+                                  #{selectedResponse.responseRanks[question.id]}
+                                </span>
+                              )}
+                              <div className="flex-1">
+                                {hasAnswerValue(answer) ? renderAnswerDisplay(answer, question) : <span className="text-gray-400">No response</span>}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       );

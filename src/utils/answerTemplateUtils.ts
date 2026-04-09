@@ -913,7 +913,7 @@ function parseChassisAnswer(value: string, type: string) {
   const result: any = {
     chassisNumber: "",
     status: "",
-    defectCategory: "",
+    defectCategory: [],
     defects: [],
   };
 
@@ -937,7 +937,11 @@ function parseChassisAnswer(value: string, type: string) {
         .map((z) => z.trim())
         .filter(Boolean);
     } else if (lowerPart.startsWith("category:")) {
-      result.defectCategory = part.split(":")[1]?.trim() || "";
+      const catStr = part.split(":")[1]?.trim() || "";
+      result.defectCategory = catStr
+        .split(",")
+        .map((c) => c.trim())
+        .filter(Boolean);
     } else if (lowerPart.startsWith("defects:")) {
       const defectsStr = part.split(":")[1]?.trim() || "";
       // Split defects by comma, but be careful of commas inside remarks/brackets

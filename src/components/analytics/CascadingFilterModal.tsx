@@ -8,6 +8,7 @@ interface FilterState {
 interface Question {
   id: string;
   text: string;
+  type?: string;
 }
 
 interface Response {
@@ -69,6 +70,33 @@ export default function CascadingFilterModal({
     loc.toLowerCase().includes(locationSearchTerm.toLowerCase())
   );
 
+  const checkAnswerMatch = (qId: string, selectedAnswers: string[], answer: any) => {
+    if (!answer) return false;
+    const question = questions.find(q => q.id === qId);
+
+    if (question?.type === 'chassis-with-zone') {
+      const zones = Array.isArray(answer.zone) ? answer.zone : [answer.zone];
+      return zones.some((z: string) => 
+        selectedAnswers.some(sel => String(z || '').toLowerCase() === String(sel || '').toLowerCase())
+      );
+    } else if (question?.type === 'chassis-without-zone') {
+      return selectedAnswers.some(sel => String(answer.chassisNumber || '').toLowerCase() === String(sel || '').toLowerCase());
+    }
+
+    if (Array.isArray(answer)) {
+      return answer.some((item) =>
+        selectedAnswers.some(
+          (sel) =>
+            String(item).toLowerCase() === String(sel).toLowerCase()
+        )
+      );
+    }
+    return selectedAnswers.some(
+      (sel) =>
+        String(answer).toLowerCase() === String(sel).toLowerCase()
+    );
+  };
+
   const getAvailableAnswersForQuestion = (questionId: string): string[] => {
     const activeFilters = Object.entries(filters).filter(
       ([qId, answers]) => answers.length > 0 && qId !== questionId
@@ -80,20 +108,7 @@ export default function CascadingFilterModal({
       filteredResponses = responses.filter((response) =>
         activeFilters.every(([qId, selectedAnswers]) => {
           const answer = response.answers?.[qId];
-          if (!answer) return false;
-
-          if (Array.isArray(answer)) {
-            return answer.some((item) =>
-              selectedAnswers.some(
-                (sel) =>
-                  String(item).toLowerCase() === String(sel).toLowerCase()
-              )
-            );
-          }
-          return selectedAnswers.some(
-            (sel) =>
-              String(answer).toLowerCase() === String(sel).toLowerCase()
-          );
+          return checkAnswerMatch(qId, selectedAnswers, answer);
         })
       );
     }
@@ -111,10 +126,19 @@ export default function CascadingFilterModal({
     }
 
     const answers = new Set<string>();
+    const question = questions.find(q => q.id === questionId);
+
     filteredResponses.forEach((response) => {
       const answer = response.answers?.[questionId];
       if (answer !== null && answer !== undefined && answer !== "") {
-        if (Array.isArray(answer)) {
+        if (question?.type === 'chassis-with-zone') {
+          const zones = Array.isArray(answer.zone) ? answer.zone : [answer.zone];
+          zones.forEach((z: string) => {
+            if (z) answers.add(String(z).trim());
+          });
+        } else if (question?.type === 'chassis-without-zone') {
+          if (answer.chassisNumber) answers.add(String(answer.chassisNumber).trim());
+        } else if (Array.isArray(answer)) {
           answer.forEach((a) => answers.add(String(a).trim()));
         } else {
           answers.add(String(answer).trim());
@@ -139,20 +163,7 @@ export default function CascadingFilterModal({
       filteredResponses = responses.filter((response) =>
         activeFilters.every(([qId, selectedAnswers]) => {
           const answer = response.answers?.[qId];
-          if (!answer) return false;
-
-          if (Array.isArray(answer)) {
-            return answer.some((item) =>
-              selectedAnswers.some(
-                (sel) =>
-                  String(item).toLowerCase() === String(sel).toLowerCase()
-              )
-            );
-          }
-          return selectedAnswers.some(
-            (sel) =>
-              String(answer).toLowerCase() === String(sel).toLowerCase()
-          );
+          return checkAnswerMatch(qId, selectedAnswers, answer);
         })
       );
     }
@@ -169,9 +180,17 @@ export default function CascadingFilterModal({
       });
     }
 
+    const question = questions.find(q => q.id === questionId);
     return filteredResponses.filter((response) => {
       const answer = response.answers?.[questionId];
       if (!answer) return false;
+
+      if (question?.type === 'chassis-with-zone') {
+        const zones = Array.isArray(answer.zone) ? answer.zone : [answer.zone];
+        return zones.some((z: string) => String(z || '').toLowerCase() === answerValue.toLowerCase());
+      } else if (question?.type === 'chassis-without-zone') {
+        return String(answer.chassisNumber || '').toLowerCase() === answerValue.toLowerCase();
+      }
 
       if (Array.isArray(answer)) {
         return answer.some(
@@ -520,7 +539,7 @@ export default function CascadingFilterModal({
                         [question.id]: availableAnswers,
                       }));
                     }}
-                    className="flex-1 px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors"
+                    className="flex-1 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-md shadow-indigo-600/10 active:scale-95"
                   >
                     Select All
                   </button>
@@ -531,18 +550,19 @@ export default function CascadingFilterModal({
                         [question.id]: [],
                       }));
                     }}
-                    className="flex-1 px-3 py-1.5 text-xs font-medium text-gray-900 bg-gray-200 hover:bg-gray-300 rounded transition-colors"
+                    className="flex-1 px-4 py-2.5 text-[10px] font-black uppercase tracking-widest text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all active:scale-95"
                   >
-                    Clear All
+                    Clear
                   </button>
                 </div>
 
                 {/* Answers List */}
-                <div className="space-y-2 overflow-y-auto flex-1">
+                <div className="space-y-1 overflow-y-auto flex-1 custom-scrollbar pr-1">
                   {filteredAnswers.length === 0 ? (
-                    <p className="text-xs text-gray-500 text-center py-2">
-                      No answers
-                    </p>
+                    <div className="flex flex-col items-center justify-center py-8 text-gray-400">
+                      <Search className="w-8 h-8 opacity-20 mb-2" />
+                      <p className="text-[10px] font-bold uppercase tracking-widest">No results</p>
+                    </div>
                   ) : (
                     filteredAnswers.map((answer) => {
                       const count = getAnswerCount(
@@ -556,23 +576,36 @@ export default function CascadingFilterModal({
                       return (
                         <label
                           key={answer}
-                          className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded cursor-pointer transition-colors"
+                          className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 group/label ${
+                            isSelected 
+                              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 translate-x-1' 
+                              : 'hover:bg-indigo-50 text-gray-700 hover:text-indigo-700'
+                          }`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() =>
-                              handleAnswerToggle(question.id, answer)
-                            }
-                            className="w-3 h-3 rounded border-gray-300 text-indigo-600 cursor-pointer flex-shrink-0"
-                          />
+                          <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                            isSelected ? 'bg-white border-white' : 'bg-white border-gray-300 group-hover/label:border-indigo-500'
+                          }`}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleAnswerToggle(question.id, answer)}
+                              className="sr-only"
+                            />
+                            {isSelected && (
+                              <div className="w-2.5 h-2.5 bg-indigo-600 rounded-[2px]" />
+                            )}
+                          </div>
+                          
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-900 truncate">
+                            <p className="text-xs font-bold truncate">
                               {answer}
                             </p>
                           </div>
-                          <span className="text-xs text-gray-500 flex-shrink-0">
-                            ({count})
+                          
+                          <span className={`text-[10px] font-black tracking-widest px-2 py-0.5 rounded-full ${
+                            isSelected ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500 group-hover/label:bg-indigo-100 group-hover/label:text-indigo-600'
+                          }`}>
+                            {count}
                           </span>
                         </label>
                       );

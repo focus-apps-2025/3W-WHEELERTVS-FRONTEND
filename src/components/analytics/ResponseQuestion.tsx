@@ -862,8 +862,57 @@ export default function ResponseQuestion({
   };
 
   const renderTextQuestionSummary = (q: any) => {
-    const responses = getQuestionResponses(q.id);
-    const responseCount = responses.length;
+    const questionResponses = getQuestionResponses(q.id);
+    const responseCount = questionResponses.length;
+
+    if (q.type === 'chassis-with-zone') {
+      const zoneDistribution: Record<string, number> = {};
+      questionResponses.forEach(resp => {
+        if (resp && resp.zone) {
+          const zones = Array.isArray(resp.zone) ? resp.zone : [resp.zone];
+          zones.forEach((z: string) => {
+            if (z) zoneDistribution[z] = (zoneDistribution[z] || 0) + 1;
+          });
+        }
+      });
+
+      return (
+        <div className="space-y-3">
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+            <span className="text-sm font-bold text-blue-900 dark:text-blue-200">
+              Total Inspections: {responseCount}
+            </span>
+          </div>
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider">Zone Distribution</p>
+            {Object.keys(zoneDistribution).length > 0 ? (
+              <div className="grid grid-cols-2 gap-2">
+                {Object.entries(zoneDistribution).sort((a, b) => b[1] - a[1]).map(([zone, count]) => (
+                  <div key={zone} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded border border-gray-100 dark:border-gray-700">
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{zone}</span>
+                    <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{count}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic">No zone data available</p>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    if (q.type === 'chassis-without-zone') {
+       return (
+        <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-bold text-blue-900 dark:text-blue-200">
+              Total Inspections: {responseCount}
+            </span>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="mt-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
@@ -1250,22 +1299,29 @@ export default function ResponseQuestion({
                                   </div>
                                 )}
 
-                              {(q.correctAnswer ||
-                                (q.correctAnswers &&
-                                  q.correctAnswers.length > 0)) && (
-                                <div className="mt-2">
-                                  <p className="text-sm font-medium text-green-600 dark:text-green-400">
-                                    Correct Answer
-                                    {q.correctAnswers &&
-                                    q.correctAnswers.length > 1
-                                      ? "s"
-                                      : ""}
-                                    :{" "}
-                                    {q.correctAnswers &&
-                                    q.correctAnswers.length > 0
-                                      ? q.correctAnswers.join(", ")
-                                      : q.correctAnswer}
-                                  </p>
+                              {q.trackResponseRank && (
+                                <div className="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                                  <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">Tracking Sample (Ranked)</p>
+                                  <div className="space-y-2">
+                                    {filteredResponses
+                                      .filter(r => r.answers[q.id] && r.responseRanks?.[q.id])
+                                      .slice(0, 3)
+                                      .map((r, idx) => {
+                                        const ans = r.answers[q.id];
+                                        const displayAns = typeof ans === 'object' ? (ans.chassisNumber || JSON.stringify(ans)) : String(ans);
+                                        return (
+                                          <div key={idx} className="flex items-center gap-2">
+                                            <span className="text-[10px] font-bold bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 shadow-sm">
+                                              #{r.responseRanks![q.id]}
+                                            </span>
+                                            <span className="text-xs text-gray-700 dark:text-gray-300 truncate font-medium">{displayAns}</span>
+                                          </div>
+                                        );
+                                      })}
+                                    {filteredResponses.filter(r => r.answers[q.id] && r.responseRanks?.[q.id]).length > 3 && (
+                                      <p className="text-[10px] text-gray-400 italic font-medium mt-1">+ {filteredResponses.filter(r => r.answers[q.id] && r.responseRanks?.[q.id]).length - 3} more tracked responses</p>
+                                    )}
+                                  </div>
                                 </div>
                               )}
 

@@ -222,7 +222,7 @@ export default function ResponseDetails({
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Defect Category:</span>
                     <span className="text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
-                      {defectCategory}
+                      {Array.isArray(defectCategory) ? defectCategory.join(", ") : defectCategory}
                     </span>
                   </div>
                   {defects && defects.length > 0 && (
