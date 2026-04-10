@@ -1518,6 +1518,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                 <input
                                   type="checkbox"
                                   checked={question.trackResponseQuestion || false}
+                                  disabled={question.trackResponseRank || false}
                                   onChange={(e) =>
                                     handleQuestionChange(
                                       sectionIndex,
@@ -1526,7 +1527,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                       e.target.checked
                                     )
                                   }
-                                  className="h-3.5 w-3.5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
+                                  className="h-3.5 w-3.5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50"
                                 />
                                 <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Question</span>
                               </label>
@@ -1535,6 +1536,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                 <input
                                   type="checkbox"
                                   checked={question.trackResponseRank || false}
+                                  disabled={question.trackResponseQuestion || false}
                                   onChange={(e) =>
                                     handleQuestionChange(
                                       sectionIndex,
@@ -1543,7 +1545,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                       e.target.checked
                                     )
                                   }
-                                  className="h-3.5 w-3.5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
+                                  className="h-3.5 w-3.5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50"
                                 />
                                 <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Rank</span>
                               </label>

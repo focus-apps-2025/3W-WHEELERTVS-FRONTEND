@@ -362,12 +362,13 @@ export default function QuestionsList({
               <input
                 type="checkbox"
                 checked={q.trackResponseQuestion || false}
+                disabled={q.trackResponseRank || false}
                 onChange={(e) =>
                   updateQuestion(q.id, {
                     trackResponseQuestion: e.target.checked,
                   })
                 }
-                className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded border-gray-300"
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded border-gray-300 disabled:opacity-50"
               />
               <span className="text-xs font-bold text-blue-600 whitespace-nowrap">Track Question</span>
             </label>
@@ -375,12 +376,13 @@ export default function QuestionsList({
               <input
                 type="checkbox"
                 checked={q.trackResponseRank || false}
+                disabled={q.trackResponseQuestion || false}
                 onChange={(e) =>
                   updateQuestion(q.id, {
                     trackResponseRank: e.target.checked,
                   })
                 }
-                className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded border-gray-300"
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded border-gray-300 disabled:opacity-50"
               />
               <span className="text-xs font-bold text-blue-600 whitespace-nowrap">Track Rank</span>
             </label>

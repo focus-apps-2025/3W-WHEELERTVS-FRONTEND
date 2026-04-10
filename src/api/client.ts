@@ -783,6 +783,27 @@ async getForms(params?: { isGlobal?: boolean; search?: string }) {
     return this.request<{ rank: number }>(`${endpoint}?${queryParams.toString()}`);
   }
 
+  async getResponseByAnswer(
+    formId: string,
+    questionId: string,
+    answer: any,
+    tenantSlug?: string
+  ) {
+    let endpoint = tenantSlug
+      ? `/responses/${tenantSlug}/forms/${formId}/by-answer`
+      : `/responses/by-answer`;
+
+    const answerParam = Array.isArray(answer) ? JSON.stringify(answer) : answer;
+
+    const queryParams = new URLSearchParams({
+      formId,
+      questionId,
+      answer: String(answerParam),
+    });
+
+    return this.request<{ answers: Record<string, any>; rank: number }>(`${endpoint}?${queryParams.toString()}`);
+  }
+
   async getGlobalFormStats(formId: string) {
     return this.request<{ stats: any[] }>(`/forms/${formId}/global-stats`);
   }

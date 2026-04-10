@@ -188,9 +188,9 @@ export function generateAnswerTemplate(form: Question) {
 
       // Provide format hint for special types
       if (mainType === "chassis-with-zone") {
-        mainOptions = "Format: Chassis: [ID]; Status: [Accepted/Rejected/Rework]; Zones: [Zone A, Zone B]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
+        mainOptions = "Format: Chassis: [ID]; Status: [Accepted/Rework/Rejected]; Zones: [Zone A, Zone B]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
       } else if (mainType === "chassis-without-zone") {
-        mainOptions = "Format: Chassis: [ID]; Status: [Accepted/Rejected/Rework]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
+        mainOptions = "Format: Chassis: [ID]; Status: [Accepted/Rework/Rejected]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
       }
 
       allQuestions.push({
@@ -257,9 +257,9 @@ export function generateAnswerTemplate(form: Question) {
 
           // Provide format hint for special types
           if (followUpType === "chassis-with-zone") {
-            followUpOptions = "Format: Chassis: [ID]; Status: [Accepted/Rejected/Rework]; Zones: [Zone A, Zone B]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
+            followUpOptions = "Format: Chassis: [ID]; Status: [Accepted/Rework/Rejected]; Zones: [Zone A, Zone B]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
           } else if (followUpType === "chassis-without-zone") {
-            followUpOptions = "Format: Chassis: [ID]; Status: [Accepted/Rejected/Rework]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
+            followUpOptions = "Format: Chassis: [ID]; Status: [Accepted/Rework/Rejected]; Category: [Cat]; Defects: [Defect (Remark) {URL}]; Evidence: {URL}";
           }
 
           allQuestions.push({

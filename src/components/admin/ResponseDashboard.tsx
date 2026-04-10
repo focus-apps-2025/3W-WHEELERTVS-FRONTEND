@@ -174,7 +174,15 @@ function FollowUpQuestionsTable({
         if (!formData.mainQuestion || formData.followUpTree.length === 0) return null;
 
         const mainOptions = formData.mainQuestion.options;
-        const triggerOptions = mainOptions.filter((_, i) => i > 0);
+        const triggerOptions = mainOptions.filter((_, i) => i > 0).sort((a, b) => {
+          const order = ['accepted', 'rework', 'rejected'];
+          const aIndex = order.indexOf(a.toLowerCase());
+          const bIndex = order.indexOf(b.toLowerCase());
+          if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+          if (aIndex !== -1) return -1;
+          if (bIndex !== -1) return 1;
+          return a.localeCompare(b);
+        });
 
         // Collect all unique follow-up nodes
         const allFollowUpNodes: FollowUpNode[] = [];
@@ -1265,7 +1273,15 @@ export default function ResponseDashboard() {
 {/* Bar breakdown for answer distribution */}
 {responseDetails.answerDistribution && Object.keys(responseDetails.answerDistribution).length > 0 && (
   <div className="mt-6 space-y-3">
-    {Object.entries(responseDetails.answerDistribution).map(([label, value], index) => {
+    {Object.entries(responseDetails.answerDistribution).sort(([a], [b]) => {
+      const order = ['accepted', 'rework', 'rejected', 'approved', 'reworked'];
+      const aIndex = order.indexOf(a.toLowerCase());
+      const bIndex = order.indexOf(b.toLowerCase());
+      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+      if (aIndex !== -1) return -1;
+      if (bIndex !== -1) return 1;
+      return a.localeCompare(b);
+    }).map(([label, value], index) => {
       const total = Object.values(responseDetails.answerDistribution!).reduce((sum, v) => sum + v, 0);
       const pct = total > 0 ? Math.round((value / total) * 100) : 0;
       
@@ -1317,7 +1333,15 @@ export default function ResponseDashboard() {
           <tr>
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Form</th>
             {responseDetails.formBreakdown[0]?.answerDistribution && 
-              Object.keys(responseDetails.formBreakdown[0].answerDistribution).map(option => (
+              Object.keys(responseDetails.formBreakdown[0].answerDistribution).sort((a, b) => {
+                const order = ['accepted', 'rework', 'rejected', 'approved', 'reworked'];
+                const aIndex = order.indexOf(a.toLowerCase());
+                const bIndex = order.indexOf(b.toLowerCase());
+                if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+                if (aIndex !== -1) return -1;
+                if (bIndex !== -1) return 1;
+                return a.localeCompare(b);
+              }).map(option => (
                 <th key={option} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{option}</th>
               ))
             }
@@ -1343,7 +1367,15 @@ export default function ResponseDashboard() {
               
               {/* Dynamic answer columns */}
               {responseDetails.formBreakdown[0]?.answerDistribution ? (
-  Object.keys(responseDetails.formBreakdown[0].answerDistribution).map((option) => (
+  Object.keys(responseDetails.formBreakdown[0].answerDistribution).sort((a, b) => {
+    const order = ['accepted', 'rework', 'rejected', 'approved', 'reworked'];
+    const aIndex = order.indexOf(a.toLowerCase());
+    const bIndex = order.indexOf(b.toLowerCase());
+    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+    if (aIndex !== -1) return -1;
+    if (bIndex !== -1) return 1;
+    return a.localeCompare(b);
+  }).map((option) => (
     <td key={option} className="px-4 py-3 font-semibold">
       <span className={`${
         option === 'Approved' ? 'text-green-600 dark:text-green-400' :

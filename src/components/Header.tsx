@@ -41,7 +41,7 @@ export default function Header() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const { logo } = useLogo();
   const { user, isAuthenticated, logout, tenant } = useAuth();
-  const { isMobileOpen, toggleSidebar, closeMobile } = useSidebar();
+  const { isMobileOpen, toggleMobile, closeMobile } = useSidebar();
   const { darkMode, toggleDarkMode } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
@@ -183,14 +183,14 @@ export default function Header() {
   return (
     <>
       <header
-        className="fixed top-0 right-0 left-0 h-16 bg-white dark:bg-gray-900 border-b border-neutral-200 dark:border-gray-700 z-30 transition-all duration-300"
+        className={`fixed top-0 right-0 left-0 ${isMobileOpen ? "h-auto pb-4" : "h-16"} bg-white dark:bg-gray-900 border-b border-neutral-200 dark:border-gray-700 z-30 transition-all duration-300`}
       >
-        <div className="flex items-center justify-between h-full px-6">
+        <div className="flex items-center justify-between h-16 px-6">
           {/* Left side - logo */}
           <div className="flex items-center min-w-[200px]">
             {/* Mobile menu button */}
             <button
-              onClick={toggleSidebar}
+              onClick={toggleMobile}
               className="lg:hidden mr-4 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
             >
               {isMobileOpen ? (

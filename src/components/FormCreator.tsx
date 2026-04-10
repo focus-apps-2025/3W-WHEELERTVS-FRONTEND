@@ -4548,6 +4548,7 @@ export default function FormCreator() {
                                     <input
                                       type="checkbox"
                                       checked={question.trackResponseQuestion || false}
+                                      disabled={question.trackResponseRank || false}
                                       onChange={(e) =>
                                         updateQuestion(
                                           section.id,
@@ -4557,13 +4558,14 @@ export default function FormCreator() {
                                           }
                                         )
                                       }
-                                      className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all"
+                                      className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all disabled:opacity-50"
                                     />
                                     <span className="text-xs font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">Track Question</span>
                                   </label>
                                   <label className="flex items-center space-x-1.5 cursor-pointer px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:border-blue-400 transition-all shadow-sm mr-2" title="Track Rank">                                    <input
                                       type="checkbox"
                                       checked={question.trackResponseRank || false}
+                                      disabled={question.trackResponseQuestion || false}
                                       onChange={(e) =>
                                         updateQuestion(
                                           section.id,
@@ -4573,7 +4575,7 @@ export default function FormCreator() {
                                           }
                                         )
                                       }
-                                      className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all"
+                                      className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all disabled:opacity-50"
                                     />
                                     <span className="text-xs font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">Track Rank</span>
                                   </label>

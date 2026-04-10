@@ -16,7 +16,9 @@ interface SectionContentProps {
   onApplyFullSuggestion?: (specificAnswers?: Record<string, any>) => void;
   fetchingSuggestionsForId?: string | null;
   validationErrors?: Set<string>;
-
+  rankMatchedAnswers?: Record<string, any> | null;
+  currentRank?: number | null;
+  onPreviousAnswersChange?: (answers: string[]) => void;
 }
 
 export default function SectionContent({
@@ -32,6 +34,9 @@ export default function SectionContent({
   onApplyFullSuggestion,
   fetchingSuggestionsForId,
   validationErrors,
+  rankMatchedAnswers,
+  currentRank,
+  onPreviousAnswersChange,
 }: SectionContentProps) {
   const { getOrderedVisibleQuestions } = useQuestionLogic();
   const visibleQuestions = getOrderedVisibleQuestions(
@@ -84,6 +89,9 @@ export default function SectionContent({
               onApplyFullSuggestion={onApplyFullSuggestion}
               fetchingSuggestionsForId={fetchingSuggestionsForId}
               error={validationErrors?.has(q.id || (q as any)._id) ? "This field is required" : undefined}
+              rankMatchedAnswers={rankMatchedAnswers}
+              currentRank={currentRank}
+              onPreviousAnswersChange={onPreviousAnswersChange}
             />
           </div>
         ))}
@@ -130,6 +138,8 @@ export default function SectionContent({
                       onApplyFullSuggestion={onApplyFullSuggestion}
                       fetchingSuggestionsForId={fetchingSuggestionsForId}
                       error={validationErrors?.has(q.id || (q as any)._id) ? "This field is required" : undefined}
+                      rankMatchedAnswers={rankMatchedAnswers}
+                      currentRank={currentRank}
                     />
                   </div>
                 ))}

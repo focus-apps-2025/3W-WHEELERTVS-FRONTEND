@@ -4,6 +4,7 @@ interface SidebarContextType {
   isCollapsed: boolean;
   isMobileOpen: boolean;
   toggleSidebar: () => void;
+  toggleMobile: () => void;
   openMobile: () => void;
   closeMobile: () => void;
 }
@@ -12,6 +13,7 @@ const SidebarContext = createContext<SidebarContextType>({
   isCollapsed: false,
   isMobileOpen: false,
   toggleSidebar: () => {},
+  toggleMobile: () => {},
   openMobile: () => {},
   closeMobile: () => {},
 });
@@ -22,6 +24,10 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
   const toggleSidebar = () => {
     setIsCollapsed(!isCollapsed);
+  };
+
+  const toggleMobile = () => {
+    setIsMobileOpen(!isMobileOpen);
   };
 
   const openMobile = () => {
@@ -38,6 +44,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
         isCollapsed,
         isMobileOpen,
         toggleSidebar,
+        toggleMobile,
         openMobile,
         closeMobile,
       }}

@@ -72,8 +72,9 @@ export default function QuestionEditor({
               <input
                 type="checkbox"
                 checked={question.trackResponseQuestion || false}
+                disabled={question.trackResponseRank || false}
                 onChange={(e) => onUpdate({ trackResponseQuestion: e.target.checked })}
-                className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
+                className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 disabled:opacity-50"
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">
                 Track Question
@@ -84,8 +85,9 @@ export default function QuestionEditor({
               <input
                 type="checkbox"
                 checked={question.trackResponseRank || false}
+                disabled={question.trackResponseQuestion || false}
                 onChange={(e) => onUpdate({ trackResponseRank: e.target.checked })}
-                className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
+                className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 disabled:opacity-50"
               />
               <span className="text-sm text-gray-700 dark:text-gray-300">
                 Track Rank

@@ -229,16 +229,17 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                  <label className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg transition-colors" title="Track Question">
                   <input
                     type="checkbox"
-                    checked={followUpQ.trackResponseRank || false}
+                    checked={followUpQ.trackResponseQuestion || false}
+                    disabled={followUpQ.trackResponseRank || false}
                     onChange={(e) =>
                       onUpdate(
                         sectionId,
                         followUpQ.id,
-                        { trackResponseRank: e.target.checked },
+                        { trackResponseQuestion: e.target.checked },
                         path
                       )
                     }
-                    className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                    className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
                   />
                   <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Question</span>
                 </label>
@@ -246,6 +247,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                   <input
                     type="checkbox"
                     checked={followUpQ.trackResponseRank || false}
+                    disabled={followUpQ.trackResponseQuestion || false}
                     onChange={(e) =>
                       onUpdate(
                         sectionId,
@@ -254,7 +256,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                         path
                       )
                     }
-                    className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
+                    className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
                   />
                   <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Rank</span>
                 </label>

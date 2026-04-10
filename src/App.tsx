@@ -39,6 +39,7 @@ import SignupPage from "./components/auth/SignupPage";
 import FreeTrialManagement from "./components/superadmin/FreeTrialManagement";
 import NotificationContainer from "./components/ui/NotificationContainer";
 import Header from "./components/Header";
+import Sidebar from "./components/layout/Sidebar";
 import ResponseDetailsPage from "./components/ResponseDetailsPage";
 import InviteStatusPage from "./components/InviteStatusPage";
 import ErrorPage from "./components/ErrorPage";
