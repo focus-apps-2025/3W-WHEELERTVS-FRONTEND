@@ -2,7 +2,7 @@ export interface StaffMember {
   id: string;
   name: string;
   email: string;
-  role: "admin" | "editor" | "viewer";
+  role: "admin" | "editor" | "viewer" | "subadmin" | "inspector";
   avatar?: string;
   mobile: string;
   userId: string;

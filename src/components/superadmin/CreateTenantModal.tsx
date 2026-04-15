@@ -9,6 +9,8 @@ import {
   Briefcase,
   Eye,
   EyeOff,
+  Phone,
+  CheckCircle,
 } from "lucide-react";
 import { useNotification } from "../../context/NotificationContext";
 import { apiClient } from "../../api/client";
@@ -30,16 +32,22 @@ export default function CreateTenantModal({
     adminLastName: "",
     adminEmail: "",
     adminPassword: "",
+    adminMobile: "",
     plan: "basic",
     maxUsers: 10,
     maxForms: 50,
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
   const { showSuccess, showError } = useNotification();
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -60,8 +68,50 @@ export default function CreateTenantModal({
     }
   };
 
+  const handleSendOtp = async () => {
+    if (!formData.adminMobile) {
+      showError("Please enter a mobile number first");
+      return;
+    }
+
+    setSendingOtp(true);
+    try {
+      const response = await apiClient.sendOtp(formData.adminMobile);
+      setOtpSent(true);
+      showSuccess(response.message || "OTP sent successfully!");
+    } catch (error: any) {
+      showError(error.response?.message || "Failed to send OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp) {
+      showError("Please enter the OTP");
+      return;
+    }
+
+    setVerifyingOtp(true);
+    try {
+      const response = await apiClient.verifyOtp(formData.adminMobile, otp);
+      setOtpVerified(true);
+      showSuccess(response.message || "Mobile number verified successfully!");
+    } catch (error: any) {
+      showError(error.response?.message || "Invalid or expired OTP");
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!otpVerified) {
+      showError("Please verify your mobile number first");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -271,6 +321,81 @@ export default function CreateTenantModal({
               <p className="text-xs text-primary-500 mt-1">
                 Minimum 6 characters
               </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-primary-700 mb-2">
+                  Admin Mobile Number *
+                </label>
+                <div className="relative">
+                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-primary-400" />
+                  <input
+                    type="tel"
+                    name="adminMobile"
+                    value={formData.adminMobile}
+                    onChange={handleChange}
+                    className="input-field pl-10"
+                    placeholder="9876543210"
+                    disabled={otpVerified}
+                    required
+                  />
+                  {otpVerified && (
+                    <CheckCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-green-500" />
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-end pb-1">
+                {!otpSent && !otpVerified && (
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={sendingOtp || !formData.adminMobile}
+                    className="btn-secondary w-full py-2.5"
+                  >
+                    {sendingOtp ? "Sending..." : "Verify Mobile No."}
+                  </button>
+                )}
+                {otpSent && !otpVerified && (
+                  <>
+                    <div className="flex space-x-2 w-full">
+                      <input
+                        type="text"
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value)}
+                        placeholder="Enter OTP"
+                        className="input-field flex-1"
+                        maxLength={6}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleVerifyOtp}
+                        disabled={verifyingOtp || otp.length < 6}
+                        className="btn-primary"
+                      >
+                        {verifyingOtp ? "..." : "Verify"}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-primary-600 dark:text-primary-400 mt-2 text-center font-medium">
+                      Didn't receive code?{" "}
+                      <button
+                        type="button"
+                        onClick={handleSendOtp}
+                        className="underline font-bold hover:text-primary-800 dark:hover:text-primary-200"
+                      >
+                        Resend OTP
+                      </button>
+                    </p>
+                  </>
+                )}
+                {otpVerified && (
+                  <div className="w-full py-2.5 text-center text-green-600 font-medium flex items-center justify-center bg-green-50 rounded-lg">
+                    <CheckCircle className="w-5 h-5 mr-2" />
+                    Verified
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

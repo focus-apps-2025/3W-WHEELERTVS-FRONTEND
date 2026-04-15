@@ -1,1029 +1,1086 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { useAuth } from "../../context/AuthContext";
-import { apiClient } from "../../api/client";
+import React, { useState, useEffect, useRef, ChangeEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import {
-    Calendar,
-    Download,
-    Users,
-    Clock,
-    MapPin,
-    CheckCircle,
-    ChevronLeft,
-    ChevronRight,
-    Loader2,
-    Activity,
-    Wifi,
-    WifiOff
+  PlusCircle,
+  Search,
+  Edit2,
+  Trash2,
+  Eye,
+  FileText,
+  MessageSquarePlus,
+  Copy,
+  BarChart3,
+  TrendingUp,
+  Users,
+  Calendar,
+  MoreVertical,
+  List,
+  Link as LinkIcon,
+  ExternalLink,
+  X,
+  Check,
+  Upload,
+  Download,
+  Database,
 } from "lucide-react";
+import { useForms, useMutation } from "../../hooks/useApi";
+import { apiClient } from "../../api/client";
+import { useNotification } from "../../context/NotificationContext";
+import { useAuth } from "../../context/AuthContext";
+import {
+  exportFormStructureToExcel,
+  downloadFormImportTemplate,
+  parseFormWorkbook,
+  loadSampleFormData,
+} from "../../utils/exportUtils";
+import ImportPreviewModal from "../ImportPreviewModal";
+import type {
+  Question as FormSchema,
+  Section as FormSection,
+} from "../../types/forms";
+import type { Question as FormQuestion } from "../../types";
 
-interface AttendanceRecord {
-    _id: string;
-    userId: {
-        _id: string;
-        firstName: string;
-        lastName: string;
-        username: string;
-        email: string;
-        role: string;
-    };
-    tenantId?: {
-        _id: string;
-        name: string;
-        companyName: string;
-    };
-    loginTime: string | null;
-    logoutTime: string | null;
-    workingHours: number;
-    workingMinutes?: number; 
-    isPresent: boolean;
-    presentStatus: string;
-    location?: {
-        city?: string;
-        country?: string;
-        address?: string;
-    };
-    isActive: boolean;
-    lastActiveTime: string | null;
+interface Form {
+  _id: string;
+  id?: string;
+  title: string;
+  description: string;
+  isVisible: boolean;
+  isActive: boolean;
+  sections: any[];
+  questions: any[];
+  createdAt: string;
+  createdBy: any;
+  responseCount?: number;
+  childForms?: Array<{ formId: string; formTitle: string; order: number }>;
+  parentFormId?: string;
+  parentFormTitle?: string;
 }
-
-interface UserAttendance {
-    userId: string;
-    firstName: string;
-    lastName: string;
-    username: string;
-    role: string;
-    tenantId?: {
-        _id: string;
-        name: string;
-        companyName: string;
-    };
-    attendance: {
-        [date: string]: AttendanceRecord;
-    };
-}
-
-const formatTime = (dateString: string | null) => {
-    if (!dateString) return "-";
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true
-    });
-};
-
-// Calculate working hours (real-time for active sessions)
-const calculateWorkingHours = (loginTime: string | null, logoutTime: string | null, storedHours: number) => {
-    if (loginTime && !logoutTime) {
-        const loginDate = new Date(loginTime);
-        const now = new Date();
-        return Math.round((now.getTime() - loginDate.getTime()) / (1000 * 60 * 60) * 10) / 10;
-    }
-    return storedHours > 0 ? storedHours : 0;
-};
-
-// Get month details
-const getMonthDetails = (year: number, month: number) => {
-    const firstDay = new Date(year, month - 1, 1);
-    const lastDay = new Date(year, month, 0);
-    const daysInMonth = lastDay.getDate();
-    const startDayOfWeek = firstDay.getDay();
-
-    return {
-        year,
-        month,
-        daysInMonth,
-        startDayOfWeek,
-        monthName: firstDay.toLocaleString("default", { month: "long" })
-    };
-};
-
-// Generate array of dates for the selected month
-const getDatesInMonth = (year: number, month: number) => {
-    const dates = [];
-    const daysInMonth = new Date(year, month, 0).getDate();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    for (let day = 1; day <= daysInMonth; day++) {
-        // Use local date to avoid timezone issues
-        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const date = new Date(year, month - 1, day);
-        dates.push({
-            date: date,
-            dateString: dateStr,
-            day: day,
-            dayOfWeek: date.toLocaleDateString("en-US", { weekday: "short" }),
-            isWeekend: date.getDay() === 0 || date.getDay() === 6,
-            isToday: date.toDateString() === today.toDateString(),
-            isFuture: date > today
-        });
-    }
-
-    return dates;
-};
 
 export default function Attendance() {
-    const { user } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [userAttendance, setUserAttendance] = useState<UserAttendance[]>([]);
-    const [currentDate, setCurrentDate] = useState(new Date());
-    const [exporting, setExporting] = useState(false);
-    const [searchTerm, setSearchTerm] = useState("");
+  const navigate = useNavigate();
+  const { user, tenant } = useAuth();
+  const isInspector = user?.role === "inspector";
+  const isSubAdmin = user?.role === "subadmin";
+  const canManage = user?.role === "admin" || user?.role === "superadmin" || user?.role === "subadmin";
+  const canEdit = canManage && !isInspector;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [showChildFormsModal, setShowChildFormsModal] = useState(false);
+  const [selectedParentForm, setSelectedParentForm] = useState<Form | null>(
+    null,
+  );
+  const [selectedChildFormIds, setSelectedChildFormIds] = useState<string[]>(
+    [],
+  );
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const importFileRef = useRef<File | null>(null);
+  const { data: formsData, loading, error, execute: refetchForms } = useForms();
+  const { showSuccess, showError, showConfirm } = useNotification();
+  const [isImporting, setIsImporting] = useState(false);
+  const [exportingFormId, setExportingFormId] = useState<string | null>(null);
+  const [showImportPreview, setShowImportPreview] = useState(false);
+  const [importPreviewData, setImportPreviewData] = useState<any>(null);
+  const [importParameters, setImportParameters] = useState<any[]>([]);
+  const [isConfirmingImport, setIsConfirmingImport] = useState(false);
 
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1;
-    const monthDetails = getMonthDetails(year, month);
-    const datesInMonth = useMemo(() => getDatesInMonth(year, month), [year, month]);
+  const deleteMutation = useMutation((id: string) => apiClient.deleteForm(id), {
+    onSuccess: () => {
+      refetchForms();
+      showSuccess("Form deleted successfully", "Success");
+    },
+    onError: (error: any) => {
+      showError(error.message || "Failed to delete form", "Error");
+    },
+  });
 
+  const duplicateMutation = useMutation(
+    (id: string) => apiClient.duplicateForm(id),
+    {
+      onSuccess: () => {
+        refetchForms();
+        showSuccess("Form duplicated successfully", "Success");
+      },
+      onError: (error: any) => {
+        showError(error.message || "Failed to duplicate form", "Error");
+      },
+    },
+  );
 
-    const [hideSuperadmin, setHideSuperadmin] = useState(true);
-
-
-    // Show all dates of the selected month for the UI
-    const visibleDates = useMemo(() => {
-        return datesInMonth;
-    }, [datesInMonth]);
-
-    const startDate = useMemo(() => {
-        return new Date(year, month - 1, 1).toISOString().split("T")[0];
-    }, [year, month]);
-
-    const endDate = useMemo(() => {
-        return new Date(year, month, 0).toISOString().split("T")[0];
-    }, [year, month]);
-
-    // Fetch attendance data for the month
-    useEffect(() => {
-        const fetchAttendance = async () => {
-            setLoading(true);
-            try {
-                const response = await apiClient.getAttendance({
-                    startDate,
-                    endDate,
-                    limit: 1000
-                });
-
-                if (response && response.logs) {
-                    processAttendanceData(response.logs);
-                }
-            } catch (error) {
-                console.error("Error fetching attendance:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchAttendance();
-    }, [startDate, endDate]);
-
-    // Process raw attendance logs into user-based structure
-    const processAttendanceData = (logs: AttendanceRecord[]) => {
-        const userMap = new Map<string, UserAttendance>();
-
-        logs.forEach((log) => {
-            if (!log.userId) return;
-
-            const userId = log.userId._id;
-            // Use local date format to match visibleDates
-            let loginDate: string | null = null;
-            if (log.loginTime) {
-                const loginDateObj = new Date(log.loginTime);
-                loginDate = `${loginDateObj.getFullYear()}-${String(loginDateObj.getMonth() + 1).padStart(2, '0')}-${String(loginDateObj.getDate()).padStart(2, '0')}`;
-            }
-
-            if (!userMap.has(userId)) {
-                userMap.set(userId, {
-                    userId,
-                    firstName: log.userId.firstName,
-                    lastName: log.userId.lastName,
-                    username: log.userId.username,
-                    role: log.userId.role,
-                    tenantId: log.tenantId ? {
-                        _id: log.tenantId._id,
-                        name: log.tenantId.name,
-                        companyName: log.tenantId.companyName
-                    } : undefined,
-                    attendance: {}
-                });
-            }
-
-            const user = userMap.get(userId)!;
-            if (loginDate) {
-                if (!user.attendance[loginDate] ||
-                    calculateWorkingHours(log.loginTime, log.logoutTime, log.workingHours) >
-                    calculateWorkingHours(user.attendance[loginDate].loginTime, user.attendance[loginDate].logoutTime, user.attendance[loginDate].workingHours)) {
-                    user.attendance[loginDate] = log;
-                }
-            }
-        });
-
-        // Filter out superadmin users from the attendance table
-        const filteredUsers = Array.from(userMap.values()).filter(
-            user => user.role !== 'superadmin'
+  const visibilityMutation = useMutation(
+    ({ id, isVisible }: { id: string; isVisible: boolean }) =>
+      apiClient.updateFormVisibility(id, isVisible),
+    {
+      onSuccess: (data, variables) => {
+        refetchForms();
+        showSuccess(
+          `Form is now ${variables.isVisible ? "public" : "private"}`,
+          "Visibility Updated",
         );
-        setUserAttendance(filteredUsers);
+      },
+      onError: (error: any) => {
+        showError(error.message || "Failed to update visibility", "Error");
+      },
+    },
+  );
+
+  const activeMutation = useMutation(
+    ({ id, isActive }: { id: string; isActive: boolean }) =>
+      apiClient.updateFormActiveStatus(id, isActive),
+    {
+      onSuccess: (data, variables) => {
+        refetchForms();
+        showSuccess(
+          `Form is now ${variables.isActive ? "active" : "inactive"}`,
+          "Status Updated",
+        );
+      },
+      onError: (error: any) => {
+        showError(error.message || "Failed to update active status", "Error");
+      },
+    },
+  );
+
+  const linkChildFormMutation = useMutation(
+    ({
+      parentFormId,
+      childFormId,
+    }: {
+      parentFormId: string;
+      childFormId: string;
+    }) => apiClient.linkChildForm(parentFormId, childFormId),
+    {
+      onSuccess: () => {
+        refetchForms();
+        showSuccess("Child form linked successfully", "Success");
+      },
+      onError: (error: any) => {
+        showError(error.message || "Failed to link child form", "Error");
+      },
+    },
+  );
+
+  const unlinkChildFormMutation = useMutation(
+    ({
+      parentFormId,
+      childFormId,
+    }: {
+      parentFormId: string;
+      childFormId: string;
+    }) => apiClient.unlinkChildForm(parentFormId, childFormId),
+    {
+      onSuccess: () => {
+        refetchForms();
+        showSuccess("Child form unlinked successfully", "Success");
+      },
+      onError: (error: any) => {
+        showError(error.message || "Failed to unlink child form", "Error");
+      },
+    },
+  );
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setOpenDropdownId(null);
+      }
     };
 
-    // Filter users based on search
-    const filteredUsers = useMemo(() => {
-        let users = userAttendance;
-
-        // Filter by search term
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            users = users.filter(
-                u => u.firstName.toLowerCase().includes(term) ||
-                    u.lastName.toLowerCase().includes(term) ||
-                    u.username.toLowerCase().includes(term)
-            );
-        }
-
-        // Filter out superadmins if hideSuperadmin is true
-        // Superadmins can still see other superadmins if they want
-        if (hideSuperadmin && user?.role !== 'superadmin') {
-            users = users.filter(u => u.role !== 'superadmin');
-        }
-
-        return users;
-    }, [userAttendance, searchTerm, hideSuperadmin, user?.role]);
-
-    // Handle month navigation
-    const handlePrevMonth = () => {
-        setCurrentDate(new Date(year, month - 2, 1));
-    };
-
-    const handleNextMonth = () => {
-        setCurrentDate(new Date(year, month, 1));
-    };
-
-    // Generate simple Excel HTML with just P/A/Live
-    const generateStyledExcelHTML = () => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        let html = `
-            <html>
-            <head>
-                <meta charset="UTF-8">
-                <title>Attendance - ${monthDetails.monthName} ${year}</title>
-                <style>
-                    body {
-                        font-family: 'Segoe UI', Arial, sans-serif;
-                        margin: 20px;
-                        background: white;
-                    }
-                    .main-header {
-                        background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-                        color: white;
-                        padding: 20px;
-                        text-align: center;
-                        font-size: 24px;
-                        font-weight: bold;
-                        margin-bottom: 20px;
-                        border-radius: 8px;
-                    }
-                    .sub-header {
-                        text-align: center;
-                        color: #6b7280;
-                        margin-bottom: 15px;
-                        font-size: 12px;
-                    }
-                    table {
-                        border-collapse: collapse;
-                        width: 100%;
-                        margin-top: 20px;
-                    }
-                    th {
-                        background-color: #1f2937;
-                        color: white;
-                        padding: 12px 8px;
-                        text-align: center;
-                        border: 1px solid #374151;
-                        font-size: 12px;
-                        font-weight: bold;
-                    }
-                    td {
-                        padding: 10px 8px;
-                        text-align: center;
-                        border: 1px solid #e5e7eb;
-                        font-size: 12px;
-                    }
-                    .user-cell {
-                        text-align: left;
-                        font-weight: 500;
-                        background-color: #f9fafb;
-                    }
-                    .role-cell {
-                        text-align: center;
-                    }
-                    .present {
-                        color: #059669;
-                        font-weight: bold;
-                        font-size: 14px;
-                    }
-                    .absent {
-                        color: #dc2626;
-                        font-weight: bold;
-                        font-size: 14px;
-                    }
-                    .active {
-                        color: #10b981;
-                        font-weight: bold;
-                        font-size: 12px;
-                    }
-                    .future {
-                        color: #9ca3af;
-                        font-size: 14px;
-                    }
-                    .weekend {
-                        background-color: #fef2f2;
-                    }
-                    .today {
-                        background-color: #eff6ff;
-                    }
-                    .summary-row {
-                        background-color: #f3f4f6;
-                        font-weight: bold;
-                    }
-                    .footer {
-                        margin-top: 30px;
-                        text-align: center;
-                        padding: 15px;
-                        background-color: #f9fafb;
-                        font-size: 10px;
-                        color: #6b7280;
-                        border-top: 1px solid #e5e7eb;
-                    }
-                    .legend {
-                        margin-top: 20px;
-                        padding: 12px;
-                        background-color: #f9fafb;
-                        border: 1px solid #e5e7eb;
-                        font-size: 11px;
-                        display: flex;
-                        gap: 20px;
-                        justify-content: center;
-                    }
-                    .legend-item {
-                        display: inline-flex;
-                        align-items: center;
-                        gap: 5px;
-                    }
-                    .green-dot {
-                        width: 10px;
-                        height: 10px;
-                        background-color: #10b981;
-                        border-radius: 50%;
-                        display: inline-block;
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="main-header">
-                    📋 ${monthDetails.monthName} ${year} - Attendance Report
-                </div>
-                <div class="sub-header">
-                    Generated on: ${new Date().toLocaleString()} | Total Employees: ${filteredUsers.length}
-                </div>
-        `;
-
-        // Table
-        html += `
-            <table>
-                <thead>
-                    <tr>
-                        <th style="min-width: 180px;">Employee Name</th>
-                        <th style="min-width: 100px;">Role</th>
-        `;
-
-        // Add date columns
-        visibleDates.forEach(d => {
-            const weekendClass = d.isWeekend ? 'weekend' : '';
-            html += `
-                <th class="${weekendClass}" style="min-width: 60px;">
-                    ${d.day}<br>
-                    <span style="font-size: 10px;">${d.dayOfWeek}</span>
-                </th>
-            `;
-        });
-
-        // Add summary columns
-        html += `
-                        <th style="min-width: 70px; background-color: #059669;">P</th>
-                        <th style="min-width: 70px; background-color: #dc2626;">A</th>
-                        <th style="min-width: 80px;">Hours</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
-        // Data rows
-        filteredUsers.forEach(user => {
-            let presentCount = 0;
-            let absentCount = 0;
-            let totalHours = 0;
-
-            html += `
-                <tr>
-                    <td class="user-cell">
-                        <strong>${user.firstName} ${user.lastName}</strong><br>
-                        <span style="font-size: 10px; color: #6b7280;">${user.username}</span>
-                    </td>
-                    <td class="role-cell">
-                        <span style="background: ${user.role === 'admin' ? '#3b82f6' : user.role === 'subadmin' ? '#10b981' : '#8b5cf6'}; color: white; padding: 4px 8px; border-radius: 12px; font-size: 11px;">
-                            ${user.role}
-                        </span>
-                    </td>
-            `;
-
-            // Add attendance for each date
-            visibleDates.forEach(d => {
-                const record = user.attendance[d.dateString];
-                const workingHours = record ? calculateWorkingHours(record.loginTime, record.logoutTime, record.workingHours) : 0;
-                const isActive = record && !record.logoutTime && record.isActive;
-
-                // For future dates, show "-"
-                if (d.isFuture) {
-                    html += `<td class="future">-</td>`;
-                } else if (record && (record.loginTime || workingHours > 0)) {
-                    if (record.loginTime) presentCount++;
-                    totalHours += workingHours;
-
-                    if (isActive) {
-                        html += `<td class="active">● Live</td>`;
-                    } else if (record.isPresent || workingHours > 0) {
-                        html += `<td class="present">P</td>`;
-                    } else {
-                        absentCount++;
-                        html += `<td class="absent">A</td>`;
-                    }
-                } else {
-                    absentCount++;
-                    html += `<td class="absent">A</td>`;
-                }
-            });
-
-            // Add summary columns
-            html += `
-                    <td style="text-align: center; background-color: #d1fae5; font-weight: bold; font-size: 16px;">${presentCount}</td>
-                    <td style="text-align: center; background-color: #fee2e2; font-weight: bold; font-size: 16px;">${absentCount}</td>
-                    <td style="text-align: center; background-color: #eff6ff; font-weight: bold;">${Math.round(totalHours * 60)}m</td>
-                </tr>
-            `;
-        });
-
-        // Add totals row
-        const totalPresent = filteredUsers.reduce((sum, user) => {
-            return sum + Object.values(user.attendance).filter(r => r && r.loginTime).length;
-        }, 0);
-        const totalAbsent = filteredUsers.length * visibleDates.filter(d => !d.isFuture).length - totalPresent;
-        const totalHoursAll = filteredUsers.reduce((sum, user) => {
-            return sum + Object.values(user.attendance).reduce((acc, r) => acc + (r ? calculateWorkingHours(r.loginTime, r.logoutTime, r.workingHours) : 0), 0);
-        }, 0);
-
-        html += `
-                    <tr class="summary-row">
-                        <td colspan="2" style="text-align: right; font-weight: bold;">TOTAL:</td>
-                        ${visibleDates.map(() => '<td></td>').join('')}
-                        <td style="text-align: center; background-color: #d1fae5; font-weight: bold; font-size: 18px;">${totalPresent}</td>
-                        <td style="text-align: center; background-color: #fee2e2; font-weight: bold; font-size: 18px;">${totalAbsent}</td>
-                        <td style="text-align: center; background-color: #eff6ff; font-weight: bold; font-size: 18px;">${Math.round(totalHoursAll * 60)}m</td>
-                    </tr>
-                </tbody>
-            </table>
-        `;
-
-        // Legend
-        html += `
-            <div class="legend">
-                <div class="legend-item"><span class="green-dot"></span> <strong>P</strong> = Present</div>
-                <div class="legend-item"><span style="color: #dc2626;">●</span> <strong>A</strong> = Absent</div>
-                <div class="legend-item"><span style="color: #10b981;">●</span> <strong>Live</strong> = Currently Active</div>
-                <div class="legend-item"><span style="color: #9ca3af;">-</span> = Future Date (No data)</div>
-                <div class="legend-item"><span style="color: #059669;">📊</span> Minutes = Total Working Minutes</div>
-            </div>
-            <div class="footer">
-                Attendance Report for ${monthDetails.monthName} ${year} | Generated by Attendance Management System
-            </div>
-            </body>
-            </html>
-        `;
-
-        return html;
-    };
-
-    // Handle Export
-    const handleExport = async () => {
-        setExporting(true);
-        try {
-            const htmlContent = generateStyledExcelHTML();
-            const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel' });
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.setAttribute("download", `attendance-${monthDetails.monthName}-${year}.xls`);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            window.URL.revokeObjectURL(url);
-        } catch (error) {
-            console.error("Export error:", error);
-        } finally {
-            setExporting(false);
-        }
-    };
-
-    // Render date cell with detailed stats for UI (keeping original UI)
-    const renderDateCell = (record: AttendanceRecord | undefined, isFuture: boolean) => {
-  if (isFuture) {
-    return <div className="text-gray-400 text-xs">-</div>;
-  }
-
-  if (!record || !record.loginTime) {
-    return <div className="text-gray-400 text-xs">-</div>;
-  }
-
-  // Use workingMinutes if available, otherwise calculate from workingHours
-  let workingMinutes = record.workingMinutes || Math.round(record.workingHours * 60);
-  
-  // For active sessions, calculate real-time minutes
-  if (!record.logoutTime && record.isActive) {
-    const loginDate = new Date(record.loginTime);
-    const now = new Date();
-    const isToday = loginDate.toDateString() === now.toDateString();
-    
-    if (isToday) {
-      workingMinutes = Math.floor((now.getTime() - loginDate.getTime()) / (1000 * 60));
+    if (openDropdownId) {
+      document.addEventListener("mousedown", handleClickOutside);
     }
-  }
 
-  const formatMinutes = (minutes: number): string => {
-    if (!minutes || minutes <= 0) return '-';
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    
-    if (hours === 0) return `${mins}m`;
-    if (mins === 0) return `${hours}h`;
-    return `${hours}h ${mins}m`;
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [openDropdownId]);
+
+  const forms = formsData?.forms || [];
+
+  const searchValue = searchTerm.toLowerCase();
+  const activeForms = React.useMemo(
+    () => forms.filter((form: Form) => form.isActive),
+    [forms],
+  );
+
+  // Separate parent/standalone forms and child forms
+  const parentAndStandaloneForms = React.useMemo(
+    () => activeForms.filter((form: Form) => !form.parentFormId),
+    [activeForms],
+  );
+
+  // Filter forms based on search (parent/standalone only, children will be shown under parents)
+  const filteredForms = React.useMemo(
+    () =>
+      parentAndStandaloneForms.filter(
+        (form: Form) =>
+          form.title.toLowerCase().includes(searchValue) ||
+          form.description.toLowerCase().includes(searchValue),
+      ),
+    [parentAndStandaloneForms, searchValue],
+  );
+
+  const hasAnyForms = forms.length > 0;
+  const hasActiveForms = activeForms.length > 0;
+
+  // Get child forms for a parent - memoized to avoid recalculating on every render
+  const childFormsMap = React.useMemo(() => {
+    const map = new Map<string, Form[]>();
+    activeForms.forEach((form: Form) => {
+      if (form.parentFormId) {
+        if (!map.has(form.parentFormId)) {
+          map.set(form.parentFormId, []);
+        }
+        map.get(form.parentFormId)!.push(form);
+      }
+    });
+    return map;
+  }, [activeForms]);
+
+  const getChildFormsForParent = (parentFormId: string) => {
+    return childFormsMap.get(parentFormId) || [];
   };
 
-  return (
-    <div className="flex flex-col gap-0.5 p-1 text-xs">
-      <div className="flex items-center gap-1">
-        <span className="text-blue-600 font-medium">{formatTime(record.loginTime)}</span>
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="text-orange-600">{formatTime(record.logoutTime)}</span>
-      </div>
-      <div className="flex items-center gap-1">
-        <Clock className="w-2.5 h-2.5 text-gray-400" />
-        <span className="text-gray-600">{formatMinutes(workingMinutes)}</span>
-      </div>
-      {!record.logoutTime && record.isActive && (
-        <div className="mt-0.5">
-          <div className="flex items-center gap-1">
-            <Wifi className="w-3 h-3 text-green-500 animate-pulse" />
-            <span className="text-green-600 text-xs font-medium">Active</span>
+  // Render a single form card (used for both parent and child forms)
+  const renderFormCard = (form: Form, isChild: boolean = false) => (
+    <div
+      key={form._id}
+      className={`rounded-lg border p-4 hover:shadow-sm transition-shadow bg-white dark:bg-gray-900 border-neutral-200 dark:border-gray-700 ${
+        isChild
+          ? "ml-8 border-l-4 border-l-blue-400 bg-blue-50/30 dark:border-l-blue-500 dark:bg-blue-900/40"
+          : ""
+      }`}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            {isChild && (
+              <LinkIcon className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            )}
+            <h3
+              className={`font-medium line-clamp-2 ${isChild ? "text-sm" : ""}`}
+            >
+              {form.title}
+            </h3>
+            {/* Parent Form Indicator */}
+            {!isChild && form.childForms && form.childForms.length > 0 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
+                <LinkIcon className="w-3 h-3 mr-1" />
+                Parent ({form.childForms.length} child
+                {form.childForms.length !== 1 ? "s" : ""})
+              </span>
+            )}
+            {/* Child Form Indicator */}
+            {isChild && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                Child Form
+              </span>
+            )}
           </div>
+          <p
+            className={`line-clamp-2 ${
+              isChild ? "text-xs text-primary-600" : "text-sm"
+            }`}
+          >
+            {form.description}
+          </p>
         </div>
-      )}
+        <div
+          className="relative ml-2"
+          ref={openDropdownId === form._id ? dropdownRef : null}
+        >
+          <button
+            onClick={() => handleToggleDropdown(form._id)}
+            className="p-1 hover:bg-neutral-100 rounded"
+          >
+            <MoreVertical className="w-4 h-4 text-primary-400" />
+          </button>
+
+          {/* Dropdown Menu */}
+          {openDropdownId === form._id && (
+            <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-neutral-200 dark:border-gray-700 py-1 z-10">
+              {canEdit && !isChild && (
+                <button
+                  onClick={() => handleOpenChildFormsModal(form)}
+                  className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
+                >
+                  <LinkIcon className="w-4 h-4 mr-2" />
+                  Manage Child Forms
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  handleCopyFormLink(form.id || form._id, form.title);
+                  setOpenDropdownId(null);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
+              >
+                <Copy className="w-4 h-4 mr-2" />
+                Copy Customer Link
+              </button>
+              <button
+                onClick={() => {
+                  handleOpenFormLink(form.id || form._id);
+                  setOpenDropdownId(null);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
+              >
+                <ExternalLink className="w-4 h-4 mr-2" />
+                Open Customer Link
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Form Stats */}
+      <div
+        className={`flex items-center justify-between text-primary-500 mb-4 ${
+          isChild ? "text-xs" : "text-xs"
+        }`}
+      >
+        <div className="flex items-center">
+          <Users className="w-3 h-3 mr-1" />
+          {form.responseCount || 0} responses
+        </div>
+        <div className="flex items-center">
+          <Calendar className="w-3 h-3 mr-1" />
+          {new Date(form.createdAt).toLocaleDateString()}
+        </div>
+      </div>
+
+      {/* Active Status */}
+      <div className="flex items-center justify-between mb-4">
+        <span
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            form.isActive
+              ? "bg-green-100 text-green-800"
+              : "bg-gray-100 text-gray-800"
+          }`}
+        >
+          {form.isActive ? "Active" : "Inactive"}
+        </span>
+        {canEdit ? (
+          <button
+            onClick={() => handleToggleActive(form._id, form.isActive)}
+            className="text-xs text-primary-600 hover:text-primary-800"
+            disabled={activeMutation.loading}
+          >
+            {activeMutation.loading ? "..." : "Toggle"}
+          </button>
+        ) : (
+          <span className="text-xs text-gray-400 italic">View only</span>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex space-x-2">
+          <button
+            onClick={() => handlePreviewForm(form.id || form._id)}
+            className={`px-3 py-2 font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 ${
+              isChild ? "text-xs" : "text-sm"
+            }`}
+          >
+            View
+          </button>
+          {canEdit && (
+            <button
+              onClick={() => handleEditForm(form._id)}
+              className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
+              title="Edit form"
+            >
+              <Edit2 className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+            </button>
+          )}
+          <button
+            onClick={() => handleViewResponses(form._id)}
+            className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
+            title="View responses"
+          >
+            <List className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+          </button>
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => handleExportForm(form)}
+            className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
+            title="Export form structure"
+            disabled={exportingFormId === form._id}
+          >
+            {exportingFormId === form._id ? (
+              <div className="w-4 h-4 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
+            ) : (
+              <Download className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+            )}
+          </button>
+          {canEdit && (
+            <button
+              onClick={() => handleDuplicate(form._id)}
+              className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
+              title="Duplicate form"
+              disabled={duplicateMutation.loading}
+            >
+              <Copy className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={() => handleDelete(form._id, form.title)}
+              className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+              title="Delete form"
+              disabled={deleteMutation.loading}
+            >
+              <Trash2 className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
-};
 
-    // Get role badge color
-    const getRoleBadgeColor = (role: string) => {
-        switch (role) {
-            case "superadmin":
-                return "bg-purple-100 text-purple-700";
-            case "admin":
-                return "bg-blue-100 text-blue-700";
-            case "subadmin":
-                return "bg-green-100 text-green-700";
-            default:
-                return "bg-gray-100 text-gray-700";
-        }
-    };
+  const handleDelete = async (id: string, title: string) => {
+    showConfirm(
+      `Are you sure you want to delete "${title}"? This action cannot be undone.`,
+      async () => {
+        await deleteMutation.mutate(id);
+      },
+      "Delete Form",
+      "Delete",
+      "Cancel",
+    );
+  };
 
-    // For subadmins, show their own attendance only
-    if (user?.role === "subadmin") {
-        return <SubAdminAttendanceNew />;
+  const handleDuplicate = async (id: string) => {
+    await duplicateMutation.mutate(id);
+  };
+
+  const handleToggleVisibility = async (
+    id: string,
+    currentVisibility: boolean,
+  ) => {
+    await visibilityMutation.mutate({
+      id,
+      isVisible: !currentVisibility,
+    });
+  };
+
+  const handleToggleActive = async (id: string, currentActive: boolean) => {
+    await activeMutation.mutate({
+      id,
+      isActive: !currentActive,
+    });
+  };
+
+  const handleCreateForm = () => {
+    navigate("/forms/create");
+  };
+
+  const handleExportTemplate = () => {
+    downloadFormImportTemplate();
+  };
+
+  const handleLoadSampleData = async () => {
+    try {
+      setIsImporting(true);
+      const sampleFormData = await loadSampleFormData();
+
+      // Navigate to form creation with sample data pre-loaded
+      navigate("/forms/create", {
+        state: {
+          mode: "create",
+          formData: {
+            title:
+              sampleFormData.title || "Sample Customer Service Feedback Form",
+            description:
+              sampleFormData.description || "Demo form with sub-parameters",
+            sections: sampleFormData.sections,
+            followUpQuestions: sampleFormData.followUpQuestions || [],
+            isVisible: true,
+            locationEnabled: true,
+          },
+        },
+      });
+    } catch (error) {
+      console.error("Error loading sample data:", error);
+      showError("Failed to load sample data", "Error");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleExportForm = (form: Form) => {
+    const normalized: FormSchema = {
+      id: form.id || form._id,
+      title: form.title,
+      description: form.description,
+      sections: (form.sections || []) as FormSection[],
+      followUpQuestions: [],
+    } as FormSchema;
+    setExportingFormId(form._id);
+    try {
+      exportFormStructureToExcel(normalized as unknown as FormQuestion);
+      showSuccess(`Exported form "${form.title}"`, "Export Complete");
+    } catch (error: any) {
+      showError(error?.message || "Failed to export form", "Export Failed");
+    } finally {
+      setExportingFormId(null);
+    }
+  };
+
+  const handleFileInputChange = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    const isValidType =
+      file.type ===
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+      file.name.toLowerCase().endsWith(".xlsx");
+    if (!isValidType) {
+      showError("Please select a valid .xlsx file", "Invalid File");
+      return;
     }
 
-    return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
-            <div className="max-w-[95vw] mx-auto">
-                {/* Page Header */}
-                <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                        Attendance Management
-                    </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Track user login/logout times and working hours by date
-                    </p>
-                </div>
+    setIsImporting(true);
 
-                {/* Month Selector and Controls */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={handlePrevMonth}
-                                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-                            >
-                                <ChevronLeft className="w-5 h-5" />
-                            </button>
+    try {
+      const parsed = await parseFormWorkbook(file);
 
-                            <div className="flex items-center gap-2 min-w-[180px] justify-center">
-                                <Calendar className="w-5 h-5 text-gray-400" />
-                                <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                                    {monthDetails.monthName} {year}
-                                </span>
-                            </div>
+      // Save file for later use in confirmation
+      importFileRef.current = file;
 
-                            <button
-                                onClick={handleNextMonth}
-                                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-                            >
-                                <ChevronRight className="w-5 h-5" />
-                            </button>
+      // Prepare preview data
+      const previewSections = (parsed.sections || []).map((section: any) => ({
+        title: section.title,
+        description: section.description,
+        weightage: section.weightage,
+        questions: section.questions.map((q: any) => ({
+          text: q.text,
+          type: q.type,
+          required: q.required,
+          subParam1: q.subParam1,
+          subParam2: q.subParam2,
+          options: q.options,
+          hasFollowUps: q.followUpQuestions && q.followUpQuestions.length > 0,
+        })),
+      }));
 
-                            <button
-                                onClick={() => setCurrentDate(new Date())}
-                                className="ml-2 px-3 py-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 border border-primary-200 rounded-lg hover:bg-primary-50"
-                            >
-                                Current Month
-                            </button>
-                        </div>
+      setImportPreviewData({
+        title: parsed.title,
+        description: parsed.description,
+        sections: previewSections,
+      });
 
-                        <button
-                            onClick={handleExport}
-                            disabled={exporting}
-                            className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-                        >
-                            {exporting ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : (
-                                <Download className="w-4 h-4" />
-                            )}
-                            Export Excel
-                        </button>
-                    </div>
-                </div>
+      setImportParameters(parsed.parametersToCreate || []);
+      setShowImportPreview(true);
+    } catch (error: any) {
+      showError(error?.message || "Failed to parse form", "Parse Failed");
+      // Clear file input on error
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
-                {/* Search */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4">
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <div className="flex-1 relative">
-                            <input
-                                type="text"
-                                placeholder="Search by name or username..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
-                            />
-                            <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        </div>
+  const handleConfirmImport = async () => {
+    if (!importPreviewData || !importFileRef.current) return;
 
-                        {/* Hide Superadmin Toggle Button 
-                        <div className="flex items-center gap-2">
-                            <button
-                                onClick={() => setHideSuperadmin(!hideSuperadmin)}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${hideSuperadmin
-                                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border border-purple-200 dark:border-purple-700'
-                                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400 border border-gray-200 dark:border-gray-600'
-                                    }`}
-                            >
-                                {hideSuperadmin ? (
-                                    <>
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                        Hide Superadmin
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                        Show Superadmin
-                                    </>
-                                )}
-                            </button>
-                        </div>*/}
-                    </div>
-                </div>
-                {/* Attendance Table with Date Columns */}
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    {loading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
-                        </div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full min-w-[1400px]">
-                                <thead className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-                                    <tr>
-                                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-0 bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[150px]">
-                                            User Name
-                                        </th>
-                                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-[150px] bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[100px]">
-                                            Role
-                                        </th>
-                                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-[250px] bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[120px]">
-                                            Dealer
-                                        </th>
-                                        {visibleDates.map((d) => (
-                                            <th
-                                                key={d.dateString}
-                                                className={`px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider min-w-[140px] ${d.isToday ? 'bg-primary-50 dark:bg-primary-900/20' : ''}`}
-                                            >
-                                                <div className="flex flex-col">
-                                                    <span className={d.isWeekend ? 'text-red-500' : ''}>{d.dayOfWeek}</span>
-                                                    <span className={`font-bold ${d.isToday ? 'text-primary-600' : ''}`}>{d.day}/{month}</span>
-                                                </div>
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                    {filteredUsers.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={visibleDates.length + 3} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
-                                                No attendance records found for this month
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        filteredUsers.map((user) => (
-                                            <tr key={user.userId} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                                {/* User Name Column */}
-                                                <td className="px-3 py-3 sticky left-0 bg-white dark:bg-gray-800 z-10">
-                                                    <div className="flex items-center">
-                                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-                                                            <span className="text-primary-600 dark:text-primary-400 text-sm font-medium">
-                                                                {user.firstName?.[0]}{user.lastName?.[0]}
-                                                            </span>
-                                                        </div>
-                                                        <div className="ml-3">
-                                                            <div className="text-sm font-medium text-gray-900 dark:text-white">
-                                                                {user.firstName} {user.lastName}
-                                                            </div>
-                                                            <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                                {user.username}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </td>
+    setIsConfirmingImport(true);
 
-                                                {/* Role Column */}
-                                                <td className="px-3 py-3 sticky left-[150px] bg-white dark:bg-gray-800 z-10">
-                                                    <span className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${getRoleBadgeColor(user.role)}`}>
-                                                        {user.role}
-                                                    </span>
-                                                </td>
+    try {
+      // Parse the file again to get the full data
+      const file = importFileRef.current;
+      const parsed = await parseFormWorkbook(file);
 
-                                                {/* Dealer Column */}
-                                                <td className="px-3 py-3 sticky left-[250px] bg-white dark:bg-gray-800 z-10">
-                                                    <div className="text-sm text-gray-900 dark:text-white">
-                                                        {user.tenantId?.companyName || user.tenantId?.name || '-'}
-                                                    </div>
-                                                </td>
-
-                                                {/* Date Columns */}
-                                                {visibleDates.map((d) => {
-                                                    const record = user.attendance[d.dateString];
-                                                    return (
-                                                        <td
-                                                            key={d.dateString}
-                                                            className={`px-2 py-2 text-center ${d.isToday ? 'bg-primary-50/50 dark:bg-primary-900/10' : ''}`}
-                                                        >
-                                                            {renderDateCell(record, d.isFuture)}
-                                                        </td>
-                                                    );
-                                                })}
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-
-                {/* Legend */}
-                <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-                    <div className="flex items-center gap-2">
-                        <span className="font-medium">Legend:</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-xs text-blue-600 font-medium">Login Time</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-xs text-orange-600">Logout Time</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        <span className="text-xs">Working Minutes</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-green-600 font-bold text-xs">P</span>
-                        <span className="text-xs">Present</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <Wifi className="w-3 h-3 text-green-500" />
-                        <span className="text-xs">Active Now</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                        <span className="text-gray-400 text-xs">-</span>
-                        <span className="text-xs">Future Date / No Data</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// Search Icon Component
-function SearchIcon({ className }: { className?: string }) {
-    return (
-        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-    );
-}
-
-// SubAdmin View - Personal attendance history (keeping original UI)
-function SubAdminAttendanceNew() {
-    const { user } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [attendanceData, setAttendanceData] = useState<AttendanceRecord[]>([]);
-    const [currentDate, setCurrentDate] = useState(new Date());
-
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1;
-    const monthDetails = getMonthDetails(year, month);
-    const datesInMonth = useMemo(() => getDatesInMonth(year, month), [year, month]);
-
-    const visibleDates = datesInMonth;
-    const startDate = useMemo(() => new Date(year, month - 1, 1).toISOString().split("T")[0], [year, month]);
-    const endDate = useMemo(() => new Date(year, month, 0).toISOString().split("T")[0], [year, month]);
-
-    useEffect(() => {
-        const fetchMyAttendance = async () => {
-            setLoading(true);
-            try {
-                const response = await apiClient.getMyAttendance({
-                    startDate,
-                    endDate,
-                    limit: 100
-                });
-
-                if (response && response.logs) {
-                    setAttendanceData(response.logs);
-                }
-            } catch (error) {
-                console.error("Error fetching attendance:", error);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchMyAttendance();
-    }, [startDate, endDate]);
-
-    // Group by date
-    const attendanceByDate = useMemo(() => {
-        const map: { [date: string]: AttendanceRecord } = {};
-        attendanceData.forEach(record => {
-            if (record.loginTime) {
-                const dateStr = new Date(record.loginTime).toISOString().split("T")[0];
-                if (!map[dateStr] || calculateWorkingHours(record.loginTime, record.logoutTime, record.workingHours) >
-                    calculateWorkingHours(map[dateStr].loginTime, map[dateStr].logoutTime, map[dateStr].workingHours)) {
-                    map[dateStr] = record;
-                }
-            }
+      const sectionBranching: any[] = [];
+      parsed.sections?.forEach((section: any) => {
+        section.questions?.forEach((question: any) => {
+          if (question.branchingRules && question.branchingRules.length > 0) {
+            question.branchingRules.forEach((rule: any) => {
+              sectionBranching.push({
+                questionId: question.id,
+                sectionId: section.id,
+                optionLabel: rule.optionLabel,
+                targetSectionId: rule.targetSectionId,
+                isOtherOption: false,
+              });
+            });
+          }
         });
-        return map;
-    }, [attendanceData]);
+      });
 
-    const handlePrevMonth = () => setCurrentDate(new Date(year, month - 2, 1));
-    const handleNextMonth = () => setCurrentDate(new Date(year, month, 1));
+      const formPayload = {
+        ...parsed,
+        sections: parsed.sections || [],
+        isVisible: true,
+        followUpQuestions: parsed.followUpQuestions || [],
+        sectionBranching: sectionBranching,
+      } as any;
 
-    const renderDateCell = (record: AttendanceRecord | undefined, isFuture: boolean) => {
-        if (isFuture) {
-            return <span className="text-gray-400 text-xs">-</span>;
-        }
+      const created = await apiClient.createForm(formPayload);
 
-        if (!record || !record.loginTime) {
-            return <span className="text-gray-400 text-xs">-</span>;
-        }
-
-        const workingHours = calculateWorkingHours(record.loginTime, record.logoutTime, record.workingHours);
-        const isActive = !record.logoutTime && record.isActive;
-
-        return (
-            <div className="space-y-1 text-xs">
-                <div className="text-blue-600">{formatTime(record.loginTime)}</div>
-                <div className="text-orange-600">{formatTime(record.logoutTime)}</div>
-                <div className="text-gray-500">{workingHours > 0 ? `${Math.round(workingHours * 60)}m` : '-'}</div>
-                {isActive ? <span className="text-green-500">● Active</span> : record.isPresent && <span className="text-green-600 font-bold">P</span>}
-            </div>
+      // Create parameters if any are specified in the Excel
+      if (
+        parsed.parametersToCreate &&
+        parsed.parametersToCreate.length > 0 &&
+        created?.form?._id
+      ) {
+        const parameterPromises = parsed.parametersToCreate.map((param) =>
+          apiClient.createParameter({
+            ...param,
+            formId: created.form._id,
+          }),
         );
-    };
+        await Promise.all(parameterPromises);
+        showSuccess(
+          `Form imported with ${parsed.parametersToCreate.length} parameter(s)`,
+          "Import Complete",
+        );
+      } else {
+        showSuccess("Form imported successfully", "Import Complete");
+      }
 
-    return (
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
-            <div className="max-w-4xl mx-auto">
-                <div className="mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Attendance</h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">View your login/logout times and working hours</p>
-                </div>
+      if (created?.form?._id) {
+        navigate(`/forms/${created.form._id}/edit`);
+      }
+      refetchForms();
+      setShowImportPreview(false);
+      importFileRef.current = null;
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    } catch (error: any) {
+      showError(error?.message || "Failed to import form", "Import Failed");
+    } finally {
+      setIsConfirmingImport(false);
+    }
+  };
 
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
-                    <div className="flex items-center justify-center gap-4">
-                        <button onClick={handlePrevMonth} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <ChevronLeft className="w-5 h-5" />
-                        </button>
-                        <div className="flex items-center gap-2">
-                            <Calendar className="w-5 h-5 text-gray-400" />
-                            <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                                {monthDetails.monthName} {year}
-                            </span>
-                        </div>
-                        <button onClick={handleNextMonth} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
-                        <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 text-sm font-medium text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50">
-                            Current Month
-                        </button>
-                    </div>
-                </div>
+  const handleImportClick = () => {
+    if (isImporting) {
+      return;
+    }
+    fileInputRef.current?.click();
+  };
 
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-                    {loading ? (
-                        <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary-600" /></div>
-                    ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full min-w-[1200px]">
-                                <thead className="bg-gray-50 dark:bg-gray-700/50">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Date</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Day</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Login</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Logout</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Hours</th>
-                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {visibleDates.map((d) => {
-                                        const record = attendanceByDate[d.dateString];
-                                        const hours = record ? calculateWorkingHours(record.loginTime, record.logoutTime, record.workingHours) : 0;
-                                        const isActive = record && !record.logoutTime && record.isActive;
+  const handleEditForm = (id: string) => {
+    navigate(`/forms/${id}/edit`);
+  };
 
-                                        return (
-                                            <tr key={d.dateString} className={`border-t ${d.isToday ? 'bg-primary-50' : ''}`}>
-                                                <td className="px-4 py-3">{d.day}/{month}/{year}</td>
-                                                <td className="px-4 py-3">{d.dayOfWeek}</td>
-                                                <td className="px-4 py-3 text-blue-600">{record ? formatTime(record.loginTime) : '-'}</td>
-                                                <td className="px-4 py-3 text-orange-600">{record ? formatTime(record.logoutTime) : '-'}</td>
-                                                <td className="px-4 py-3">{hours > 0 ? `${Math.round(hours * 60)}m` : '-'}</td>
-                                                <td className="px-4 py-3">
-                                                    {isActive ? (
-                                                        <span className="text-green-500 flex items-center gap-1"><Wifi className="w-3 h-3" /> Active</span>
-                                                    ) : record && record.isPresent ? (
-                                                        <span className="text-green-600 font-bold">P</span>
-                                                    ) : (
-                                                        <span className="text-gray-400">-</span>
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
+  const handleViewResponses = (id: string) => {
+    navigate(`/forms/${id}/responses`);
+  };
 
-                <div className="grid grid-cols-3 gap-4 mt-6">
-                    <div className="bg-white p-4 rounded-lg border text-center">
-                        <p className="text-sm text-gray-500">Total Days</p>
-                        <p className="text-2xl font-bold">{visibleDates.length}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border text-center">
-                        <p className="text-sm text-gray-500">Present</p>
-                        <p className="text-2xl font-bold text-green-600">{Object.values(attendanceByDate).filter(r => r && r.loginTime).length}</p>
-                    </div>
-                    <div className="bg-white p-4 rounded-lg border text-center">
-                        <p className="text-sm text-gray-500">Total Hours</p>
-                        <p className="text-2xl font-bold text-blue-600">
-                            {Math.round(Object.values(attendanceByDate).reduce((sum, r) => sum + (r ? calculateWorkingHours(r.loginTime, r.logoutTime, r.workingHours) : 0), 0) * 60)}m
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </div>
+  const handlePreviewForm = (id: string) => {
+    navigate(`/forms/${id}/preview`);
+  };
+
+  const handleViewAnalytics = (id: string) => {
+    navigate(`/forms/${id}/analytics`);
+  };
+
+  const getCustomerFormUrl = (formId: string) => {
+    const tenantSlug = tenant?.slug || "default";
+    // For production, use your actual customer frontend URL
+    const baseUrl = window.location.origin.includes("localhost")
+      ? "http://localhost:5174"
+      : "https://forms.focusengineeringapp.com";
+    // : "https://formsuser.focusengineeringapp.com";
+    return `${baseUrl}/${tenantSlug}/forms/${formId}`;
+  };
+
+  const handleCopyFormLink = (formId: string, formTitle: string) => {
+    const url = getCustomerFormUrl(formId);
+    navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        showSuccess(`Link copied for "${formTitle}"`, "Link Copied!");
+      })
+      .catch(() => {
+        showError("Failed to copy link", "Error");
+      });
+  };
+
+  const handleOpenFormLink = (formId: string) => {
+    const url = getCustomerFormUrl(formId);
+    window.open(url, "_blank");
+  };
+
+  const handleToggleDropdown = (formId: string) => {
+    setOpenDropdownId(openDropdownId === formId ? null : formId);
+  };
+
+  const handleOpenChildFormsModal = (form: Form) => {
+    setSelectedParentForm(form);
+    // Get currently linked child form IDs
+    const linkedChildIds = form.childForms?.map((cf) => cf.formId) || [];
+    setSelectedChildFormIds(linkedChildIds);
+    setShowChildFormsModal(true);
+    setOpenDropdownId(null);
+  };
+
+  const handleCloseChildFormsModal = () => {
+    setShowChildFormsModal(false);
+    setSelectedParentForm(null);
+    setSelectedChildFormIds([]);
+  };
+
+  const handleToggleChildForm = (childFormId: string) => {
+    setSelectedChildFormIds((prev) => {
+      if (prev.includes(childFormId)) {
+        return prev.filter((id) => id !== childFormId);
+      } else {
+        return [...prev, childFormId];
+      }
+    });
+  };
+
+  const handleSaveChildForms = async () => {
+    if (!selectedParentForm) return;
+
+    const parentFormId = selectedParentForm._id;
+    const currentLinkedIds =
+      selectedParentForm.childForms?.map((cf) => cf.formId) || [];
+
+    // Find forms to link (newly selected)
+    const toLink = selectedChildFormIds.filter(
+      (id) => !currentLinkedIds.includes(id),
     );
+
+    // Find forms to unlink (deselected)
+    const toUnlink = currentLinkedIds.filter(
+      (id) => !selectedChildFormIds.includes(id),
+    );
+
+    try {
+      // Link new child forms
+      for (const childFormId of toLink) {
+        await linkChildFormMutation.mutate({ parentFormId, childFormId });
+      }
+
+      // Unlink removed child forms
+      for (const childFormId of toUnlink) {
+        await unlinkChildFormMutation.mutate({ parentFormId, childFormId });
+      }
+
+      handleCloseChildFormsModal();
+    } catch (error) {
+      // Error handling is done in mutation callbacks
+    }
+  };
+
+  // Get available forms for linking (exclude the parent itself and forms that are children of OTHER parents)
+  const getAvailableChildForms = () => {
+    if (!selectedParentForm) return [];
+
+    return forms.filter(
+      (form: Form) =>
+        form._id !== selectedParentForm._id && // Not the parent itself
+        (!form.parentFormId || form.parentFormId === selectedParentForm._id), // Not a child of another parent (but allow children of THIS parent)
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-primary-600">Loading forms...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <p className="text-red-600">Error loading forms: {error}</p>
+          <button onClick={() => refetchForms()} className="mt-4 btn-primary">
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="hidden"
+        onChange={handleFileInputChange}
+      />
+      <div className="p-6">
+        <div className="mb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h1 className="font-bold">Service Request Management</h1>
+              <p>Create, edit, and manage service request forms</p>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              {canManage && !isInspector && (
+                <>
+                  <button
+                    onClick={handleExportTemplate}
+                    className="btn-secondary flex items-center justify-center"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Import Template
+                  </button>
+                  <button
+                    onClick={handleLoadSampleData}
+                    className="btn-secondary flex items-center justify-center"
+                    disabled={isImporting}
+                  >
+                    <Database className="w-4 h-4 mr-2" />
+                    {isImporting ? "Loading..." : "Load Sample Data"}
+                  </button>
+                  <button
+                    onClick={handleImportClick}
+                    className="btn-secondary flex items-center justify-center"
+                    disabled={isImporting}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {isImporting ? "Importing..." : "Import Form (Excel)"}
+                  </button>
+                  <button
+                    onClick={handleCreateForm}
+                    className="btn-primary flex items-center justify-center"
+                  >
+                    <PlusCircle className="w-3 h-3 mr-1" />
+                    Create New Service Form
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-400 w-4 h-4" />
+            <input
+              type="text"
+              placeholder="Search service forms..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 input-field"
+            />
+          </div>
+        </div>
+
+        {/* Forms List */}
+        {filteredForms.length === 0 ? (
+          <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg border border-neutral-200 dark:border-gray-700">
+            <FileText className="w-12 h-12 text-primary-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-primary-600 mb-2">
+              {(() => {
+                if (!hasAnyForms) {
+                  return "No service forms created yet";
+                }
+                if (!hasActiveForms) {
+                  return "No active service forms";
+                }
+                return "No service forms found";
+              })()}
+            </h3>
+            <p className="text-primary-500 mb-6">
+              {(() => {
+                if (!hasAnyForms) {
+                  return "Create your first service form to get started";
+                }
+                if (!hasActiveForms) {
+                  return "Activate a form to make it available here";
+                }
+                return "Try adjusting your search criteria";
+              })()}
+            </p>
+            {!hasAnyForms && canEdit && (
+              <button onClick={handleCreateForm} className="btn-primary">
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Create Your First Form
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {filteredForms.map((form: Form) => {
+              const childForms = getChildFormsForParent(form._id);
+              return (
+                <div key={form._id} className="space-y-2">
+                  {/* Parent/Standalone Form */}
+                  {renderFormCard(form, false)}
+
+                  {/* Child Forms (nested under parent) */}
+                  {childForms.length > 0 && (
+                    <div className="space-y-2">
+                      {childForms.map((childForm: Form) =>
+                        renderFormCard(childForm, true),
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Child Forms Management Modal */}
+        {showChildFormsModal && selectedParentForm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-neutral-200 dark:border-gray-700 flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-primary-900">
+                    Manage Child Forms
+                  </h2>
+                  <p className="text-sm text-primary-600 mt-1">
+                    Parent: {selectedParentForm.title}
+                  </p>
+                </div>
+                <button
+                  onClick={handleCloseChildFormsModal}
+                  className="p-1 hover:bg-neutral-100 rounded"
+                >
+                  <X className="w-5 h-5 text-primary-400" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="px-6 py-4 overflow-y-auto flex-1">
+                <p className="text-sm text-primary-600 mb-4">
+                  Select forms to link as child forms. Child forms will appear
+                  after users complete this parent form.
+                </p>
+
+                {getAvailableChildForms().length === 0 ? (
+                  <div className="text-center py-8">
+                    <FileText className="w-12 h-12 text-primary-300 mx-auto mb-3" />
+                    <p className="text-primary-600">
+                      No available forms to link as child forms.
+                    </p>
+                    <p className="text-sm text-primary-500 mt-2">
+                      Create more forms or unlink existing child forms from
+                      other parents.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {getAvailableChildForms().map((form: Form) => {
+                      const isSelected = selectedChildFormIds.includes(
+                        form._id,
+                      );
+                      return (
+                        <div
+                          key={form._id}
+                          className={`border rounded-lg p-4 cursor-pointer transition-all ${
+                            isSelected
+                              ? "border-primary-500 bg-primary-50"
+                              : "border-neutral-200 hover:border-primary-300 hover:bg-primary-50"
+                          }`}
+                          onClick={() => handleToggleChildForm(form._id)}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-medium text-primary-900">
+                                  {form.title}
+                                </h3>
+                                {isSelected && (
+                                  <Check className="w-5 h-5 text-primary-600" />
+                                )}
+                              </div>
+                              <p className="text-sm text-primary-600 mt-1 line-clamp-2">
+                                {form.description}
+                              </p>
+                              <div className="flex items-center gap-4 mt-2 text-xs text-primary-500">
+                                <span className="flex items-center">
+                                  <Users className="w-3 h-3 mr-1" />
+                                  {form.responseCount || 0} responses
+                                </span>
+                                <span className="flex items-center">
+                                  <Calendar className="w-3 h-3 mr-1" />
+                                  {new Date(
+                                    form.createdAt,
+                                  ).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-neutral-200 dark:border-gray-700 flex items-center justify-between">
+                <div className="text-sm text-primary-600">
+                  {selectedChildFormIds.length} form
+                  {selectedChildFormIds.length !== 1 ? "s" : ""} selected
+                </div>
+                <div className="flex space-x-2">
+                  <button
+                    onClick={handleCloseChildFormsModal}
+                    className="px-4 py-2 text-sm font-medium text-primary-700 hover:bg-neutral-100 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveChildForms}
+                    disabled={
+                      linkChildFormMutation.loading ||
+                      unlinkChildFormMutation.loading
+                    }
+                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {linkChildFormMutation.loading ||
+                    unlinkChildFormMutation.loading
+                      ? "Saving..."
+                      : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Import Preview Modal */}
+        {showImportPreview && importPreviewData && (
+          <ImportPreviewModal
+            isOpen={showImportPreview}
+            onClose={() => {
+              setShowImportPreview(false);
+              setImportPreviewData(null);
+              setImportParameters([]);
+              importFileRef.current = null;
+              if (fileInputRef.current) {
+                fileInputRef.current.value = "";
+              }
+            }}
+            onConfirm={handleConfirmImport}
+            formData={importPreviewData}
+            parameters={importParameters}
+            isLoading={isConfirmingImport}
+          />
+        )}
+      </div>
+    </>
+  );
 }

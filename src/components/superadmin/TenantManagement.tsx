@@ -13,6 +13,8 @@ import {
   Image as ImageIcon,
   AlertTriangle,
   BarChart2,
+  CheckCircle,
+  Phone,
 } from "lucide-react";
 import { useNotification } from "../../context/NotificationContext";
 import { apiClient } from "../../api/client";
@@ -63,10 +65,13 @@ export default function TenantManagement() {
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [tenantToDelete, setTenantToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [tenantToDelete, setTenantToDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [uploadingTenantId, setUploadingTenantId] = useState<string | null>(
-    null
+    null,
   );
   const [uploadProgress, setUploadProgress] = useState<{
     [key: string]: { percentage: number; timeRemaining?: number };
@@ -74,7 +79,9 @@ export default function TenantManagement() {
   const { showSuccess, showError } = useNotification();
 
   // Tab management for Tenant Management and User Response Dashboard
-  const [activeTab, setActiveTab] = useState<"tenants" | "user-response">("tenants");
+  const [activeTab, setActiveTab] = useState<"tenants" | "user-response">(
+    "tenants",
+  );
 
   // Add these state variables at the top of your component
   const [showAddAdminForm, setShowAddAdminForm] = useState<string | null>(null);
@@ -84,7 +91,13 @@ export default function TenantManagement() {
     email: "",
     password: "",
     confirmPassword: "",
+    mobile: "",
   });
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [addingAdmin, setAddingAdmin] = useState<string | null>(null);
 
   const [editingAdmin, setEditingAdmin] = useState<{
@@ -114,7 +127,11 @@ export default function TenantManagement() {
       email: "",
       password: "",
       confirmPassword: "",
+      mobile: "",
     });
+    setOtp("");
+    setOtpSent(false);
+    setOtpVerified(false);
   };
 
   const handleCancelAddAdmin = () => {
@@ -125,7 +142,11 @@ export default function TenantManagement() {
       email: "",
       password: "",
       confirmPassword: "",
+      mobile: "",
     });
+    setOtp("");
+    setOtpSent(false);
+    setOtpVerified(false);
   };
 
   const handleNewAdminChange = (field: string, value: string) => {
@@ -133,6 +154,40 @@ export default function TenantManagement() {
       ...prev,
       [field]: value,
     }));
+  };
+
+  const handleSendOtp = async () => {
+    if (!newAdminData.mobile) {
+      showError("Please enter mobile number first");
+      return;
+    }
+    setSendingOtp(true);
+    try {
+      const response = await apiClient.sendOtp(newAdminData.mobile);
+      setOtpSent(true);
+      showSuccess(response.message || "OTP sent successfully!");
+    } catch (error: any) {
+      showError(error.response?.message || "Failed to send OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp) {
+      showError("Please enter OTP");
+      return;
+    }
+    setVerifyingOtp(true);
+    try {
+      const response = await apiClient.verifyOtp(newAdminData.mobile, otp);
+      setOtpVerified(true);
+      showSuccess(response.message || "Mobile number verified successfully!");
+    } catch (error: any) {
+      showError(error.response?.message || "Invalid OTP");
+    } finally {
+      setVerifyingOtp(false);
+    }
   };
 
   const handleAddAdminSubmit = async (tenantId: string) => {
@@ -156,6 +211,11 @@ export default function TenantManagement() {
       return;
     }
 
+    if (!otpVerified) {
+      showError("Please verify the mobile number first");
+      return;
+    }
+
     setAddingAdmin(tenantId);
     try {
       await apiClient.addAdminToTenant(tenantId, {
@@ -163,6 +223,7 @@ export default function TenantManagement() {
         lastName: newAdminData.lastName,
         email: newAdminData.email,
         password: newAdminData.password,
+        mobile: newAdminData.mobile,
       });
 
       showSuccess("Admin added successfully");
@@ -222,7 +283,7 @@ export default function TenantManagement() {
 
   const handleTenantLogoChange = async (
     tenantId: string,
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const input = event.target;
     const file = input.files?.[0];
@@ -247,7 +308,7 @@ export default function TenantManagement() {
               timeRemaining: progress.timeRemaining,
             },
           }));
-        }
+        },
       );
       const logoUrl =
         apiClient.resolveUploadedFileUrl(uploadResult) + "?t=" + Date.now();
@@ -256,8 +317,8 @@ export default function TenantManagement() {
       await apiClient.updateTenant(tenantId, { settings });
       setTenants((prev) =>
         prev.map((tenant) =>
-          tenant._id === tenantId ? { ...tenant, settings } : tenant
-        )
+          tenant._id === tenantId ? { ...tenant, settings } : tenant,
+        ),
       );
       showSuccess("Tenant logo updated successfully");
     } catch (error: any) {
@@ -283,8 +344,8 @@ export default function TenantManagement() {
       await apiClient.updateTenant(tenantId, { settings });
       setTenants((prev) =>
         prev.map((tenant) =>
-          tenant._id === tenantId ? { ...tenant, settings } : tenant
-        )
+          tenant._id === tenantId ? { ...tenant, settings } : tenant,
+        ),
       );
       showSuccess("Tenant logo removed");
     } catch (error: any) {
@@ -355,10 +416,7 @@ export default function TenantManagement() {
     }
   };
 
-  const handleToggleAdminStatus = async (
-    tenantId: string,
-    admin: any
-  ) => {
+  const handleToggleAdminStatus = async (tenantId: string, admin: any) => {
     setUpdatingAdmin(admin._id);
     try {
       await apiClient.updateUser(admin._id, {
@@ -366,7 +424,7 @@ export default function TenantManagement() {
       });
 
       showSuccess(
-        `Admin ${!admin.isActive ? "activated" : "deactivated"} successfully`
+        `Admin ${!admin.isActive ? "activated" : "deactivated"} successfully`,
       );
       fetchTenants(); // Refresh the data
     } catch (error: any) {
@@ -379,11 +437,11 @@ export default function TenantManagement() {
   const handleDeleteAdmin = async (
     tenantId: string,
     adminId: string,
-    adminName: string
+    adminName: string,
   ) => {
     if (
       !window.confirm(
-        `Are you sure you want to remove ${adminName}? This action cannot be undone.`
+        `Are you sure you want to remove ${adminName}? This action cannot be undone.`,
       )
     ) {
       return;
@@ -441,7 +499,7 @@ export default function TenantManagement() {
               </p>
             </div>
           </div>
-          {activeTab === 'tenants' && (
+          {activeTab === "tenants" && (
             <button
               onClick={() => {
                 setModalMode("create");
@@ -460,21 +518,23 @@ export default function TenantManagement() {
       {/* Tab Navigation */}
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-neutral-200 dark:border-gray-700 p-1 shadow-sm inline-flex">
         <button
-          onClick={() => setActiveTab('tenants')}
-          className={`px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${activeTab === 'tenants'
-            ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-            : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-gray-800'
-            }`}
+          onClick={() => setActiveTab("tenants")}
+          className={`px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${
+            activeTab === "tenants"
+              ? "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+              : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-gray-800"
+          }`}
         >
           <Building2 className="w-4 h-4" />
           Tenants
         </button>
         <button
-          onClick={() => setActiveTab('user-response')}
-          className={`px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${activeTab === 'user-response'
-            ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-            : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-gray-800'
-            }`}
+          onClick={() => setActiveTab("user-response")}
+          className={`px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${
+            activeTab === "user-response"
+              ? "bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300"
+              : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-gray-800"
+          }`}
         >
           <BarChart2 className="w-4 h-4" />
           User Response Dashboard
@@ -482,7 +542,7 @@ export default function TenantManagement() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'user-response' ? (
+      {activeTab === "user-response" ? (
         <SuperAdminUserResponseDashboard />
       ) : (
         <div>
@@ -546,8 +606,12 @@ export default function TenantManagement() {
                 <Building2 className="w-6 h-6 text-primary-600" />
               </div>
               <div>
-                <p className="text-sm font-medium text-neutral-500">Total Tenants</p>
-                <p className="text-2xl font-bold text-primary-900">{stats.total}</p>
+                <p className="text-sm font-medium text-neutral-500">
+                  Total Tenants
+                </p>
+                <p className="text-2xl font-bold text-primary-900">
+                  {stats.total}
+                </p>
               </div>
             </div>
             <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-neutral-200 dark:border-gray-700 shadow-sm flex items-center gap-4">
@@ -555,8 +619,12 @@ export default function TenantManagement() {
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
               </div>
               <div>
-                <p className="text-sm font-medium text-neutral-500">Active Tenants</p>
-                <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+                <p className="text-sm font-medium text-neutral-500">
+                  Active Tenants
+                </p>
+                <p className="text-2xl font-bold text-green-600">
+                  {stats.active}
+                </p>
               </div>
             </div>
             <div className="bg-white dark:bg-gray-900 p-6 rounded-xl border border-neutral-200 dark:border-gray-700 shadow-sm flex items-center gap-4">
@@ -564,552 +632,672 @@ export default function TenantManagement() {
                 <div className="w-3 h-3 bg-red-500 rounded-full" />
               </div>
               <div>
-                <p className="text-sm font-medium text-neutral-500">Inactive Tenants</p>
-                <p className="text-2xl font-bold text-red-600">{stats.inactive}</p>
+                <p className="text-sm font-medium text-neutral-500">
+                  Inactive Tenants
+                </p>
+                <p className="text-2xl font-bold text-red-600">
+                  {stats.inactive}
+                </p>
               </div>
             </div>
           </div>
 
           {/* Tenants List */}
-          {
-            loading ? (
-              <div className="bg-white dark:bg-gray-900 rounded-xl border border-neutral-200 dark:border-gray-700 p-12 text-center shadow-sm">
-                <div className="flex items-center justify-center mb-4">
-                  <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-200 border-t-primary-600"></div>
-                </div>
-                <h3 className="text-lg font-semibold text-primary-900 mb-2">
-                  Loading tenants...
-                </h3>
-                <p className="text-primary-600">
-                  Please wait while we fetch your tenant data
-                </p>
+          {loading ? (
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-neutral-200 dark:border-gray-700 p-12 text-center shadow-sm">
+              <div className="flex items-center justify-center mb-4">
+                <div className="animate-spin rounded-full h-10 w-10 border-4 border-primary-200 border-t-primary-600"></div>
               </div>
-            ) : tenants.length === 0 ? (
-              <div className="bg-white dark:bg-gray-900 rounded-xl border border-neutral-200 dark:border-gray-700 p-12 text-center shadow-sm">
-                <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <Building2 className="w-8 h-8 text-primary-600" />
-                </div>
-                <h3 className="text-xl font-bold text-primary-900 mb-2">
-                  No tenants found
-                </h3>
-                <p className="text-primary-600 mb-6 text-lg">
-                  Get started by creating your first tenant to begin managing company
-                  branches
-                </p>
-                <button
-                  onClick={() => {
-                    setModalMode("create");
-                    setEditingTenant(null);
-                    setShowTenantModal(true);
-                  }}
-                  className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-3 mx-auto"
-                >
-                  <Plus className="w-5 h-5" />
-                  <span>Create Your First Tenant</span>
-                </button>
+              <h3 className="text-lg font-semibold text-primary-900 mb-2">
+                Loading tenants...
+              </h3>
+              <p className="text-primary-600">
+                Please wait while we fetch your tenant data
+              </p>
+            </div>
+          ) : tenants.length === 0 ? (
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-neutral-200 dark:border-gray-700 p-12 text-center shadow-sm">
+              <div className="w-16 h-16 bg-gradient-to-br from-primary-100 to-primary-200 rounded-xl flex items-center justify-center mx-auto mb-4">
+                <Building2 className="w-8 h-8 text-primary-600" />
               </div>
-            ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {tenants.map((tenant) => {
-                  const tenantLogo = tenant.settings?.logo;
+              <h3 className="text-xl font-bold text-primary-900 mb-2">
+                No tenants found
+              </h3>
+              <p className="text-primary-600 mb-6 text-lg">
+                Get started by creating your first tenant to begin managing
+                company branches
+              </p>
+              <button
+                onClick={() => {
+                  setModalMode("create");
+                  setEditingTenant(null);
+                  setShowTenantModal(true);
+                }}
+                className="bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold px-8 py-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center gap-3 mx-auto"
+              >
+                <Plus className="w-5 h-5" />
+                <span>Create Your First Tenant</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {tenants.map((tenant) => {
+                const tenantLogo = tenant.settings?.logo;
 
-                  return (
-                    <div
-                      key={tenant._id}
-                      className="bg-white dark:bg-gray-900 rounded-xl border border-neutral-200 dark:border-gray-700 p-6 hover:shadow-lg hover:border-primary-200 transition-all duration-200 group"
-                    >
-                      {/* Header */}
-                      <div className="flex items-start justify-between mb-6">
-                        <div className="flex items-start gap-4">
-                          <div className="w-14 h-14 rounded-xl border border-primary-100 bg-primary-50 flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow overflow-hidden">
-                            {tenantLogo ? (
-                              <img
-                                src={tenantLogo}
-                                alt={`${tenant.name} logo`}
-                                className="w-full h-full object-contain"
-                              />
-                            ) : (
-                              <Building2 className="w-7 h-7 text-primary-600" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-xl font-bold text-primary-900 mb-1 truncate">
-                              {tenant.name}
-                            </h3>
-                            <p className="text-sm text-primary-600 font-medium mb-1">
-                              {tenant.companyName}
-                            </p>
-                            <p className="text-xs text-primary-500 font-mono bg-primary-50 px-2 py-1 rounded-md inline-block">
-                              /{tenant.slug}
-                            </p>
-                          </div>
+                return (
+                  <div
+                    key={tenant._id}
+                    className="bg-white dark:bg-gray-900 rounded-xl border border-neutral-200 dark:border-gray-700 p-6 hover:shadow-lg hover:border-primary-200 transition-all duration-200 group"
+                  >
+                    {/* Header */}
+                    <div className="flex items-start justify-between mb-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-14 h-14 rounded-xl border border-primary-100 bg-primary-50 flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow overflow-hidden">
+                          {tenantLogo ? (
+                            <img
+                              src={tenantLogo}
+                              alt={`${tenant.name} logo`}
+                              className="w-full h-full object-contain"
+                            />
+                          ) : (
+                            <Building2 className="w-7 h-7 text-primary-600" />
+                          )}
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={`px-3 py-1.5 rounded-full text-xs font-semibold ${tenant.isActive
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-xl font-bold text-primary-900 mb-1 truncate">
+                            {tenant.name}
+                          </h3>
+                          <p className="text-sm text-primary-600 font-medium mb-1">
+                            {tenant.companyName}
+                          </p>
+                          <p className="text-xs text-primary-500 font-mono bg-primary-50 px-2 py-1 rounded-md inline-block">
+                            /{tenant.slug}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold ${
+                              tenant.isActive
                                 ? "bg-green-100 text-green-700 border border-green-200"
                                 : "bg-red-100 text-red-700 border border-red-200"
-                                }`}
-                            >
-                              {tenant.isActive ? "Active" : "Inactive"}
-                            </span>
-                            <button
-                              onClick={() => handleDeleteTenant(tenant._id, tenant.name)}
-                              className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
-                              title="Delete tenant completely"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                          <span className="text-xs text-neutral-500">
-                            {new Date(tenant.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="bg-neutral-50 rounded-xl p-4 mb-6 border border-neutral-200 dark:border-gray-700">
-                        <div className="flex flex-wrap items-center gap-4">
-                          <div className="w-16 h-16 rounded-lg border border-neutral-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center justify-center overflow-hidden">
-                            {tenantLogo ? (
-                              <img
-                                src={tenantLogo}
-                                alt={`${tenant.name} logo preview`}
-                                className="w-full h-full object-contain"
-                              />
-                            ) : (
-                              <ImageIcon className="w-8 h-8 text-neutral-400" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-[200px]">
-                            <p className="text-sm font-medium text-primary-900">
-                              Tenant Logo
-                            </p>
-                            <p className="text-xs text-primary-600 mt-1">
-                              Upload a custom logo to brand this tenant's workspace.
-                              PNG, JPG, or GIF up to 10MB.
-                            </p>
-                            <div className="mt-3 flex flex-wrap items-center gap-3">
-                              {uploadingTenantId === tenant._id &&
-                                uploadProgress[tenant._id] ? (
-                                <div className="w-full space-y-2">
-                                  <div className="flex items-center gap-2">
-                                    <Upload className="w-4 h-4 text-primary-600 animate-pulse" />
-                                    <span className="text-xs font-semibold text-primary-700">
-                                      Uploading...{" "}
-                                      {uploadProgress[tenant._id].percentage}%
-                                    </span>
-                                  </div>
-                                  <div className="w-full bg-neutral-200 rounded-full h-1.5">
-                                    <div
-                                      className="bg-primary-600 h-1.5 rounded-full transition-all duration-300"
-                                      style={{
-                                        width: `${uploadProgress[tenant._id].percentage
-                                          }%`,
-                                      }}
-                                    ></div>
-                                  </div>
-                                  {uploadProgress[tenant._id].timeRemaining && (
-                                    <p className="text-xs text-neutral-500">
-                                      {Math.floor(
-                                        uploadProgress[tenant._id].timeRemaining / 60
-                                      )}
-                                      :
-                                      {(uploadProgress[tenant._id].timeRemaining % 60)
-                                        .toString()
-                                        .padStart(2, "0")}{" "}
-                                      remaining
-                                    </p>
-                                  )}
-                                </div>
-                              ) : (
-                                <>
-                                  <label
-                                    className={`inline-flex items-center gap-2 rounded-lg border border-primary-200 px-4 py-2 text-xs font-semibold text-primary-700 cursor-pointer hover:bg-primary-50 transition ${uploadingTenantId === tenant._id
-                                      ? "opacity-60 cursor-not-allowed"
-                                      : ""
-                                      }`}
-                                  >
-                                    <Upload className="w-4 h-4" />
-                                    <span>Upload Logo</span>
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      className="hidden"
-                                      onChange={(event) =>
-                                        handleTenantLogoChange(tenant._id, event)
-                                      }
-                                      disabled={uploadingTenantId === tenant._id}
-                                    />
-                                  </label>
-                                  {tenantLogo && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleTenantLogoRemove(tenant._id)
-                                      }
-                                      disabled={uploadingTenantId === tenant._id}
-                                      className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition disabled:opacity-60 disabled:cursor-not-allowed"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                      Remove
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Admin Info */}
-                      <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-xl p-4 mb-6 border border-primary-200">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                              <Users className="w-4 h-4 text-white" />
-                            </div>
-                            <h4 className="text-sm font-semibold text-primary-900">
-                              Administrators ({tenant.adminId?.length || 0})
-                            </h4>
-                          </div>
-                          <button
-                            onClick={() => handleAddAdminClick(tenant._id)}
-                            className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow-sm transition-all"
-                            disabled={showAddAdminForm === tenant._id}
+                            }`}
                           >
-                            <Users className="w-3 h-3" />+ Add Admin
+                            {tenant.isActive ? "Active" : "Inactive"}
+                          </span>
+                          <button
+                            onClick={() =>
+                              handleDeleteTenant(tenant._id, tenant.name)
+                            }
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-transparent hover:border-red-100"
+                            title="Delete tenant completely"
+                          >
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
+                        <span className="text-xs text-neutral-500">
+                          {new Date(tenant.createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
 
-                        <div className="space-y-3">
-                          {/* Add Admin Form */}
-                          {showAddAdminForm === tenant._id && (
-                            <div className="bg-white rounded-lg p-4 border-2 border-primary-300 shadow-md">
-                              <div className="flex items-center justify-between mb-3">
-                                <h5 className="text-sm font-semibold text-primary-900">
-                                  Add New Administrator
-                                </h5>
-                                <button
-                                  onClick={handleCancelAddAdmin}
-                                  className="text-neutral-500 hover:text-neutral-700 transition-colors"
+                    <div className="bg-neutral-50 rounded-xl p-4 mb-6 border border-neutral-200 dark:border-gray-700">
+                      <div className="flex flex-wrap items-center gap-4">
+                        <div className="w-16 h-16 rounded-lg border border-neutral-200 dark:border-gray-700 bg-white dark:bg-gray-900 flex items-center justify-center overflow-hidden">
+                          {tenantLogo ? (
+                            <img
+                              src={tenantLogo}
+                              alt={`${tenant.name} logo preview`}
+                              className="w-full h-full object-contain"
+                            />
+                          ) : (
+                            <ImageIcon className="w-8 h-8 text-neutral-400" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-[200px]">
+                          <p className="text-sm font-medium text-primary-900">
+                            Tenant Logo
+                          </p>
+                          <p className="text-xs text-primary-600 mt-1">
+                            Upload a custom logo to brand this tenant's
+                            workspace. PNG, JPG, or GIF up to 10MB.
+                          </p>
+                          <div className="mt-3 flex flex-wrap items-center gap-3">
+                            {uploadingTenantId === tenant._id &&
+                            uploadProgress[tenant._id] ? (
+                              <div className="w-full space-y-2">
+                                <div className="flex items-center gap-2">
+                                  <Upload className="w-4 h-4 text-primary-600 animate-pulse" />
+                                  <span className="text-xs font-semibold text-primary-700">
+                                    Uploading...{" "}
+                                    {uploadProgress[tenant._id].percentage}%
+                                  </span>
+                                </div>
+                                <div className="w-full bg-neutral-200 rounded-full h-1.5">
+                                  <div
+                                    className="bg-primary-600 h-1.5 rounded-full transition-all duration-300"
+                                    style={{
+                                      width: `${
+                                        uploadProgress[tenant._id].percentage
+                                      }%`,
+                                    }}
+                                  ></div>
+                                </div>
+                                {uploadProgress[tenant._id].timeRemaining && (
+                                  <p className="text-xs text-neutral-500">
+                                    {Math.floor(
+                                      uploadProgress[tenant._id].timeRemaining /
+                                        60,
+                                    )}
+                                    :
+                                    {(
+                                      uploadProgress[tenant._id].timeRemaining %
+                                      60
+                                    )
+                                      .toString()
+                                      .padStart(2, "0")}{" "}
+                                    remaining
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <>
+                                <label
+                                  className={`inline-flex items-center gap-2 rounded-lg border border-primary-200 px-4 py-2 text-xs font-semibold text-primary-700 cursor-pointer hover:bg-primary-50 transition ${
+                                    uploadingTenantId === tenant._id
+                                      ? "opacity-60 cursor-not-allowed"
+                                      : ""
+                                  }`}
                                 >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                                <div>
-                                  <label className="block text-xs font-medium text-primary-700 mb-1">
-                                    First Name *
-                                  </label>
+                                  <Upload className="w-4 h-4" />
+                                  <span>Upload Logo</span>
                                   <input
-                                    type="text"
-                                    value={newAdminData.firstName}
-                                    onChange={(e) =>
-                                      handleNewAdminChange(
-                                        "firstName",
-                                        e.target.value
-                                      )
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(event) =>
+                                      handleTenantLogoChange(tenant._id, event)
                                     }
-                                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                    placeholder="Enter first name"
+                                    disabled={uploadingTenantId === tenant._id}
                                   />
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-medium text-primary-700 mb-1">
-                                    Last Name *
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={newAdminData.lastName}
-                                    onChange={(e) =>
-                                      handleNewAdminChange("lastName", e.target.value)
+                                </label>
+                                {tenantLogo && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleTenantLogoRemove(tenant._id)
                                     }
-                                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                    placeholder="Enter last name"
-                                  />
-                                </div>
-                              </div>
+                                    disabled={uploadingTenantId === tenant._id}
+                                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 transition disabled:opacity-60 disabled:cursor-not-allowed"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                    Remove
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-                              <div className="mb-3">
+                    {/* Admin Info */}
+                    <div className="bg-gradient-to-r from-primary-50 to-primary-100 rounded-xl p-4 mb-6 border border-primary-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+                            <Users className="w-4 h-4 text-white" />
+                          </div>
+                          <h4 className="text-sm font-semibold text-primary-900">
+                            Administrators ({tenant.adminId?.length || 0})
+                          </h4>
+                        </div>
+                        <button
+                          onClick={() => handleAddAdminClick(tenant._id)}
+                          className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold px-3 py-2 rounded-lg shadow-sm transition-all"
+                          disabled={showAddAdminForm === tenant._id}
+                        >
+                          <Users className="w-3 h-3" />+ Add Admin
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {/* Add Admin Form */}
+                        {showAddAdminForm === tenant._id && (
+                          <div className="bg-white rounded-lg p-4 border-2 border-primary-300 shadow-md">
+                            <div className="flex items-center justify-between mb-3">
+                              <h5 className="text-sm font-semibold text-primary-900">
+                                Add New Administrator
+                              </h5>
+                              <button
+                                onClick={handleCancelAddAdmin}
+                                className="text-neutral-500 hover:text-neutral-700 transition-colors"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                              <div>
                                 <label className="block text-xs font-medium text-primary-700 mb-1">
-                                  Email Address *
+                                  First Name *
                                 </label>
                                 <input
-                                  type="email"
-                                  value={newAdminData.email}
+                                  type="text"
+                                  value={newAdminData.firstName}
                                   onChange={(e) =>
-                                    handleNewAdminChange("email", e.target.value)
+                                    handleNewAdminChange(
+                                      "firstName",
+                                      e.target.value,
+                                    )
                                   }
                                   className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                  placeholder="Enter email address"
+                                  placeholder="Enter first name"
                                 />
                               </div>
-
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                                <div>
-                                  <label className="block text-xs font-medium text-primary-700 mb-1">
-                                    Password *
-                                  </label>
-                                  <input
-                                    type="password"
-                                    value={newAdminData.password}
-                                    onChange={(e) =>
-                                      handleNewAdminChange("password", e.target.value)
-                                    }
-                                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                    placeholder="Enter password"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-medium text-primary-700 mb-1">
-                                    Confirm Password *
-                                  </label>
-                                  <input
-                                    type="password"
-                                    value={newAdminData.confirmPassword}
-                                    onChange={(e) =>
-                                      handleNewAdminChange(
-                                        "confirmPassword",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                    placeholder="Confirm password"
-                                  />
-                                </div>
-                              </div>
-
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => handleAddAdminSubmit(tenant._id)}
-                                  disabled={addingAdmin === tenant._id}
-                                  className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-                                >
-                                  {addingAdmin === tenant._id ? (
-                                    <>
-                                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                      Adding...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <UserPlus className="w-4 h-4" />
-                                      Add Administrator
-                                    </>
-                                  )}
-                                </button>
-                                <button
-                                  onClick={handleCancelAddAdmin}
-                                  className="px-4 py-2 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 text-sm font-medium rounded-lg transition-all"
-                                >
-                                  Cancel
-                                </button>
+                              <div>
+                                <label className="block text-xs font-medium text-primary-700 mb-1">
+                                  Last Name *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={newAdminData.lastName}
+                                  onChange={(e) =>
+                                    handleNewAdminChange(
+                                      "lastName",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                  placeholder="Enter last name"
+                                />
                               </div>
                             </div>
-                          )}
 
-                          {!tenant.adminId || tenant.adminId.length === 0 ? (
-                            <p className="text-primary-600 text-sm text-center py-2">
-                              No administrators assigned
-                            </p>
-                          ) : (
-                            tenant.adminId.map((admin) => (
-                              <div
-                                key={admin._id}
-                                className="bg-white rounded-lg p-3 border border-primary-200 shadow-sm"
+                            <div className="mb-3">
+                              <label className="block text-xs font-medium text-primary-700 mb-1">
+                                Email Address *
+                              </label>
+                              <input
+                                type="email"
+                                value={newAdminData.email}
+                                onChange={(e) =>
+                                  handleNewAdminChange("email", e.target.value)
+                                }
+                                className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                placeholder="Enter email address"
+                              />
+                            </div>
+
+                            <div className="mb-3">
+                              <label className="block text-xs font-medium text-primary-700 mb-1">
+                                Mobile Number *
+                              </label>
+                              <div className="flex gap-2">
+                                <div className="relative flex-1">
+                                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-primary-400" />
+                                  <input
+                                    type="tel"
+                                    value={newAdminData.mobile}
+                                    onChange={(e) =>
+                                      handleNewAdminChange(
+                                        "mobile",
+                                        e.target.value,
+                                      )
+                                    }
+                                    disabled={otpSent && !otpVerified}
+                                    className="w-full pl-10 pr-4 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm disabled:bg-gray-50 disabled:cursor-not-allowed"
+                                    placeholder="Enter mobile number"
+                                  />
+                                </div>
+                                {!otpVerified && (
+                                  <button
+                                    type="button"
+                                    onClick={handleSendOtp}
+                                    disabled={
+                                      sendingOtp || !newAdminData.mobile
+                                    }
+                                    className="btn-primary py-2 px-4 shadow-md bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-all flex items-center gap-2 text-xs disabled:opacity-50"
+                                  >
+                                    {sendingOtp ? (
+                                      <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+                                    ) : (
+                                      "Send OTP"
+                                    )}
+                                  </button>
+                                )}
+                                {otpVerified && (
+                                  <div className="flex items-center text-green-600 gap-1 bg-green-50 px-3 py-2 rounded-lg border border-green-200 shadow-sm">
+                                    <CheckCircle className="w-4 h-4" />
+                                    <span className="text-xs font-bold">
+                                      Verified
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {otpSent && !otpVerified && (
+                              <div className="mb-4 p-4 bg-primary-50 border border-primary-100 rounded-xl space-y-3 shadow-sm animate-in fade-in slide-in-from-top-2">
+                                <label className="block text-xs font-semibold text-primary-900">
+                                  Enter 6-Digit OTP
+                                </label>
+                                <div className="flex gap-2 text-center">
+                                  <input
+                                    type="text"
+                                    maxLength={6}
+                                    value={otp}
+                                    onChange={(e) =>
+                                      setOtp(e.target.value.replace(/\D/g, ""))
+                                    }
+                                    className="flex-1 px-4 py-3 border-2 border-primary-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-center text-lg font-bold tracking-[0.5em] shadow-inner"
+                                    placeholder="000000"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={handleVerifyOtp}
+                                    disabled={verifyingOtp || otp.length !== 6}
+                                    className="bg-primary-600 hover:bg-primary-700 text-white font-bold px-6 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-xs"
+                                  >
+                                    {verifyingOtp ? (
+                                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                    ) : (
+                                      "Verify"
+                                    )}
+                                  </button>
+                                </div>
+                                <p className="text-[10px] text-primary-600 text-center font-medium">
+                                  Didn't receive code?{" "}
+                                  <button
+                                    type="button"
+                                    onClick={handleSendOtp}
+                                    className="underline font-bold hover:text-primary-800"
+                                  >
+                                    Resend OTP
+                                  </button>
+                                </p>
+                              </div>
+                            )}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                              <div>
+                                <label className="block text-xs font-medium text-primary-700 mb-1">
+                                  Password *
+                                </label>
+                                <input
+                                  type="password"
+                                  value={newAdminData.password}
+                                  onChange={(e) =>
+                                    handleNewAdminChange(
+                                      "password",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                  placeholder="Enter password"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-primary-700 mb-1">
+                                  Confirm Password *
+                                </label>
+                                <input
+                                  type="password"
+                                  value={newAdminData.confirmPassword}
+                                  onChange={(e) =>
+                                    handleNewAdminChange(
+                                      "confirmPassword",
+                                      e.target.value,
+                                    )
+                                  }
+                                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                  placeholder="Confirm password"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleAddAdminSubmit(tenant._id)}
+                                disabled={
+                                  addingAdmin === tenant._id || !otpVerified
+                                }
+                                className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60"
                               >
-                                {/* Edit Admin Form */}
-                                {editingAdmin &&
-                                  editingAdmin.admin._id === admin._id ? (
-                                  <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                      <h5 className="text-sm font-semibold text-primary-900">
-                                        Edit Administrator
-                                      </h5>
-                                      <button
-                                        onClick={handleCancelEdit}
-                                        className="text-neutral-500 hover:text-neutral-700 transition-colors"
-                                      >
-                                        <X className="w-4 h-4" />
-                                      </button>
-                                    </div>
+                                {addingAdmin === tenant._id ? (
+                                  <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                    Adding...
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserPlus className="w-4 h-4" />
+                                    Add Administrator
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                onClick={handleCancelAddAdmin}
+                                className="px-4 py-2 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 text-sm font-medium rounded-lg transition-all"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                      <div>
-                                        <label className="block text-xs font-medium text-primary-700 mb-1">
-                                          First Name *
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={editAdminData.firstName}
-                                          onChange={(e) =>
-                                            handleEditAdminChange(
-                                              "firstName",
-                                              e.target.value
-                                            )
-                                          }
-                                          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                          placeholder="Enter first name"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs font-medium text-primary-700 mb-1">
-                                          Last Name *
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={editAdminData.lastName}
-                                          onChange={(e) =>
-                                            handleEditAdminChange(
-                                              "lastName",
-                                              e.target.value
-                                            )
-                                          }
-                                          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                          placeholder="Enter last name"
-                                        />
-                                      </div>
-                                    </div>
+                        {!tenant.adminId || tenant.adminId.length === 0 ? (
+                          <p className="text-primary-600 text-sm text-center py-2">
+                            No administrators assigned
+                          </p>
+                        ) : (
+                          tenant.adminId.map((admin) => (
+                            <div
+                              key={admin._id}
+                              className="bg-white rounded-lg p-3 border border-primary-200 shadow-sm"
+                            >
+                              {/* Edit Admin Form */}
+                              {editingAdmin &&
+                              editingAdmin.admin._id === admin._id ? (
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <h5 className="text-sm font-semibold text-primary-900">
+                                      Edit Administrator
+                                    </h5>
+                                    <button
+                                      onClick={handleCancelEdit}
+                                      className="text-neutral-500 hover:text-neutral-700 transition-colors"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
 
-                                    <div className="mb-3">
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div>
                                       <label className="block text-xs font-medium text-primary-700 mb-1">
-                                        Email Address *
+                                        First Name *
                                       </label>
                                       <input
-                                        type="email"
-                                        value={editAdminData.email}
+                                        type="text"
+                                        value={editAdminData.firstName}
                                         onChange={(e) =>
                                           handleEditAdminChange(
-                                            "email",
-                                            e.target.value
+                                            "firstName",
+                                            e.target.value,
                                           )
                                         }
                                         className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                        placeholder="Enter email address"
+                                        placeholder="Enter first name"
                                       />
                                     </div>
-
-                                    <div className="flex gap-2">
-                                      <button
-                                        onClick={handleEditAdminSubmit}
-                                        disabled={updatingAdmin === admin._id}
-                                        className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-                                      >
-                                        {updatingAdmin === admin._id ? (
-                                          <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                            Updating...
-                                          </>
-                                        ) : (
-                                          <>
-                                            <svg
-                                              className="w-4 h-4"
-                                              fill="none"
-                                              stroke="currentColor"
-                                              viewBox="0 0 24 24"
-                                            >
-                                              <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M5 13l4 4L19 7"
-                                              />
-                                            </svg>
-                                            Update Admin
-                                          </>
-                                        )}
-                                      </button>
-                                      <button
-                                        onClick={handleCancelEdit}
-                                        className="px-4 py-2 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 text-sm font-medium rounded-lg transition-all"
-                                      >
-                                        Cancel
-                                      </button>
+                                    <div>
+                                      <label className="block text-xs font-medium text-primary-700 mb-1">
+                                        Last Name *
+                                      </label>
+                                      <input
+                                        type="text"
+                                        value={editAdminData.lastName}
+                                        onChange={(e) =>
+                                          handleEditAdminChange(
+                                            "lastName",
+                                            e.target.value,
+                                          )
+                                        }
+                                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                        placeholder="Enter last name"
+                                      />
                                     </div>
                                   </div>
-                                ) : (
-                                  /* Admin Display */
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex-1">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <p className="text-sm font-semibold text-primary-900">
-                                          {admin.firstName} {admin.lastName}
-                                        </p>
-                                        <span
-                                          className={`px-2 py-1 rounded-full text-xs font-semibold ${admin.role === "superadmin"
+
+                                  <div className="mb-3">
+                                    <label className="block text-xs font-medium text-primary-700 mb-1">
+                                      Email Address *
+                                    </label>
+                                    <input
+                                      type="email"
+                                      value={editAdminData.email}
+                                      onChange={(e) =>
+                                        handleEditAdminChange(
+                                          "email",
+                                          e.target.value,
+                                        )
+                                      }
+                                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                      placeholder="Enter email address"
+                                    />
+                                  </div>
+
+                                  <div className="flex gap-2">
+                                    <button
+                                      onClick={handleEditAdminSubmit}
+                                      disabled={updatingAdmin === admin._id}
+                                      className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+                                    >
+                                      {updatingAdmin === admin._id ? (
+                                        <>
+                                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                          Updating...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <svg
+                                            className="w-4 h-4"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M5 13l4 4L19 7"
+                                            />
+                                          </svg>
+                                          Update Admin
+                                        </>
+                                      )}
+                                    </button>
+                                    <button
+                                      onClick={handleCancelEdit}
+                                      className="px-4 py-2 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 text-sm font-medium rounded-lg transition-all"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                /* Admin Display */
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <p className="text-sm font-semibold text-primary-900">
+                                        {admin.firstName} {admin.lastName}
+                                      </p>
+                                      <span
+                                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                          admin.role === "superadmin"
                                             ? "bg-purple-100 text-purple-700 border border-purple-200"
                                             : "bg-blue-100 text-blue-700 border border-blue-200"
-                                            }`}
-                                        >
-                                          {admin.role}
-                                        </span>
-                                      </div>
-                                      <p className="text-sm text-primary-600 font-medium mb-1">
-                                        {admin.email}
-                                      </p>
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <button
-                                          onClick={() =>
-                                            handleToggleAdminStatus(tenant._id, admin)
-                                          }
-                                          disabled={updatingAdmin === admin._id}
-                                          className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer disabled:opacity-60 ${admin.isActive
-                                            ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
-                                            : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
-                                            }`}
-                                        >
-                                          {updatingAdmin === admin._id ? (
-                                            <span className="inline-block animate-spin">⟳</span>
-                                          ) : (
-                                            admin.isActive ? "Active" : "Inactive"
-                                          )}
-                                        </button>
-                                        {admin.lastLogin && (
-                                          <>
-                                            <span className="text-xs text-primary-400">
-                                              •
-                                            </span>
-                                            <span className="text-xs text-primary-600">
-                                              Last login:{" "}
-                                              {new Date(
-                                                admin.lastLogin
-                                              ).toLocaleDateString()}
-                                            </span>
-                                          </>
-                                        )}
-                                      </div>
+                                        }`}
+                                      >
+                                        {admin.role}
+                                      </span>
                                     </div>
-                                    <div className="flex items-center gap-1 ml-2">
+                                    <p className="text-sm text-primary-600 font-medium mb-1">
+                                      {admin.email}
+                                    </p>
+                                    <div className="flex items-center gap-2 flex-wrap">
                                       <button
                                         onClick={() =>
-                                          handleEditAdminClick(tenant._id, admin)
+                                          handleToggleAdminStatus(
+                                            tenant._id,
+                                            admin,
+                                          )
                                         }
-                                        className="p-1 text-primary-600 hover:text-primary-800 transition-colors"
-                                        title="Edit Admin"
-                                        disabled={!!editingAdmin}
+                                        disabled={updatingAdmin === admin._id}
+                                        className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer disabled:opacity-60 ${
+                                          admin.isActive
+                                            ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
+                                            : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
+                                        }`}
                                       >
-                                        <svg
-                                          className="w-4 h-4"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          viewBox="0 0 24 24"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth={2}
-                                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                          />
-                                        </svg>
+                                        {updatingAdmin === admin._id ? (
+                                          <span className="inline-block animate-spin">
+                                            ⟳
+                                          </span>
+                                        ) : admin.isActive ? (
+                                          "Active"
+                                        ) : (
+                                          "Inactive"
+                                        )}
                                       </button>
-                                      {tenant.adminId && tenant.adminId.length > 1 && (
+                                      {admin.lastLogin && (
+                                        <>
+                                          <span className="text-xs text-primary-400">
+                                            •
+                                          </span>
+                                          <span className="text-xs text-primary-600">
+                                            Last login:{" "}
+                                            {new Date(
+                                              admin.lastLogin,
+                                            ).toLocaleDateString()}
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 ml-2">
+                                    <button
+                                      onClick={() =>
+                                        handleEditAdminClick(tenant._id, admin)
+                                      }
+                                      className="p-1 text-primary-600 hover:text-primary-800 transition-colors"
+                                      title="Edit Admin"
+                                      disabled={!!editingAdmin}
+                                    >
+                                      <svg
+                                        className="w-4 h-4"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          strokeWidth={2}
+                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                        />
+                                      </svg>
+                                    </button>
+                                    {tenant.adminId &&
+                                      tenant.adminId.length > 1 && (
                                         <button
                                           onClick={() =>
                                             handleDeleteAdmin(
                                               tenant._id,
                                               admin._id,
-                                              `${admin.firstName} ${admin.lastName}`
+                                              `${admin.firstName} ${admin.lastName}`,
                                             )
                                           }
                                           disabled={
@@ -1126,182 +1314,178 @@ export default function TenantManagement() {
                                           )}
                                         </button>
                                       )}
-                                    </div>
                                   </div>
-                                )}
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Subscription Info */}
-                      <div className="mb-6">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                            <FileText className="w-4 h-4 text-green-600" />
-                          </div>
-                          <h4 className="text-sm font-semibold text-primary-900">
-                            Subscription Details
-                          </h4>
-                        </div>
-                        <div className="grid grid-cols-3 gap-3">
-                          <div className="text-center p-4 bg-gradient-to-br from-neutral-50 to-neutral-100 rounded-xl border border-neutral-200 dark:border-gray-700">
-                            <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1">
-                              Plan
-                            </p>
-                            <p className="text-lg font-bold text-primary-900 capitalize">
-                              {tenant.subscription.plan}
-                            </p>
-                          </div>
-                          <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
-                            <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">
-                              Max Users
-                            </p>
-                            <p className="text-lg font-bold text-blue-900">
-                              {tenant.subscription.maxUsers}
-                            </p>
-                          </div>
-                          <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
-                            <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">
-                              Max Forms
-                            </p>
-                            <p className="text-lg font-bold text-green-900">
-                              {tenant.subscription.maxForms}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => handleViewDetails(tenant)}
-                          className="flex-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold px-4 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
-                        >
-                          <Eye className="w-4 h-4" />
-                          <span>View Details</span>
-                        </button>
-                        <button
-                          onClick={() => handleToggleStatus(tenant._id)}
-                          className={`px-4 py-3 rounded-xl font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center ${tenant.isActive
-                            ? "bg-red-100 text-red-700 hover:bg-red-200 border border-red-200"
-                            : "bg-green-100 text-green-700 hover:bg-green-200 border border-green-200"
-                            }`}
-                          title={
-                            tenant.isActive ? "Deactivate tenant" : "Activate tenant"
-                          }
-                        >
-                          <Power className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )
-          }
-
-          {/* Modals */}
-          {
-            showTenantModal && (
-              <CreateTenantModal
-                onClose={() => setShowTenantModal(false)}
-                onSuccess={handleTenantCreated}
-              />
-            )
-          }
-
-          {
-            showDetailsModal && selectedTenant && (
-              <TenantDetailsModal
-                tenant={selectedTenant}
-                onClose={() => {
-                  setShowDetailsModal(false);
-                  setSelectedTenant(null);
-                }}
-                onUpdate={fetchTenants}
-              />
-            )
-          }
-
-          {/* Delete Confirmation Modal */}
-          {
-            showDeleteModal && tenantToDelete && (
-              <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-                <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform animate-in zoom-in-95 duration-200 border border-red-100 dark:border-red-900/30">
-                  <div className="p-6">
-                    <div className="flex items-center gap-4 mb-6">
-                      <div className="w-14 h-14 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center flex-shrink-0">
-                        <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
-                      </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                          Confirm Deletion
-                        </h3>
-                        <p className="text-red-600 dark:text-red-400 text-sm font-medium">
-                          This action is permanent
-                        </p>
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        )}
                       </div>
                     </div>
 
-                    <div className="space-y-4 mb-8">
-                      <p className="text-gray-600 dark:text-gray-400 text-base leading-relaxed">
-                        Are you sure you want to completely delete{" "}
-                        <span className="font-bold text-gray-900 dark:text-white px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
-                          {tenantToDelete.name}
-                        </span>
-                        ?
-                      </p>
-
-                      <div className="bg-red-50 dark:bg-red-900/10 rounded-xl p-4 border border-red-100 dark:border-red-900/20">
-                        <h4 className="text-sm font-bold text-red-800 dark:text-red-300 mb-2 flex items-center gap-2">
-                          <Trash2 className="w-4 h-4" />
-                          Items to be removed:
+                    {/* Subscription Info */}
+                    <div className="mb-6">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                          <FileText className="w-4 h-4 text-green-600" />
+                        </div>
+                        <h4 className="text-sm font-semibold text-primary-900">
+                          Subscription Details
                         </h4>
-                        <ul className="text-xs text-red-700 dark:text-red-400 space-y-1 ml-6 list-disc">
-                          <li>All tenant users and their profile data</li>
-                          <li>All forms and follow-up structures</li>
-                          <li>All responses and analytics data</li>
-                          <li>All associated parameters and invites</li>
-                        </ul>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="text-center p-4 bg-gradient-to-br from-neutral-50 to-neutral-100 rounded-xl border border-neutral-200 dark:border-gray-700">
+                          <p className="text-xs font-semibold text-neutral-600 uppercase tracking-wide mb-1">
+                            Plan
+                          </p>
+                          <p className="text-lg font-bold text-primary-900 capitalize">
+                            {tenant.subscription.plan}
+                          </p>
+                        </div>
+                        <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                          <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-1">
+                            Max Users
+                          </p>
+                          <p className="text-lg font-bold text-blue-900">
+                            {tenant.subscription.maxUsers}
+                          </p>
+                        </div>
+                        <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
+                          <p className="text-xs font-semibold text-green-600 uppercase tracking-wide mb-1">
+                            Max Forms
+                          </p>
+                          <p className="text-lg font-bold text-green-900">
+                            {tenant.subscription.maxForms}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-3">
+                    {/* Actions */}
+                    <div className="flex items-center gap-3">
                       <button
-                        onClick={() => {
-                          setShowDeleteModal(false);
-                          setTenantToDelete(null);
-                        }}
-                        disabled={isDeleting}
-                        className="flex-1 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition-all disabled:opacity-50"
+                        onClick={() => handleViewDetails(tenant)}
+                        className="flex-1 bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 text-white font-semibold px-4 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2"
                       >
-                        Cancel
+                        <Eye className="w-4 h-4" />
+                        <span>View Details</span>
                       </button>
                       <button
-                        onClick={confirmDeleteTenant}
-                        disabled={isDeleting}
-                        className="flex-1 px-4 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-200 dark:shadow-none transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        onClick={() => handleToggleStatus(tenant._id)}
+                        className={`px-4 py-3 rounded-xl font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center ${
+                          tenant.isActive
+                            ? "bg-red-100 text-red-700 hover:bg-red-200 border border-red-200"
+                            : "bg-green-100 text-green-700 hover:bg-green-200 border border-green-200"
+                        }`}
+                        title={
+                          tenant.isActive
+                            ? "Deactivate tenant"
+                            : "Activate tenant"
+                        }
                       >
-                        {isDeleting ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                            Deleting...
-                          </>
-                        ) : (
-                          <>
-                            <Trash2 className="w-4 h-4" />
-                            Delete Tenant
-                          </>
-                        )}
+                        <Power className="w-5 h-5" />
                       </button>
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Modals */}
+          {showTenantModal && (
+            <CreateTenantModal
+              onClose={() => setShowTenantModal(false)}
+              onSuccess={handleTenantCreated}
+            />
+          )}
+
+          {showDetailsModal && selectedTenant && (
+            <TenantDetailsModal
+              tenant={selectedTenant}
+              onClose={() => {
+                setShowDetailsModal(false);
+                setSelectedTenant(null);
+              }}
+              onUpdate={fetchTenants}
+            />
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {showDeleteModal && tenantToDelete && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden transform animate-in zoom-in-95 duration-200 border border-red-100 dark:border-red-900/30">
+                <div className="p-6">
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-14 h-14 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center flex-shrink-0">
+                      <AlertTriangle className="w-8 h-8 text-red-600 dark:text-red-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                        Confirm Deletion
+                      </h3>
+                      <p className="text-red-600 dark:text-red-400 text-sm font-medium">
+                        This action is permanent
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 mb-8">
+                    <p className="text-gray-600 dark:text-gray-400 text-base leading-relaxed">
+                      Are you sure you want to completely delete{" "}
+                      <span className="font-bold text-gray-900 dark:text-white px-2 py-0.5 bg-gray-100 dark:bg-gray-800 rounded">
+                        {tenantToDelete.name}
+                      </span>
+                      ?
+                    </p>
+
+                    <div className="bg-red-50 dark:bg-red-900/10 rounded-xl p-4 border border-red-100 dark:border-red-900/20">
+                      <h4 className="text-sm font-bold text-red-800 dark:text-red-300 mb-2 flex items-center gap-2">
+                        <Trash2 className="w-4 h-4" />
+                        Items to be removed:
+                      </h4>
+                      <ul className="text-xs text-red-700 dark:text-red-400 space-y-1 ml-6 list-disc">
+                        <li>All tenant users and their profile data</li>
+                        <li>All forms and follow-up structures</li>
+                        <li>All responses and analytics data</li>
+                        <li>All associated parameters and invites</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={() => {
+                        setShowDeleteModal(false);
+                        setTenantToDelete(null);
+                      }}
+                      disabled={isDeleting}
+                      className="flex-1 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 transition-all disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmDeleteTenant}
+                      disabled={isDeleting}
+                      className="flex-1 px-4 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold shadow-lg shadow-red-200 dark:shadow-none transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isDeleting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="w-4 h-4" />
+                          Delete Tenant
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
-            )
-          }
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -1,20 +1,23 @@
-import React, { useState } from 'react';
-import { Camera, Upload } from 'lucide-react';
-import type { StaffMember } from '../../../types';
-import { generateUserId, generateSecurePassword } from '../../../utils/staffUtils';
+import React, { useState } from "react";
+import { Camera, Upload } from "lucide-react";
+import type { StaffMember } from "../../../types";
+import {
+  generateUserId,
+  generateSecurePassword,
+} from "../../../utils/staffUtils";
 
 interface StaffFormProps {
-  onSubmit: (data: Omit<StaffMember, 'id'>) => void;
+  onSubmit: (data: Omit<StaffMember, "id">) => void;
   onCancel: () => void;
 }
 
 export default function StaffForm({ onSubmit, onCancel }: StaffFormProps) {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    mobile: '',
-    role: 'viewer' as StaffMember['role'],
-    profilePic: '',
+    name: "",
+    email: "",
+    mobile: "",
+    role: "viewer" as StaffMember["role"],
+    profilePic: "",
   });
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -22,7 +25,10 @@ export default function StaffForm({ onSubmit, onCancel }: StaffFormProps) {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, profilePic: reader.result as string }));
+        setFormData((prev) => ({
+          ...prev,
+          profilePic: reader.result as string,
+        }));
       };
       reader.readAsDataURL(file);
     }
@@ -30,7 +36,7 @@ export default function StaffForm({ onSubmit, onCancel }: StaffFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Generate userId and password
     const userId = generateUserId();
     const password = generateSecurePassword();
@@ -77,7 +83,9 @@ export default function StaffForm({ onSubmit, onCancel }: StaffFormProps) {
           <input
             type="text"
             value={formData.name}
-            onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, name: e.target.value }))
+            }
             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="Enter full name"
             required
@@ -91,7 +99,9 @@ export default function StaffForm({ onSubmit, onCancel }: StaffFormProps) {
           <input
             type="email"
             value={formData.email}
-            onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, email: e.target.value }))
+            }
             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="Enter email address"
             required
@@ -105,7 +115,9 @@ export default function StaffForm({ onSubmit, onCancel }: StaffFormProps) {
           <input
             type="tel"
             value={formData.mobile}
-            onChange={(e) => setFormData(prev => ({ ...prev, mobile: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, mobile: e.target.value }))
+            }
             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="Enter mobile number"
             required
@@ -118,12 +130,19 @@ export default function StaffForm({ onSubmit, onCancel }: StaffFormProps) {
           </label>
           <select
             value={formData.role}
-            onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value as StaffMember['role'] }))}
+            onChange={(e) =>
+              setFormData((prev) => ({
+                ...prev,
+                role: e.target.value as StaffMember["role"],
+              }))
+            }
             className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             required
           >
             <option value="viewer">Viewer</option>
             <option value="editor">Editor</option>
+            <option value="subadmin">Subadmin</option>
+            <option value="inspector">Inspector</option>
             <option value="admin">Admin</option>
           </select>
         </div>

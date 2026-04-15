@@ -34,6 +34,9 @@ import GlobalFormManagement from "./components/superadmin/GlobalFormManagement";
 import AdminManagement from "./components/admin/AdminManagement";
 import UserActivityLogs from "./components/admin/UserActivityLogs";
 import Attendance from "./components/admin/Attendance";
+import HRAttendance from "./components/admin/HRAttendance";
+import ShiftManagement from "./components/admin/ShiftManagement";
+import AttendanceDashboard from "./components/inspectors/AttendanceDashboard";
 import LoginPage from "./components/auth/LoginPage";
 import SignupPage from "./components/auth/SignupPage";
 import FreeTrialManagement from "./components/superadmin/FreeTrialManagement";
@@ -43,6 +46,8 @@ import Sidebar from "./components/layout/Sidebar";
 import ResponseDetailsPage from "./components/ResponseDetailsPage";
 import InviteStatusPage from "./components/InviteStatusPage";
 import ErrorPage from "./components/ErrorPage";
+import LeaveManagement from "./components/hr/LeaveManagement";
+import PermissionManagement from "./components/hr/PermissionManagement";
 
 const ROUTE_PERMISSIONS = {
   DASHBOARD: "dashboard:view",
@@ -68,7 +73,6 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
   useActivityTracker(isAuthenticated);
-
 
   return (
     <div
@@ -117,9 +121,16 @@ function AccessControl({
 }
 
 function RootRedirect() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
-  return <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+
+  // Default landing pages by role
+  if (user?.role === "inspector") {
+    return <Navigate to="/attendance-dashboard" replace />;
+  }
+
+  return <Navigate to="/dashboard" replace />;
 }
 
 function RootShell() {
@@ -139,7 +150,7 @@ const withAuthenticatedLayout = (node: React.ReactNode) => (
 
 const withAccessControl = (
   node: React.ReactNode,
-  options?: { allowedRoles?: string[]; requiredPermission?: string }
+  options?: { allowedRoles?: string[]; requiredPermission?: string },
 ) =>
   withAuthenticatedLayout(<AccessControl {...options}>{node}</AccessControl>);
 
@@ -187,13 +198,13 @@ const router = createBrowserRouter(
         {
           path: "/forms/followup/management",
           element: withAuthenticatedLayout(
-            <FollowUpFormManager onFormCreated={() => {}} />
+            <FollowUpFormManager onFormCreated={() => {}} />,
           ),
         },
         {
           path: "/forms/followup/create",
           element: withAuthenticatedLayout(
-            <FormWithFollowUpCreator onFormCreated={() => {}} />
+            <FormWithFollowUpCreator onFormCreated={() => {}} />,
           ),
         },
         {
@@ -250,7 +261,7 @@ const router = createBrowserRouter(
             allowedRoles: ["admin"],
           }),
         },
-         {
+        {
           path: "/admin/activity-logs",
           element: withAccessControl(<UserActivityLogs />, {
             allowedRoles: ["admin", "superadmin"],
@@ -260,6 +271,36 @@ const router = createBrowserRouter(
           path: "/admin/attendance",
           element: withAccessControl(<Attendance />, {
             allowedRoles: ["admin", "superadmin", "subadmin"],
+          }),
+        },
+        {
+          path: "/hr-attendance",
+          element: withAccessControl(<HRAttendance />, {
+            allowedRoles: ["admin", "subadmin"],
+          }),
+        },
+        {
+          path: "/shifts",
+          element: withAccessControl(<ShiftManagement />, {
+            allowedRoles: ["admin", "subadmin"],
+          }),
+        },
+        {
+          path: "/attendance-dashboard",
+          element: withAccessControl(<AttendanceDashboard />, {
+            allowedRoles: ["inspector"],
+          }),
+        },
+        {
+          path: "/hr/leaves",
+          element: withAccessControl(<LeaveManagement />, {
+            allowedRoles: ["admin", "inspector", "subadmin"],
+          }),
+        },
+        {
+          path: "/hr/permissions",
+          element: withAccessControl(<PermissionManagement />, {
+            allowedRoles: ["admin", "inspector", "subadmin"],
           }),
         },
         {
@@ -292,7 +333,7 @@ const router = createBrowserRouter(
       v7_startTransition: true,
       v7_relativeSplatPath: true,
     },
-  }
+  },
 );
 
 export default function App() {

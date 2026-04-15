@@ -161,7 +161,7 @@ describe("AdminManagement", () => {
     fireEvent.change(screen.getByPlaceholderText("Username"), {
       target: { value: "newadmin" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Temporary password"), {
+    fireEvent.change(screen.getByPlaceholderText("Temporary Password"), {
       target: { value: "Pass123!" },
     });
 
@@ -177,7 +177,7 @@ describe("AdminManagement", () => {
     fireEvent.click(dashboardCheckbox);
     fireEvent.click(customerRequestsCheckbox);
 
-    fireEvent.click(screen.getByRole("button", { name: "Add sub-admin" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add User" }));
 
     await waitFor(() => expect(mockedApiClient.createUser).toHaveBeenCalled());
 

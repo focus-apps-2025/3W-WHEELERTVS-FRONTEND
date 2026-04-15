@@ -3,9 +3,16 @@ import { LayoutDashboard, FileText, ListTodo, BarChart2, Settings } from 'lucide
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
+const MODULE_PERMISSIONS = {
+  DASHBOARD: "dashboard:view",
+  ANALYTICS: "analytics:view",
+  CUSTOMER_REQUESTS: "requests:view",
+  REQUEST_MANAGEMENT: "requests:manage",
+} as const;
+
 export default function MenuBar() {
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   
   const publicMenuItems = [
     {
@@ -22,12 +29,14 @@ export default function MenuBar() {
       icon: LayoutDashboard,
       path: '/dashboard',
       description: 'View analytics and form statistics',
+      permission: MODULE_PERMISSIONS.DASHBOARD,
     },
     {
       title: 'Forms Analytics',
       icon: BarChart2,
       path: '/forms/analytics',
       description: 'Detailed form analytics and insights',
+      permission: MODULE_PERMISSIONS.ANALYTICS,
     },
     {
       title: 'Forms Preview',
@@ -40,16 +49,41 @@ export default function MenuBar() {
       icon: ListTodo,
       path: '/forms/management',
       description: 'Manage and organize your forms',
+      permission: MODULE_PERMISSIONS.REQUEST_MANAGEMENT,
     },
     {
       title: 'System Management',
       icon: Settings,
       path: '/system/management',
       description: 'Configure system settings and preferences',
+      roles: ['admin', 'superadmin'],
     },
   ];
 
-  const menuItems = isAuthenticated ? authenticatedMenuItems : publicMenuItems;
+  const menuItems = (() => {
+    if (!isAuthenticated || !user) {
+      return publicMenuItems;
+    }
+
+    if (user.role === 'superadmin' || user.role === 'admin') {
+      return authenticatedMenuItems;
+    }
+
+    const permissionSet = new Set(user.permissions || []);
+    return authenticatedMenuItems.filter(item => {
+      // If item has role restrictions, check them
+      if ('roles' in item && item.roles && !item.roles.includes(user.role)) {
+        return false;
+      }
+
+      // If item has permission requirements, check them
+      if ('permission' in item && item.permission) {
+        return permissionSet.has(item.permission);
+      }
+
+      return true;
+    });
+  })();
 
   return (
     <div className="fixed left-0 top-16 h-full w-16 lg:w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 z-10">

@@ -97,6 +97,7 @@ export default function Sidebar() {
       path: "/dashboard",
       description: "View shop analytics and service statistics",
       permission: MODULE_PERMISSIONS.DASHBOARD,
+      roles: ["admin", "inspector"],
     },
     {
       title: "Service Analytics",
@@ -104,6 +105,7 @@ export default function Sidebar() {
       path: "/forms/analytics",
       description: "Detailed service analytics and insights",
       permission: MODULE_PERMISSIONS.ANALYTICS,
+      roles: ["admin", "inspector"],
     },
     {
       title: "Customer Requests",
@@ -118,6 +120,7 @@ export default function Sidebar() {
       path: "/forms/management",
       description: "Manage and organize service requests",
       permission: MODULE_PERMISSIONS.REQUEST_MANAGEMENT,
+      roles: ["admin", "inspector"],
     },
     {
       title: "Email System",
@@ -163,14 +166,14 @@ export default function Sidebar() {
         return true;
       }
 
-      if (user.role === "admin") {
+      if (user.role === "admin" || user.role === "inspector") {
         return true;
       }
 
       return permissionSet.has(item.permission);
     });
 
-    if (user.role === "admin") {
+    if (user.role === "admin" || user.role === "inspector") {
       filteredItems.push(adminManagementMenuItem);
     }
 
@@ -217,7 +220,9 @@ export default function Sidebar() {
               </>
             ) : (
               <>
-                <FileText className={`${isCollapsed ? "w-6 h-6" : "w-8 h-8"} text-white`} />
+                <FileText
+                  className={`${isCollapsed ? "w-6 h-6" : "w-8 h-8"} text-white`}
+                />
                 {!isCollapsed && (
                   <span className="ml-3 text-lg font-medium text-white">
                     Focus Form
@@ -262,7 +267,9 @@ export default function Sidebar() {
                 >
                   <Icon className="w-5 h-5 flex-shrink-0 text-white" />
                   {!isCollapsed && (
-                    <span className="ml-3 font-medium text-white">{item.title}</span>
+                    <span className="ml-3 font-medium text-white">
+                      {item.title}
+                    </span>
                   )}
 
                   {/* Tooltip for collapsed state */}

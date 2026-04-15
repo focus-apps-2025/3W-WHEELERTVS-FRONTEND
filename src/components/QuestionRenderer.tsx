@@ -292,6 +292,7 @@ export default function QuestionRenderer({
             tenantSlug,
           );
           if (response && Array.isArray(response.answers)) {
+            // Filter out empty or null answers
             const filteredAnswers = response.answers.filter(
               (a) => a !== null && a !== undefined && (typeof a === "string" ? a.trim() !== "" : true),
             );
@@ -398,7 +399,7 @@ export default function QuestionRenderer({
 
   const renderSuggestions = () => {
     if (readOnly || !shouldShowMatchInfo) return null;
-    
+
     // Inline suggestions (Rank History and Common Answers) should show
     // if we have matches from the "Track Rank" fetch (form-wide fetch)
     // OR if we have matches from "Track Question" question-wise fetch.
@@ -474,6 +475,8 @@ export default function QuestionRenderer({
       ? "bg-slate-900/50 border-slate-800 focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10"
       : "bg-white/50 border-slate-200 focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/10";
   };
+
+
 
   const renderInput = () => {
     const effectiveType = question.type;
@@ -1189,23 +1192,19 @@ export default function QuestionRenderer({
                             if (zoneData.categories && Array.isArray(zoneData.categories)) {
                               zoneData.categories.forEach((cat: any) => {
                                 if (cat.defects && Array.isArray(cat.defects) && cat.defects.length > 0) {
-                                  const defectNames = cat.defects.map((d: any) => d.name).filter(Boolean);
-                                  if (defectNames.length > 0) {
-                                    parts.push(`${zoneName} > ${cat.name}: ${defectNames.join(', ')}`);
-                                  }
+                                  parts.push(`${zoneName} - ${cat.name}: ${cat.defects.join(', ')}`);
                                 }
                               });
                             }
                           });
-                        } else {
-                          // Fallback to flat defectCategory and defects if no zonesData
-                          if (val.defectCategory) {
-                            const cats = Array.isArray(val.defectCategory) ? val.defectCategory : [val.defectCategory];
-                            if (cats.length > 0) parts.push(`Cat: ${cats.join(', ')}`);
-                          }
-                          if (val.defects && Array.isArray(val.defects) && val.defects.length > 0) {
-                            parts.push(`Defects: ${val.defects.join(', ')}`);
-                          }
+                        }
+
+                        if (val.defectCategory) {
+                          const cats = Array.isArray(val.defectCategory) ? val.defectCategory : [val.defectCategory];
+                          if (cats.length > 0) parts.push(`Cat: ${cats.join(', ')}`);
+                        }
+                        if (val.defects && Array.isArray(val.defects) && val.defects.length > 0) {
+                          parts.push(`Defects: ${val.defects.join(', ')}`);
                         }
                         
                         if (parts.length > 0) return parts.join(" | ");

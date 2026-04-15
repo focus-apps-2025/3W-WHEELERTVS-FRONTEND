@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../api/client";
-import { Clock, Search, Download, MapPin, Users as UsersIcon, Building } from "lucide-react";
+import {
+  Clock,
+  Search,
+  Download,
+  MapPin,
+  Users as UsersIcon,
+  Building,
+} from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface UserActivityLog {
@@ -77,7 +84,8 @@ export default function UserActivityLogs() {
   const filteredLogs = logs.filter((log) => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
-    const name = `${log.userId?.firstName} ${log.userId?.lastName}`.toLowerCase();
+    const name =
+      `${log.userId?.firstName} ${log.userId?.lastName}`.toLowerCase();
     const email = log.userId?.email?.toLowerCase() || "";
     return name.includes(q) || email.includes(q);
   });
@@ -94,13 +102,17 @@ export default function UserActivityLogs() {
     if (activeTab === "logs") {
       const exportData = filteredLogs.map((log) => ({
         "User Name": `${log.userId?.firstName || ""} ${log.userId?.lastName || ""}`,
-        "Email": log.userId?.email || "",
-        "Role": log.userId?.role || "",
-        "Tenant": log.tenantId?.name || "N/A",
+        Email: log.userId?.email || "",
+        Role: log.userId?.role || "",
+        Tenant: log.tenantId?.name || "N/A",
         "Login Time": new Date(log.loginTime).toLocaleString(),
-        "Logout Time": log.logoutTime ? new Date(log.logoutTime).toLocaleString() : "Active Session",
+        "Logout Time": log.logoutTime
+          ? new Date(log.logoutTime).toLocaleString()
+          : "Active Session",
         "Location Status": log.location?.status || "unknown",
-        "Coordinates": log.location?.latitude ? `${log.location.latitude}, ${log.location.longitude}` : "N/A"
+        Coordinates: log.location?.latitude
+          ? `${log.location.latitude}, ${log.location.longitude}`
+          : "N/A",
       }));
 
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -110,9 +122,9 @@ export default function UserActivityLogs() {
     } else {
       const exportData = filteredHierarchy.map((u) => ({
         "User Name": `${u.firstName} ${u.lastName}`,
-        "Email": u.email,
-        "Role": u.role,
-        "Tenant": u.tenantId?.name || "N/A"
+        Email: u.email,
+        Role: u.role,
+        Tenant: u.tenantId?.name || "N/A",
       }));
 
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -188,28 +200,48 @@ export default function UserActivityLogs() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
-                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">User</th>
-                  {isSuperAdmin && <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">Tenant</th>}
-                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">Login Time</th>
-                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">Logout Time</th>
-                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">Location</th>
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                    User
+                  </th>
+                  {isSuperAdmin && (
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                      Tenant
+                    </th>
+                  )}
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                    Login Time
+                  </th>
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                    Logout Time
+                  </th>
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                    Location
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredLogs.length === 0 ? (
                   <tr>
-                    <td colSpan={isSuperAdmin ? 5 : 4} className="py-8 text-center text-gray-500">
+                    <td
+                      colSpan={isSuperAdmin ? 5 : 4}
+                      className="py-8 text-center text-gray-500"
+                    >
                       No logs found.
                     </td>
                   </tr>
                 ) : (
                   filteredLogs.map((log) => (
-                    <tr key={log._id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <tr
+                      key={log._id}
+                      className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    >
                       <td className="py-3 px-4">
                         <div className="font-medium text-gray-900 dark:text-white">
                           {log.userId?.firstName} {log.userId?.lastName}
                         </div>
-                        <div className="text-xs text-gray-500">{log.userId?.role}</div>
+                        <div className="text-xs text-gray-500">
+                          {log.userId?.role}
+                        </div>
                       </td>
                       {isSuperAdmin && (
                         <td className="py-3 px-4 text-sm text-gray-600 dark:text-gray-300">
@@ -221,18 +253,24 @@ export default function UserActivityLogs() {
                       </td>
                       <td className="py-3 px-4 text-sm">
                         {log.logoutTime ? (
-                          <span className="text-gray-600 dark:text-gray-300">{new Date(log.logoutTime).toLocaleString()}</span>
+                          <span className="text-gray-600 dark:text-gray-300">
+                            {new Date(log.logoutTime).toLocaleString()}
+                          </span>
                         ) : (
-                          <span className="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full text-xs font-medium">Active</span>
+                          <span className="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full text-xs font-medium">
+                            Active
+                          </span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-sm">
-                        {log.location && log.location.status === "granted" && log.location.latitude ? (
+                        {log.location &&
+                        log.location.status === "granted" &&
+                        log.location.latitude ? (
                           <div className="flex items-center text-gray-600 dark:text-gray-300">
                             <MapPin className="w-4 h-4 mr-1 text-blue-500" />
-                            <a 
-                              href={`https://www.google.com/maps?q=${log.location.latitude},${log.location.longitude}`} 
-                              target="_blank" 
+                            <a
+                              href={`https://www.google.com/maps?q=${log.location.latitude},${log.location.longitude}`}
+                              target="_blank"
                               rel="noopener noreferrer"
                               className="hover:text-blue-600 hover:underline"
                             >
@@ -254,22 +292,38 @@ export default function UserActivityLogs() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
-                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">User</th>
-                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">Email</th>
-                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">Role</th>
-                  {isSuperAdmin && <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">Tenant</th>}
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                    User
+                  </th>
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                    Email
+                  </th>
+                  <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                    Role
+                  </th>
+                  {isSuperAdmin && (
+                    <th className="py-3 px-4 text-sm font-semibold text-gray-600 dark:text-gray-300">
+                      Tenant
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {filteredHierarchy.length === 0 ? (
                   <tr>
-                    <td colSpan={isSuperAdmin ? 4 : 3} className="py-8 text-center text-gray-500">
+                    <td
+                      colSpan={isSuperAdmin ? 4 : 3}
+                      className="py-8 text-center text-gray-500"
+                    >
                       No users found.
                     </td>
                   </tr>
                 ) : (
                   filteredHierarchy.map((u) => (
-                    <tr key={u._id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                    <tr
+                      key={u._id}
+                      className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                    >
                       <td className="py-3 px-4">
                         <div className="font-medium text-gray-900 dark:text-white">
                           {u.firstName} {u.lastName}
@@ -279,13 +333,17 @@ export default function UserActivityLogs() {
                         {u.email}
                       </td>
                       <td className="py-3 px-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                          u.role === "admin" 
-                            ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" 
-                            : u.role === "subadmin"
-                            ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                            : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                        }`}>
+                        <span
+                          className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                            u.role === "admin"
+                              ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                              : u.role === "subadmin"
+                                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                                : u.role === "inspector"
+                                  ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                  : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                          }`}
+                        >
                           {u.role.toUpperCase()}
                         </span>
                       </td>

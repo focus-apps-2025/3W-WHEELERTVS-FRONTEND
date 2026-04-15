@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   User,
@@ -13,13 +13,18 @@ import {
   Menu,
   X,
   History,
-  Clock
+  Clock,
+  CalendarDays,
+  ShieldCheck,
+  UserCheck,
 } from "lucide-react";
 import { useLogo } from "../context/LogoContext";
 import { useAuth } from "../context/AuthContext";
 import { useSidebar } from "../context/SidebarContext";
 import { useTheme } from "../context/ThemeContext";
 import ProfileModal from "./ProfileModal";
+import NotificationCenter from "./ui/NotificationCenter";
+import { Calendar } from "lucide-react";
 
 interface MenuItem {
   title: string;
@@ -28,6 +33,7 @@ interface MenuItem {
   description: string;
   roles?: string[];
   permission?: string;
+  children?: MenuItem[];
 }
 
 const MODULE_PERMISSIONS = {
@@ -39,12 +45,27 @@ const MODULE_PERMISSIONS = {
 
 export default function Header() {
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [hrDropdownOpen, setHrDropdownOpen] = useState(false);
+  const hrDropdownRef = useRef<HTMLDivElement>(null);
   const { logo } = useLogo();
-  const { user, isAuthenticated, logout, tenant } = useAuth();
-  const { isMobileOpen, toggleMobile, closeMobile } = useSidebar();
+  const { user, isAuthenticated, logout } = useAuth();
+  const { isMobileOpen, closeMobile, toggleMobile } = useSidebar();
   const { darkMode, toggleDarkMode } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        hrDropdownRef.current &&
+        !hrDropdownRef.current.contains(event.target as Node)
+      ) {
+        setHrDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -100,6 +121,7 @@ export default function Header() {
       path: "/dashboard",
       description: "View shop analytics and service statistics",
       permission: MODULE_PERMISSIONS.DASHBOARD,
+      roles: ["admin", "inspector", "subadmin"],
     },
     {
       title: "Service Analytics",
@@ -107,6 +129,7 @@ export default function Header() {
       path: "/forms/analytics",
       description: "Detailed service analytics and insights",
       permission: MODULE_PERMISSIONS.ANALYTICS,
+      roles: ["admin", "inspector", "subadmin"],
     },
     {
       title: "Customer Requests",
@@ -115,13 +138,27 @@ export default function Header() {
       description: "View customer service requests",
       permission: MODULE_PERMISSIONS.CUSTOMER_REQUESTS,
     },
-    // {
-    //   title: "Request Management",
-    //   icon: ListTodo,
-    //   path: "/forms/management",
-    //   description: "Manage and organize service requests",
-    //   permission: MODULE_PERMISSIONS.REQUEST_MANAGEMENT,
-    // },
+    {
+      title: "Attendance",
+      icon: UserCheck,
+      path: "/attendance-dashboard",
+      description: "Mark your daily attendance",
+      roles: ["inspector"],
+    },
+    {
+      title: "Leaves",
+      icon: Calendar,
+      path: "/hr/leaves",
+      description: "Apply for leave",
+      roles: ["inspector"],
+    },
+    {
+      title: "Permissions",
+      icon: Clock,
+      path: "/hr/permissions",
+      description: "Apply for permissions",
+      roles: ["inspector"],
+    },
   ];
 
   const adminManagementMenuItem: MenuItem = {
@@ -175,6 +212,43 @@ export default function Header() {
         description: "Track user attendance and working hours",
         roles: ["admin"],
       });
+      filteredItems.push({
+        title: "HR",
+        icon: CalendarDays,
+        path: "/hr/leaves",
+        description: "Leaves, Permissions, Shifts, HR Reports",
+        roles: ["admin", "subadmin"],
+        children: [
+          {
+            title: "Leaves",
+            icon: Calendar,
+            path: "/hr/leaves",
+            description: "Manage leave requests and status",
+            roles: ["admin", "subadmin"],
+          },
+          {
+            title: "Permissions",
+            icon: Clock,
+            path: "/hr/permissions",
+            description: "Manage short leave and gate pass",
+            roles: ["admin", "subadmin"],
+          },
+          {
+            title: "Shifts",
+            icon: CalendarDays,
+            path: "/shifts",
+            description: "Manage inspector shifts",
+            roles: ["admin", "subadmin"],
+          },
+          {
+            title: "HR Reports",
+            icon: ShieldCheck,
+            path: "/hr-attendance",
+            description: "Detailed shift-based attendance reports",
+            roles: ["admin", "subadmin"],
+          },
+        ],
+      });
     }
 
     return filteredItems;
@@ -219,15 +293,57 @@ export default function Header() {
                 const isActive = location.pathname === item.path;
                 const Icon = item.icon;
 
+                if (item.children) {
+                  return (
+                    <div
+                      key={item.path}
+                      className="relative"
+                      ref={hrDropdownRef}
+                    >
+                      <button
+                        onClick={() => setHrDropdownOpen(!hrDropdownOpen)}
+                        className={`
+                          flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
+                          ${
+                            hrDropdownOpen
+                              ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                          }
+                        `}
+                      >
+                        <Icon className="w-4 h-4 mr-2" />
+                        {item.title}
+                      </button>
+                      {hrDropdownOpen && (
+                        <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
+                          {item.children.map((child) => (
+                            <Link
+                              key={child.path}
+                              to={child.path}
+                              onClick={() => {
+                                setHrDropdownOpen(false);
+                              }}
+                              className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              {child.title}
+                            </Link>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
                 return (
                   <Link
                     key={item.path}
                     to={item.path}
                     className={`
                       flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
-                      ${isActive
-                        ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                      ${
+                        isActive
+                          ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                       }
                     `}
                   >
@@ -253,6 +369,8 @@ export default function Header() {
               )}
             </button>
 
+            {isAuthenticated && <NotificationCenter />}
+
             {isAuthenticated && (
               <>
                 <button
@@ -264,7 +382,9 @@ export default function Header() {
                     <User className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                   </div>
                   <div className="flex flex-col items-start">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Profile</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Profile
+                    </span>
                     <span className="text-sm font-medium text-gray-900 dark:text-white truncate max-w-[100px]">
                       {user?.firstName} {user?.lastName}
                     </span>
@@ -306,9 +426,10 @@ export default function Header() {
                     onClick={closeMobile}
                     className={`
                       flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200
-                      ${isActive
-                        ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                      ${
+                        isActive
+                          ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                       }
                     `}
                   >
@@ -322,7 +443,10 @@ export default function Header() {
         )}
       </header>
 
-      <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+      />
     </>
   );
 }

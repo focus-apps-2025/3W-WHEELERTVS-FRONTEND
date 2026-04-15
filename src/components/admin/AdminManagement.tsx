@@ -5,7 +5,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
-import { Loader2, Image as ImageIcon, Upload, Trash2, Eye, EyeOff, Edit2, X, Check } from "lucide-react";
+import { Loader2, Image as ImageIcon, Upload, Trash2, Eye, EyeOff, Edit2, X, Check, Phone, CheckCircle } from "lucide-react";
 import { apiClient, ApiError } from "../../api/client";
 import { useAuth } from "../../context/AuthContext";
 import { useLogo } from "../../context/LogoContext";
@@ -29,6 +29,7 @@ interface SubAdmin {
   lastName: string;
   email: string;
   username: string;
+  role: string;
   permissions: string[];
   isActive: boolean;
   createdBy?: string; // Add this to track who created the admin
@@ -41,6 +42,8 @@ interface CreateFormState {
   email: string;
   username: string;
   password: string;
+  mobile: string;
+  role: "subadmin" | "inspector";
   permissions: Set<ModuleKey>;
 }
 
@@ -54,6 +57,8 @@ const createInitialFormState = (): CreateFormState => ({
   email: "",
   username: "",
   password: "",
+  mobile: "",
+  role: "subadmin",
   permissions: new Set<ModuleKey>(),
 });
 
@@ -75,6 +80,11 @@ export default function AdminManagement() {
     speed?: number;
   } | null>(null);
   const [form, setForm] = useState<CreateFormState>(() => createInitialFormState());
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
   const [editingForm, setEditingForm] = useState<EditFormState | null>(null);
   const [viewPasswordStates, setViewPasswordStates] = useState<Record<string, boolean>>({});
   const [deleteConfirmAdminId, setDeleteConfirmAdminId] = useState<string | null>(null);
@@ -149,14 +159,16 @@ export default function AdminManagement() {
   setError(null);
 
   try {
-    const [adminData, subadminData] = await Promise.all([
+    const [adminData, subadminData, inspectorData] = await Promise.all([
       apiClient.getUsers({ role: "admin", limit: 100 }).catch(() => ({ users: [] })),
-      apiClient.getUsers({ role: "subadmin", limit: 100 }).catch(() => ({ users: [] }))
+      apiClient.getUsers({ role: "subadmin", limit: 100 }).catch(() => ({ users: [] })),
+      apiClient.getUsers({ role: "inspector", limit: 100 }).catch(() => ({ users: [] }))
     ]);
     
     const allUsers = [
       ...(Array.isArray(adminData.users) ? adminData.users : []),
-      ...(Array.isArray(subadminData.users) ? subadminData.users : [])
+      ...(Array.isArray(subadminData.users) ? subadminData.users : []),
+      ...(Array.isArray(inspectorData.users) ? inspectorData.users : [])
     ];
     
     // Ensure creator information is properly set
@@ -277,10 +289,49 @@ export default function AdminManagement() {
     });
   };
 
+  const handleSendOtp = async () => {
+    if (!form.mobile) {
+      showError("Please enter mobile number first");
+      return;
+    }
+    setSendingOtp(true);
+    try {
+      const response = await apiClient.sendOtp(form.mobile);
+      setOtpSent(true);
+      showSuccess(response.message || "OTP sent successfully!");
+    } catch (error: any) {
+      showError(error.response?.message || "Failed to send OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp) {
+      showError("Please enter OTP");
+      return;
+    }
+    setVerifyingOtp(true);
+    try {
+      const response = await apiClient.verifyOtp(form.mobile, otp);
+      setOtpVerified(true);
+      showSuccess(response.message || "Mobile number verified successfully!");
+    } catch (error: any) {
+      showError(error.response?.message || "Invalid OTP");
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!isAdmin) {
+      return;
+    }
+
+    if (!otpVerified) {
+      showError("Please verify the mobile number first");
       return;
     }
 
@@ -294,7 +345,8 @@ export default function AdminManagement() {
         email: form.email.trim(),
         username: form.username.trim(),
         password: form.password,
-        role: "subadmin",
+        mobile: form.mobile.trim(),
+        role: form.role,
         permissions: Array.from(form.permissions),
         createdBy: user?._id, // Track who created this admin
         createdByRole: user?.role, // Also track the role of the creator
@@ -304,6 +356,9 @@ export default function AdminManagement() {
       const created = result.user as SubAdmin | undefined;
 
       setForm(createInitialFormState());
+      setOtp("");
+      setOtpSent(false);
+      setOtpVerified(false);
       setShowAddAdminModal(false);
 
       if (created) {
@@ -378,6 +433,7 @@ export default function AdminManagement() {
       email: admin.email,
       username: admin.username,
       password: "",
+      role: admin.role === 'inspector' ? 'inspector' : 'subadmin',
       permissions: new Set(admin.permissions || []),
     });
   };
@@ -387,7 +443,7 @@ export default function AdminManagement() {
     setViewPasswordStates({});
   };
 
-  const handleEditInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleEditInputChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = event.target;
     setEditingForm((prev) => {
       if (!prev) return null;
@@ -422,6 +478,7 @@ export default function AdminManagement() {
         lastName: string;
         email: string;
         username: string;
+        role: string;
         permissions: string[];
         password?: string;
       } = {
@@ -429,6 +486,7 @@ export default function AdminManagement() {
         lastName: editingForm.lastName.trim(),
         email: editingForm.email.trim(),
         username: editingForm.username.trim(),
+        role: editingForm.role,
         permissions: Array.from(editingForm.permissions),
       };
 
@@ -447,6 +505,7 @@ export default function AdminManagement() {
               lastName: editingForm.lastName,
               email: editingForm.email,
               username: editingForm.username,
+              role: editingForm.role,
               permissions: Array.from(editingForm.permissions),
             }
             : item
@@ -602,25 +661,27 @@ export default function AdminManagement() {
   }
 
   return (
-  <div className="w-full min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6 md:p-8">
-    <div className="w-full">
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100">Admin Management</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">Manage Users and their permissions</p>
-        </div>
-        {activeTab === 'admins' && (
-          <button
-            onClick={() => setShowAddAdminModal(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 font-semibold transition-colors shadow-lg hover:shadow-xl"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Add Users
-          </button>
-        )}
-      </div>
+    <div className="w-full px-6 md:px-8 py-6">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-xl">
+          <div className="p-6 md:p-8 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100">Admin Management</h1>
+                <p className="text-gray-600 dark:text-gray-400 mt-2">Manage Users and their permissions</p>
+              </div>
+              {activeTab === 'admins' && (
+                <button
+                  onClick={() => setShowAddAdminModal(true)}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 font-semibold transition-colors shadow-lg hover:shadow-xl"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Users
+                </button>
+              )}
+            </div>
+          </div>
 
       {/* Add the Tab Navigation here */}
       <TabNavigation />
@@ -722,12 +783,15 @@ export default function AdminManagement() {
               {showAddAdminModal && (
                 <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 z-50 overflow-y-auto">
                   <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-8">
-                    <div className="sticky top-0 bg-primary-600 px-8 py-6 flex items-center justify-between rounded-t-2xl">
+                    <div className="sticky top-0 bg-primary-600 px-6 py-4 flex items-center justify-between rounded-t-2xl">
                       <h2 className="text-2xl font-bold text-white">Add New Administrator</h2>
                       <button
                         onClick={() => {
                           setShowAddAdminModal(false);
                           setForm(createInitialFormState());
+                          setOtp("");
+                          setOtpSent(false);
+                          setOtpVerified(false);
                         }}
                         className="text-white/80 hover:text-white transition"
                       >
@@ -778,6 +842,89 @@ export default function AdminManagement() {
                             className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                           />
                         </div>
+
+                        <div className="mt-4">
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                            Mobile Number *
+                          </label>
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                              <input
+                                name="mobile"
+                                type="tel"
+                                value={form.mobile}
+                                onChange={handleInputChange}
+                                required
+                                disabled={otpSent && !otpVerified}
+                                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-sm disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
+                                placeholder="Enter mobile number"
+                              />
+                            </div>
+                            {!otpVerified && (
+                              <button
+                                type="button"
+                                onClick={handleSendOtp}
+                                disabled={sendingOtp || !form.mobile}
+                                className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg transition-all flex items-center gap-2 text-xs font-semibold disabled:opacity-50"
+                              >
+                                {sendingOtp ? (
+                                  <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+                                ) : (
+                                  "Send OTP"
+                                )}
+                              </button>
+                            )}
+                            {otpVerified && (
+                              <div className="flex items-center text-green-600 gap-1 bg-green-50 dark:bg-green-900/10 px-3 py-2 rounded-lg border border-green-200 dark:border-green-800 shadow-sm">
+                                <CheckCircle className="w-4 h-4" />
+                                <span className="text-xs font-bold">Verified</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {otpSent && !otpVerified && (
+                          <div className="mt-4 p-4 bg-primary-50 dark:bg-primary-900/10 border border-primary-100 dark:border-primary-800 rounded-xl space-y-3 shadow-sm animate-in fade-in slide-in-from-top-2">
+                            <label className="block text-xs font-semibold text-primary-900 dark:text-primary-100">
+                              Enter 6-Digit OTP
+                            </label>
+                            <div className="flex gap-2 text-center">
+                              <input
+                                type="text"
+                                maxLength={6}
+                                value={otp}
+                                onChange={(e) =>
+                                  setOtp(e.target.value.replace(/\D/g, ""))
+                                }
+                                className="flex-1 px-4 py-3 border-2 border-primary-200 dark:border-primary-700 rounded-xl focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-center text-lg font-bold tracking-[0.5em] shadow-inner"
+                                placeholder="000000"
+                              />
+                              <button
+                                type="button"
+                                onClick={handleVerifyOtp}
+                                disabled={verifyingOtp || otp.length !== 6}
+                                className="bg-primary-600 hover:bg-primary-700 text-white font-bold px-6 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-xs"
+                              >
+                                {verifyingOtp ? (
+                                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                ) : (
+                                  "Verify"
+                                )}
+                              </button>
+                            </div>
+                            <p className="text-[10px] text-primary-600 dark:text-primary-400 text-center font-medium">
+                              Didn't receive code?{" "}
+                              <button
+                                type="button"
+                                onClick={handleSendOtp}
+                                className="underline font-bold hover:text-primary-800 dark:hover:text-primary-200"
+                              >
+                                Resend OTP
+                              </button>
+                            </p>
+                          </div>
+                        )}
                       </div>
 
                       <div>
@@ -807,6 +954,22 @@ export default function AdminManagement() {
                       </div>
 
                       <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">User Role</label>
+                        <select
+                          name="role"
+                          value={form.role}
+                          onChange={(e) => setForm(prev => ({ ...prev, role: e.target.value as "subadmin" | "inspector" }))}
+                          className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                        >
+                          <option value="subadmin">Subadmin</option>
+                          <option value="inspector">Inspector</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Inspector can view forms, fill forms, and access analytics (all forms). Subadmin has full access with permissions.
+                        </p>
+                      </div>
+
+                      <div>
                         <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">Module Access</p>
                         <div className="grid gap-3 sm:grid-cols-2">
                           {MODULE_OPTIONS.map((option) => (
@@ -829,7 +992,7 @@ export default function AdminManagement() {
                       <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
                         <button
                           type="submit"
-                          disabled={saving}
+                          disabled={saving || !otpVerified}
                           className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-8 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-60 transition"
                         >
                           {saving ? (
@@ -911,6 +1074,9 @@ export default function AdminManagement() {
                             Status
                           </th>
                           <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                            Role
+                          </th>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                             Contact
                           </th>
                           {/* Permission Headers */}
@@ -979,6 +1145,16 @@ export default function AdminManagement() {
                                   ) : null}
                                   {admin.isActive ? 'Active' : 'Inactive'}
                                 </button>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                                  admin.role === 'admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
+                                  : admin.role === 'subadmin' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                                  : admin.role === 'inspector' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                                }`}>
+                                  {admin.role === 'subadmin' ? 'Subadmin' : admin.role === 'inspector' ? 'Inspector' : admin.role}
+                                </span>
                               </td>
                               <td className="px-6 py-4">
                                 <div className="text-sm text-gray-900 dark:text-gray-100">{admin.email}</div>
@@ -1125,6 +1301,22 @@ export default function AdminManagement() {
                             )}
                           </button>
                         </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">User Role</label>
+                        <select
+                          name="role"
+                          value={editingForm.role}
+                          onChange={(e) => setEditingForm(prev => prev ? { ...prev, role: e.target.value as "subadmin" | "inspector" } : null)}
+                          className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                        >
+                          <option value="subadmin">Subadmin</option>
+                          <option value="inspector">Inspector</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Inspector can view forms, fill forms, and access analytics (all forms). Subadmin has full access with permissions.
+                        </p>
                       </div>
 
                       <div>

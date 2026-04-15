@@ -149,6 +149,8 @@ export default function FormCreator() {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
   const { user, tenant } = useAuth();
+  const isInspector = user?.role === "inspector";
+  const canManage = (user?.role === "admin" || user?.role === "superadmin" || user?.role === "subadmin") && !isInspector;
   const [mode, setMode] = useState<"list" | "create">(
     id ||
       location.pathname.includes("/create") ||
@@ -928,6 +930,10 @@ export default function FormCreator() {
   };
 
   const handleSave = async () => {
+    if (!canManage) {
+      showError("You do not have permission to save forms.", "Permission Denied");
+      return;
+    }
     if (!form.title.trim()) {
       showError("Please enter a form title", "Validation Error");
       return;
@@ -3711,6 +3717,7 @@ export default function FormCreator() {
                 Create, edit, and manage service request forms
               </p>
             </div>
+            {canManage && (
             <button
               onClick={handleCreateForm}
               className="btn-primary mt-4 sm:mt-0"
@@ -3718,6 +3725,7 @@ export default function FormCreator() {
               <Plus className="w-4 h-4 mr-2" />
               Create New Service Form
             </button>
+            )}
           </div>
         </div>
 
@@ -3727,13 +3735,15 @@ export default function FormCreator() {
             <h3 className="text-lg font-medium text-primary-600 mb-2">
               No service forms created yet
             </h3>
-            <p className="text-primary-500 mb-6">
+            {/* <p className="text-primary-500 mb-6">
               Create your first service form to get started
-            </p>
+            </p> */}
+            {canManage && (
             <button onClick={handleCreateForm} className="btn-primary">
               <Plus className="w-4 h-4 mr-2" />
               Create Your First Form
             </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -3867,17 +3877,19 @@ export default function FormCreator() {
                   Export
                 </button>
                 <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
-                <button
-                  onClick={(e) => {
-                    const input = e.currentTarget
-                      .nextElementSibling as HTMLInputElement;
-                    input?.click();
-                  }}
-                  className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  Import
-                </button>
+                {canManage && (
+                  <button
+                    onClick={(e) => {
+                      const input = e.currentTarget
+                        .nextElementSibling as HTMLInputElement;
+                      input?.click();
+                    }}
+                    className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
+                  >
+                    <Upload className="w-4 h-4" />
+                    Import
+                  </button>
+                )}
                 <input
                   type="file"
                   accept=".xlsx,.xls"
@@ -3886,13 +3898,15 @@ export default function FormCreator() {
                 />
               </div>
 
-              <button
-                onClick={() => setShowParameterModal(true)}
-                className="px-4 py-2.5 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm rounded-xl hover:border-primary-500 hover:text-primary-600 transition-all flex items-center gap-2 shadow-sm"
-              >
-                <Plus className="w-4 h-4" />
-                Parameters
-              </button>
+              {canManage && (
+                <button
+                  onClick={() => setShowParameterModal(true)}
+                  className="px-4 py-2.5 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm rounded-xl hover:border-primary-500 hover:text-primary-600 transition-all flex items-center gap-2 shadow-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  Parameters
+                </button>
+              )}
 
               <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block" />
 
@@ -3903,13 +3917,15 @@ export default function FormCreator() {
                 Cancel
               </button>
 
-              <button
-                onClick={handleSave}
-                className="px-8 py-3 bg-primary-600 text-white font-black text-sm rounded-xl shadow-[0_10px_20px_rgba(30,58,138,0.2)] hover:shadow-primary-600/30 hover:bg-primary-700 transition-all active:scale-95 flex items-center gap-2"
-              >
-                <Save className="w-4 h-4" />
-                {id ? "Update Changes" : "Save & Publish"}
-              </button>
+              {canManage && (
+                <button
+                  onClick={handleSave}
+                  className="px-8 py-3 bg-primary-600 text-white font-black text-sm rounded-xl shadow-[0_10px_20px_rgba(30,58,138,0.2)] hover:shadow-primary-600/30 hover:bg-primary-700 transition-all active:scale-95 flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" />
+                  {id ? "Update Changes" : "Save & Publish"}
+                </button>
+              )}
             </div>
           </div>
         </div>

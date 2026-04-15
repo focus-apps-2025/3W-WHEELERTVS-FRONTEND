@@ -2,7 +2,19 @@ import React, { useRef, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useForms, useResponses } from "../hooks/useApi";
-import { FileText, ChevronLeft, ChevronRight, Smile, Frown, Meh, Search, Users, Building, ArrowLeft, Eye } from "lucide-react";
+import {
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  Smile,
+  Frown,
+  Meh,
+  Search,
+  Users,
+  Building,
+  ArrowLeft,
+  Eye,
+} from "lucide-react";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
 import { apiClient } from "../api/client";
@@ -28,17 +40,27 @@ interface TenantStats {
 export default function DashboardNew() {
   const navigate = useNavigate();
   const { user, tenant: currentTenant } = useAuth();
-  const { data: formsData, loading: formsLoading, error: formsError } = useForms();
-  const { data: responsesData, loading: responsesLoading, error: responsesError } = useResponses();
+  const {
+    data: formsData,
+    loading: formsLoading,
+    error: formsError,
+  } = useForms();
+  const {
+    data: responsesData,
+    loading: responsesLoading,
+    error: responsesError,
+  } = useResponses();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   // New states for tenant management
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [tenantsLoading, setTenantsLoading] = useState(false);
   const [tenantsError, setTenantsError] = useState<string | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
-  const [tenantStats, setTenantStats] = useState<Record<string, TenantStats>>({});
+  const [tenantStats, setTenantStats] = useState<Record<string, TenantStats>>(
+    {},
+  );
   const [viewMode, setViewMode] = useState<"tenants" | "forms">("tenants");
 
   // Check user role
@@ -46,9 +68,13 @@ export default function DashboardNew() {
 
   // Calculate trial days left
   const getTrialDaysLeft = () => {
-    if (!currentTenant?.subscription || currentTenant.subscription.plan !== 'free') return null;
+    if (
+      !currentTenant?.subscription ||
+      currentTenant.subscription.plan !== "free"
+    )
+      return null;
     if (!currentTenant.subscription.endDate) return null;
-    
+
     const end = new Date(currentTenant.subscription.endDate);
     const now = new Date();
     const diffTime = end.getTime() - now.getTime();
@@ -57,13 +83,13 @@ export default function DashboardNew() {
   };
 
   const trialDaysLeft = getTrialDaysLeft();
-  
-  console.log("Auth Data:", { 
-    user, 
-    currentTenant, 
+
+  console.log("Auth Data:", {
+    user,
+    currentTenant,
     isSuperAdmin,
     currentTenantId: currentTenant?._id,
-    currentTenantSlug: currentTenant?.slug 
+    currentTenantSlug: currentTenant?.slug,
   });
   console.log("Forms Data:", formsData);
   console.log("Responses Data:", responsesData);
@@ -72,7 +98,7 @@ export default function DashboardNew() {
   useEffect(() => {
     if (user && currentTenant) {
       console.log("Setting up tenant view for user:", user.role);
-      
+
       // Create tenant object from currentTenant
       const tenantObj: Tenant = {
         _id: currentTenant.id,
@@ -80,14 +106,14 @@ export default function DashboardNew() {
         companyName: currentTenant.companyName,
         slug: currentTenant.slug,
         isActive: currentTenant.isActive !== false,
-        createdAt: currentTenant.createdAt || new Date().toISOString()
+        createdAt: currentTenant.createdAt || new Date().toISOString(),
       };
-      
+
       console.log("Created tenant object:", tenantObj);
-      
+
       // Always set selected tenant for admin users
       setSelectedTenant(tenantObj);
-      
+
       if (isSuperAdmin) {
         // Superadmin sees tenants first
         setViewMode("tenants");
@@ -95,7 +121,7 @@ export default function DashboardNew() {
         // Admin and other users see forms directly for their tenant
         setViewMode("forms");
       }
-      
+
       // For all users, set current tenant in tenants array
       setTenants([tenantObj]);
     }
@@ -116,21 +142,24 @@ export default function DashboardNew() {
         console.log("Fetching tenants for superadmin...");
         const response = await apiClient.getTenants();
         console.log("Tenants API response:", response);
-        
+
         if (response && response.tenants) {
           setTenants(response.tenants);
-          
+
           // If current tenant is not in the list, add it
-          if (currentTenant && !response.tenants.some((t: any) => t._id === currentTenant._id)) {
+          if (
+            currentTenant &&
+            !response.tenants.some((t: any) => t._id === currentTenant._id)
+          ) {
             const currentTenantObj: Tenant = {
               _id: currentTenant._id,
               name: currentTenant.name,
               companyName: currentTenant.companyName,
               slug: currentTenant.slug,
               isActive: currentTenant.isActive !== false,
-              createdAt: currentTenant.createdAt || new Date().toISOString()
+              createdAt: currentTenant.createdAt || new Date().toISOString(),
             };
-            setTenants(prev => [currentTenantObj, ...prev]);
+            setTenants((prev) => [currentTenantObj, ...prev]);
           }
         } else {
           setTenants([]);
@@ -139,7 +168,7 @@ export default function DashboardNew() {
       } catch (error: any) {
         console.error("Error fetching tenants:", error);
         setTenantsError(error.message || "Failed to fetch tenants");
-        
+
         // Fallback to current tenant if fetch fails
         if (currentTenant) {
           const tenantObj: Tenant = {
@@ -148,7 +177,7 @@ export default function DashboardNew() {
             companyName: currentTenant.companyName,
             slug: currentTenant.slug,
             isActive: currentTenant.isActive !== false,
-            createdAt: currentTenant.createdAt || new Date().toISOString()
+            createdAt: currentTenant.createdAt || new Date().toISOString(),
           };
           setTenants([tenantObj]);
         }
@@ -167,33 +196,41 @@ export default function DashboardNew() {
     if (formsData?.forms && responsesData?.responses && tenants.length > 0) {
       console.log("Calculating tenant stats...");
       const stats: Record<string, TenantStats> = {};
-      
-      tenants.forEach(tenant => {
+
+      tenants.forEach((tenant) => {
         // Filter forms by tenant - check multiple possible tenant ID fields
         const tenantForms = formsData.forms.filter((form: any) => {
-          const formTenantId = form.tenantId || form.tenant?._id || form.tenant?.slug;
-          console.log(`Form ${form.title} - tenantId: ${form.tenantId}, tenant._id: ${form.tenant?._id}, tenant.slug: ${form.tenant?.slug}`);
-          console.log(`Comparing with tenant: ${tenant.companyName} (id: ${tenant._id}, slug: ${tenant.slug})`);
-          
-          const matches = formTenantId === tenant._id || formTenantId === tenant.slug;
+          const formTenantId =
+            typeof form.tenantId === "object"
+              ? form.tenantId?._id
+              : form.tenantId;
+          const matches =
+            formTenantId === tenant._id || formTenantId === tenant.slug;
           if (matches) {
-            console.log(`✓ Form ${form.title} matches tenant ${tenant.companyName}`);
+            console.log(
+              `✓ Form ${form.title} matches tenant ${tenant.companyName}`,
+            );
           }
           return matches;
         });
-        
-        console.log(`Tenant ${tenant.companyName} has ${tenantForms.length} forms`);
-        
-        // Get all responses for this tenant's forms
-        const tenantFormIds = tenantForms.map((form: any) => form.id || form._id);
-        const tenantResponses = responsesData.responses.filter((response: any) =>
-          tenantFormIds.includes(response.formId || response.questionId)
+
+        console.log(
+          `Tenant ${tenant.companyName} has ${tenantForms.length} forms`,
         );
-        
+
+        // Get all responses for this tenant's forms
+        const tenantFormIds = tenantForms.map(
+          (form: any) => form.id || form._id,
+        );
+        const tenantResponses = responsesData.responses.filter(
+          (response: any) =>
+            tenantFormIds.includes(response.formId || response.questionId),
+        );
+
         // Calculate promoter percentage
         let yesCount = 0;
         let totalResponses = 0;
-        
+
         tenantResponses.forEach((response: any) => {
           if (response.answers) {
             Object.values(response.answers).forEach((answer: any) => {
@@ -201,26 +238,32 @@ export default function DashboardNew() {
               if (answerStr === "yes") {
                 yesCount++;
               }
-              if (answerStr === "yes" || answerStr === "no" || answerStr === "n/a" || answerStr === "na") {
+              if (
+                answerStr === "yes" ||
+                answerStr === "no" ||
+                answerStr === "n/a" ||
+                answerStr === "na"
+              ) {
                 totalResponses++;
               }
             });
           }
         });
-        
-        const promoterPercentage = totalResponses > 0 
-          ? parseFloat(((yesCount / totalResponses) * 100).toFixed(1))
-          : 0;
-        
+
+        const promoterPercentage =
+          totalResponses > 0
+            ? parseFloat(((yesCount / totalResponses) * 100).toFixed(1))
+            : 0;
+
         stats[tenant._id] = {
           totalForms: tenantForms.length,
           totalResponses: tenantResponses.length,
-          promoterPercentage
+          promoterPercentage,
         };
-        
+
         console.log(`Stats for ${tenant.companyName}:`, stats[tenant._id]);
       });
-      
+
       setTenantStats(stats);
     }
   }, [formsData, responsesData, tenants]);
@@ -231,70 +274,91 @@ export default function DashboardNew() {
       console.log("No forms data available");
       return [];
     }
-    
+
     console.log("Total forms in system:", formsData.forms.length);
-    console.log("All forms:", formsData.forms.map((f: any) => ({ 
-      title: f.title, 
-      tenantId: f.tenantId,
-      tenant: f.tenant 
-    })));
-    
+    console.log(
+      "All forms:",
+      formsData.forms.map((f: any) => ({
+        title: f.title,
+        tenantId: f.tenantId,
+        tenant: f.tenant,
+      })),
+    );
+
     // If in forms view and tenant is selected, filter by tenant
     if (viewMode === "forms" && selectedTenant) {
       console.log("Filtering forms for tenant:", {
         tenantName: selectedTenant.companyName,
         tenantId: selectedTenant._id,
-        tenantSlug: selectedTenant.slug
+        tenantSlug: selectedTenant.slug,
       });
-      
+
       const tenantForms = formsData.forms.filter((form: any) => {
-        const formTenantId = form.tenantId || form.tenant?._id || form.tenant?.slug;
-        const sharedWithTenants = Array.isArray(form.sharedWithTenants) ? form.sharedWithTenants : [];
-        
-        console.log(`Checking form "${form.title}":`);
-        console.log(`  Form tenantId: ${form.tenantId}`);
-        console.log(`  Form tenant._id: ${form.tenant?._id}`);
-        console.log(`  Form tenant.slug: ${form.tenant?.slug}`);
-        console.log(`  Shared with tenants:`, sharedWithTenants);
-        console.log(`  Selected tenant._id: ${selectedTenant._id}`);
-        console.log(`  Selected tenant.slug: ${selectedTenant.slug}`);
-        
-        const isDirectMatch = formTenantId === selectedTenant._id || formTenantId === selectedTenant.slug;
-        const isSharedMatch = sharedWithTenants.some((t: any) => 
-          (t._id || t) === selectedTenant._id || t === selectedTenant.slug
+        const formTenantId =
+          typeof form.tenantId === "object"
+            ? form.tenantId?._id
+            : form.tenantId;
+        const sharedWithTenants = Array.isArray(form.sharedWithTenants)
+          ? form.sharedWithTenants
+          : [];
+
+        const isDirectMatch =
+          formTenantId === selectedTenant._id ||
+          formTenantId === selectedTenant.slug;
+        const isSharedMatch = sharedWithTenants.some(
+          (t: any) =>
+            (t._id || t) === selectedTenant._id || t === selectedTenant.slug,
         );
-        
+
         const matches = isDirectMatch || isSharedMatch;
-        console.log(`  Matches: ${matches} (Direct: ${isDirectMatch}, Shared: ${isSharedMatch})`);
+        console.log(
+          `  Matches: ${matches} (Direct: ${isDirectMatch}, Shared: ${isSharedMatch})`,
+        );
         return matches;
       });
-      
-      console.log(`Forms for tenant ${selectedTenant.companyName}:`, tenantForms.length);
-      console.log("Matched forms:", tenantForms.map((f: any) => f.title));
-      
-      // Apply search filter on top of tenant filter
-      const filtered = tenantForms.filter((form: any) =>
-        form.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (form.description && form.description.toLowerCase().includes(searchQuery.toLowerCase()))
+
+      console.log(
+        `Forms for tenant ${selectedTenant.companyName}:`,
+        tenantForms.length,
       );
-      
+      console.log(
+        "Matched forms:",
+        tenantForms.map((f: any) => f.title),
+      );
+
+      // Apply search filter on top of tenant filter
+      const filtered = tenantForms.filter(
+        (form: any) =>
+          form.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          (form.description &&
+            form.description.toLowerCase().includes(searchQuery.toLowerCase())),
+      );
+
       console.log(`After search filter:`, filtered.length);
       return filtered;
     }
-    
+
     // In tenants view or no tenant selected, return empty
     return [];
   }, [formsData?.forms, selectedTenant, viewMode, searchQuery]);
 
   const statsCache = React.useMemo(() => {
-    const cache = new Map<string, { yesCount: number; noCount: number; naCount: number; total: number }>();
+    const cache = new Map<
+      string,
+      { yesCount: number; noCount: number; naCount: number; total: number }
+    >();
 
     if (responsesData?.responses) {
       responsesData.responses.forEach((response: any) => {
         if (response.answers) {
           const formId = response.questionId || response.formId;
           if (!cache.has(formId)) {
-            cache.set(formId, { yesCount: 0, noCount: 0, naCount: 0, total: 0 });
+            cache.set(formId, {
+              yesCount: 0,
+              noCount: 0,
+              naCount: 0,
+              total: 0,
+            });
           }
           const stats = cache.get(formId)!;
           Object.values(response.answers).forEach((answer: any) => {
@@ -316,7 +380,14 @@ export default function DashboardNew() {
   }, [responsesData?.responses]);
 
   const getFormResponseStats = (formId: string) => {
-    return statsCache.get(formId) || { yesCount: 0, noCount: 0, naCount: 0, total: 0 };
+    return (
+      statsCache.get(formId) || {
+        yesCount: 0,
+        noCount: 0,
+        naCount: 0,
+        total: 0,
+      }
+    );
   };
 
   const scroll = (direction: "left" | "right") => {
@@ -353,30 +424,42 @@ export default function DashboardNew() {
       return (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-4 border-primary-600 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">
-            Loading tenants...
-          </p>
+          <p className="text-gray-600 dark:text-gray-400">Loading tenants...</p>
         </div>
       );
     }
 
-    const paidTenants = tenants.filter(t => (t as any).subscription?.plan !== 'free');
-    const freeTrialTenants = tenants.filter(t => (t as any).subscription?.plan === 'free');
+    const paidTenants = tenants.filter(
+      (t) => (t as any).subscription?.plan !== "free",
+    );
+    const freeTrialTenants = tenants.filter(
+      (t) => (t as any).subscription?.plan === "free",
+    );
 
-    const renderTenantSection = (title: string, tenantList: Tenant[], accentColor: string) => (
+    const renderTenantSection = (
+      title: string,
+      tenantList: Tenant[],
+      accentColor: string,
+    ) => (
       <div className="mb-12">
         <div className="flex items-center gap-3 mb-6">
           <div className={`w-1.5 h-8 rounded-full ${accentColor}`}></div>
-          <h3 className="text-xl font-bold text-gray-800 dark:text-white">{title}</h3>
+          <h3 className="text-xl font-bold text-gray-800 dark:text-white">
+            {title}
+          </h3>
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100 dark:bg-gray-800 text-gray-500 border border-gray-200 dark:border-gray-700">
             {tenantList.length}
           </span>
         </div>
-        
+
         <div className="relative -mx-6 px-6">
           <div
             className="flex gap-6 overflow-x-auto pb-6 scroll-smooth"
-            style={{ scrollBehavior: "smooth", scrollPaddingLeft: "2rem", scrollPaddingRight: "2rem" }}
+            style={{
+              scrollBehavior: "smooth",
+              scrollPaddingLeft: "2rem",
+              scrollPaddingRight: "2rem",
+            }}
           >
             {tenantList.length === 0 ? (
               <div className="w-full py-12 text-center text-gray-400 bg-gray-50/50 dark:bg-gray-800/30 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
@@ -385,9 +468,13 @@ export default function DashboardNew() {
               </div>
             ) : (
               tenantList.map((tenant) => {
-                const stats = tenantStats[tenant._id] || { totalForms: 0, totalResponses: 0, promoterPercentage: 0 };
-                const isFree = (tenant as any).subscription?.plan === 'free';
-                
+                const stats = tenantStats[tenant._id] || {
+                  totalForms: 0,
+                  totalResponses: 0,
+                  promoterPercentage: 0,
+                };
+                const isFree = (tenant as any).subscription?.plan === "free";
+
                 return (
                   <div
                     key={tenant._id}
@@ -399,17 +486,23 @@ export default function DashboardNew() {
                         Free Trial
                       </div>
                     )}
-                    
+
                     <div className="flex items-start justify-between mb-6">
-                      <div className={`p-4 rounded-2xl ${isFree ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-primary-50 dark:bg-primary-900/20'} group-hover:scale-110 transition-transform duration-300`}>
-                        <Building className={`w-8 h-8 ${isFree ? 'text-blue-600' : 'text-primary-600'}`} />
+                      <div
+                        className={`p-4 rounded-2xl ${isFree ? "bg-blue-50 dark:bg-blue-900/20" : "bg-primary-50 dark:bg-primary-900/20"} group-hover:scale-110 transition-transform duration-300`}
+                      >
+                        <Building
+                          className={`w-8 h-8 ${isFree ? "text-blue-600" : "text-primary-600"}`}
+                        />
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        tenant.isActive 
-                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
-                          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                      }`}>
-                        {tenant.isActive ? 'Active' : 'Inactive'}
+                      <span
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          tenant.isActive
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        }`}
+                      >
+                        {tenant.isActive ? "Active" : "Inactive"}
                       </span>
                     </div>
 
@@ -424,23 +517,35 @@ export default function DashboardNew() {
 
                     <div className="grid grid-cols-2 gap-4 mb-8">
                       <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Forms</p>
-                        <p className="text-xl font-black text-gray-900 dark:text-white">{stats.totalForms}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                          Forms
+                        </p>
+                        <p className="text-xl font-black text-gray-900 dark:text-white">
+                          {stats.totalForms}
+                        </p>
                       </div>
                       <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Responses</p>
-                        <p className="text-xl font-black text-gray-900 dark:text-white">{stats.totalResponses}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                          Responses
+                        </p>
+                        <p className="text-xl font-black text-gray-900 dark:text-white">
+                          {stats.totalResponses}
+                        </p>
                       </div>
                     </div>
 
                     <div className="mt-auto pt-6 border-t border-gray-100 dark:border-gray-700">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Promoter Score</span>
-                        <span className="text-sm font-black text-primary-600">{stats.promoterPercentage}%</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                          Promoter Score
+                        </span>
+                        <span className="text-sm font-black text-primary-600">
+                          {stats.promoterPercentage}%
+                        </span>
                       </div>
                       <div className="w-full h-2 bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full transition-all duration-1000 ${isFree ? 'bg-blue-600' : 'bg-primary-600'}`}
+                          className={`h-full rounded-full transition-all duration-1000 ${isFree ? "bg-blue-600" : "bg-primary-600"}`}
                           style={{ width: `${stats.promoterPercentage}%` }}
                         />
                       </div>
@@ -456,8 +561,16 @@ export default function DashboardNew() {
 
     return (
       <div className="py-4">
-        {renderTenantSection("Active Paid Tenants", paidTenants, "bg-green-500")}
-        {renderTenantSection("Free Trial Signups", freeTrialTenants, "bg-blue-600")}
+        {renderTenantSection(
+          "Active Paid Tenants",
+          paidTenants,
+          "bg-green-500",
+        )}
+        {renderTenantSection(
+          "Free Trial Signups",
+          freeTrialTenants,
+          "bg-blue-600",
+        )}
       </div>
     );
   };
@@ -475,9 +588,7 @@ export default function DashboardNew() {
       return (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">
-            Loading forms...
-          </p>
+          <p className="text-gray-600 dark:text-gray-400">Loading forms...</p>
         </div>
       );
     }
@@ -524,25 +635,41 @@ export default function DashboardNew() {
             No forms found
           </h3>
           <p className="text-gray-600 dark:text-gray-400">
-            {searchQuery ? "No forms match your search criteria" : 
-             selectedTenant ? `No forms found for ${selectedTenant.companyName}` : 
-             "No forms available"}
+            {searchQuery
+              ? "No forms match your search criteria"
+              : selectedTenant
+                ? `No forms found for ${selectedTenant.companyName}`
+                : "No forms available"}
           </p>
           {!searchQuery && selectedTenant && (
             <div className="mt-4 text-sm text-gray-500">
               <p>Make sure forms have the correct tenant ID:</p>
               <p className="font-mono bg-gray-100 dark:bg-gray-800 p-2 rounded mt-1">
-                tenantId should be: "{selectedTenant._id}" or "{selectedTenant.slug}"
+                tenantId should be: "{selectedTenant._id}" or "
+                {selectedTenant.slug}"
               </p>
               <p className="mt-2">Available forms in system:</p>
               <div className="mt-1 max-h-40 overflow-y-auto">
                 {formsData.forms.map((form: any, index: number) => (
                   <div key={index} className="p-2 border-b text-left">
-                    <p><strong>{form.title}</strong></p>
-                    <p className="text-xs">tenantId: {form.tenantId || 'null'}</p>
-                    <p className="text-xs">tenant._id: {form.tenant?._id || 'null'}</p>
-                    <p className="text-xs">tenant.slug: {form.tenant?.slug || 'null'}</p>
-                    <p className="text-xs">shared: {JSON.stringify(form.sharedWithTenants || [])}</p>
+                    <p>
+                      <strong>{form.title}</strong>
+                    </p>
+                    <p className="text-xs">
+                      tenantId:{" "}
+                      {typeof form.tenantId === "object"
+                        ? form.tenantId?._id
+                        : form.tenantId || "null"}
+                    </p>
+                    {typeof form.tenantId === "object" && (
+                      <p className="text-xs">
+                        tenant name:{" "}
+                        {form.tenantId?.companyName || form.tenantId?.name}
+                      </p>
+                    )}
+                    <p className="text-xs">
+                      shared: {JSON.stringify(form.sharedWithTenants || [])}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -557,11 +684,18 @@ export default function DashboardNew() {
         <div
           ref={scrollContainerRef}
           className="flex gap-6 overflow-x-auto pb-4 scroll-smooth"
-          style={{ scrollBehavior: "smooth", scrollPaddingLeft: "2rem", scrollPaddingRight: "2rem" }}
+          style={{
+            scrollBehavior: "smooth",
+            scrollPaddingLeft: "2rem",
+            scrollPaddingRight: "2rem",
+          }}
         >
           {filteredForms.map((form: any) => {
             const stats = getFormResponseStats(form.id);
-            const promoterPercentage = stats.total > 0 ? ((stats.yesCount / stats.total) * 100).toFixed(1) : '0';
+            const promoterPercentage =
+              stats.total > 0
+                ? ((stats.yesCount / stats.total) * 100).toFixed(1)
+                : "0";
             return (
               <div
                 key={form._id}
@@ -603,7 +737,10 @@ export default function DashboardNew() {
                     <p className="text-gray-600 dark:text-gray-400 text-xs">
                       YES
                     </p>
-                    <p className="text-lg font-bold" style={{ color: "#1e3a8a" }}>
+                    <p
+                      className="text-lg font-bold"
+                      style={{ color: "#1e3a8a" }}
+                    >
                       {promoterPercentage}%
                     </p>
                   </div>
@@ -612,13 +749,20 @@ export default function DashboardNew() {
                 <div className="mt-2 flex-1 flex flex-col items-center justify-center min-h-0">
                   {stats.total > 0 ? (
                     <>
-                      <div className="w-full h-full flex items-center justify-center py-2" style={{ maxHeight: "160px" }}>
+                      <div
+                        className="w-full h-full flex items-center justify-center py-2"
+                        style={{ maxHeight: "160px" }}
+                      >
                         <Doughnut
                           data={{
                             labels: ["YES", "NO", "N/A"],
                             datasets: [
                               {
-                                data: [stats.yesCount, stats.noCount, stats.naCount],
+                                data: [
+                                  stats.yesCount,
+                                  stats.noCount,
+                                  stats.naCount,
+                                ],
                                 backgroundColor: [
                                   "rgba(30, 58, 138, 1)",
                                   "rgba(147, 197, 253, 1)",
@@ -633,42 +777,91 @@ export default function DashboardNew() {
                               },
                             ],
                           }}
-                          options={{
-                            responsive: true,
-                            maintainAspectRatio: true,
-                            cutout: "75%",
-                            plugins: {
-                              legend: {
-                                display: false,
+                          options={
+                            {
+                              responsive: true,
+                              maintainAspectRatio: true,
+                              cutout: "75%",
+                              plugins: {
+                                legend: {
+                                  display: false,
+                                },
+                                tooltip: {
+                                  enabled: false,
+                                },
+                                datalabels: {
+                                  display: false,
+                                },
                               },
-                              tooltip: {
-                                enabled: false,
-                              },
-                              datalabels: {
-                                display: false,
-                              },
-                            },
-                          } as any}
+                            } as any
+                          }
                         />
                       </div>
                       <div className="mt-2 flex justify-center gap-4">
                         <div className="flex flex-col items-center">
-                          <p className="text-xs font-bold text-gray-900 dark:text-white">{stats.yesCount}</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">YES</p>
-                          <Smile className="w-4 h-4 mt-0.5" style={{ color: "#1e3a8a" }} />
-                          <p className="text-xs font-semibold mt-0.5" style={{ color: "#1e3a8a" }}>{stats.total > 0 ? ((stats.yesCount / stats.total) * 100).toFixed(1) : '0'}%</p>
+                          <p className="text-xs font-bold text-gray-900 dark:text-white">
+                            {stats.yesCount}
+                          </p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                            YES
+                          </p>
+                          <Smile
+                            className="w-4 h-4 mt-0.5"
+                            style={{ color: "#1e3a8a" }}
+                          />
+                          <p
+                            className="text-xs font-semibold mt-0.5"
+                            style={{ color: "#1e3a8a" }}
+                          >
+                            {stats.total > 0
+                              ? ((stats.yesCount / stats.total) * 100).toFixed(
+                                  1,
+                                )
+                              : "0"}
+                            %
+                          </p>
                         </div>
                         <div className="flex flex-col items-center">
-                          <p className="text-xs font-bold text-gray-900 dark:text-white">{stats.noCount}</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">NO</p>
-                          <Frown className="w-4 h-4 mt-0.5" style={{ color: "#93c5fd" }} />
-                          <p className="text-xs font-semibold mt-0.5" style={{ color: "#93c5fd" }}>{stats.total > 0 ? ((stats.noCount / stats.total) * 100).toFixed(1) : '0'}%</p>
+                          <p className="text-xs font-bold text-gray-900 dark:text-white">
+                            {stats.noCount}
+                          </p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                            NO
+                          </p>
+                          <Frown
+                            className="w-4 h-4 mt-0.5"
+                            style={{ color: "#93c5fd" }}
+                          />
+                          <p
+                            className="text-xs font-semibold mt-0.5"
+                            style={{ color: "#93c5fd" }}
+                          >
+                            {stats.total > 0
+                              ? ((stats.noCount / stats.total) * 100).toFixed(1)
+                              : "0"}
+                            %
+                          </p>
                         </div>
                         <div className="flex flex-col items-center">
-                          <p className="text-xs font-bold text-gray-900 dark:text-white">{stats.naCount}</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">N/A</p>
-                          <Meh className="w-4 h-4 mt-0.5" style={{ color: "#2563eb" }} />
-                          <p className="text-xs font-semibold mt-0.5" style={{ color: "#2563eb" }}>{stats.total > 0 ? ((stats.naCount / stats.total) * 100).toFixed(1) : '0'}%</p>
+                          <p className="text-xs font-bold text-gray-900 dark:text-white">
+                            {stats.naCount}
+                          </p>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                            N/A
+                          </p>
+                          <Meh
+                            className="w-4 h-4 mt-0.5"
+                            style={{ color: "#2563eb" }}
+                          />
+                          <p
+                            className="text-xs font-semibold mt-0.5"
+                            style={{ color: "#2563eb" }}
+                          >
+                            {stats.total > 0
+                              ? ((stats.naCount / stats.total) * 100).toFixed(1)
+                              : "0"}
+                            %
+                          </p>
                         </div>
                       </div>
                     </>
@@ -685,14 +878,18 @@ export default function DashboardNew() {
                   onClick={() => navigate(`/forms/${form.id}/analytics`)}
                   className="mt-4 w-full bg-blue-800 hover:bg-white hover:text-blue-800  text-white py-2 px-3 rounded-lg font-medium text-sm transition-colors flex items-center justify-center border border-transparent hover:border-blue-800"
                   style={{ backgroundColor: "#1e3a8a" }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#ffffffff")}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#1e3a8a")}
+                  onMouseEnter={(e) =>
+                    (e.currentTarget.style.backgroundColor = "#ffffffff")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.currentTarget.style.backgroundColor = "#1e3a8a")
+                  }
                 >
                   View More Analytics
                 </button>
               </div>
             );
-          })} 
+          })}
         </div>
 
         {filteredForms.length > 3 && (
@@ -757,7 +954,6 @@ export default function DashboardNew() {
                   </span>
                 </div>
                 <div>
-                  
                   <span className="font-medium text-gray-900 dark:text-gray-100">
                     {currentTenant._id}
                   </span>
@@ -818,7 +1014,7 @@ export default function DashboardNew() {
                 {getPageTitle()}
               </h2>
             </div>
-            
+
             {/* Search Bar - Only show in forms view */}
             {showSearchBar() && (
               <div className="relative w-96">
@@ -835,37 +1031,45 @@ export default function DashboardNew() {
           </div>
 
           {/* Stats Summary - Only show in forms view */}
-          {viewMode === "forms" && selectedTenant && tenantStats[selectedTenant._id] && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                <div className="flex items-center">
-                  <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Total Forms</span>
+          {viewMode === "forms" &&
+            selectedTenant &&
+            tenantStats[selectedTenant._id] && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Total Forms
+                    </span>
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
+                    {tenantStats[selectedTenant._id].totalForms}
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-                  {tenantStats[selectedTenant._id].totalForms}
-                </p>
-              </div>
-              <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                <div className="flex items-center">
-                  <Users className="w-5 h-5 text-green-600 dark:text-green-400 mr-2" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Total Responses</span>
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <Users className="w-5 h-5 text-green-600 dark:text-green-400 mr-2" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Total Responses
+                    </span>
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
+                    {tenantStats[selectedTenant._id].totalResponses}
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-                  {tenantStats[selectedTenant._id].totalResponses}
-                </p>
-              </div>
-              <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                <div className="flex items-center">
-                  <Smile className="w-5 h-5 text-purple-600 dark:text-purple-400 mr-2" />
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Promoter Score</span>
+                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <Smile className="w-5 h-5 text-purple-600 dark:text-purple-400 mr-2" />
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Promoter Score
+                    </span>
+                  </div>
+                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
+                    {tenantStats[selectedTenant._id].promoterPercentage}%
+                  </p>
                 </div>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-                  {tenantStats[selectedTenant._id].promoterPercentage}%
-                </p>
               </div>
-            </div>
-          )}
+            )}
         </div>
 
         {/* Debug Info - Remove in production 

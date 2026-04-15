@@ -9,6 +9,7 @@ export default function LoginPage() {
     error: authError,
     loading: authLoading,
     isAuthenticated,
+    user,
   } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,10 +18,14 @@ export default function LoginPage() {
 
   // Redirect to dashboard if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      navigate("/dashboard");
+    if (isAuthenticated && user) {
+      if (user.role === 'inspector') {
+        navigate("/attendance-dashboard");
+      } else {
+        navigate("/dashboard");
+      }
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,9 +51,13 @@ export default function LoginPage() {
       }
     }
 
-    const success = await login(email, password, undefined, locationData);
-    if (success) {
-      navigate("/dashboard");
+    const res = await login(email, password, undefined, locationData);
+    if (res && res.user) {
+      if (res.user.role === 'inspector') {
+        navigate("/attendance-dashboard");
+      } else {
+        navigate("/dashboard");
+      }
     }
   };
 

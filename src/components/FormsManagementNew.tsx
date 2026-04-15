@@ -59,21 +59,25 @@ interface Form {
 
 export default function FormsManagementNew() {
   const navigate = useNavigate();
+  const { user, tenant } = useAuth();
+  const isInspector = user?.role === "inspector";
+  const isSubAdmin = user?.role === "subadmin";
+  const canManage = user?.role === "admin" || user?.role === "superadmin" || user?.role === "subadmin";
+  const canEdit = canManage && !isInspector;
   const [searchTerm, setSearchTerm] = useState("");
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [showChildFormsModal, setShowChildFormsModal] = useState(false);
   const [selectedParentForm, setSelectedParentForm] = useState<Form | null>(
-    null
+    null,
   );
   const [selectedChildFormIds, setSelectedChildFormIds] = useState<string[]>(
-    []
+    [],
   );
   const dropdownRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const importFileRef = useRef<File | null>(null);
   const { data: formsData, loading, error, execute: refetchForms } = useForms();
   const { showSuccess, showError, showConfirm } = useNotification();
-  const { user } = useAuth();
   const [isImporting, setIsImporting] = useState(false);
   const [exportingFormId, setExportingFormId] = useState<string | null>(null);
   const [showImportPreview, setShowImportPreview] = useState(false);
@@ -101,7 +105,7 @@ export default function FormsManagementNew() {
       onError: (error: any) => {
         showError(error.message || "Failed to duplicate form", "Error");
       },
-    }
+    },
   );
 
   const visibilityMutation = useMutation(
@@ -112,13 +116,13 @@ export default function FormsManagementNew() {
         refetchForms();
         showSuccess(
           `Form is now ${variables.isVisible ? "public" : "private"}`,
-          "Visibility Updated"
+          "Visibility Updated",
         );
       },
       onError: (error: any) => {
         showError(error.message || "Failed to update visibility", "Error");
       },
-    }
+    },
   );
 
   const activeMutation = useMutation(
@@ -129,13 +133,13 @@ export default function FormsManagementNew() {
         refetchForms();
         showSuccess(
           `Form is now ${variables.isActive ? "active" : "inactive"}`,
-          "Status Updated"
+          "Status Updated",
         );
       },
       onError: (error: any) => {
         showError(error.message || "Failed to update active status", "Error");
       },
-    }
+    },
   );
 
   const linkChildFormMutation = useMutation(
@@ -154,7 +158,7 @@ export default function FormsManagementNew() {
       onError: (error: any) => {
         showError(error.message || "Failed to link child form", "Error");
       },
-    }
+    },
   );
 
   const unlinkChildFormMutation = useMutation(
@@ -173,7 +177,7 @@ export default function FormsManagementNew() {
       onError: (error: any) => {
         showError(error.message || "Failed to unlink child form", "Error");
       },
-    }
+    },
   );
 
   // Close dropdown when clicking outside
@@ -201,13 +205,13 @@ export default function FormsManagementNew() {
   const searchValue = searchTerm.toLowerCase();
   const activeForms = React.useMemo(
     () => forms.filter((form: Form) => form.isActive),
-    [forms]
+    [forms],
   );
 
   // Separate parent/standalone forms and child forms
   const parentAndStandaloneForms = React.useMemo(
     () => activeForms.filter((form: Form) => !form.parentFormId),
-    [activeForms]
+    [activeForms],
   );
 
   // Filter forms based on search (parent/standalone only, children will be shown under parents)
@@ -216,9 +220,9 @@ export default function FormsManagementNew() {
       parentAndStandaloneForms.filter(
         (form: Form) =>
           form.title.toLowerCase().includes(searchValue) ||
-          form.description.toLowerCase().includes(searchValue)
+          form.description.toLowerCase().includes(searchValue),
       ),
-    [parentAndStandaloneForms, searchValue]
+    [parentAndStandaloneForms, searchValue],
   );
 
   const hasAnyForms = forms.length > 0;
@@ -361,13 +365,17 @@ export default function FormsManagementNew() {
         >
           {form.isActive ? "Active" : "Inactive"}
         </span>
-        <button
-          onClick={() => handleToggleActive(form._id, form.isActive)}
-          className="text-xs text-primary-600 hover:text-primary-800"
-          disabled={activeMutation.loading}
-        >
-          {activeMutation.loading ? "..." : "Toggle"}
-        </button>
+        {canEdit ? (
+          <button
+            onClick={() => handleToggleActive(form._id, form.isActive)}
+            className="text-xs text-primary-600 hover:text-primary-800"
+            disabled={activeMutation.loading}
+          >
+            {activeMutation.loading ? "..." : "Toggle"}
+          </button>
+        ) : (
+          <span className="text-xs text-gray-400 italic">View only</span>
+        )}
       </div>
 
       {/* Actions */}
@@ -381,13 +389,15 @@ export default function FormsManagementNew() {
           >
             View
           </button>
-          <button
-            onClick={() => handleEditForm(form._id)}
-            className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
-            title="Edit form"
-          >
-            <Edit2 className={isChild ? "w-3 h-3" : "w-4 h-4"} />
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => handleEditForm(form._id)}
+              className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
+              title="Edit form"
+            >
+              <Edit2 className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+            </button>
+          )}
           <button
             onClick={() => handleViewResponses(form._id)}
             className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
@@ -409,22 +419,26 @@ export default function FormsManagementNew() {
               <Download className={isChild ? "w-3 h-3" : "w-4 h-4"} />
             )}
           </button>
-          <button
-            onClick={() => handleDuplicate(form._id)}
-            className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
-            title="Duplicate form"
-            disabled={duplicateMutation.loading}
-          >
-            <Copy className={isChild ? "w-3 h-3" : "w-4 h-4"} />
-          </button>
-          <button
-            onClick={() => handleDelete(form._id, form.title)}
-            className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-            title="Delete form"
-            disabled={deleteMutation.loading}
-          >
-            <Trash2 className={isChild ? "w-3 h-3" : "w-4 h-4"} />
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => handleDuplicate(form._id)}
+              className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
+              title="Duplicate form"
+              disabled={duplicateMutation.loading}
+            >
+              <Copy className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={() => handleDelete(form._id, form.title)}
+              className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+              title="Delete form"
+              disabled={deleteMutation.loading}
+            >
+              <Trash2 className={isChild ? "w-3 h-3" : "w-4 h-4"} />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -448,7 +462,7 @@ export default function FormsManagementNew() {
 
   const handleToggleVisibility = async (
     id: string,
-    currentVisibility: boolean
+    currentVisibility: boolean,
   ) => {
     await visibilityMutation.mutate({
       id,
@@ -520,7 +534,7 @@ export default function FormsManagementNew() {
   };
 
   const handleFileInputChange = async (
-    event: ChangeEvent<HTMLInputElement>
+    event: ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
     if (!file) {
@@ -564,7 +578,7 @@ export default function FormsManagementNew() {
         description: parsed.description,
         sections: previewSections,
       });
-      
+
       setImportParameters(parsed.parametersToCreate || []);
       setShowImportPreview(true);
     } catch (error: any) {
@@ -625,12 +639,12 @@ export default function FormsManagementNew() {
           apiClient.createParameter({
             ...param,
             formId: created.form._id,
-          })
+          }),
         );
         await Promise.all(parameterPromises);
         showSuccess(
           `Form imported with ${parsed.parametersToCreate.length} parameter(s)`,
-          "Import Complete"
+          "Import Complete",
         );
       } else {
         showSuccess("Form imported successfully", "Import Complete");
@@ -740,12 +754,12 @@ export default function FormsManagementNew() {
 
     // Find forms to link (newly selected)
     const toLink = selectedChildFormIds.filter(
-      (id) => !currentLinkedIds.includes(id)
+      (id) => !currentLinkedIds.includes(id),
     );
 
     // Find forms to unlink (deselected)
     const toUnlink = currentLinkedIds.filter(
-      (id) => !selectedChildFormIds.includes(id)
+      (id) => !selectedChildFormIds.includes(id),
     );
 
     try {
@@ -772,7 +786,7 @@ export default function FormsManagementNew() {
     return forms.filter(
       (form: Form) =>
         form._id !== selectedParentForm._id && // Not the parent itself
-        (!form.parentFormId || form.parentFormId === selectedParentForm._id) // Not a child of another parent (but allow children of THIS parent)
+        (!form.parentFormId || form.parentFormId === selectedParentForm._id), // Not a child of another parent (but allow children of THIS parent)
     );
   };
 
@@ -817,36 +831,40 @@ export default function FormsManagementNew() {
               <p>Create, edit, and manage service request forms</p>
             </div>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              <button
-                onClick={handleExportTemplate}
-                className="btn-secondary flex items-center justify-center"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Download Import Template
-              </button>
-              <button
-                onClick={handleLoadSampleData}
-                className="btn-secondary flex items-center justify-center"
-                disabled={isImporting}
-              >
-                <Database className="w-4 h-4 mr-2" />
-                {isImporting ? "Loading..." : "Load Sample Data"}
-              </button>
-              <button
-                onClick={handleImportClick}
-                className="btn-secondary flex items-center justify-center"
-                disabled={isImporting}
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                {isImporting ? "Importing..." : "Import Form (Excel)"}
-              </button>
-              <button
-                onClick={handleCreateForm}
-                className="btn-primary flex items-center justify-center"
-              >
-                <PlusCircle className="w-3 h-3 mr-1" />
-                Create New Service Form
-              </button>
+              {canManage && !isInspector && (
+                <>
+                  <button
+                    onClick={handleExportTemplate}
+                    className="btn-secondary flex items-center justify-center"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Download Import Template
+                  </button>
+                  <button
+                    onClick={handleLoadSampleData}
+                    className="btn-secondary flex items-center justify-center"
+                    disabled={isImporting}
+                  >
+                    <Database className="w-4 h-4 mr-2" />
+                    {isImporting ? "Loading..." : "Load Sample Data"}
+                  </button>
+                  <button
+                    onClick={handleImportClick}
+                    className="btn-secondary flex items-center justify-center"
+                    disabled={isImporting}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    {isImporting ? "Importing..." : "Import Form (Excel)"}
+                  </button>
+                  <button
+                    onClick={handleCreateForm}
+                    className="btn-primary flex items-center justify-center"
+                  >
+                    <PlusCircle className="w-3 h-3 mr-1" />
+                    Create New Service Form
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -891,7 +909,7 @@ export default function FormsManagementNew() {
                 return "Try adjusting your search criteria";
               })()}
             </p>
-            {!hasAnyForms && (
+            {!hasAnyForms && canEdit && (
               <button onClick={handleCreateForm} className="btn-primary">
                 <PlusCircle className="w-4 h-4 mr-2" />
                 Create Your First Form
@@ -911,7 +929,7 @@ export default function FormsManagementNew() {
                   {childForms.length > 0 && (
                     <div className="space-y-2">
                       {childForms.map((childForm: Form) =>
-                        renderFormCard(childForm, true)
+                        renderFormCard(childForm, true),
                       )}
                     </div>
                   )}
@@ -965,7 +983,7 @@ export default function FormsManagementNew() {
                   <div className="space-y-2">
                     {getAvailableChildForms().map((form: Form) => {
                       const isSelected = selectedChildFormIds.includes(
-                        form._id
+                        form._id,
                       );
                       return (
                         <div
@@ -998,7 +1016,7 @@ export default function FormsManagementNew() {
                                 <span className="flex items-center">
                                   <Calendar className="w-3 h-3 mr-1" />
                                   {new Date(
-                                    form.createdAt
+                                    form.createdAt,
                                   ).toLocaleDateString()}
                                 </span>
                               </div>

@@ -754,7 +754,8 @@ const handleBulkDownloadZip = async () => {
       if (typeof val === 'object' && val !== null) {
         if (val.url) return val.url;
         if (val.answer !== undefined) return String(val.answer);
-        return JSON.stringify(val);
+        // Handle chassis-type objects - don't return string here, let renderInnerValue handle display
+        return String(val); // Return placeholder, actual display handled elsewhere
       }
       return String(val || "");
     };
@@ -828,7 +829,7 @@ const handleBulkDownloadZip = async () => {
 
     const answerBox = (
       <div 
-        className={`${compact ? 'w-full px-4 py-2' : 'flex-1 p-3'} ${bgColor} ${textColor} ${borderColor} rounded-lg border text-sm break-words font-medium flex items-center shadow-sm relative group/answer`}
+        className={`${compact ? 'w-full px-4 py-2' : 'flex-1 p-3'} ${bgColor} ${textColor} ${borderColor} rounded-lg border text-sm break-words font-medium flex items-center shadow-sm`}
         style={{
           boxShadow: isQuiz 
             ? (isCorrect ? '0 4px 12px rgba(34, 197, 94, 0.4)' : '0 4px 12px rgba(239, 68, 68, 0.4)')
@@ -858,7 +859,7 @@ const handleBulkDownloadZip = async () => {
                     );
                   }
 
-                  if (typeof val === "object") {
+                  if (typeof val === "object" && val !== null) {
                     if (val.url && isImageUrl(String(val.url))) {
                       return <ImageLink text={String(val.url)} />;
                     }
@@ -867,17 +868,199 @@ const handleBulkDownloadZip = async () => {
                     }
                     
                     const entries = Object.entries(val);
+                    
+                    // Check if this is a chassis-type object
+                    const isChassisType = val.chassisNumber !== undefined || val.status !== undefined || val.zone !== undefined || val.categories !== undefined;
+                    
+                    if (isChassisType) {
+                      // Get color for zone
+                      const getZoneColor = (zoneName: string): string => {
+                        const z = zoneName.toLowerCase().trim();
+                        if (z.includes('zone a') || z === 'a') return 'blue';
+                        if (z.includes('zone b') || z === 'b') return 'green';
+                        if (z.includes('zone c') || z === 'c') return 'purple';
+                        if (z.includes('zone d') || z === 'd') return 'orange';
+                        if (z.includes('zone e') || z === 'e') return 'pink';
+                        if (z.includes('zone f') || z === 'f') return 'cyan';
+                        return 'indigo';
+                      };
+                      
+                      const colorMap: Record<string, string> = {
+                        blue: 'bg-blue-50 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200',
+                        green: 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200',
+                        purple: 'bg-purple-50 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200',
+                        orange: 'bg-orange-50 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200',
+                        pink: 'bg-pink-50 dark:bg-pink-900/30 text-pink-800 dark:text-pink-200',
+                        cyan: 'bg-cyan-50 dark:bg-cyan-900/30 text-cyan-800 dark:text-cyan-200',
+                        red: 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200',
+                        amber: 'bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200',
+                        indigo: 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200',
+                      };
+                      
+                      const parts: { label: string; value: any; zoneColor?: string; isImage?: boolean }[] = [];
+                      
+                      if (val.chassisNumber && String(val.chassisNumber).trim() && String(val.chassisNumber).toLowerCase() !== 'no response') {
+                        parts.push({ label: 'Chassis', value: String(val.chassisNumber), zoneColor: 'blue' });
+                      }
+                      if (val.status && String(val.status).trim() && String(val.status).toLowerCase() !== 'no response') {
+                        parts.push({ label: 'Status', value: String(val.status), zoneColor: 'red' });
+                      }
+                      if (val.zone) {
+                        const zoneVal = Array.isArray(val.zone) ? val.zone.join(', ') : String(val.zone);
+                        if (zoneVal.trim()) {
+                          // If multiple zones, show each with its own color and sort alphabetically
+                          if (zoneVal.includes(',')) {
+                            const zones = zoneVal.split(',').map(z => z.trim()).sort((a, b) => a.localeCompare(b));
+                            zones.forEach(z => {
+                              parts.push({ label: 'Zone', value: z, zoneColor: getZoneColor(z) });
+                            });
+                          } else {
+                            parts.push({ label: 'Zone', value: zoneVal, zoneColor: getZoneColor(zoneVal) });
+                          }
+                        }
+                      }
+                      
+                      // Handle zonesData with colors
+                      if (val.zonesData && typeof val.zonesData === 'object') {
+                        const zoneEntries = Object.entries(val.zonesData);
+                        for (const [zoneName, zoneVal] of zoneEntries) {
+                          const zoneColor = getZoneColor(zoneName);
+                          const colorClass = colorMap[zoneColor] || colorMap.indigo;
+                          
+                          parts.push({ label: 'Zone', value: zoneName, zoneColor });
+                          
+                          const categories = (zoneVal as any)?.categories;
+                          if (categories && Array.isArray(categories)) {
+                            for (const cat of categories) {
+                              const catName = typeof cat === 'string' ? cat : (cat?.name || cat?.category || '-');
+                              parts.push({ label: 'Category', value: String(catName), zoneColor });
+                              
+                              const defects = cat?.defects;
+                              if (defects && Array.isArray(defects)) {
+                                for (const defect of defects) {
+                                  const defectName = typeof defect === 'string' ? defect : (defect?.name || defect?.defect || '-');
+                                  const defectDetails = typeof defect === 'object' ? (defect?.details || {}) : {};
+                                  const remark = defectDetails?.remark || defectDetails?.remarks || '-';
+                                  parts.push({ label: 'Defect', value: String(defectName), zoneColor });
+                                  if (remark && String(remark).trim() && String(remark).toLowerCase() !== '-') {
+                                    parts.push({ label: 'Remark', value: String(remark), zoneColor });
+                                  }
+                                  const fileUrl = defectDetails?.fileUrl || defectDetails?.file || defect?.fileUrl || defect?.file || defect?.imageUrl || '';
+                                  if (fileUrl && String(fileUrl).toLowerCase() !== 'no response' && String(fileUrl).trim()) {
+                                    parts.push({ label: 'Evidence', value: String(fileUrl), zoneColor, isImage: true });
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                      
+                      // Handle categories (direct property) - both object and array formats
+                      if (val.categories) {
+                        if (Array.isArray(val.categories)) {
+                          // ChassisWithoutZone format: array of category objects
+                          for (const cat of val.categories) {
+                            const catName = cat?.name || cat?.category || '-';
+                            if (catName !== '-') {
+                              parts.push({ label: 'Category', value: String(catName), zoneColor: 'purple' });
+                              
+                              const defects = cat?.defects;
+                              if (defects && Array.isArray(defects)) {
+                                for (const defect of defects) {
+                                  const defectName = typeof defect === 'string' ? defect : (defect?.name || defect?.defect || '-');
+                                  const defectDetails = typeof defect === 'object' ? (defect?.details || {}) : {};
+                                  const remark = defectDetails?.remark || defectDetails?.remarks || '-';
+                                  parts.push({ label: 'Defect', value: String(defectName), zoneColor: 'purple' });
+                                  if (remark && String(remark).trim() && String(remark).toLowerCase() !== '-') {
+                                    parts.push({ label: 'Remark', value: String(remark), zoneColor: 'purple' });
+                                  }
+                                  const fileUrl = defectDetails?.fileUrl || defectDetails?.file || defect?.fileUrl || defect?.file || defect?.imageUrl || '';
+                                  if (fileUrl && String(fileUrl).toLowerCase() !== 'no response' && String(fileUrl).trim()) {
+                                    parts.push({ label: 'Evidence', value: String(fileUrl), zoneColor: 'purple', isImage: true });
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        } else if (typeof val.categories === 'object') {
+                          // Object format: key-value pairs
+                          const catEntries = Object.entries(val.categories);
+                          for (const [catKey, catVal] of catEntries) {
+                            parts.push({ label: String(catKey), value: String(catVal), zoneColor: 'amber' });
+                          }
+                        }
+                      }
+                      
+                      // Handle evidenceUrl
+                      if (val.evidenceUrl && String(val.evidenceUrl).toLowerCase() !== 'no response' && String(val.evidenceUrl).trim()) {
+                        parts.push({ label: 'Evidence', value: String(val.evidenceUrl), zoneColor: 'indigo', isImage: true });
+                      }
+                      
+                      if (parts.length > 0) {
+                        return (
+                          <div className="flex flex-col gap-1">
+                            {parts.map((part, idx) => {
+                              const pc = colorMap[part.zoneColor || 'indigo'] || colorMap.indigo;
+                              return (
+                                <div key={idx} className="flex items-start gap-2">
+                                  <span className={`px-2 py-0.5 ${pc} text-xs rounded font-medium min-w-[70px]`}>
+                                    {part.label}
+                                  </span>
+                                  {part.isImage ? (
+                                    <ImageLink text={part.value} showImage={true} />
+                                  ) : (
+                                    <span className={`px-2 py-0.5 ${pc} text-xs rounded font-medium`}>
+                                      {String(part.value)}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      }
+                      
+                      return <span className="text-gray-400 italic">No response</span>;
+                    }
+                    
                     if (entries.length > 0) {
+                      // Filter out empty values and "No response" strings
+                      const filteredEntries = entries.filter(([k, v]) => {
+                        if (v === null || v === undefined) return false;
+                        if (typeof v === 'string') {
+                          const lowerV = v.toLowerCase().trim();
+                          return lowerV !== '' && lowerV !== 'no response' && lowerV !== 'n/a' && lowerV !== 'na';
+                        }
+                        if (typeof v === 'object') {
+                          if (Array.isArray(v)) return v.length > 0;
+                          const objEntries = Object.entries(v).filter(([ok, ov]) => {
+                            if (ov === null || ov === undefined) return false;
+                            if (typeof ov === 'string') return ov.toLowerCase().trim() !== '' && ov.toLowerCase().trim() !== 'no response';
+                            return true;
+                          });
+                          return objEntries.length > 0;
+                        }
+                        return true;
+                      });
+                      
+                      if (filteredEntries.length === 0) {
+                        return <span className="text-gray-400 italic">No response</span>;
+                      }
+                      
                       return (
                         <div className="flex flex-col gap-1">
-                          {entries.map(([k, v], i) => (
-                            <div key={i} className="flex flex-col gap-0.5">
-                              <span className="text-[10px] font-bold opacity-70 uppercase tracking-tighter text-indigo-800 dark:text-indigo-300">
-                                {k}
-                              </span>
-                              {renderInnerValue(v)}
-                            </div>
-                          ))}
+                          {filteredEntries.map(([k, v], i) => {
+                            const displayKey = k.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim();
+                            return (
+                              <div key={i} className="flex flex-col gap-0.5">
+                                <span className="text-[10px] font-bold opacity-70 uppercase tracking-tighter text-indigo-800 dark:text-indigo-300">
+                                  {displayKey}
+                                </span>
+                                {renderInnerValue(v)}
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     }
@@ -893,20 +1076,6 @@ const handleBulkDownloadZip = async () => {
                 return renderInnerValue(value);
               })()}
             </div>
-            {/* Rank Tag Display */}
-            {question?.id && response?.responseRanks && response.responseRanks[question.id] !== undefined && (
-              <div 
-                className={`flex-shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-tighter shadow-sm whitespace-nowrap ${
-                  isCorrect || isYes
-                    ? "bg-green-100/50 text-green-700 border-green-200" 
-                    : isNo || (isQuiz && !isCorrect)
-                    ? "bg-red-100/50 text-red-700 border-red-200"
-                    : "bg-blue-100/50 text-blue-700 border-blue-200"
-                }`}
-              >
-                Rank #{response.responseRanks[question.id]}{response.answers[question.id] && `: ${String(typeof response.answers[question.id] === 'object' ? (response.answers[question.id].chassisNumber || JSON.stringify(response.answers[question.id])) : response.answers[question.id])}`}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -1823,8 +1992,8 @@ const handleBulkDownloadZip = async () => {
               onClick={() => setViewMode("dashboard")}
               className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                 viewMode === "dashboard"
-                  ? "text-white"
-                  : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
+                    ? "text-white"
+                    : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
               }`}
               style={{ backgroundColor: viewMode === "dashboard" ? "#1e3a8a" : "transparent" }}
             >
@@ -1835,8 +2004,8 @@ const handleBulkDownloadZip = async () => {
               onClick={() => setViewMode("responses")}
               className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
                 viewMode === "responses"
-                  ? "text-white"
-                  : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
+                    ? "text-white"
+                    : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
               }`}
               style={{ backgroundColor: viewMode === "responses" ? "#1e3a8a" : "transparent" }}
             >
@@ -2236,8 +2405,8 @@ const handleBulkDownloadZip = async () => {
                                   key={question.id} 
                                   className={`p-3 rounded-lg border transition-shadow ${
                                     isMainQuestion 
-                                      ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-blue-200 dark:border-blue-700" 
-                                      : "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"
+                                        ? "bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 border-blue-200 dark:border-blue-700" 
+                                        : "bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"
                                   }`}
                                 >
                                   <div className="flex flex-col gap-1 mb-1">
@@ -2418,8 +2587,8 @@ const handleBulkDownloadZip = async () => {
                           onClick={() => setShowWeightageColumns(!showWeightageColumns)}
                           className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                             showWeightageColumns
-                              ? 'bg-indigo-400 hover:bg-indigo-500 text-white'
-                              : 'bg-gray-400 hover:bg-gray-500 text-white'
+                              ?   'bg-indigo-400 hover:bg-indigo-500 text-white'
+                              :   'bg-gray-400 hover:bg-gray-500 text-white'
                           }`}
                           title={showWeightageColumns ? 'Hide weightage columns' : 'Show weightage columns'}
                         >
@@ -3422,8 +3591,8 @@ const handleBulkDownloadZip = async () => {
                               }
                               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                                 showMainParamsImages[section.id]
-                                  ? "bg-blue-600 text-white hover:bg-blue-700"
-                                  : "bg-gray-300 text-gray-700 hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200"
+                                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                                    : "bg-gray-300 text-gray-700 hover:bg-gray-400 dark:bg-gray-600 dark:text-gray-200"
                               }`}
                             >
                               {showMainParamsImages[section.id] ? "Hide Images" : "View Images"}
@@ -3463,8 +3632,8 @@ const handleBulkDownloadZip = async () => {
                                   key={mainQuestion.id}
                                   className={`border-b border-blue-200 dark:border-blue-800 ${
                                     index % 2 === 0
-                                      ? "bg-white dark:bg-gray-800/50"
-                                      : "bg-blue-100/30 dark:bg-blue-900/10"
+                                        ? "bg-white dark:bg-gray-800/50"
+                                        : "bg-blue-100/30 dark:bg-blue-900/10"
                                   }`}
                                 >
                                   <td className="px-6 py-4 font-medium text-gray-800 dark:text-gray-200 border border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30">
@@ -3681,153 +3850,463 @@ const handleBulkDownloadZip = async () => {
               </p>
             </div>
           )
-        ) : (
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                Form Responses
-              </h3>
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  onClick={() => handleDownloadPDF('responses-view')}
-                  disabled={generatingPDF || exportingZip}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: "#0891b2" }}
-                >
-                  {generatingPDF ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <FileText className="w-4 h-4" />
-                  )}
-                  <span>{generatingPDF ? "Generating PDF..." : "Download as PDF"}</span>
-                </button>
-                <button
-                  onClick={handleBulkDownloadZip}
-                  disabled={generatingPDF || exportingZip}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: "#0e7490" }}
-                >
-                  {exportingZip ? (
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <Download className="w-4 h-4" />
-                  )}
-                  <span>{exportingZip ? "Preparing ZIP..." : "Bulk Download (ZIP)"}</span>
-                </button>
-              </div>
-            </div>
-            <div className="space-y-8">
-              {form.sections?.map((section: any) => {
-                const sectionAnswers = Object.entries(response.answers).filter(([key]) => {
-                  const question = questions[key];
-                  return section.questions?.some((q: any) => q.id === key || q.followUpQuestions?.some((fq: any) => fq.id === key));
-                });
+    ) : (
+  <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+        Form Responses
+      </h3>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => handleDownloadPDF('responses-view')}
+          disabled={generatingPDF || exportingZip}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ backgroundColor: "#0891b2" }}
+        >
+          {generatingPDF ? (
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <FileText className="w-4 h-4" />
+          )}
+          <span>{generatingPDF ? "Generating PDF..." : "Download as PDF"}</span>
+        </button>
+        <button
+          onClick={handleBulkDownloadZip}
+          disabled={generatingPDF || exportingZip}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-300 hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{ backgroundColor: "#0e7490" }}
+        >
+          {exportingZip ? (
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Download className="w-4 h-4" />
+          )}
+          <span>{exportingZip ? "Preparing ZIP..." : "Bulk Download (ZIP)"}</span>
+        </button>
+      </div>
+    </div>
+    
+{/* Structured Table View */}
+<div className="overflow-x-auto">
+  {(() => {
+    const allRows: Array<{
+      id: string;
+      questionText: string;
+      subParam1?: string;
+      answer: any;
+      sectionTitle: string;
+    }> = [];
 
-                if (sectionAnswers.length === 0) return null;
+    form?.sections?.forEach((section: any) => {
+      section.questions?.forEach((question: any) => {
+        const answer = response?.answers?.[question.id];
+        if (answer !== undefined && answer !== null && answer !== '') {
+          allRows.push({
+            id: question.id,
+            questionText: question.text || question.label || question.id,
+            subParam1: question.subParam1,
+            answer,
+            sectionTitle: section.title || "Untitled Section"
+          });
+        }
+        question.followUpQuestions?.forEach((followUp: any) => {
+          const followUpAnswer = response?.answers?.[followUp.id];
+          if (followUpAnswer !== undefined && followUpAnswer !== null && followUpAnswer !== '') {
+            allRows.push({
+              id: followUp.id,
+              questionText: followUp.text || followUp.label || followUp.id,
+              subParam1: followUp.subParam1,
+              answer: followUpAnswer,
+              sectionTitle: section.title || "Untitled Section"
+            });
+          }
+        });
+      });
+    });
 
-                return (
-                  <div key={section.id} className="border-t border-gray-200 dark:border-gray-700 pt-6 first:border-t-0 first:pt-0">
-                    <h4 className="text-lg font-bold text-blue-700 dark:text-blue-400 mb-4 pb-3 border-b-2 border-blue-300 dark:border-blue-600 flex items-center gap-2">
-                      <div className="w-1 h-6 bg-blue-600 dark:bg-blue-400 rounded-full"></div>
-                      {section.title}
-                    </h4>
-                    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                        <thead className="bg-gray-50 dark:bg-gray-800">
-                          <tr>
-                            <th scope="col" className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[40%]">
-                              Question
-                            </th>
-                            <th scope="col" className="px-6 py-4 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-[60%]">
-                              Response
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                          {sectionAnswers.map(([key, value], idx) => {
-                            const question = questions[key];
-                            const isMainQuestion = question && !question.parentId && !question.showWhen?.questionId;
-                            const hasCorrectAnswer = !!(question?.correctAnswer || (question?.correctAnswers && question?.correctAnswers.length > 0));
+    form?.followUpQuestions?.forEach((followUp: any) => {
+      const followUpAnswer = response?.answers?.[followUp.id];
+      if (followUpAnswer !== undefined && followUpAnswer !== null && followUpAnswer !== '') {
+        allRows.push({
+          id: followUp.id,
+          questionText: followUp.text || followUp.label || followUp.id,
+          subParam1: followUp.subParam1,
+          answer: followUpAnswer,
+          sectionTitle: "Follow-up Questions"
+        });
+      }
+    });
 
-                            return (
-                              <tr 
-                                key={key} 
-                                className={`${idx % 2 === 0 ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors`}
-                              >
-                                <td className="px-6 py-4">
-                                  <div className="flex flex-col gap-1.5">
-                                    {question?.subParam1 && (
-                                      <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-2 py-0.5 rounded font-semibold text-[10px] w-fit uppercase tracking-wider">
-                                        {question.subParam1}
-                                      </span>
-                                    )}
-                                    <div className="flex items-center gap-2">
-                                      <div className="font-semibold text-gray-900 dark:text-white text-sm">
-                                        {question?.text || key}
-                                      </div>
-                                      {question?.id && response?.responseRanks && response.responseRanks[question.id] !== undefined && (
-                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest bg-blue-100/50 text-blue-700 border border-blue-200 shadow-sm">
-                                          Rank #{response.responseRanks[question.id]}{response.answers[question.id] && `: ${String(typeof response.answers[question.id] === 'object' ? (response.answers[question.id].chassisNumber || JSON.stringify(response.answers[question.id])) : response.answers[question.id])}`}
-                                        </span>
-                                      )}
-                                    </div>
-                                    {question?.description && (
-                                      <div 
-                                        className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2"
-                                        dangerouslySetInnerHTML={{ __html: question.description }}
-                                      />
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 text-center">
-                                  {hasCorrectAnswer ? (
-                                    <div className="flex items-center justify-center gap-4">
-                                      <div className="flex-1 flex justify-center">
-                                        <div className="inline-flex items-center px-3 py-1.5 rounded-full bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-sm font-medium border border-green-100 dark:border-green-800/30">
-                                          {question.correctAnswers && question.correctAnswers.length > 0
-                                            ? question.correctAnswers.join(", ")
-                                            : String(question.correctAnswer || "")}
-                                        </div>
-                                      </div>
-                                      <div className="w-px h-8 bg-gray-200 dark:bg-gray-700"></div>
-                                      <div className="flex-1 flex justify-center">
-                                        {Array.isArray(value) ? (
-                                          <div className="space-y-1">
-                                            {value.map((v, i) => (
-                                              <div key={i}>{renderHighlightedAnswer(v, question, true)}</div>
-                                            ))}
-                                          </div>
-                                        ) : (
-                                          renderHighlightedAnswer(value, question, true)
-                                        )}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex justify-center">
-                                      {Array.isArray(value) ? (
-                                        <div className="space-y-1">
-                                          {value.map((v, i) => (
-                                            <div key={i}>{renderHighlightedAnswer(v, question, true)}</div>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        renderHighlightedAnswer(value, question, true)
-                                      )}
-                                    </div>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+    const isZoneStructured = (val: any): boolean => {
+      if (!val || typeof val !== 'object') return false;
+      return 'zonesData' in val || 'zone' in val || 'status' in val;
+    };
+
+    const renderSimpleAnswer = (val: any): React.ReactNode => {
+      if (val === null || val === undefined || val === '') return <span className="text-gray-400 italic text-xs">-</span>;
+      if (typeof val === 'string') {
+        if (isImageUrl(val)) return <ImageLink text={val} />;
+        return <span className="text-sm">{val}</span>;
+      }
+      if (Array.isArray(val)) {
+        return (
+          <div className="flex flex-col gap-1">
+            {val.map((v, i) => <div key={i}>{renderSimpleAnswer(v)}</div>)}
           </div>
+        );
+      }
+      if (typeof val === 'object') {
+        if (val.url && isImageUrl(String(val.url))) return <ImageLink text={val.url} />;
+        if (val.answer !== undefined) return renderSimpleAnswer(val.answer);
+        return (
+          <div className="flex flex-col gap-1">
+            {Object.entries(val).map(([k, v], i) => (
+              <div key={i} className="flex gap-1">
+                <span className="font-semibold text-gray-500 text-xs">{k}:</span>
+                <span className="text-xs">{renderSimpleAnswer(v)}</span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      return <span className="text-sm">{String(val)}</span>;
+    };
+
+    allRows.sort((a, b) => {
+      if (a.sectionTitle !== b.sectionTitle) return a.sectionTitle.localeCompare(b.sectionTitle);
+      return a.id.localeCompare(b.id);
+    });
+
+    // Check if ANY row has zone-structured data
+    const hasAnyZoneData = allRows.some(r => isZoneStructured(r.answer));
+
+    const rows: JSX.Element[] = [];
+    let currentSection = '';
+    let rowIndex = 0;
+
+    allRows.forEach((row) => {
+      if (currentSection !== row.sectionTitle) {
+        currentSection = row.sectionTitle;
+        rows.push(
+          <tr key={`section-${currentSection}`} className="bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40">
+            <td
+              colSpan={hasAnyZoneData ? 8 : 2}
+              className="px-4 py-2 text-sm font-bold text-blue-900 dark:text-blue-200 border border-gray-200 dark:border-gray-600"
+            >
+              {currentSection}
+            </td>
+          </tr>
+        );
+      }
+
+      const isEven = rowIndex % 2 === 0;
+      rowIndex++;
+
+      if (isZoneStructured(row.answer)) {
+  const val = row.answer;
+  const status = val?.status || '-';
+  const zones = val?.zone;
+  const zonesData = val?.zonesData || {};
+
+  // Build structured entries grouped by zone and category
+  type ZoneEntry = {
+    zone: string;
+    category: string;
+    defects: string;
+    remark: string;
+    file: string;
+    zoneRowSpan?: number;
+    categoryRowSpan?: number;
+    showZone?: boolean;
+    showCategory?: boolean;
+  };
+
+  const zoneEntries: ZoneEntry[] = [];
+
+  if (zonesData && typeof zonesData === 'object') {
+    Object.entries(zonesData).forEach(([zoneName, zoneVal]: [string, any]) => {
+      const categories = zoneVal?.categories;
+      const zoneStartIndex = zoneEntries.length;
+
+      if (Array.isArray(categories) && categories.length > 0) {
+        categories.forEach((cat: any) => {
+          const catName = typeof cat === 'string' ? cat : (cat?.name || cat?.category || '-');
+          const defects = cat?.defects;
+          const catStartIndex = zoneEntries.length;
+
+          if (Array.isArray(defects) && defects.length > 0) {
+            defects.forEach((defect: any) => {
+              const defectName = typeof defect === 'string'
+                ? defect
+                : (defect?.name || defect?.defect || defect?.title || '-');
+              const details = typeof defect === 'object' ? (defect?.details || {}) : {};
+              const remark = typeof defect === 'object'
+                ? (details?.remark || details?.remarks || defect?.remark || defect?.remarks || defect?.comment || '-')
+                : '-';
+              const file = typeof defect === 'object'
+                ? (details?.fileUrl || details?.file || defect?.fileUrl || defect?.file || defect?.imageUrl || defect?.photo || defect?.image || defect?.url || '')
+                : '';
+              zoneEntries.push({
+                zone: zoneName,
+                category: catName,
+                defects: defectName,
+                remark: remark || '-',
+                file: file || '',
+                showZone: false,
+                showCategory: false,
+              });
+            });
+          } else {
+            const details = typeof cat === 'object' ? (cat?.details || {}) : {};
+            const remark = typeof cat === 'object' ? (details?.remark || cat?.remark || '-') : '-';
+            const file = typeof cat === 'object' ? (details?.fileUrl || details?.file || cat?.fileUrl || cat?.file || '') : '';
+            zoneEntries.push({
+              zone: zoneName,
+              category: catName,
+              defects: '-',
+              remark: remark || '-',
+              file: file || '',
+              showZone: false,
+              showCategory: false,
+            });
+          }
+
+          // Mark first entry of this category
+          const catCount = zoneEntries.length - catStartIndex;
+          if (catCount > 0) {
+            zoneEntries[catStartIndex].showCategory = true;
+            zoneEntries[catStartIndex].categoryRowSpan = catCount;
+          }
+        });
+      } else {
+        zoneEntries.push({
+          zone: zoneName,
+          category: '-',
+          defects: '-',
+          remark: '-',
+          file: '',
+          showZone: false,
+          showCategory: true,
+          categoryRowSpan: 1,
+        });
+      }
+
+      // Mark first entry of this zone
+      const zoneCount = zoneEntries.length - zoneStartIndex;
+      if (zoneCount > 0) {
+        zoneEntries[zoneStartIndex].showZone = true;
+        zoneEntries[zoneStartIndex].zoneRowSpan = zoneCount;
+      }
+    });
+  }
+
+  if (zoneEntries.length === 0) {
+    const zonesStr = Array.isArray(zones) ? zones.join(', ') : (zones || '-');
+    zoneEntries.push({
+      zone: zonesStr,
+      category: '-',
+      defects: '-',
+      remark: '-',
+      file: '',
+      showZone: true,
+      showCategory: true,
+      zoneRowSpan: 1,
+      categoryRowSpan: 1,
+    });
+  }
+
+  const totalRowSpan = zoneEntries.length;
+
+  // First row — includes Question, Status, Zones cells (all rowspanned)
+  rows.push(
+    <tr key={`${row.id}-0`} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
+      {/* Question — rowspan all */}
+      <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top w-[120px] min-w-[100px] max-w-[140px]">
+        <div className="flex flex-col gap-1">
+          {row.subParam1 && (
+            <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
+              {row.subParam1}
+            </span>
+          )}
+          <div className="font-medium text-gray-800 dark:text-gray-200 text-xs leading-tight">
+            {row.questionText}
+          </div>
+        </div>
+      </td>
+      {/* Status — rowspan all */}
+      <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-middle text-center w-[90px]">
+        <span className="inline-block bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 px-2 py-1 rounded-full text-xs font-bold border border-orange-200 dark:border-orange-700 whitespace-nowrap">
+          {status}
+        </span>
+      </td>
+      {/* Zones — rowspan all */}
+      <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-middle w-[100px]">
+        <div className="flex flex-col gap-1">
+          {(Array.isArray(zones) ? zones : [zones]).filter(Boolean).map((z: string, i: number) => (
+            <span key={i} className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded text-xs font-semibold border border-blue-200 dark:border-blue-700 whitespace-nowrap">
+              {z}
+            </span>
+          ))}
+        </div>
+      </td>
+      {/* First entry: Zone (rowspanned per zone group) */}
+      {zoneEntries[0].showZone && (
+        <td
+          rowSpan={zoneEntries[0].zoneRowSpan}
+          className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-800 dark:text-gray-200 align-middle bg-blue-50/30 dark:bg-blue-900/10"
+        >
+          {zoneEntries[0].zone}
+        </td>
+      )}
+      {/* First entry: Category (rowspanned per category group) */}
+      {zoneEntries[0].showCategory && (
+        <td
+          rowSpan={zoneEntries[0].categoryRowSpan}
+          className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 align-middle"
+        >
+          {zoneEntries[0].category}
+        </td>
+      )}
+      <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
+        {zoneEntries[0].defects}
+      </td>
+      <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 italic">
+        {zoneEntries[0].remark !== '-' ? <span className="flex items-center gap-1">📝 {zoneEntries[0].remark}</span> : '-'}
+      </td>
+      <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs">
+        {zoneEntries[0].file ? (
+          isImageUrl(zoneEntries[0].file)
+            ? <ImageLink text={zoneEntries[0].file} />
+            : <a href={zoneEntries[0].file} target={"_blank"} rel={"noopener noreferrer"} className="text-blue-600 dark:text-blue-400 underline">View</a>
+        ) : '-'}
+      </td>
+    </tr>
+  );
+
+  // Remaining rows
+  zoneEntries.slice(1).forEach((entry, idx) => {
+    rows.push(
+      <tr key={`${row.id}-${idx + 1}`} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
+        {/* Zone cell — only render if this is the first row of a new zone group */}
+        {entry.showZone && (
+          <td
+            rowSpan={entry.zoneRowSpan}
+            className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-800 dark:text-gray-200 align-middle bg-blue-50/30 dark:bg-blue-900/10"
+          >
+            {entry.zone}
+          </td>
         )}
+        {/* Category cell — only render if this is the first row of a new category group */}
+        {entry.showCategory && (
+          <td
+            rowSpan={entry.categoryRowSpan}
+            className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 align-middle"
+          >
+            {entry.category}
+          </td>
+        )}
+        <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
+          {entry.defects}
+        </td>
+        <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 italic">
+          {entry.remark !== '-' ? <span className="flex items-center gap-1">📝 {entry.remark}</span> : '-'}
+        </td>
+        <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs">
+          {entry.file ? (
+            isImageUrl(entry.file)
+              ? <ImageLink text={entry.file} />
+              : <a href={entry.file} target={"_blank"} rel={"noopener noreferrer"} className="text-blue-600 dark:text-blue-400 underline">View</a>
+          ) : '-'}
+        </td>
+      </tr>
+    );
+  });
+}else {
+        // Normal non-zone row — span all 8 columns for answer
+        rows.push(
+          <tr key={row.id} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
+            <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top w-[120px] min-w-[100px] max-w-[140px]">
+              <div className="flex flex-col gap-1">
+                {row.subParam1 && (
+                  <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
+                    {row.subParam1}
+                  </span>
+                )}
+                <div className="font-medium text-gray-800 dark:text-gray-200 text-xs leading-tight">
+                  {row.questionText}
+                </div>
+              </div>
+            </td>
+            <td colSpan={7} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top">
+              {renderSimpleAnswer(row.answer)}
+            </td>
+          </tr>
+        );
+      }
+    });
+
+    if (rows.length === 0) {
+      return (
+        <table className="w-full border-collapse">
+          <tbody>
+            <tr>
+              <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                No responses found
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      );
+    }
+
+    return (
+      <table className="w-full border-collapse text-sm">
+        <thead className="sticky top-0 z-10">
+          <tr className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700">
+            <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600 w-[120px]">
+              Question
+            </th>
+            {hasAnyZoneData && (
+              <>
+                <th className="px-3 py-3 text-left text-xs font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600 w-[90px]">
+                  Status
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600 w-[100px]">
+                  Zones
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                  Zone
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                  Category
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                  Defects
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                  Remark
+                </th>
+                <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                  File
+                </th>
+              </>
+            )}
+            {!hasAnyZoneData && (
+              <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                Answer / Response
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {rows}
+        </tbody>
+      </table>
+    );
+  })()}
+</div>
+  </div>
+)}
       </div>
 
       {editingResponse && editingFormLoading && (

@@ -4,6 +4,7 @@ import type { StaffMember } from "../types";
 
 interface User {
   _id: string;
+  id?: string;
   username: string;
   email: string;
   firstName: string;
@@ -49,7 +50,7 @@ interface AuthContextType {
     email: string,
     password: string,
     tenantSlug?: string,
-    location?: any
+    location?: any,
   ) => Promise<boolean>;
   signup: (signupData: {
     name: string;
@@ -73,12 +74,12 @@ const AuthContext = createContext<AuthContextType>({
   tenant: null,
   login: async () => false,
   signup: async () => false,
-  logout: () => { },
+  logout: () => {},
   isAuthenticated: false,
   loading: false,
   error: null,
-  updateTenant: () => { },
-  updateUser: () => { },
+  updateTenant: () => {},
+  updateUser: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -121,19 +122,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setTenant(parsedTenant);
 
             // If tenant exists but doesn't have _id, try to fetch it (only for superadmin)
-            if (parsedTenant && !parsedTenant._id && response.user.tenantId && response.user.role === "superadmin") {
+            if (
+              parsedTenant &&
+              !parsedTenant._id &&
+              response.user.tenantId &&
+              response.user.role === "superadmin"
+            ) {
               try {
-                const tenantResponse = await apiClient.getTenant(response.user.tenantId);
+                const tenantResponse = await apiClient.getTenant(
+                  response.user.tenantId,
+                );
                 updateTenantState(tenantResponse.tenant);
               } catch (tenantErr) {
                 console.warn("Failed to fetch tenant information:", tenantErr);
                 // Keep the stored tenant if fetch fails
               }
             }
-          } else if (response.user.tenantId && response.user.role === "superadmin") {
+          } else if (
+            response.user.tenantId &&
+            response.user.role === "superadmin"
+          ) {
             // No stored tenant but user has tenantId, try to fetch it (only for superadmin)
             try {
-              const tenantResponse = await apiClient.getTenant(response.user.tenantId);
+              const tenantResponse = await apiClient.getTenant(
+                response.user.tenantId,
+              );
               updateTenantState(tenantResponse.tenant);
             } catch (tenantErr) {
               console.warn("Failed to fetch tenant information:", tenantErr);
@@ -154,7 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     tenantSlug?: string,
-    location?: any
+    location?: any,
   ) => {
     setLoading(true);
     setError(null);
@@ -172,7 +185,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Store sessionLogId for logout tracking
       if (response.sessionLogId) {
-        localStorage.setItem('session_log_id', response.sessionLogId);
+        localStorage.setItem("session_log_id", response.sessionLogId);
       }
 
       setLoading(false);
@@ -228,9 +241,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    const sessionLogId = localStorage.getItem('session_log_id');
+    const sessionLogId = localStorage.getItem("session_log_id");
     apiClient.logout(sessionLogId || undefined);
-    localStorage.removeItem('session_log_id');
+    localStorage.removeItem("session_log_id");
     setUser(null);
     updateTenantState(null);
     setError(null);

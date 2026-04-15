@@ -89,6 +89,8 @@ interface ResponseData {
 export default function FormsAnalytics() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isInspector = user?.role === "inspector";
+  const canManage = (user?.role === "admin" || user?.role === "superadmin" || user?.role === "subadmin") && !isInspector;
   const { showSuccess, showError, showConfirm } = useNotification();
   const [searchTerm, setSearchTerm] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -352,13 +354,32 @@ export default function FormsAnalytics() {
   const responseCounts = useMemo(() => {
     const allResponses =
       (responsesData as ResponseData | undefined)?.responses || [];
-    return allResponses.reduce<Record<string, number>>((acc, response: any) => {
+    
+    // Filter responses for inspectors to only count their own
+    const filteredResponses = user?.role === "inspector" 
+      ? allResponses.filter((response: any) => {
+          const creatorId = typeof response.createdBy === 'object' ? response.createdBy?._id || response.createdBy?.id : response.createdBy;
+          const userId = user._id || user.id;
+          const submittedBy = response.submittedBy || '';
+          const submitterEmail = response.submitterContact?.email || '';
+          const userEmail = user.email || '';
+          const userUsername = user.username || '';
+          
+          // Match by createdBy or submittedBy or submitterContact.email
+          return String(creatorId) === String(userId) ||
+                 submittedBy === userEmail ||
+                 submittedBy === userUsername ||
+                 submitterEmail === userEmail;
+        })
+      : allResponses;
+    
+    return filteredResponses.reduce<Record<string, number>>((acc, response: any) => {
       if (response.questionId) {
         acc[response.questionId] = (acc[response.questionId] || 0) + 1;
       }
       return acc;
     }, {});
-  }, [responsesData]);
+  }, [responsesData, user]);
 
   const groupedForms = useMemo(() => {
     const result = filteredForms.reduce((acc, form) => {
@@ -451,7 +472,11 @@ export default function FormsAnalytics() {
   const allForms = filteredForms.length;
   const totalResponses = filteredForms.reduce((sum, form) => {
     const formId = form.id || form._id;
-    return sum + (responseCounts[formId] || form.responseCount || 0);
+    // For inspectors, only count their own responses
+    const count = user?.role === "inspector" 
+      ? (responseCounts[formId] || 0) 
+      : (responseCounts[formId] || form.responseCount || 0);
+    return sum + count;
   }, 0);
 
   const handleDelete = async (id: string, title: string) => {
@@ -716,93 +741,97 @@ export default function FormsAnalytics() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
-          {/* Updated Template Download Button with Dropdown */}
-          <div 
-            className="relative"
-            ref={templateDropdownRef}
-          >
-            <button
-              onClick={toggleTemplateDropdown}
-              className="btn-secondary flex items-center justify-center min-w-[200px]"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              {selectedTemplate ? `Download ${selectedTemplate.label} Template` : "Download Import Template"}
-              <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isTemplateDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-            
-            {/* Dropdown Menu */}
-            {isTemplateDropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-primary-200 py-2 z-50 animate-fadeIn">
-                <div className="px-4 py-2 border-b border-primary-100">
-                  <p className="text-xs font-medium text-primary-700">Select Template Type:</p>
-                </div>
+          {canManage && !isInspector && (
+            <>
+              {/* Updated Template Download Button with Dropdown */}
+              <div 
+                className="relative"
+                ref={templateDropdownRef}
+              >
+                <button
+                  onClick={toggleTemplateDropdown}
+                  className="btn-secondary flex items-center justify-center min-w-[200px]"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {selectedTemplate ? `Download ${selectedTemplate.label} Template` : "Download Import Template"}
+                  <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isTemplateDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
                 
-                {templateOptions.map((template) => (
-                  <button
-                    key={template.id}
-                    onClick={() => handleTemplateSelect(template)}
-                    className={`w-full flex flex-col items-start px-4 py-3 text-left hover:bg-primary-50 transition-colors ${selectedTemplate?.id === template.id ? 'bg-primary-50 border-l-4 border-primary-600' : ''}`}
-                  >
-                    <div className="flex items-center w-full">
-                      <div className={`p-1.5 rounded-lg mr-3 ${selectedTemplate?.id === template.id ? 'bg-primary-100' : 'bg-primary-50'}`}>
-                        {template.id === "flat" ? (
-                          <Layers className="w-4 h-4 text-primary-600" />
-                        ) : (
-                          <Layers className="w-4 h-4 text-purple-600" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <div className="font-medium text-primary-800">
-                          {template.label}
-                        </div>
-                        <div className="text-xs text-primary-600 mt-0.5">
-                          {template.description}
-                        </div>
-                      </div>
-                      {selectedTemplate?.id === template.id && (
-                        <Check className="w-4 h-4 text-primary-600 ml-2" />
-                      )}
+                {/* Dropdown Menu */}
+                {isTemplateDropdownOpen && (
+                  <div className="absolute top-full left-0 mt-1 w-64 bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-primary-200 py-2 z-50 animate-fadeIn">
+                    <div className="px-4 py-2 border-b border-primary-100">
+                      <p className="text-xs font-medium text-primary-700">Select Template Type:</p>
                     </div>
-                  </button>
-                ))}
-                
-                <div className="px-4 py-2 border-t border-primary-100 mt-1">
-                  <p className="text-xs text-primary-500">
-                    {selectedTemplate?.id === "flat" 
-                      ? "Each question can have unlimited main-level follow-ups" 
-                      : "Supports hierarchical follow-up questions with nesting"}
-                  </p>
-                </div>
+                    
+                    {templateOptions.map((template) => (
+                      <button
+                        key={template.id}
+                        onClick={() => handleTemplateSelect(template)}
+                        className={`w-full flex flex-col items-start px-4 py-3 text-left hover:bg-primary-50 transition-colors ${selectedTemplate?.id === template.id ? 'bg-primary-50 border-l-4 border-primary-600' : ''}`}
+                      >
+                        <div className="flex items-center w-full">
+                          <div className={`p-1.5 rounded-lg mr-3 ${selectedTemplate?.id === template.id ? 'bg-primary-100' : 'bg-primary-50'}`}>
+                            {template.id === "flat" ? (
+                              <Layers className="w-4 h-4 text-primary-600" />
+                            ) : (
+                              <Layers className="w-4 h-4 text-purple-600" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-medium text-primary-800">
+                              {template.label}
+                            </div>
+                            <div className="text-xs text-primary-600 mt-0.5">
+                              {template.description}
+                            </div>
+                          </div>
+                          {selectedTemplate?.id === template.id && (
+                            <Check className="w-4 h-4 text-primary-600 ml-2" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                    
+                    <div className="px-4 py-2 border-t border-primary-100 mt-1">
+                      <p className="text-xs text-primary-500">
+                        {selectedTemplate?.id === "flat" 
+                          ? "Each question can have unlimited main-level follow-ups" 
+                          : "Supports hierarchical follow-up questions with nesting"}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          
-          {/* Rest of your buttons remain the same */}
-          <button
-            onClick={handleImportClick}
-            className="btn-secondary flex items-center justify-center"
-            disabled={isImporting}
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            {isImporting ? "Importing..." : "Import Form (Excel)"}
-          </button>
-          <button
-            onClick={() => setIsAnswerTemplateOpen(true)}
-            className="btn-secondary flex items-center justify-center"
-            title="Import answer templates for testing"
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            Import Answers
-          </button>
-          <button
-            onClick={() =>
-              navigate("/forms/create", { state: { mode: "create" } })
-            }
-            className="btn-primary flex items-center justify-center"
-          >
-            <PlusCircle className="w-4 h-4 mr-2" />
-            Create New Service Form
-          </button>
+              
+              {/* Rest of your buttons remain the same */}
+              <button
+                onClick={handleImportClick}
+                className="btn-secondary flex items-center justify-center"
+                disabled={isImporting}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                {isImporting ? "Importing..." : "Import Form (Excel)"}
+              </button>
+              <button
+                onClick={() => setIsAnswerTemplateOpen(true)}
+                className="btn-secondary flex items-center justify-center"
+                title="Import answer templates for testing"
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Import Answers
+              </button>
+              <button
+                onClick={() =>
+                  navigate("/forms/create", { state: { mode: "create" } })
+                }
+                className="btn-primary flex items-center justify-center"
+              >
+                <PlusCircle className="w-4 h-4 mr-2" />
+                Create New Service Form
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -878,9 +907,9 @@ export default function FormsAnalytics() {
           <p className="text-primary-500 mb-6">
             {searchTerm
               ? "Try adjusting your search criteria"
-              : "Create your first service form to get started"}
+              : ""}
           </p>
-          {!searchTerm && (
+          {!searchTerm && canManage && !isInspector && (
             <button
               onClick={() => navigate("/forms/create")}
               className="btn-primary"
@@ -896,9 +925,21 @@ export default function FormsAnalytics() {
             if (!parent) return null;
 
             const formId = parent.id || parent._id;
-            const responseCount = responseCounts[formId] || parent.responseCount || 0;
+            const responseCount = user?.role === "inspector" 
+              ? (responseCounts[formId] || 0) 
+              : (responseCounts[formId] || parent.responseCount || 0);
             const isLocationEnabled = parent.locationEnabled !== false;
 
+            const ownerTenantId = typeof parent.tenantId === 'object' ? parent.tenantId?._id : parent.tenantId;
+const isOwner = user?.role === "superadmin" || !parent.tenantId || ownerTenantId === user?.tenantId;
+
+// Add this - check if user can edit (only admin and superadmin)
+const canEdit = user?.role === "admin" || user?.role === "superadmin";
+
+// Add this - check if user can delete (only admin and superadmin)
+const canDelete = user?.role === "admin" || user?.role === "superadmin";
+
+const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.companyName || parent.tenantId?.name) : null;
             return (
               <div
                 key={formId}
@@ -906,9 +947,16 @@ export default function FormsAnalytics() {
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <h3 className="font-medium text-primary-800 mb-2 line-clamp-2">
-                      {parent.title}
-                    </h3>
+                    <div className="flex items-center gap-2 mb-2">
+                       <h3 className="font-medium text-primary-800 line-clamp-2 mb-0">
+                        {parent.title}
+                      </h3>
+                      {tenantName && ownerTenantId !== user?.tenantId && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-wider">
+                          {tenantName}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-sm text-primary-600 line-clamp-2">
                       {parent.description}
                     </p>
@@ -919,7 +967,7 @@ export default function FormsAnalytics() {
                   <div className="flex items-center">
                     <Users className="w-3 h-3 mr-1" />
                     {responseCount} responses
-                    {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && (
+                    {isOwner && (
                       <>
                         <button
                           onClick={(e) => {
@@ -1207,87 +1255,92 @@ export default function FormsAnalytics() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex space-x-2">
-                    {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && (
-                      <button
-                        onClick={() => navigate(`/forms/${formId}/preview`)}
-                        className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
-                      >
-                        View
-                      </button>
-                    )}
-                    {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) ? (
-                      <>
-                        <button
-                          onClick={() => navigate(`/forms/${formId}/edit`)}
-                          className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
-                          title="Edit form"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => navigate(`/forms/${formId}/analytics`)}
-                          className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
-                          title="View analytics"
-                        >
-                          <BarChart3 className="w-4 h-4" />
-                          Analytics
-                        </button>
-                        <button
-                          onClick={() => navigate(`/forms/${formId}/uploads`)}
-                          className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
-                          title="View uploads"
-                        >
-                          <Folder className="w-4 h-4" />
-                          Uploads
-                        </button>
-                      </>
-                    ) : (
-                      <div className="flex space-x-2">
-                        <button
-                          onClick={() => navigate(`/forms/${formId}/analytics`)}
-                          className="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg transition-colors hover:bg-indigo-700 flex items-center gap-2"
-                          title="View Shared Responses"
-                        >
-                          <List className="w-4 h-4" />
-                          Analytics
-                        </button>
-                        <button
-                          onClick={() => navigate(`/forms/${formId}/uploads`)}
-                          className="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg transition-colors hover:bg-indigo-700 flex items-center gap-2"
-                          title="View Shared Uploads"
-                        >
-                          <Folder className="w-4 h-4" />
-                          Uploads
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && (
-                    <div className="flex space-x-2">
-                      <button
-                        onClick={() => handleDuplicate(formId)}
-                        className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
-                        title="Duplicate form"
-                        disabled={duplicateMutation.loading}
-                      >
-                        <Copy className="w-4 h-4" />
-                        Duplicate
-                      </button>
-                      <button
-                        onClick={() => handleDelete(formId, parent.title)}
-                        className="px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700 flex items-center gap-2"
-                        title="Delete form"
-                        disabled={deleteMutation.loading}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Delete
-                      </button>
-                    </div>
-                  )}
-                </div>
+             <div className="flex items-center justify-between">
+  <div className="flex space-x-2">
+    {isOwner && (
+      <button
+        onClick={() => navigate(`/forms/${formId}/preview`)}
+        className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700"
+      >
+        View
+      </button>
+    )}
+    {isOwner ? (
+      <>
+        {/* Edit button - only show for admin and superadmin */}
+        {canEdit && (
+          <button
+            onClick={() => navigate(`/forms/${formId}/edit`)}
+            className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
+            title="Edit form"
+          >
+            <Edit2 className="w-4 h-4" />
+            Edit
+          </button>
+        )}
+        <button
+          onClick={() => navigate(`/forms/${formId}/analytics`)}
+          className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
+          title="View analytics"
+        >
+          <BarChart3 className="w-4 h-4" />
+          Analytics
+        </button>
+        <button
+          onClick={() => navigate(`/forms/${formId}/uploads`)}
+          className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
+          title="View uploads"
+        >
+          <Folder className="w-4 h-4" />
+          Uploads
+        </button>
+      </>
+    ) : (
+      <div className="flex space-x-2">
+        <button
+          onClick={() => navigate(`/forms/${formId}/analytics`)}
+          className="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg transition-colors hover:bg-indigo-700 flex items-center gap-2"
+          title="View Shared Responses"
+        >
+          <List className="w-4 h-4" />
+          Analytics
+        </button>
+        <button
+          onClick={() => navigate(`/forms/${formId}/uploads`)}
+          className="px-3 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg transition-colors hover:bg-indigo-700 flex items-center gap-2"
+          title="View Shared Uploads"
+        >
+          <Folder className="w-4 h-4" />
+          Uploads
+        </button>
+      </div>
+    )}
+  </div>
+  
+  {/* Duplicate and Delete buttons - only show for admin and superadmin */}
+  {isOwner && canDelete && (
+    <div className="flex space-x-2">
+      <button
+        onClick={() => handleDuplicate(formId)}
+        className="px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center gap-2"
+        title="Duplicate form"
+        disabled={duplicateMutation.loading}
+      >
+        <Copy className="w-4 h-4" />
+        Duplicate
+      </button>
+      <button
+        onClick={() => handleDelete(formId, parent.title)}
+        className="px-3 py-2 text-sm font-medium text-white bg-red-600 rounded-lg transition-colors hover:bg-red-700 flex items-center gap-2"
+        title="Delete form"
+        disabled={deleteMutation.loading}
+      >
+        <Trash2 className="w-4 h-4" />
+        Delete
+      </button>
+    </div>
+  )}
+</div>
 
                 {children.length > 0 && (
                   <div className="border-t border-neutral-200 dark:border-gray-700 pt-6 mt-6 bg-gradient-to-r from-primary-50/30 to-purple-50/30 -mx-6 px-6 pb-6 rounded-b-lg">
@@ -1313,9 +1366,10 @@ export default function FormsAnalytics() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {children.map((child, index) => {
                         const childId = child.id || child._id;
+                        // For inspectors, only count their own responses
                         const childResponseCount = childId
-                          ? responseCounts[childId] || child.responseCount || 0
-                          : child.responseCount || 0;
+                          ? (user?.role === "inspector" ? (responseCounts[childId] || 0) : (responseCounts[childId] || child.responseCount || 0))
+                          : (user?.role === "inspector" ? 0 : (child.responseCount || 0));
 
                         return (
                           <div
@@ -1378,7 +1432,7 @@ export default function FormsAnalytics() {
 
                               {/* Quick action buttons */}
                               <div className="flex items-center justify-between gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && (
+                                {isOwner && (
                                   <>
                                     <button
                                       onClick={() =>
@@ -1405,22 +1459,22 @@ export default function FormsAnalytics() {
                                   onClick={() =>
                                     navigate(`/forms/${childId}/analytics`)
                                   }
-                                  className={`${(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) ? 'p-1.5 border border-primary-200 text-primary-600' : 'flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm flex items-center justify-center gap-1'} transition-all flex items-center justify-center`}
+                                  className={`${isOwner ? 'p-1.5 border border-primary-200 text-primary-600' : 'flex-1 px-2 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm flex items-center justify-center gap-1'} transition-all flex items-center justify-center`}
                                   title="Analytics"
                                 >
                                   <BarChart3 className="w-3.5 h-3.5" />
-                                  {!(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && <span className="ml-1">Analytics</span>}
+                                  {!isOwner && <span className="ml-1">Analytics</span>}
                                 </button>
                                 <button
                                   onClick={() =>
                                     navigate(`/forms/${childId}/responses`)
                                   }
-                                  className={`${(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) ? 'p-1.5 border border-primary-200 text-primary-600' : 'p-1.5 border border-indigo-200 text-indigo-600 hover:bg-indigo-50'} transition-all rounded-lg flex items-center justify-center`}
+                                  className={`${isOwner ? 'p-1.5 border border-primary-200 text-primary-600' : 'p-1.5 border border-indigo-200 text-indigo-600 hover:bg-indigo-50'} transition-all rounded-lg flex items-center justify-center`}
                                   title="Responses"
                                 >
                                   <List className="w-3.5 h-3.5" />
                                 </button>
-                                {(user?.role === "superadmin" || !parent.tenantId || parent.tenantId === user?.tenantId) && (
+                                {(isOwner) && (
                                   <button
                                     onClick={() =>
                                       handleDelete(childId, child.title || "")

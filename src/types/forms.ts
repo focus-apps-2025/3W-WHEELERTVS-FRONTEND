@@ -48,6 +48,8 @@ export interface FollowUpQuestion {
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
   trackResponseRank?: boolean;
   trackResponseQuestion?: boolean;
+  trackResponseQuestionType?: string;
+  trackResponseQuestionLabel?: string;
   branchingRules?: Array<{
     optionLabel: string;
     targetSectionId: string;
