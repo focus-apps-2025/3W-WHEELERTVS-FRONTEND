@@ -75,6 +75,11 @@ class ApiClient {
 
     if (this.token) {
       headers.Authorization = `Bearer ${this.token}`;
+    } else {
+      const guestToken = localStorage.getItem("guest_auth_token");
+      if (guestToken) {
+        headers.Authorization = `Bearer ${guestToken}`;
+      }
     }
 
     const controller = new AbortController();
@@ -2098,6 +2103,61 @@ class ApiClient {
         method: "PUT",
       },
     );
+  }
+
+  // --- ANALYTICS INVITES ---
+  async uploadAnalyticsInvites(formId: string, file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return this.request<{
+      total: number;
+      valid: number;
+      invalid: number;
+      preview: any[];
+    }>(`/analytics-invites/${formId}/upload`, {
+      method: "POST",
+      body: formData,
+      headers: {}, // Let browser set Content-Type for FormData
+    });
+  }
+
+  async sendAnalyticsInvites(
+    formId: string,
+    invites: any[],
+    channels: string[] = ["email"],
+    customMessage?: string,
+  ) {
+    return this.request<{ 
+      sent: number, 
+      failed: number, 
+      allSuccessful: boolean, 
+      details: any[] 
+    }>(`/analytics-invites/${formId}/send`, {
+      method: "POST",
+      body: JSON.stringify({ invites, channels, customMessage }),
+    });
+  }
+
+  async requestAnalyticsOTP(formId: string, email: string, phone: string, channel: 'email' | 'sms' = 'email') {
+    return this.request<{
+      success: boolean;
+      message: string;
+    }>("/analytics-invites/request-otp", {
+      method: "POST",
+      body: JSON.stringify({ formId, email, phone, channel }),
+    });
+  }
+
+  async verifyAnalyticsOTP(formId: string, email: string, otp: string) {
+    return this.request<{
+      token: string;
+      email: string;
+      formId: string;
+      expiresAt: string;
+    }>("/analytics-invites/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ formId, email, otp }),
+    });
   }
 }
 

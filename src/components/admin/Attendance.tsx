@@ -1,1086 +1,431 @@
-import React, { useState, useEffect, useRef, ChangeEvent } from "react";
-import { useNavigate } from "react-router-dom";
-import {
-  PlusCircle,
-  Search,
-  Edit2,
-  Trash2,
-  Eye,
-  FileText,
-  MessageSquarePlus,
-  Copy,
-  BarChart3,
+import React, { useState, useEffect } from 'react';
+import { apiClient } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
+import { 
+  Calendar, 
+  Download, 
+  Search, 
+  Filter, 
+  Users, 
+  Clock, 
+  MapPin, 
+  AlertCircle, 
+  CheckCircle2, 
+  Loader2,
   TrendingUp,
-  Users,
-  Calendar,
-  MoreVertical,
-  List,
-  Link as LinkIcon,
-  ExternalLink,
-  X,
-  Check,
-  Upload,
-  Download,
-  Database,
-} from "lucide-react";
-import { useForms, useMutation } from "../../hooks/useApi";
-import { apiClient } from "../../api/client";
-import { useNotification } from "../../context/NotificationContext";
-import { useAuth } from "../../context/AuthContext";
-import {
-  exportFormStructureToExcel,
-  downloadFormImportTemplate,
-  parseFormWorkbook,
-  loadSampleFormData,
-} from "../../utils/exportUtils";
-import ImportPreviewModal from "../ImportPreviewModal";
-import type {
-  Question as FormSchema,
-  Section as FormSection,
-} from "../../types/forms";
-import type { Question as FormQuestion } from "../../types";
-
-interface Form {
-  _id: string;
-  id?: string;
-  title: string;
-  description: string;
-  isVisible: boolean;
-  isActive: boolean;
-  sections: any[];
-  questions: any[];
-  createdAt: string;
-  createdBy: any;
-  responseCount?: number;
-  childForms?: Array<{ formId: string; formTitle: string; order: number }>;
-  parentFormId?: string;
-  parentFormTitle?: string;
-}
+  User,
+  Activity
+} from 'lucide-react';
 
 export default function Attendance() {
-  const navigate = useNavigate();
-  const { user, tenant } = useAuth();
-  const isInspector = user?.role === "inspector";
-  const isSubAdmin = user?.role === "subadmin";
-  const canManage = user?.role === "admin" || user?.role === "superadmin" || user?.role === "subadmin";
-  const canEdit = canManage && !isInspector;
-  const [searchTerm, setSearchTerm] = useState("");
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
-  const [showChildFormsModal, setShowChildFormsModal] = useState(false);
-  const [selectedParentForm, setSelectedParentForm] = useState<Form | null>(
-    null,
-  );
-  const [selectedChildFormIds, setSelectedChildFormIds] = useState<string[]>(
-    [],
-  );
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const importFileRef = useRef<File | null>(null);
-  const { data: formsData, loading, error, execute: refetchForms } = useForms();
-  const { showSuccess, showError, showConfirm } = useNotification();
-  const [isImporting, setIsImporting] = useState(false);
-  const [exportingFormId, setExportingFormId] = useState<string | null>(null);
-  const [showImportPreview, setShowImportPreview] = useState(false);
-  const [importPreviewData, setImportPreviewData] = useState<any>(null);
-  const [importParameters, setImportParameters] = useState<any[]>([]);
-  const [isConfirmingImport, setIsConfirmingImport] = useState(false);
-
-  const deleteMutation = useMutation((id: string) => apiClient.deleteForm(id), {
-    onSuccess: () => {
-      refetchForms();
-      showSuccess("Form deleted successfully", "Success");
-    },
-    onError: (error: any) => {
-      showError(error.message || "Failed to delete form", "Error");
-    },
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [data, setData] = useState<any>(null);
+  const [summary, setSummary] = useState<any>(null);
+  const [filters, setFilters] = useState({
+    startDate: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0], // Last 7 days
+    endDate: new Date().toISOString().split('T')[0],
+    inspectorId: '',
+    status: '',
+    shiftId: ''
   });
+  const [shifts, setShifts] = useState<any[]>([]);
+  const [inspectors, setInspectors] = useState<any[]>([]);
 
-  const duplicateMutation = useMutation(
-    (id: string) => apiClient.duplicateForm(id),
-    {
-      onSuccess: () => {
-        refetchForms();
-        showSuccess("Form duplicated successfully", "Success");
-      },
-      onError: (error: any) => {
-        showError(error.message || "Failed to duplicate form", "Error");
-      },
-    },
-  );
-
-  const visibilityMutation = useMutation(
-    ({ id, isVisible }: { id: string; isVisible: boolean }) =>
-      apiClient.updateFormVisibility(id, isVisible),
-    {
-      onSuccess: (data, variables) => {
-        refetchForms();
-        showSuccess(
-          `Form is now ${variables.isVisible ? "public" : "private"}`,
-          "Visibility Updated",
-        );
-      },
-      onError: (error: any) => {
-        showError(error.message || "Failed to update visibility", "Error");
-      },
-    },
-  );
-
-  const activeMutation = useMutation(
-    ({ id, isActive }: { id: string; isActive: boolean }) =>
-      apiClient.updateFormActiveStatus(id, isActive),
-    {
-      onSuccess: (data, variables) => {
-        refetchForms();
-        showSuccess(
-          `Form is now ${variables.isActive ? "active" : "inactive"}`,
-          "Status Updated",
-        );
-      },
-      onError: (error: any) => {
-        showError(error.message || "Failed to update active status", "Error");
-      },
-    },
-  );
-
-  const linkChildFormMutation = useMutation(
-    ({
-      parentFormId,
-      childFormId,
-    }: {
-      parentFormId: string;
-      childFormId: string;
-    }) => apiClient.linkChildForm(parentFormId, childFormId),
-    {
-      onSuccess: () => {
-        refetchForms();
-        showSuccess("Child form linked successfully", "Success");
-      },
-      onError: (error: any) => {
-        showError(error.message || "Failed to link child form", "Error");
-      },
-    },
-  );
-
-  const unlinkChildFormMutation = useMutation(
-    ({
-      parentFormId,
-      childFormId,
-    }: {
-      parentFormId: string;
-      childFormId: string;
-    }) => apiClient.unlinkChildForm(parentFormId, childFormId),
-    {
-      onSuccess: () => {
-        refetchForms();
-        showSuccess("Child form unlinked successfully", "Success");
-      },
-      onError: (error: any) => {
-        showError(error.message || "Failed to unlink child form", "Error");
-      },
-    },
-  );
-
-  // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setOpenDropdownId(null);
-      }
-    };
+    fetchMetadata();
+    fetchTodaySummary();
+    fetchReport();
+  }, []);
 
-    if (openDropdownId) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [openDropdownId]);
-
-  const forms = formsData?.forms || [];
-
-  const searchValue = searchTerm.toLowerCase();
-  const activeForms = React.useMemo(
-    () => forms.filter((form: Form) => form.isActive),
-    [forms],
-  );
-
-  // Separate parent/standalone forms and child forms
-  const parentAndStandaloneForms = React.useMemo(
-    () => activeForms.filter((form: Form) => !form.parentFormId),
-    [activeForms],
-  );
-
-  // Filter forms based on search (parent/standalone only, children will be shown under parents)
-  const filteredForms = React.useMemo(
-    () =>
-      parentAndStandaloneForms.filter(
-        (form: Form) =>
-          form.title.toLowerCase().includes(searchValue) ||
-          form.description.toLowerCase().includes(searchValue),
-      ),
-    [parentAndStandaloneForms, searchValue],
-  );
-
-  const hasAnyForms = forms.length > 0;
-  const hasActiveForms = activeForms.length > 0;
-
-  // Get child forms for a parent - memoized to avoid recalculating on every render
-  const childFormsMap = React.useMemo(() => {
-    const map = new Map<string, Form[]>();
-    activeForms.forEach((form: Form) => {
-      if (form.parentFormId) {
-        if (!map.has(form.parentFormId)) {
-          map.set(form.parentFormId, []);
-        }
-        map.get(form.parentFormId)!.push(form);
-      }
-    });
-    return map;
-  }, [activeForms]);
-
-  const getChildFormsForParent = (parentFormId: string) => {
-    return childFormsMap.get(parentFormId) || [];
-  };
-
-  // Render a single form card (used for both parent and child forms)
-  const renderFormCard = (form: Form, isChild: boolean = false) => (
-    <div
-      key={form._id}
-      className={`rounded-lg border p-4 hover:shadow-sm transition-shadow bg-white dark:bg-gray-900 border-neutral-200 dark:border-gray-700 ${
-        isChild
-          ? "ml-8 border-l-4 border-l-blue-400 bg-blue-50/30 dark:border-l-blue-500 dark:bg-blue-900/40"
-          : ""
-      }`}
-    >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-2 mb-1">
-            {isChild && (
-              <LinkIcon className="w-4 h-4 text-blue-600 flex-shrink-0" />
-            )}
-            <h3
-              className={`font-medium line-clamp-2 ${isChild ? "text-sm" : ""}`}
-            >
-              {form.title}
-            </h3>
-            {/* Parent Form Indicator */}
-            {!isChild && form.childForms && form.childForms.length > 0 && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                <LinkIcon className="w-3 h-3 mr-1" />
-                Parent ({form.childForms.length} child
-                {form.childForms.length !== 1 ? "s" : ""})
-              </span>
-            )}
-            {/* Child Form Indicator */}
-            {isChild && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                Child Form
-              </span>
-            )}
-          </div>
-          <p
-            className={`line-clamp-2 ${
-              isChild ? "text-xs text-primary-600" : "text-sm"
-            }`}
-          >
-            {form.description}
-          </p>
-        </div>
-        <div
-          className="relative ml-2"
-          ref={openDropdownId === form._id ? dropdownRef : null}
-        >
-          <button
-            onClick={() => handleToggleDropdown(form._id)}
-            className="p-1 hover:bg-neutral-100 rounded"
-          >
-            <MoreVertical className="w-4 h-4 text-primary-400" />
-          </button>
-
-          {/* Dropdown Menu */}
-          {openDropdownId === form._id && (
-            <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-neutral-200 dark:border-gray-700 py-1 z-10">
-              {canEdit && !isChild && (
-                <button
-                  onClick={() => handleOpenChildFormsModal(form)}
-                  className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
-                >
-                  <LinkIcon className="w-4 h-4 mr-2" />
-                  Manage Child Forms
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  handleCopyFormLink(form.id || form._id, form.title);
-                  setOpenDropdownId(null);
-                }}
-                className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
-              >
-                <Copy className="w-4 h-4 mr-2" />
-                Copy Customer Link
-              </button>
-              <button
-                onClick={() => {
-                  handleOpenFormLink(form.id || form._id);
-                  setOpenDropdownId(null);
-                }}
-                className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
-              >
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Open Customer Link
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Form Stats */}
-      <div
-        className={`flex items-center justify-between text-primary-500 mb-4 ${
-          isChild ? "text-xs" : "text-xs"
-        }`}
-      >
-        <div className="flex items-center">
-          <Users className="w-3 h-3 mr-1" />
-          {form.responseCount || 0} responses
-        </div>
-        <div className="flex items-center">
-          <Calendar className="w-3 h-3 mr-1" />
-          {new Date(form.createdAt).toLocaleDateString()}
-        </div>
-      </div>
-
-      {/* Active Status */}
-      <div className="flex items-center justify-between mb-4">
-        <span
-          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            form.isActive
-              ? "bg-green-100 text-green-800"
-              : "bg-gray-100 text-gray-800"
-          }`}
-        >
-          {form.isActive ? "Active" : "Inactive"}
-        </span>
-        {canEdit ? (
-          <button
-            onClick={() => handleToggleActive(form._id, form.isActive)}
-            className="text-xs text-primary-600 hover:text-primary-800"
-            disabled={activeMutation.loading}
-          >
-            {activeMutation.loading ? "..." : "Toggle"}
-          </button>
-        ) : (
-          <span className="text-xs text-gray-400 italic">View only</span>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center justify-between">
-        <div className="flex space-x-2">
-          <button
-            onClick={() => handlePreviewForm(form.id || form._id)}
-            className={`px-3 py-2 font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 ${
-              isChild ? "text-xs" : "text-sm"
-            }`}
-          >
-            View
-          </button>
-          {canEdit && (
-            <button
-              onClick={() => handleEditForm(form._id)}
-              className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
-              title="Edit form"
-            >
-              <Edit2 className={isChild ? "w-3 h-3" : "w-4 h-4"} />
-            </button>
-          )}
-          <button
-            onClick={() => handleViewResponses(form._id)}
-            className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
-            title="View responses"
-          >
-            <List className={isChild ? "w-3 h-3" : "w-4 h-4"} />
-          </button>
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => handleExportForm(form)}
-            className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
-            title="Export form structure"
-            disabled={exportingFormId === form._id}
-          >
-            {exportingFormId === form._id ? (
-              <div className="w-4 h-4 border-2 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
-            ) : (
-              <Download className={isChild ? "w-3 h-3" : "w-4 h-4"} />
-            )}
-          </button>
-          {canEdit && (
-            <button
-              onClick={() => handleDuplicate(form._id)}
-              className="p-2 text-primary-600 hover:text-primary-800 hover:bg-primary-50 rounded-lg transition-colors"
-              title="Duplicate form"
-              disabled={duplicateMutation.loading}
-            >
-              <Copy className={isChild ? "w-3 h-3" : "w-4 h-4"} />
-            </button>
-          )}
-          {canEdit && (
-            <button
-              onClick={() => handleDelete(form._id, form.title)}
-              className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-              title="Delete form"
-              disabled={deleteMutation.loading}
-            >
-              <Trash2 className={isChild ? "w-3 h-3" : "w-4 h-4"} />
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  const handleDelete = async (id: string, title: string) => {
-    showConfirm(
-      `Are you sure you want to delete "${title}"? This action cannot be undone.`,
-      async () => {
-        await deleteMutation.mutate(id);
-      },
-      "Delete Form",
-      "Delete",
-      "Cancel",
-    );
-  };
-
-  const handleDuplicate = async (id: string) => {
-    await duplicateMutation.mutate(id);
-  };
-
-  const handleToggleVisibility = async (
-    id: string,
-    currentVisibility: boolean,
-  ) => {
-    await visibilityMutation.mutate({
-      id,
-      isVisible: !currentVisibility,
-    });
-  };
-
-  const handleToggleActive = async (id: string, currentActive: boolean) => {
-    await activeMutation.mutate({
-      id,
-      isActive: !currentActive,
-    });
-  };
-
-  const handleCreateForm = () => {
-    navigate("/forms/create");
-  };
-
-  const handleExportTemplate = () => {
-    downloadFormImportTemplate();
-  };
-
-  const handleLoadSampleData = async () => {
+  const fetchMetadata = async () => {
     try {
-      setIsImporting(true);
-      const sampleFormData = await loadSampleFormData();
-
-      // Navigate to form creation with sample data pre-loaded
-      navigate("/forms/create", {
-        state: {
-          mode: "create",
-          formData: {
-            title:
-              sampleFormData.title || "Sample Customer Service Feedback Form",
-            description:
-              sampleFormData.description || "Demo form with sub-parameters",
-            sections: sampleFormData.sections,
-            followUpQuestions: sampleFormData.followUpQuestions || [],
-            isVisible: true,
-            locationEnabled: true,
-          },
-        },
-      });
+      const [shiftsRes, inspectorsRes] = await Promise.all([
+        apiClient.getShifts(),
+        apiClient.getUsers({ role: 'inspector', limit: 1000 })
+      ]);
+      setShifts(shiftsRes?.data || []);
+      setInspectors(inspectorsRes?.users || []);
     } catch (error) {
-      console.error("Error loading sample data:", error);
-      showError("Failed to load sample data", "Error");
-    } finally {
-      setIsImporting(false);
+      console.error('Error fetching metadata:', error);
     }
   };
 
-  const handleExportForm = (form: Form) => {
-    const normalized: FormSchema = {
-      id: form.id || form._id,
-      title: form.title,
-      description: form.description,
-      sections: (form.sections || []) as FormSection[],
-      followUpQuestions: [],
-    } as FormSchema;
-    setExportingFormId(form._id);
+  const fetchTodaySummary = async () => {
+    setSummaryLoading(true);
     try {
-      exportFormStructureToExcel(normalized as unknown as FormQuestion);
-      showSuccess(`Exported form "${form.title}"`, "Export Complete");
-    } catch (error: any) {
-      showError(error?.message || "Failed to export form", "Export Failed");
-    } finally {
-      setExportingFormId(null);
-    }
-  };
-
-  const handleFileInputChange = async (
-    event: ChangeEvent<HTMLInputElement>,
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-    const isValidType =
-      file.type ===
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-      file.name.toLowerCase().endsWith(".xlsx");
-    if (!isValidType) {
-      showError("Please select a valid .xlsx file", "Invalid File");
-      return;
-    }
-
-    setIsImporting(true);
-
-    try {
-      const parsed = await parseFormWorkbook(file);
-
-      // Save file for later use in confirmation
-      importFileRef.current = file;
-
-      // Prepare preview data
-      const previewSections = (parsed.sections || []).map((section: any) => ({
-        title: section.title,
-        description: section.description,
-        weightage: section.weightage,
-        questions: section.questions.map((q: any) => ({
-          text: q.text,
-          type: q.type,
-          required: q.required,
-          subParam1: q.subParam1,
-          subParam2: q.subParam2,
-          options: q.options,
-          hasFollowUps: q.followUpQuestions && q.followUpQuestions.length > 0,
-        })),
-      }));
-
-      setImportPreviewData({
-        title: parsed.title,
-        description: parsed.description,
-        sections: previewSections,
-      });
-
-      setImportParameters(parsed.parametersToCreate || []);
-      setShowImportPreview(true);
-    } catch (error: any) {
-      showError(error?.message || "Failed to parse form", "Parse Failed");
-      // Clear file input on error
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
-  const handleConfirmImport = async () => {
-    if (!importPreviewData || !importFileRef.current) return;
-
-    setIsConfirmingImport(true);
-
-    try {
-      // Parse the file again to get the full data
-      const file = importFileRef.current;
-      const parsed = await parseFormWorkbook(file);
-
-      const sectionBranching: any[] = [];
-      parsed.sections?.forEach((section: any) => {
-        section.questions?.forEach((question: any) => {
-          if (question.branchingRules && question.branchingRules.length > 0) {
-            question.branchingRules.forEach((rule: any) => {
-              sectionBranching.push({
-                questionId: question.id,
-                sectionId: section.id,
-                optionLabel: rule.optionLabel,
-                targetSectionId: rule.targetSectionId,
-                isOtherOption: false,
-              });
-            });
-          }
-        });
-      });
-
-      const formPayload = {
-        ...parsed,
-        sections: parsed.sections || [],
-        isVisible: true,
-        followUpQuestions: parsed.followUpQuestions || [],
-        sectionBranching: sectionBranching,
-      } as any;
-
-      const created = await apiClient.createForm(formPayload);
-
-      // Create parameters if any are specified in the Excel
-      if (
-        parsed.parametersToCreate &&
-        parsed.parametersToCreate.length > 0 &&
-        created?.form?._id
-      ) {
-        const parameterPromises = parsed.parametersToCreate.map((param) =>
-          apiClient.createParameter({
-            ...param,
-            formId: created.form._id,
-          }),
-        );
-        await Promise.all(parameterPromises);
-        showSuccess(
-          `Form imported with ${parsed.parametersToCreate.length} parameter(s)`,
-          "Import Complete",
-        );
-      } else {
-        showSuccess("Form imported successfully", "Import Complete");
-      }
-
-      if (created?.form?._id) {
-        navigate(`/forms/${created.form._id}/edit`);
-      }
-      refetchForms();
-      setShowImportPreview(false);
-      importFileRef.current = null;
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    } catch (error: any) {
-      showError(error?.message || "Failed to import form", "Import Failed");
-    } finally {
-      setIsConfirmingImport(false);
-    }
-  };
-
-  const handleImportClick = () => {
-    if (isImporting) {
-      return;
-    }
-    fileInputRef.current?.click();
-  };
-
-  const handleEditForm = (id: string) => {
-    navigate(`/forms/${id}/edit`);
-  };
-
-  const handleViewResponses = (id: string) => {
-    navigate(`/forms/${id}/responses`);
-  };
-
-  const handlePreviewForm = (id: string) => {
-    navigate(`/forms/${id}/preview`);
-  };
-
-  const handleViewAnalytics = (id: string) => {
-    navigate(`/forms/${id}/analytics`);
-  };
-
-  const getCustomerFormUrl = (formId: string) => {
-    const tenantSlug = tenant?.slug || "default";
-    // For production, use your actual customer frontend URL
-    const baseUrl = window.location.origin.includes("localhost")
-      ? "http://localhost:5174"
-      : "https://forms.focusengineeringapp.com";
-    // : "https://formsuser.focusengineeringapp.com";
-    return `${baseUrl}/${tenantSlug}/forms/${formId}`;
-  };
-
-  const handleCopyFormLink = (formId: string, formTitle: string) => {
-    const url = getCustomerFormUrl(formId);
-    navigator.clipboard
-      .writeText(url)
-      .then(() => {
-        showSuccess(`Link copied for "${formTitle}"`, "Link Copied!");
-      })
-      .catch(() => {
-        showError("Failed to copy link", "Error");
-      });
-  };
-
-  const handleOpenFormLink = (formId: string) => {
-    const url = getCustomerFormUrl(formId);
-    window.open(url, "_blank");
-  };
-
-  const handleToggleDropdown = (formId: string) => {
-    setOpenDropdownId(openDropdownId === formId ? null : formId);
-  };
-
-  const handleOpenChildFormsModal = (form: Form) => {
-    setSelectedParentForm(form);
-    // Get currently linked child form IDs
-    const linkedChildIds = form.childForms?.map((cf) => cf.formId) || [];
-    setSelectedChildFormIds(linkedChildIds);
-    setShowChildFormsModal(true);
-    setOpenDropdownId(null);
-  };
-
-  const handleCloseChildFormsModal = () => {
-    setShowChildFormsModal(false);
-    setSelectedParentForm(null);
-    setSelectedChildFormIds([]);
-  };
-
-  const handleToggleChildForm = (childFormId: string) => {
-    setSelectedChildFormIds((prev) => {
-      if (prev.includes(childFormId)) {
-        return prev.filter((id) => id !== childFormId);
-      } else {
-        return [...prev, childFormId];
-      }
-    });
-  };
-
-  const handleSaveChildForms = async () => {
-    if (!selectedParentForm) return;
-
-    const parentFormId = selectedParentForm._id;
-    const currentLinkedIds =
-      selectedParentForm.childForms?.map((cf) => cf.formId) || [];
-
-    // Find forms to link (newly selected)
-    const toLink = selectedChildFormIds.filter(
-      (id) => !currentLinkedIds.includes(id),
-    );
-
-    // Find forms to unlink (deselected)
-    const toUnlink = currentLinkedIds.filter(
-      (id) => !selectedChildFormIds.includes(id),
-    );
-
-    try {
-      // Link new child forms
-      for (const childFormId of toLink) {
-        await linkChildFormMutation.mutate({ parentFormId, childFormId });
-      }
-
-      // Unlink removed child forms
-      for (const childFormId of toUnlink) {
-        await unlinkChildFormMutation.mutate({ parentFormId, childFormId });
-      }
-
-      handleCloseChildFormsModal();
+      const response = await apiClient.getAttendanceSummary();
+      setSummary(response);
     } catch (error) {
-      // Error handling is done in mutation callbacks
+      console.error('Error fetching summary:', error);
+    } finally {
+      setSummaryLoading(false);
     }
   };
 
-  // Get available forms for linking (exclude the parent itself and forms that are children of OTHER parents)
-  const getAvailableChildForms = () => {
-    if (!selectedParentForm) return [];
-
-    return forms.filter(
-      (form: Form) =>
-        form._id !== selectedParentForm._id && // Not the parent itself
-        (!form.parentFormId || form.parentFormId === selectedParentForm._id), // Not a child of another parent (but allow children of THIS parent)
-    );
+  const fetchReport = async () => {
+    setLoading(true);
+    try {
+      const response = await apiClient.getHRAttendanceReport(filters);
+      setData(response?.data || response);
+    } catch (error) {
+      console.error('Error fetching report:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading) {
-    return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-primary-600">Loading forms...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="text-center py-12">
-          <p className="text-red-600">Error loading forms: {error}</p>
-          <button onClick={() => refetchForms()} className="mt-4 btn-primary">
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const handleExport = async () => {
+    try {
+      const blob = await apiClient.exportHRAttendanceReport(filters);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `attendance_report_${filters.startDate}_to_${filters.endDate}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (error) {
+      alert('Export failed');
+    }
+  };
 
   return (
-    <>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        className="hidden"
-        onChange={handleFileInputChange}
-      />
-      <div className="p-6">
-        <div className="mb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <h1 className="font-bold">Service Request Management</h1>
-              <p>Create, edit, and manage service request forms</p>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-              {canManage && !isInspector && (
-                <>
-                  <button
-                    onClick={handleExportTemplate}
-                    className="btn-secondary flex items-center justify-center"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Import Template
-                  </button>
-                  <button
-                    onClick={handleLoadSampleData}
-                    className="btn-secondary flex items-center justify-center"
-                    disabled={isImporting}
-                  >
-                    <Database className="w-4 h-4 mr-2" />
-                    {isImporting ? "Loading..." : "Load Sample Data"}
-                  </button>
-                  <button
-                    onClick={handleImportClick}
-                    className="btn-secondary flex items-center justify-center"
-                    disabled={isImporting}
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    {isImporting ? "Importing..." : "Import Form (Excel)"}
-                  </button>
-                  <button
-                    onClick={handleCreateForm}
-                    className="btn-primary flex items-center justify-center"
-                  >
-                    <PlusCircle className="w-3 h-3 mr-1" />
-                    Create New Service Form
-                  </button>
-                </>
-              )}
-            </div>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto space-y-6">
+        
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Attendance Management</h1>
+            <p className="text-gray-500">Track, monitor, and analyze team attendance</p>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={fetchTodaySummary}
+              className="flex items-center justify-center gap-2 bg-white text-gray-700 px-4 py-2 rounded-xl font-bold border hover:bg-gray-50 transition shadow-sm"
+            >
+              <Activity size={18} className="text-blue-500" />
+              Refresh Status
+            </button>
+            <button 
+              onClick={handleExport}
+              className="flex items-center justify-center gap-2 bg-green-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-green-700 transition shadow-lg shadow-green-100"
+            >
+              <Download size={20} />
+              Export Report
+            </button>
           </div>
         </div>
 
-        {/* Search */}
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-primary-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Search service forms..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 input-field"
-            />
+        {/* Today's Real-time Status */}
+        {summary && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform">
+                <Users size={64} />
+              </div>
+              <div className="relative z-10">
+                <div className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Total Team</div>
+                <div className="text-3xl font-black text-gray-900">{summary.totalUsers}</div>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform text-green-600">
+                <CheckCircle2 size={64} />
+              </div>
+              <div className="relative z-10">
+                <div className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Present Today</div>
+                <div className="text-3xl font-black text-green-600">{summary.present}</div>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform text-red-600">
+                <AlertCircle size={64} />
+              </div>
+              <div className="relative z-10">
+                <div className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Absent Today</div>
+                <div className="text-3xl font-black text-red-600">{summary.absent}</div>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:scale-110 transition-transform text-blue-600">
+                <Activity size={64} />
+              </div>
+              <div className="relative z-10">
+                <div className="text-xs font-black text-gray-400 uppercase tracking-widest mb-1">Active Now</div>
+                <div className="text-3xl font-black text-blue-600">{summary.activeNow}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Filters Panel */}
+        <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+          <div className="flex items-center gap-2 mb-4">
+            <Filter size={18} className="text-gray-400" />
+            <h2 className="font-bold text-gray-900">Historical Filters</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 items-end">
+            <div className="space-y-1">
+              <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">From</label>
+              <input 
+                type="date" 
+                className="w-full border rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                value={filters.startDate}
+                onChange={e => setFilters({ ...filters, startDate: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">To</label>
+              <input 
+                type="date" 
+                className="w-full border rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                value={filters.endDate}
+                onChange={e => setFilters({ ...filters, endDate: e.target.value })}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Inspector</label>
+              <select 
+                className="w-full border rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                value={filters.inspectorId}
+                onChange={e => setFilters({ ...filters, inspectorId: e.target.value })}
+              >
+                <option value="">All Staff</option>
+                {inspectors?.map(ins => (
+                  <option key={ins._id} value={ins._id}>{ins.firstName} {ins.lastName}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Status</label>
+              <select 
+                className="w-full border rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                value={filters.status}
+                onChange={e => setFilters({ ...filters, status: e.target.value })}
+              >
+                <option value="">All Statuses</option>
+                <option value="present">Present</option>
+                <option value="late">Late Arrival</option>
+                <option value="half-day">Half Day</option>
+                <option value="absent">Absent</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-black text-gray-400 uppercase tracking-widest pl-1">Shift</label>
+              <select 
+                className="w-full border rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                value={filters.shiftId}
+                onChange={e => setFilters({ ...filters, shiftId: e.target.value })}
+              >
+                <option value="">All Shifts</option>
+                {shifts?.map(s => (
+                  <option key={s._id} value={s._id}>{s.displayName}</option>
+                ))}
+              </select>
+            </div>
+            <button 
+              onClick={fetchReport}
+              className="bg-blue-600 text-white rounded-xl h-11 font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2"
+            >
+              <Search size={18} />
+              Apply
+            </button>
           </div>
         </div>
 
-        {/* Forms List */}
-        {filteredForms.length === 0 ? (
-          <div className="text-center py-12 bg-white dark:bg-gray-900 rounded-lg border border-neutral-200 dark:border-gray-700">
-            <FileText className="w-12 h-12 text-primary-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-primary-600 mb-2">
-              {(() => {
-                if (!hasAnyForms) {
-                  return "No service forms created yet";
-                }
-                if (!hasActiveForms) {
-                  return "No active service forms";
-                }
-                return "No service forms found";
-              })()}
-            </h3>
-            <p className="text-primary-500 mb-6">
-              {(() => {
-                if (!hasAnyForms) {
-                  return "Create your first service form to get started";
-                }
-                if (!hasActiveForms) {
-                  return "Activate a form to make it available here";
-                }
-                return "Try adjusting your search criteria";
-              })()}
-            </p>
-            {!hasAnyForms && canEdit && (
-              <button onClick={handleCreateForm} className="btn-primary">
-                <PlusCircle className="w-4 h-4 mr-2" />
-                Create Your First Form
-              </button>
-            )}
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-64 bg-white rounded-3xl border border-dashed">
+            <Loader2 className="animate-spin text-blue-600 mb-2" size={32} />
+            <p className="text-gray-500 font-medium">Generating attendance report...</p>
+          </div>
+        ) : data ? (
+          <div className="space-y-6">
+            
+            {/* Range Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                  <CheckCircle2 size={20} />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Present Days</div>
+                  <div className="text-xl font-black text-gray-900">{data?.summary?.totalPresentDays || 0}</div>
+                </div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                <div className="w-10 h-10 bg-yellow-50 text-yellow-600 rounded-xl flex items-center justify-center shrink-0">
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Late Arrivals</div>
+                  <div className="text-xl font-black text-gray-900">{data?.summary?.totalLateArrivals || 0}</div>
+                </div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Absent Days</div>
+                  <div className="text-xl font-black text-gray-900">{data?.summary?.totalAbsentDays || 0}</div>
+                </div>
+              </div>
+              <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+                  <TrendingUp size={20} />
+                </div>
+                <div>
+                  <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Avg. Attendance</div>
+                  <div className="text-xl font-black text-gray-900">{data?.summary?.avgAttendanceRate || 0}%</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Detailed Table */}
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
+                <h3 className="font-black text-gray-900 uppercase tracking-widest text-xs">Detailed Attendance Logs</h3>
+                <span className="text-xs font-bold text-gray-500 bg-white px-3 py-1 rounded-full border">{data?.detailedLogs?.length || 0} Records</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-gray-50/50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b">
+                      <th className="px-6 py-4">Date</th>
+                      <th className="px-6 py-4">Staff Member</th>
+                      <th className="px-6 py-4">Shift Details</th>
+                      <th className="px-6 py-4">In / Out</th>
+                      <th className="px-6 py-4">Work Hours</th>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4 text-center">Map</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {data.detailedLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-12 text-center text-gray-400 italic">No attendance records found for the selected filters.</td>
+                      </tr>
+                    ) : (
+                      data?.detailedLogs?.map((log: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-gray-50/30 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-gray-900 text-sm">{log.date}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center text-xs font-black border border-blue-100">
+                                {log.inspector?.charAt(0) || '?'}
+                              </div>
+                              <span className="font-bold text-gray-700 text-sm">{log.inspector}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-1.5 text-gray-600 text-xs font-medium">
+                              <Clock size={12} className="text-gray-400" />
+                              {log.shift}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs text-gray-700 font-bold">{log.checkIn || '--:--'}</span>
+                              <span className="text-[10px] text-gray-400 font-medium">{log.checkOut || '--:--'}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="font-black text-blue-600 text-sm">{log.hours}h</span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
+                              log.status === 'present' ? 'bg-green-50 text-green-700 border border-green-100' : 
+                              log.status === 'late' ? 'bg-yellow-50 text-yellow-700 border border-yellow-100' :
+                              log.status === 'half-day' ? 'bg-orange-50 text-orange-700 border border-orange-100' :
+                              'bg-red-50 text-red-700 border border-red-100'
+                            }`}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            {log.location ? (
+                              <button 
+                                title={log.location}
+                                className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition border border-transparent hover:border-blue-100"
+                                onClick={() => alert(log.location)}
+                              >
+                                <MapPin size={16} />
+                              </button>
+                            ) : (
+                              <span className="text-gray-300 text-xs">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Performance Ranking */}
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
+                <h3 className="font-black text-gray-900 uppercase tracking-widest text-xs">Performance by Inspector</h3>
+                <TrendingUp size={16} className="text-gray-400" />
+              </div>
+              <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {data?.inspectorStats?.map((stat: any, idx: number) => (
+                  <div key={idx} className="p-5 rounded-2xl border border-gray-100 bg-gray-50/30 hover:shadow-md transition group">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="font-bold text-gray-900">{stat.name}</div>
+                      <div className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
+                        stat.rate >= 90 ? 'bg-green-100 text-green-700' : 
+                        stat.rate >= 75 ? 'bg-blue-100 text-blue-700' : 
+                        'bg-orange-100 text-orange-700'
+                      }`}>{stat.rate}% Rate</div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-2 text-center">
+                      <div className="bg-white rounded-xl p-2 border border-gray-50">
+                        <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">P</div>
+                        <div className="font-black text-green-600 text-sm">{stat.present}</div>
+                      </div>
+                      <div className="bg-white rounded-xl p-2 border border-gray-50">
+                        <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">L</div>
+                        <div className="font-black text-yellow-600 text-sm">{stat.late}</div>
+                      </div>
+                      <div className="bg-white rounded-xl p-2 border border-gray-50">
+                        <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">H</div>
+                        <div className="font-black text-orange-600 text-sm">{stat.halfDay}</div>
+                      </div>
+                      <div className="bg-white rounded-xl p-2 border border-gray-50">
+                        <div className="text-[10px] font-bold text-gray-400 uppercase mb-1">A</div>
+                        <div className="font-black text-red-600 text-sm">{stat.absent}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredForms.map((form: Form) => {
-              const childForms = getChildFormsForParent(form._id);
-              return (
-                <div key={form._id} className="space-y-2">
-                  {/* Parent/Standalone Form */}
-                  {renderFormCard(form, false)}
-
-                  {/* Child Forms (nested under parent) */}
-                  {childForms.length > 0 && (
-                    <div className="space-y-2">
-                      {childForms.map((childForm: Form) =>
-                        renderFormCard(childForm, true),
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Child Forms Management Modal */}
-        {showChildFormsModal && selectedParentForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col">
-              {/* Modal Header */}
-              <div className="px-6 py-4 border-b border-neutral-200 dark:border-gray-700 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-primary-900">
-                    Manage Child Forms
-                  </h2>
-                  <p className="text-sm text-primary-600 mt-1">
-                    Parent: {selectedParentForm.title}
-                  </p>
-                </div>
-                <button
-                  onClick={handleCloseChildFormsModal}
-                  className="p-1 hover:bg-neutral-100 rounded"
-                >
-                  <X className="w-5 h-5 text-primary-400" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="px-6 py-4 overflow-y-auto flex-1">
-                <p className="text-sm text-primary-600 mb-4">
-                  Select forms to link as child forms. Child forms will appear
-                  after users complete this parent form.
-                </p>
-
-                {getAvailableChildForms().length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText className="w-12 h-12 text-primary-300 mx-auto mb-3" />
-                    <p className="text-primary-600">
-                      No available forms to link as child forms.
-                    </p>
-                    <p className="text-sm text-primary-500 mt-2">
-                      Create more forms or unlink existing child forms from
-                      other parents.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {getAvailableChildForms().map((form: Form) => {
-                      const isSelected = selectedChildFormIds.includes(
-                        form._id,
-                      );
-                      return (
-                        <div
-                          key={form._id}
-                          className={`border rounded-lg p-4 cursor-pointer transition-all ${
-                            isSelected
-                              ? "border-primary-500 bg-primary-50"
-                              : "border-neutral-200 hover:border-primary-300 hover:bg-primary-50"
-                          }`}
-                          onClick={() => handleToggleChildForm(form._id)}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-medium text-primary-900">
-                                  {form.title}
-                                </h3>
-                                {isSelected && (
-                                  <Check className="w-5 h-5 text-primary-600" />
-                                )}
-                              </div>
-                              <p className="text-sm text-primary-600 mt-1 line-clamp-2">
-                                {form.description}
-                              </p>
-                              <div className="flex items-center gap-4 mt-2 text-xs text-primary-500">
-                                <span className="flex items-center">
-                                  <Users className="w-3 h-3 mr-1" />
-                                  {form.responseCount || 0} responses
-                                </span>
-                                <span className="flex items-center">
-                                  <Calendar className="w-3 h-3 mr-1" />
-                                  {new Date(
-                                    form.createdAt,
-                                  ).toLocaleDateString()}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="px-6 py-4 border-t border-neutral-200 dark:border-gray-700 flex items-center justify-between">
-                <div className="text-sm text-primary-600">
-                  {selectedChildFormIds.length} form
-                  {selectedChildFormIds.length !== 1 ? "s" : ""} selected
-                </div>
-                <div className="flex space-x-2">
-                  <button
-                    onClick={handleCloseChildFormsModal}
-                    className="px-4 py-2 text-sm font-medium text-primary-700 hover:bg-neutral-100 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSaveChildForms}
-                    disabled={
-                      linkChildFormMutation.loading ||
-                      unlinkChildFormMutation.loading
-                    }
-                    className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {linkChildFormMutation.loading ||
-                    unlinkChildFormMutation.loading
-                      ? "Saving..."
-                      : "Save Changes"}
-                  </button>
-                </div>
-              </div>
+          <div className="bg-white p-20 rounded-3xl border border-dashed text-center space-y-4 shadow-sm">
+            <div className="w-20 h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto">
+              <Calendar size={40} />
             </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Attendance Report</h3>
+              <p className="text-gray-500 max-w-sm mx-auto mt-2">Select a date range and filters to generate a detailed attendance analysis for your team.</p>
+            </div>
+            <button 
+              onClick={fetchReport}
+              className="bg-blue-600 text-white px-8 py-3 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-blue-700 transition shadow-xl shadow-blue-200"
+            >
+              Generate Report
+            </button>
           </div>
-        )}
-
-        {/* Import Preview Modal */}
-        {showImportPreview && importPreviewData && (
-          <ImportPreviewModal
-            isOpen={showImportPreview}
-            onClose={() => {
-              setShowImportPreview(false);
-              setImportPreviewData(null);
-              setImportParameters([]);
-              importFileRef.current = null;
-              if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-              }
-            }}
-            onConfirm={handleConfirmImport}
-            formData={importPreviewData}
-            parameters={importParameters}
-            isLoading={isConfirmingImport}
-          />
         )}
       </div>
-    </>
+    </div>
   );
 }

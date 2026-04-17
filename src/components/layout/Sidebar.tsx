@@ -43,6 +43,16 @@ export default function Sidebar() {
   const { isCollapsed, isMobileOpen, toggleSidebar, openMobile, closeMobile } =
     useSidebar();
 
+  const isGuest = React.useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return (
+      searchParams.get("guest") === "true" ||
+      !!localStorage.getItem("guest_auth_token")
+    );
+  }, [location.search]);
+
+  if (isGuest) return null;
+
   const handleLogout = () => {
     logout();
     navigate("/login");

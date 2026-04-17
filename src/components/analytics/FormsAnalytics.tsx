@@ -48,6 +48,7 @@ import { Mail, MessageCircle, MessageSquare } from "lucide-react";
 import EmailInviteModal from "../EmailInviteModal";
 import WhatsAppInviteModal from "../WhatsAppInviteModal";
 import SMSInviteModal from "../SMSInviteModal";
+import ShareAnalyticsModal from "./ShareAnalyticsModal";
 
 import { useAuth } from "../../context/AuthContext";
 
@@ -244,6 +245,12 @@ export default function FormsAnalytics() {
     formTitle: string;
   }>({ open: false, formId: null, formTitle: "" });
 
+  const [shareAnalyticsModal, setShareAnalyticsModal] = useState<{
+    open: boolean;
+    formId: string | null;
+    formTitle: string;
+  }>({ open: false, formId: null, formTitle: "" });
+
   const [inviteCounts, setInviteCounts] = useState<Record<string, number>>({});
 
   // Add these functions with your other handlers
@@ -273,6 +280,17 @@ export default function FormsAnalytics() {
     const form = forms.find((f) => f.id === formId || f._id === formId);
     if (form) {
       setSmsInviteModal({
+        open: true,
+        formId,
+        formTitle: form.title,
+      });
+    }
+  };
+
+  const openShareAnalyticsModal = (formId: string) => {
+    const form = forms.find((f) => f.id === formId || f._id === formId);
+    if (form) {
+      setShareAnalyticsModal({
         open: true,
         formId,
         formTitle: form.title,
@@ -1099,19 +1117,34 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
                               {copiedId === formId ? (
                                 <Check className="w-4 h-4 text-green-600" />
                               ) : (
-                                <Share2 className="w-4 h-4 text-green-600" />
+                                <Link2 className="w-4 h-4 text-green-600" />
                               )}
                             </div>
                             <div className="text-left">
                               <div className="font-medium">
                                 {copiedId === formId
                                   ? "Link Copied!"
-                                  : "Copy Share Link"}
+                                  : "Copy Form Link"}
                               </div>
                               <div className="text-xs text-primary-500">
                                 {copiedId === formId
                                   ? "Ready to share"
                                   : "Share with others"}
+                              </div>
+                            </div>
+                          </button>
+
+                          <button
+                            onClick={() => openShareAnalyticsModal(formId)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+                          >
+                            <div className="p-1.5 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg">
+                              <Share2 className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-medium">Share Analytics</div>
+                              <div className="text-xs text-primary-500">
+                                Invite external viewers
                               </div>
                             </div>
                           </button>
@@ -1709,6 +1742,14 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
         }
         formId={smsInviteModal.formId || ""}
         formTitle={smsInviteModal.formTitle}
+      />
+      <ShareAnalyticsModal
+        isOpen={shareAnalyticsModal.open}
+        onClose={() =>
+          setShareAnalyticsModal((prev) => ({ ...prev, open: false }))
+        }
+        formId={shareAnalyticsModal.formId || ""}
+        formTitle={shareAnalyticsModal.formTitle}
       />
     </div>
   );

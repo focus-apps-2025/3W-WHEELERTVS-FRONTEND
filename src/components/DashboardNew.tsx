@@ -982,12 +982,12 @@ export default function DashboardNew() {
                   Customer Portal URL:
                 </p>
                 <a
-                  href={`https://forms.focusengineeringapp.com/${currentTenant.slug}`}
+                  href={`https://3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm font-medium text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 hover:underline"
                 >
-                  {`https://forms.focusengineeringapp.com/${currentTenant.slug}`}
+                  {`https://3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
                 </a>
               </div>
             )}

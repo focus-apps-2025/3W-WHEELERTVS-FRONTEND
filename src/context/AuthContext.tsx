@@ -183,6 +183,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(response.user);
       updateTenantState(response.tenant || null);
 
+      // Clear guest session info if a regular user logs in
+      localStorage.removeItem("guest_auth_token");
+      localStorage.removeItem("guest_email");
+      localStorage.removeItem("guest_form_id");
+      localStorage.removeItem("guest_expires_at");
+
       // Store sessionLogId for logout tracking
       if (response.sessionLogId) {
         localStorage.setItem("session_log_id", response.sessionLogId);

@@ -22,6 +22,7 @@ import {
   Upload,
   Download,
   Database,
+  Send,
 } from "lucide-react";
 import { useForms, useMutation } from "../hooks/useApi";
 import { apiClient } from "../api/client";
@@ -34,6 +35,7 @@ import {
   loadSampleFormData,
 } from "../utils/exportUtils";
 import ImportPreviewModal from "./ImportPreviewModal";
+import ShareAnalyticsModal from "./analytics/ShareAnalyticsModal";
 import type {
   Question as FormSchema,
   Section as FormSection,
@@ -84,6 +86,8 @@ export default function FormsManagementNew() {
   const [importPreviewData, setImportPreviewData] = useState<any>(null);
   const [importParameters, setImportParameters] = useState<any[]>([]);
   const [isConfirmingImport, setIsConfirmingImport] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [selectedFormForShare, setSelectedFormForShare] = useState<Form | null>(null);
 
   const deleteMutation = useMutation((id: string) => apiClient.deleteForm(id), {
     onSuccess: () => {
@@ -332,6 +336,17 @@ export default function FormsManagementNew() {
               >
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Open Customer Link
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedFormForShare(form);
+                  setShowShareModal(true);
+                  setOpenDropdownId(null);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
+              >
+                <Send className="w-4 h-4 mr-2" />
+                Share Analytics
               </button>
             </div>
           )}
@@ -694,9 +709,9 @@ export default function FormsManagementNew() {
     // For production, use your actual customer frontend URL
     const baseUrl = window.location.origin.includes("localhost")
       ? "http://localhost:5174"
-      : "https://forms.focusengineeringapp.com";
+      : "https://3wheelertvs.focusengineeringapp.com/";
     // : "https://formsuser.focusengineeringapp.com";
-    return `${baseUrl}/${tenantSlug}/forms/${formId}`;
+    return `${baseUrl}${tenantSlug}/forms/${formId}`;
   };
 
   const handleCopyFormLink = (formId: string, formTitle: string) => {
@@ -1078,6 +1093,18 @@ export default function FormsManagementNew() {
             formData={importPreviewData}
             parameters={importParameters}
             isLoading={isConfirmingImport}
+          />
+        )}
+
+        {showShareModal && selectedFormForShare && (
+          <ShareAnalyticsModal
+            isOpen={showShareModal}
+            onClose={() => {
+              setShowShareModal(false);
+              setSelectedFormForShare(null);
+            }}
+            formId={selectedFormForShare.id || selectedFormForShare._id}
+            formTitle={selectedFormForShare.title}
           />
         )}
       </div>

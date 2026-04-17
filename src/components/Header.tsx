@@ -54,6 +54,16 @@ export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const isGuest = React.useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    return (
+      searchParams.get("guest") === "true" ||
+      !!localStorage.getItem("guest_auth_token")
+    );
+  }, [location.search]);
+
+  if (isGuest) return null;
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (

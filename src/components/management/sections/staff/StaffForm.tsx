@@ -1,312 +1,175 @@
-import React from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import {
-  LayoutDashboard,
-  FileText,
-  ListTodo,
-  BarChart2,
-  Settings,
-  Menu,
-  X,
-  ChevronRight,
-  Mail,
-  MessageCircle,
-  LogOut,
-  Building2,
-  Users,
-  Clock,
-} from "lucide-react";
-import { useAuth } from "../../../../context/AuthContext";
-import { useSidebar } from "../../../../context/SidebarContext";
-import { useLogo } from "../../../../context/LogoContext";
-interface MenuItem {
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  path: string;
-  description: string;
-  roles?: string[];
-  permission?: string;
+import React, { useState, useEffect } from 'react';
+import { Camera } from 'lucide-react';
+import type { StaffMember, Role } from '../../../../types';
+import { generateUserId, generateSecurePassword } from '../../../../utils/staffUtils';
+import FormField from '../../../common/FormField';
+import { rolesApi } from '../../../../api/roles';
+
+interface StaffFormProps {
+  initialData?: StaffMember | null;
+  onSubmit: (data: Omit<StaffMember, 'id'>) => void;
+  onCancel: () => void;
 }
 
-const MODULE_PERMISSIONS = {
-  DASHBOARD: "dashboard:view",
-  ANALYTICS: "analytics:view",
-  CUSTOMER_REQUESTS: "requests:view",
-  REQUEST_MANAGEMENT: "requests:manage",
-} as const;
+export default function StaffForm({ initialData, onSubmit, onCancel }: StaffFormProps) {
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [formData, setFormData] = useState({
+    name: initialData?.name || '',
+    email: initialData?.email || '',
+    mobile: initialData?.mobile || '',
+    role: initialData?.role || 'viewer' as StaffMember['role'],
+    profilePic: initialData?.profilePic || '',
+    userId: initialData?.userId || generateUserId(),
+    password: initialData?.password || generateSecurePassword(),
+  });
 
-export default function Sidebar() {
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { isAuthenticated, logout, user, tenant } = useAuth();
-  const { logo } = useLogo();
-  const { isCollapsed, isMobileOpen, toggleSidebar, openMobile, closeMobile } =
-    useSidebar();
+  useEffect(() => {
+    const loadRoles = async () => {
+      const savedRoles = await rolesApi.getAll();
+      setRoles(savedRoles);
+    };
+    loadRoles();
+  }, []);
 
-  const handleLogout = () => {
-    logout();
-    navigate("/login");
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, profilePic: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
-  const publicMenuItems: MenuItem[] = [
-    {
-      title: "Service Requests",
-      icon: FileText,
-      path: "/forms/preview",
-      description: "Submit service requests for your vehicle",
-    },
-  ];
-
-  const superAdminMenuItems: MenuItem[] = [
-    {
-      title: "Dashboard",
-      icon: LayoutDashboard,
-      path: "/dashboard",
-      description: "View system overview and statistics",
-    },
-    {
-      title: "Tenant Management",
-      icon: Building2,
-      path: "/superadmin/tenants",
-      description: "Manage all tenants and branches",
-    },
-    {
-      title: "Free Trial",
-      icon: Clock,
-      path: "/superadmin/free-trial",
-      description: "Manage tenants on free trial",
-    },
-    {
-      title: "Global Forms",
-      icon: FileText,
-      path: "/superadmin/forms",
-      description: "Manage and assign global forms",
-    },
-    // {
-    //   title: "System Settings",
-    //   icon: Settings,
-    //   path: "/system/management",
-    //   description: "Configure system-wide settings",
-    // },
-  ];
-
-  const tenantMenuItems: MenuItem[] = [
-    {
-      title: "Dashboard",
-      icon: LayoutDashboard,
-      path: "/dashboard",
-      description: "View shop analytics and service statistics",
-      permission: MODULE_PERMISSIONS.DASHBOARD,
-      roles: ["admin", "inspector"],
-    },
-    {
-      title: "Service Analytics",
-      icon: BarChart2,
-      path: "/forms/analytics",
-      description: "Detailed service analytics and insights",
-      permission: MODULE_PERMISSIONS.ANALYTICS,
-      roles: ["admin", "inspector"],
-    },
-    {
-      title: "Customer Requests",
-      icon: FileText,
-      path: "/responses/all",
-      description: "View customer service requests",
-      permission: MODULE_PERMISSIONS.CUSTOMER_REQUESTS,
-    },
-    {
-      title: "Request Management",
-      icon: ListTodo,
-      path: "/forms/management",
-      description: "Manage and organize service requests",
-      permission: MODULE_PERMISSIONS.REQUEST_MANAGEMENT,
-      roles: ["admin", "inspector"],
-    },
-    {
-      title: "Email System",
-      icon: Mail,
-      path: "/mail/test",
-      description: "Test and configure email notifications",
-      roles: ["admin"],
-    },
-    {
-      title: "WhatsApp System",
-      icon: MessageCircle,
-      path: "/whatsapp/test",
-      description: "Test and configure WhatsApp notifications",
-      roles: ["admin"],
-    },
-  ];
-
-  const adminManagementMenuItem: MenuItem = {
-    title: "Admin Management",
-    icon: Users,
-    path: "/admin/management",
-    description: "Manage tenant administrators and permissions",
-    roles: ["admin"],
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(formData);
   };
-
-  const permissionSet = new Set(user?.permissions || []);
-
-  const menuItems: MenuItem[] = (() => {
-    if (!isAuthenticated || !user) {
-      return publicMenuItems;
-    }
-
-    if (user.role === "superadmin") {
-      return superAdminMenuItems;
-    }
-
-    const filteredItems = tenantMenuItems.filter((item) => {
-      if (item.roles && !item.roles.includes(user.role)) {
-        return false;
-      }
-
-      if (!item.permission) {
-        return true;
-      }
-
-      if (user.role === "admin" || user.role === "inspector") {
-        return true;
-      }
-
-      return permissionSet.has(item.permission);
-    });
-
-    if (user.role === "admin" || user.role === "inspector") {
-      filteredItems.push(adminManagementMenuItem);
-    }
-
-    return filteredItems;
-  })();
 
   return (
-    <>
-      {/* Overlay for mobile */}
-      {isMobileOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
-          onClick={closeMobile}
-        />
-      )}
+    <div className="flex flex-col h-full">
+      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+          {initialData ? 'Edit Staff Member' : 'Add Staff Member'}
+        </h3>
+      </div>
 
-      {/* Sidebar */}
-      <aside
-        className={`
-          fixed top-0 left-0 h-full z-40 transition-all duration-300 bg-[#1e3a8a]
-          ${isCollapsed ? "w-16" : "w-64"}
-          ${
-            isMobileOpen
-              ? "translate-x-0"
-              : "-translate-x-full lg:translate-x-0"
-          }
-        `}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-white/10">
-          <div className="flex items-center">
-            {logo ? (
-              <>
-                {/* <img
-                  src={logo}
-                  alt="Tenant logo"
-                  className={`${isCollapsed ? "h-8 w-8" : "h-10 w-auto"} object-contain`}
-                /> */}
-                {!isCollapsed && (
-                  <span className="ml-3 text-lg font-medium truncate text-white">
-                    {tenant?.companyName || tenant?.name || "Focus Form"}
-                  </span>
-                )}
-              </>
-            ) : (
-              <>
-                <FileText
-                  className={`${isCollapsed ? "w-6 h-6" : "w-8 h-8"} text-white`}
+      <div className="flex-1 overflow-y-auto">
+        <form id="staff-form" onSubmit={handleSubmit} className="p-6 space-y-8">
+          <div className="flex justify-center">
+            <div className="relative">
+              {formData.profilePic ? (
+                <img
+                  src={formData.profilePic}
+                  alt="Profile preview"
+                  className="w-32 h-32 rounded-full object-cover ring-4 ring-white dark:ring-gray-700 shadow-lg"
                 />
-                {!isCollapsed && (
-                  <span className="ml-3 text-lg font-medium text-white">
-                    Focus Form
-                  </span>
-                )}
-              </>
-            )}
-          </div>
-          <button
-            onClick={toggleSidebar}
-            className="hidden lg:flex p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            {isCollapsed ? (
-              <ChevronRight className="w-4 h-4 text-white" />
-            ) : (
-              <X className="w-4 h-4 text-white" />
-            )}
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <nav className="mt-6 px-3">
-          <div className="space-y-2">
-            {menuItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              const Icon = item.icon;
-
-              return (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  onClick={closeMobile}
-                  className={`
-                    group relative flex items-center px-3 py-3 rounded-lg transition-all duration-200
-                    ${
-                      isActive
-                        ? "bg-white/20 text-white shadow-sm"
-                        : "text-white/80 hover:bg-white/10 hover:text-white"
-                    }
-                  `}
-                  title={isCollapsed ? item.title : ""}
-                >
-                  <Icon className="w-5 h-5 flex-shrink-0 text-white" />
-                  {!isCollapsed && (
-                    <span className="ml-3 font-medium text-white">
-                      {item.title}
-                    </span>
-                  )}
-
-                  {/* Tooltip for collapsed state */}
-                  {isCollapsed && (
-                    <div className="absolute left-full ml-2 px-2 py-1 text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50 bg-[#1e3a8a] text-white">
-                      {item.title}
-                    </div>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-
-        {/* Footer - Sign Out */}
-        {isAuthenticated && (
-          <div className="absolute bottom-0 left-0 right-0 p-3">
-            <button
-              onClick={handleLogout}
-              className="group relative flex items-center w-full px-3 py-3 rounded-lg transition-all duration-200 text-white hover:bg-red-600 hover:text-white"
-              title={isCollapsed ? "Sign Out" : ""}
-            >
-              <LogOut className="w-5 h-5 flex-shrink-0 text-white" />
-              {!isCollapsed && (
-                <span className="ml-3 font-medium text-white">Sign Out</span>
-              )}
-
-              {/* Tooltip for collapsed state */}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-2 py-1 bg-red-600 text-white text-sm rounded opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-50">
-                  Sign Out
+              ) : (
+                <div className="w-32 h-32 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center ring-4 ring-white dark:ring-gray-700 shadow-lg">
+                  <Camera className="w-12 h-12 text-gray-400" />
                 </div>
               )}
-            </button>
+              <label className="absolute bottom-0 right-0 bg-blue-600 rounded-full p-2 cursor-pointer hover:bg-blue-700 transition-colors shadow-lg">
+                <Camera className="w-5 h-5 text-white" />
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
           </div>
-        )}
-      </aside>
-    </>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FormField
+              label="Full Name"
+              type="text"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              required
+            />
+
+            <FormField
+              label="Email Address"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+              required
+            />
+
+            <FormField
+              label="Mobile Number"
+              type="tel"
+              value={formData.mobile}
+              onChange={(e) => setFormData(prev => ({ ...prev, mobile: e.target.value }))}
+              required
+            />
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Role
+              </label>
+              <select
+                value={formData.role}
+                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value as StaffMember['role'] }))}
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                required
+              >
+                {roles.length > 0 ? (
+                  roles.map(role => (
+                    <option key={role.id} value={role.name.toLowerCase()}>
+                      {role.name}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="viewer">Viewer</option>
+                    <option value="editor">Editor</option>
+                    <option value="admin">Admin</option>
+                  </>
+                )}
+              </select>
+            </div>
+
+            <FormField
+              label="User ID"
+              type="text"
+              value={formData.userId}
+              readOnly
+              className="bg-gray-100 dark:bg-gray-600 cursor-not-allowed"
+            />
+
+            <FormField
+              label="Password"
+              type="text"
+              value={formData.password}
+              readOnly
+              className="bg-gray-100 dark:bg-gray-600 cursor-not-allowed"
+            />
+          </div>
+        </form>
+      </div>
+
+      <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex-shrink-0">
+        <div className="flex justify-end space-x-4">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="staff-form"
+            className="px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            {initialData ? 'Update' : 'Add'} Staff Member
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
