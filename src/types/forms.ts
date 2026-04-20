@@ -47,6 +47,8 @@ export interface FollowUpQuestion {
   subParam2?: string;
   followUpQuestions?: FollowUpQuestion[]; // Support nested follow-ups
   trackResponseRank?: boolean;
+  trackResponseRankLabel?: string;
+  trackResponseRankType?: string;
   trackResponseQuestion?: boolean;
   trackResponseQuestionType?: string;
   trackResponseQuestionLabel?: string;

@@ -8,6 +8,10 @@ import {
   useParams,
 } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
+import {
+  AttendanceProvider,
+  useAttendanceStatus,
+} from "./context/AttendanceContext";
 import { useActivityTracker } from "./hooks/useActivityTracker";
 import { LAYOUT_CONFIG } from "./config/layoutConfig";
 import FormsPreview from "./components/FormsPreview";
@@ -45,6 +49,7 @@ import GuestAnalyticsLogin from "./components/auth/GuestAnalyticsLogin";
 import FreeTrialManagement from "./components/superadmin/FreeTrialManagement";
 import NotificationContainer from "./components/ui/NotificationContainer";
 import Header from "./components/Header";
+import Sidebar from "./components/layout/Sidebar";
 import ResponseDetailsPage from "./components/ResponseDetailsPage";
 import InviteStatusPage from "./components/InviteStatusPage";
 import ErrorPage from "./components/ErrorPage";
@@ -115,6 +120,7 @@ function AccessControl({
   requiredPermission?: string;
 }) {
   const { user } = useAuth();
+  const { isCheckedIn, loading: attendanceLoading } = useAttendanceStatus();
 
   if (!user) {
     return <Navigate to="/login" replace />;
@@ -122,6 +128,22 @@ function AccessControl({
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (
+    requiredPermission === ROUTE_PERMISSIONS.ANALYTICS &&
+    user.role === "inspector"
+  ) {
+    if (attendanceLoading) {
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        </div>
+      );
+    }
+    if (!isCheckedIn) {
+      return <Navigate to="/attendance-dashboard" replace />;
+    }
   }
 
   if (
@@ -153,10 +175,10 @@ function RootRedirect() {
 
 function RootShell() {
   return (
-    <>
+    <AttendanceProvider>
       <NotificationContainer />
       <Outlet />
-    </>
+    </AttendanceProvider>
   );
 }
 
@@ -343,6 +365,15 @@ const router = createBrowserRouter(
           element: withAccessControl(<AttendanceDashboard />, {
             allowedRoles: ["inspector"],
           }),
+        },
+        {
+          path: "/inspector/attendance",
+          element: withAccessControl(
+            <AttendanceDashboard showAllHistory={true} />,
+            {
+              allowedRoles: ["inspector"],
+            },
+          ),
         },
         {
           path: "/hr/leaves",

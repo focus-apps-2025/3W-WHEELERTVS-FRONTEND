@@ -19,6 +19,8 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { useSidebar } from "../../context/SidebarContext";
 import { useLogo } from "../../context/LogoContext";
+import { useAttendanceStatus } from "../../context/AttendanceContext";
+
 interface MenuItem {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -40,6 +42,7 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const { isAuthenticated, logout, user, tenant } = useAuth();
   const { logo } = useLogo();
+  const { isCheckedIn } = useAttendanceStatus();
   const { isCollapsed, isMobileOpen, toggleSidebar, openMobile, closeMobile } =
     useSidebar();
 
@@ -169,6 +172,15 @@ export default function Sidebar() {
 
     const filteredItems = tenantMenuItems.filter((item) => {
       if (item.roles && !item.roles.includes(user.role)) {
+        return false;
+      }
+
+      // Hide Service Analytics for inspector if they haven't checked in
+      if (
+        item.path === "/forms/analytics" &&
+        user.role === "inspector" &&
+        !isCheckedIn
+      ) {
         return false;
       }
 

@@ -413,10 +413,7 @@ export default function QuestionsList({
             <button
               type="button"
               onClick={() => {
-                const description = prompt(
-                  "Enter question description:",
-                  q.description
-                );
+                const description = prompt("Enter question description:",q.description);
                 if (description !== null) {
                   updateQuestion(q.id, { description });
                 }

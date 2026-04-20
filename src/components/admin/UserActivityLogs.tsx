@@ -178,7 +178,7 @@ export default function UserActivityLogs() {
         >
           Activity Logs
         </button>
-        <button
+        {/* <button
           onClick={() => setActiveTab("hierarchy")}
           className={`px-6 py-2 rounded-md text-sm font-medium transition-colors ${
             activeTab === "hierarchy"
@@ -187,7 +187,7 @@ export default function UserActivityLogs() {
           }`}
         >
           Users & Hierarchy
-        </button>
+        </button> */}
       </div>
 
       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">

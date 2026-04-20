@@ -45,8 +45,8 @@ const MODULE_PERMISSIONS = {
 
 export default function Header() {
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [hrDropdownOpen, setHrDropdownOpen] = useState(false);
-  const hrDropdownRef = useRef<HTMLDivElement>(null);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   const { logo } = useLogo();
   const { user, isAuthenticated, logout } = useAuth();
   const { isMobileOpen, closeMobile, toggleMobile } = useSidebar();
@@ -67,15 +67,15 @@ export default function Header() {
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (
-        hrDropdownRef.current &&
-        !hrDropdownRef.current.contains(event.target as Node)
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
       ) {
-        setHrDropdownOpen(false);
+        setActiveDropdown(null);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [activeDropdown]);
 
   const handleLogout = () => {
     logout();
@@ -111,16 +111,24 @@ export default function Header() {
       description: "Manage forms across all tenants",
     },
     {
-      title: "Activity Logs",
-      icon: History,
-      path: "/admin/activity-logs",
-      description: "View user logins and activity logs",
-    },
-    {
       title: "Attendance",
-      icon: Clock,
+      icon: UserCheck,
       path: "/admin/attendance",
       description: "Track user attendance and working hours",
+      children: [
+        {
+          title: "Attendance Record",
+          icon: UserCheck,
+          path: "/admin/attendance",
+          description: "Track user attendance and working hours",
+        },
+        {
+          title: "Activity Logs",
+          icon: History,
+          path: "/admin/activity-logs",
+          description: "View user logins and activity logs",
+        },
+      ],
     },
   ];
 
@@ -209,18 +217,27 @@ export default function Header() {
     if (user.role === "admin") {
       filteredItems.push(adminManagementMenuItem);
       filteredItems.push({
-        title: "Activity Logs",
-        icon: History,
-        path: "/admin/activity-logs",
-        description: "View user logins and activity logs",
-        roles: ["admin"],
-      });
-      filteredItems.push({
         title: "Attendance",
-        icon: Clock,
+        icon: UserCheck,
         path: "/admin/attendance",
         description: "Track user attendance and working hours",
         roles: ["admin"],
+        children: [
+          {
+            title: "Attendance Record",
+            icon: UserCheck,
+            path: "/admin/attendance",
+            description: "Track user attendance and working hours",
+            roles: ["admin"],
+          },
+          {
+            title: "Activity Logs",
+            icon: History,
+            path: "/admin/activity-logs",
+            description: "View user logins and activity logs",
+            roles: ["admin"],
+          },
+        ],
       });
       filteredItems.push({
         title: "HR",
@@ -304,18 +321,19 @@ export default function Header() {
                 const Icon = item.icon;
 
                 if (item.children) {
+                  const isOpen = activeDropdown === item.title;
                   return (
                     <div
-                      key={item.path}
+                      key={item.path || item.title}
                       className="relative"
-                      ref={hrDropdownRef}
+                      ref={isOpen ? dropdownRef : null}
                     >
                       <button
-                        onClick={() => setHrDropdownOpen(!hrDropdownOpen)}
+                        onClick={() => setActiveDropdown(isOpen ? null : item.title)}
                         className={`
                           flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
                           ${
-                            hrDropdownOpen
+                            isOpen
                               ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
                               : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                           }
@@ -324,14 +342,14 @@ export default function Header() {
                         <Icon className="w-4 h-4 mr-2" />
                         {item.title}
                       </button>
-                      {hrDropdownOpen && (
+                      {isOpen && (
                         <div className="absolute top-full left-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-50">
                           {item.children.map((child) => (
                             <Link
                               key={child.path}
                               to={child.path}
                               onClick={() => {
-                                setHrDropdownOpen(false);
+                                setActiveDropdown(null);
                               }}
                               className="flex items-center px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                             >

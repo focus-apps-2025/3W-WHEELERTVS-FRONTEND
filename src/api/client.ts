@@ -70,6 +70,7 @@ class ApiClient {
 
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
+      "X-App-Type": "website",
       ...(options.headers as Record<string, string>),
     };
 
@@ -2012,17 +2013,40 @@ class ApiClient {
     });
   }
 
-  async getMyLeaves() {
-    const res = await this.request<{ success: boolean; data: any[] }>(
-      "/hr/leaves/my",
-    );
+  async getMyLeaves(params?: { page?: number; limit?: number }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", params.page.toString());
+    if (params?.limit) query.set("limit", params.limit.toString());
+    const url =
+      "/hr/leaves/my" + (query.toString() ? `?${query.toString()}` : "");
+    const res = await this.request<{
+      success: boolean;
+      data: any[];
+      pagination?: any;
+    }>(url);
     console.log("getMyLeaves raw response:", res);
     return res;
   }
 
-  async getAllLeaves(status?: string) {
-    const url = "/hr/leaves/all" + (status ? `?status=${status}` : "");
-    return this.request<{ success: boolean; data: any[] }>(url);
+  async getAllLeaves(
+    params?:
+      | { page?: number; limit?: number; getAll?: boolean; status?: string }
+      | string,
+  ) {
+    let url = "/hr/leaves/all";
+    if (typeof params === "string") {
+      url += params ? `?status=${params}` : "";
+    } else if (params) {
+      const query = new URLSearchParams();
+      if (params.page) query.set("page", params.page.toString());
+      if (params.limit) query.set("limit", params.limit.toString());
+      if (params.getAll) query.set("getAll", "true");
+      if (params.status) query.set("status", params.status);
+      if (query.toString()) url += `?${query.toString()}`;
+    }
+    return this.request<{ success: boolean; data: any[]; pagination?: any }>(
+      url,
+    );
   }
 
   async updateLeaveStatus(
@@ -2080,14 +2104,22 @@ class ApiClient {
 
   // --- NOTIFICATIONS ---
   async getMyNotifications() {
-    console.log("getMyNotifications - calling API");
-    const res = await this.request<{
-      success: boolean;
-      data: any[];
-      unreadCount: number;
-    }>("/hr/notifications/my");
-    console.log("getMyNotifications - raw response:", res);
-    return res;
+    if (!this.token) throw new Error("No auth token");
+
+    const url = `${this.baseUrl}/hr/notifications/my`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${this.token}`,
+    };
+
+    const response = await fetch(url, { headers });
+    const data = await response.json();
+
+    // Return both data and unreadCount
+    return {
+      data: data.data || [],
+      unreadCount: data.unreadCount || 0,
+    };
   }
 
   async markNotificationAsRead(id: string) {
@@ -2126,21 +2158,21 @@ class ApiClient {
     invites: any[],
     channels: string[] = ["email"],
     customMessage?: string,
-  ) {
+) {
     return this.request<{ 
       sent: number, 
       failed: number, 
       allSuccessful: boolean, 
       details: any[] 
-    }>(`/analytics-invites/${formId}/send`, {
+}>(`/analytics-invites/${formId}/send`, {
       method: "POST",
-      body: JSON.stringify({ invites, channels, customMessage }),
+body: JSON.stringify({ invites, channels, customMessage }),
     });
   }
 
   async requestAnalyticsOTP(formId: string, email: string, phone: string, channel: 'email' | 'sms' = 'email') {
     return this.request<{
-      success: boolean;
+success: boolean;
       message: string;
     }>("/analytics-invites/request-otp", {
       method: "POST",
@@ -2156,7 +2188,19 @@ class ApiClient {
       expiresAt: string;
     }>("/analytics-invites/verify-otp", {
       method: "POST",
-      body: JSON.stringify({ formId, email, otp }),
+body: JSON.stringify({ formId, email, otp }),
+    });
+  }
+
+    async deleteNotification(id: string) {
+    return this.request<{ success: boolean }>(`/hr/notifications/${id}`, {
+      method: "DELETE",
+    });
+  }
+
+  async deleteAllNotifications() {
+    return this.request<{ success: boolean }>("/hr/notifications", {
+      method: "DELETE",
     });
   }
 }

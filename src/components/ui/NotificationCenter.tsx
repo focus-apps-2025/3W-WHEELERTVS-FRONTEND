@@ -1,12 +1,26 @@
-import React, { useState, useEffect } from 'react';
-import { Bell, Check, Trash2, Calendar, FileText, Clock } from 'lucide-react';
-import { apiClient } from '../../api/client';
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Bell,
+  Check,
+  Trash2,
+  Calendar,
+  FileText,
+  Clock,
+  X,
+} from "lucide-react";
+import { apiClient } from "../../api/client";
 
 interface Notification {
   _id: string;
   title: string;
   message: string;
-  type: 'leave_request' | 'permission_request' | 'leave_status' | 'permission_status' | 'general';
+  type:
+    | "leave_request"
+    | "permission_request"
+    | "leave_status"
+    | "permission_status"
+    | "general";
   isRead: boolean;
   createdAt: string;
   relatedEntity: string;
@@ -14,6 +28,7 @@ interface Notification {
 }
 
 export default function NotificationCenter() {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -22,7 +37,7 @@ export default function NotificationCenter() {
   const fetchNotifications = async () => {
     try {
       const res = await apiClient.getMyNotifications();
-      console.log('Notifications response:', res);
+      console.log("Notifications response:", res);
       if (res && res.data) {
         setNotifications(res.data);
         setUnreadCount(res.unreadCount || 0);
@@ -30,7 +45,7 @@ export default function NotificationCenter() {
         setNotifications(res);
       }
     } catch (error) {
-      console.error('Failed to fetch notifications', error);
+      console.error("Failed to fetch notifications", error);
     }
   };
 
@@ -44,60 +59,123 @@ export default function NotificationCenter() {
   const handleMarkAsRead = async (id: string) => {
     try {
       await apiClient.markNotificationAsRead(id);
-      setNotifications(prev => 
-        prev.map(n => n._id === id ? { ...n, isRead: true } : n)
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n)),
       );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
     } catch (error) {
-      console.error('Failed to mark as read', error);
+      console.error("Failed to mark as read", error);
     }
   };
 
   const handleMarkAllRead = async () => {
     try {
       await apiClient.markAllNotificationsAsRead();
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
       setUnreadCount(0);
     } catch (error) {
-      console.error('Failed to mark all as read', error);
+      console.error("Failed to mark all as read", error);
     }
+  };
+
+  const handleDeleteNotification = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    try {
+      await apiClient.deleteNotification(id);
+      setNotifications((prev) => {
+        const notif = prev.find((n) => n._id === id);
+        if (notif && !notif.isRead) {
+          setUnreadCount((prev) => Math.max(0, prev - 1));
+        }
+        return prev.filter((n) => n._id !== id);
+      });
+    } catch (error) {
+      console.error("Failed to delete notification", error);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!confirm("Delete all notifications?")) return;
+    try {
+      await apiClient.deleteAllNotifications();
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Failed to delete all notifications", error);
+    }
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    // Navigate based on type
+    const routeMap: Record<string, string> = {
+      leave_request: "/hr/leaves",
+      permission_request: "/hr/permissions",
+      leave_status: "/hr/leaves",
+      permission_status: "/hr/permissions",
+      general: "/",
+    };
+
+    const route = routeMap[notification.type] || "/";
+
+    // Mark as read if not already read
+    if (!notification.isRead) {
+      try {
+        await apiClient.markNotificationAsRead(notification._id);
+        setNotifications((prev) =>
+          prev.map((n) =>
+            n._id === notification._id ? { ...n, isRead: true } : n,
+          ),
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch (error) {
+        console.error("Failed to mark as read", error);
+      }
+    }
+
+    // Navigate to the relevant page
+    setIsOpen(false);
+    navigate(route);
   };
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'leave_request': return <Calendar className="w-4 h-4 text-blue-500" />;
-      case 'permission_request': return <Clock className="w-4 h-4 text-purple-500" />;
-      case 'leave_status': 
-      case 'permission_status': return <FileText className="w-4 h-4 text-green-500" />;
-      default: return <Bell className="w-4 h-4 text-gray-500" />;
+      case "leave_request":
+        return <Calendar className="w-4 h-4 text-blue-500" />;
+      case "permission_request":
+        return <Clock className="w-4 h-4 text-purple-500" />;
+      case "leave_status":
+      case "permission_status":
+        return <FileText className="w-4 h-4 text-green-500" />;
+      default:
+        return <Bell className="w-4 h-4 text-gray-500" />;
     }
   };
 
   return (
     <div className="relative">
-      <button 
+      <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-gray-400 hover:text-gray-600 focus:outline-none"
       >
         <Bell size={24} />
         {unreadCount > 0 && (
           <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
-            {unreadCount > 9 ? '9+' : unreadCount}
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
         <>
-          <div 
-            className="fixed inset-0 z-10" 
+          <div
+            className="fixed inset-0 z-10"
             onClick={() => setIsOpen(false)}
           ></div>
           <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 z-20 overflow-hidden transform transition-all animate-in fade-in slide-in-from-top-2">
             <div className="p-4 border-b border-gray-50 flex items-center justify-between bg-white">
               <h3 className="text-lg font-bold text-gray-800">Notifications</h3>
               {unreadCount > 0 && (
-                <button 
+                <button
                   onClick={handleMarkAllRead}
                   className="text-xs font-semibold text-blue-600 hover:text-blue-800 transition-colors"
                 >
@@ -114,30 +192,33 @@ export default function NotificationCenter() {
                 </div>
               ) : (
                 notifications?.map((notification) => (
-                  <div 
+                  <div
                     key={notification._id}
-                    className={`p-4 border-b border-gray-50 flex gap-3 transition-colors ${notification.isRead ? 'bg-white' : 'bg-blue-50/30'}`}
-                    onClick={() => !notification.isRead && handleMarkAsRead(notification._id)}
+                    className={`p-4 border-b border-gray-50 flex gap-3 transition-colors cursor-pointer ${notification.isRead ? "bg-white hover:bg-gray-50" : "bg-blue-50/30 hover:bg-blue-100/50"}`}
+                    onClick={() => handleNotificationClick(notification)}
                   >
                     <div className="mt-1 flex-shrink-0 bg-white p-2 rounded-lg shadow-sm border border-gray-100">
                       {getTypeIcon(notification.type)}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start mb-0.5">
-                        <p className={`text-sm font-bold truncate ${notification.isRead ? 'text-gray-700' : 'text-gray-900'}`}>
+                        <p
+                          className={`text-sm font-bold truncate ${notification.isRead ? "text-gray-700" : "text-gray-900"}`}
+                        >
                           {notification.title}
                         </p>
-                        <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2">
-                          {new Date(notification.createdAt).toLocaleString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                          })}
-                        </span>
+                        <button
+                          onClick={(e) =>
+                            handleDeleteNotification(e, notification._id)
+                          }
+                          className="text-gray-400 hover:text-red-500 ml-2 p-1"
+                        >
+                          <X size={14} />
+                        </button>
                       </div>
-                      <p className={`text-xs leading-relaxed ${notification.isRead ? 'text-gray-500' : 'text-gray-600 font-medium'}`}>
+                      <p
+                        className={`text-xs leading-relaxed ${notification.isRead ? "text-gray-500" : "text-gray-600 font-medium"}`}
+                      >
                         {notification.message}
                       </p>
                       {!notification.isRead && (
@@ -152,7 +233,7 @@ export default function NotificationCenter() {
             </div>
 
             <div className="p-3 bg-gray-50 text-center border-t border-gray-100">
-              <button 
+              <button
                 onClick={() => setIsOpen(false)}
                 className="text-xs font-bold text-gray-500 hover:text-gray-700 uppercase tracking-wider"
               >
