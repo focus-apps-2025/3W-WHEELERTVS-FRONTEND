@@ -30,6 +30,7 @@ import {
   CategoryScale,
   LinearScale,
   BarElement,
+  ArcElement,
   PointElement,
   LineElement,
   Title,
@@ -57,12 +58,14 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
+  ArcElement,
   PointElement,
   LineElement,
   Title,
   Tooltip,
   Legend,
   Filler,
+  RadialLinearScale,
 );
 
 interface Response {
@@ -104,7 +107,6 @@ const getResponseTimestamp = (response: Response): string | undefined => {
 };
 
 interface Section {
-  weightage(weightage: any): unknown;
   id: string;
   title: string;
   description?: string;
@@ -143,8 +145,10 @@ type SectionPerformanceStat = {
   yes: number;
   no: number;
   na: number;
+  accepted?: number;
+  rejected?: number;
+  rework?: number;
   total: number;
-  weightage: number;
 };
 
 // Add this interface
@@ -191,6 +195,28 @@ export interface SectionAnalyticsData {
       na: string;
     };
   };
+}
+
+export interface ZoneAnalyticsData {
+  inspectionStatus: {
+    accepted: number;
+    rework: number;
+    rejected: number;
+    total: number;
+  };
+  zoneBreakdown: Array<{
+    zone: string;
+    categories: Array<{
+      category: string;
+      count: number;
+      defects: Array<{
+        name: string;
+        count: number;
+        reworkCount: number;
+        rejectedCount: number;
+      }>;
+    }>;
+  }>;
 }
 
 // Add helper functions
@@ -266,8 +292,43 @@ const getSectionQualityBreakdown = (
         if (answer !== null && answer !== undefined && answer !== "") {
           group.total++;
 
+          // Check if it's an inspection status object (like from ChassisWithZone)
+          if (typeof answer === "object" && answer.status) {
+            const status = String(answer.status).toLowerCase().trim();
+            if (
+              status === "accepted" ||
+              status === "rework completed" ||
+              status === "verified"
+            ) {
+              group.yes++;
+            } else if (status === "rejected") {
+              group.no++;
+            } else if (
+              status === "rework" ||
+              status === "reworked" ||
+              status.includes("re-rework")
+            ) {
+              group.na++;
+            }
+            return;
+          }
+
           const answerStr = String(answer).toLowerCase().trim();
-          if (answerStr.includes("yes") || answerStr === "y") {
+          if (
+            answerStr === "accepted" ||
+            answerStr === "rework completed" ||
+            answerStr === "verified"
+          ) {
+            group.yes++;
+          } else if (answerStr === "rejected") {
+            group.no++;
+          } else if (
+            answerStr === "rework" ||
+            answerStr === "reworked" ||
+            answerStr.includes("re-rework")
+          ) {
+            group.na++;
+          } else if (answerStr.includes("yes") || answerStr === "y") {
             group.yes++;
           } else if (answerStr.includes("no") || answerStr === "n") {
             group.no++;
@@ -326,6 +387,75 @@ const calculateOverallQuality = (qualityBreakdown: any[]) => {
       na: total > 0 ? ((totalNA / total) * 100).toFixed(1) : "0.0",
     },
   };
+};
+
+const getZoneAnalytics = (responses: Response[]): ZoneAnalyticsData => {
+  const stats: ZoneAnalyticsData = {
+    inspectionStatus: { accepted: 0, rework: 0, rejected: 0, total: 0 },
+    zoneBreakdown: [],
+  };
+
+  const zoneMap = new Map<string, Map<string, { count: number; defects: Map<string, { total: number; rework: number; rejected: number }> }>>();
+
+  responses.forEach((response) => {
+    if (!response.answers) return;
+
+    Object.values(response.answers).forEach((answer) => {
+      if (typeof answer === "object" && answer !== null && (answer.chassisNumber || answer.status || answer.zonesData)) {
+        // This looks like a ChassisWithZone answer
+        const statusVal = (answer.status || "").toLowerCase();
+        if (statusVal === "accepted") stats.inspectionStatus.accepted++;
+        else if (statusVal === "rework") stats.inspectionStatus.rework++;
+        else if (statusVal === "rejected") stats.inspectionStatus.rejected++;
+        
+        if (statusVal) stats.inspectionStatus.total++;
+
+        if (answer.zonesData) {
+          Object.entries(answer.zonesData).forEach(([zoneName, zoneContent]: [string, any]) => {
+            if (!zoneMap.has(zoneName)) {
+              zoneMap.set(zoneName, new Map());
+            }
+            const catMap = zoneMap.get(zoneName)!;
+
+            if (zoneContent.categories && Array.isArray(zoneContent.categories)) {
+              zoneContent.categories.forEach((cat: any) => {
+                if (!catMap.has(cat.name)) {
+                  catMap.set(cat.name, { count: 0, defects: new Map() });
+                }
+                const catData = catMap.get(cat.name)!;
+                catData.count++;
+
+                if (cat.defects && Array.isArray(cat.defects)) {
+                  cat.defects.forEach((defect: any) => {
+                    const defectStats = catData.defects.get(defect.name) || { total: 0, rework: 0, rejected: 0 };
+                    defectStats.total++;
+                    if (statusVal === "rework") defectStats.rework++;
+                    else if (statusVal === "rejected") defectStats.rejected++;
+                    catData.defects.set(defect.name, defectStats);
+                  });
+                }
+              });
+            }
+          });
+        }
+      }
+    });
+  });
+
+  // Convert map to array structure
+  zoneMap.forEach((catMap, zoneName) => {
+    const categories: any[] = [];
+    catMap.forEach((catData, catName) => {
+      const defects: any[] = [];
+      catData.defects.forEach((dStats, defectName) => {
+        defects.push({ name: defectName, count: dStats.total, reworkCount: dStats.rework, rejectedCount: dStats.rejected });
+      });
+      categories.push({ category: catName, count: catData.count, defects });
+    });
+    stats.zoneBreakdown.push({ zone: zoneName, categories });
+  });
+
+  return stats;
 };
 
 // Add getSectionStats function
@@ -464,7 +594,19 @@ const extractYesNoValues = (value: any): string[] => {
   return [];
 };
 
-const recognizedYesNoValues = ["yes", "no", "n/a", "na", "not applicable"];
+const recognizedYesNoValues = [
+  "yes",
+  "no",
+  "n/a",
+  "na",
+  "not applicable",
+  "accepted",
+  "rejected",
+  "rework",
+  "reworked",
+  "verified",
+  "rework completed",
+];
 
 const getRankStyle = (answer: any, darkMode: boolean = false) => {
   if (answer === null || answer === undefined) return "";
@@ -533,66 +675,126 @@ const computeSectionPerformanceStats = (
 
   const stats =
     form.sections?.map((section) => {
-      const counts = { yes: 0, no: 0, na: 0, total: 0 };
-      const weightageNumber = Number(section.weightage) || 0;
-      const weightage = Number.isFinite(weightageNumber) ? weightageNumber : 0;
+      const counts = {
+        yes: 0,
+        no: 0,
+        na: 0,
+        accepted: 0,
+        rejected: 0,
+        rework: 0,
+        total: 0,
+      };
 
       const processQuestion = (question: any) => {
         if (!question) {
           return;
         }
-        if (question.type === "yesNoNA" && question.id) {
-          const options = question.options || [];
-          responses.forEach((response) => {
-            const answer = response.answers?.[question.id];
-            if (answer === null || answer === undefined || answer === "") {
-              return;
-            }
 
+        // Process based on response answers
+        responses.forEach((response) => {
+          const answer = response.answers?.[question.id];
+          if (answer === null || answer === undefined || answer === "") {
+            return;
+          }
+
+          // Check if it's an inspection status object (like from ChassisWithZone)
+          if (typeof answer === "object" && answer.status) {
+            const status = String(answer.status).toLowerCase().trim();
+            if (
+              status === "accepted" ||
+              status === "rework completed" ||
+              status === "verified"
+            ) {
+              counts.accepted += 1;
+              counts.total += 1;
+            } else if (status === "rejected") {
+              counts.rejected += 1;
+              counts.total += 1;
+            } else if (
+              status === "rework" ||
+              status === "reworked" ||
+              status.includes("re-rework")
+            ) {
+              counts.rework += 1;
+              counts.total += 1;
+            }
+          } else {
+            // Handle string answers that might be inspection statuses even for non-yesNoNA types
+            const answerStr = String(answer).toLowerCase().trim();
             const normalizedValues = extractYesNoValues(answer);
 
-            if (options.length >= 3) {
-              const yesOption = String(options[0]).toLowerCase().trim();
-              const noOption = String(options[1]).toLowerCase().trim();
-              const naOption = String(options[2]).toLowerCase().trim();
-
-              normalizedValues.forEach((val) => {
-                if (val === yesOption) {
-                  counts.yes += 1;
-                  counts.total += 1;
-                } else if (val === noOption) {
-                  counts.no += 1;
-                  counts.total += 1;
-                } else if (val === naOption) {
-                  counts.na += 1;
-                  counts.total += 1;
-                }
-              });
-            } else {
-              // Fallback to recognized values if options are not available
-              const hasRecognizedValue = normalizedValues.some((value) =>
-                recognizedYesNoValues.includes(value),
-              );
-              if (!hasRecognizedValue) {
-                return;
-              }
+            if (
+              answerStr === "accepted" ||
+              answerStr === "rework completed" ||
+              answerStr === "verified"
+            ) {
+              counts.accepted += 1;
               counts.total += 1;
-              if (normalizedValues.includes("yes")) {
-                counts.yes += 1;
-              }
-              if (normalizedValues.includes("no")) {
-                counts.no += 1;
-              }
-              if (
-                normalizedValues.includes("n/a") ||
-                normalizedValues.includes("na") ||
-                normalizedValues.includes("not applicable")
-              ) {
-                counts.na += 1;
+            } else if (answerStr === "rejected") {
+              counts.rejected += 1;
+              counts.total += 1;
+            } else if (
+              answerStr === "rework" ||
+              answerStr === "reworked" ||
+              answerStr.includes("re-rework")
+            ) {
+              counts.rework += 1;
+              counts.total += 1;
+            } else if (
+              question.type === "yesNoNA" ||
+              question.type === "chassisWithZone" ||
+              question.type === "chassisWithoutZone" ||
+              question.type === "chassis" ||
+              question.text?.toLowerCase().includes("chassis")
+            ) {
+              const options = question.options || [];
+
+              if (options.length >= 3) {
+                const yesOption = String(options[0]).toLowerCase().trim();
+                const noOption = String(options[1]).toLowerCase().trim();
+                const naOption = String(options[2]).toLowerCase().trim();
+
+                normalizedValues.forEach((val) => {
+                  if (val === yesOption) {
+                    counts.yes += 1;
+                    counts.total += 1;
+                  } else if (val === noOption) {
+                    counts.no += 1;
+                    counts.total += 1;
+                  } else if (val === naOption) {
+                    counts.na += 1;
+                    counts.total += 1;
+                  }
+                });
+              } else {
+                // Fallback to recognized values
+                const hasRecognizedValue = normalizedValues.some((value) =>
+                  recognizedYesNoValues.includes(value),
+                );
+                if (hasRecognizedValue) {
+                  counts.total += 1;
+                  if (normalizedValues.includes("yes") || normalizedValues.includes("accepted") || normalizedValues.includes("verified")) {
+                    counts.yes += 1;
+                  }
+                  if (normalizedValues.includes("no") || normalizedValues.includes("rejected")) {
+                    counts.no += 1;
+                  }
+                  if (
+                    normalizedValues.includes("n/a") ||
+                    normalizedValues.includes("na") ||
+                    normalizedValues.includes("not applicable") ||
+                    normalizedValues.includes("rework") ||
+                    normalizedValues.includes("reworked") ||
+                    normalizedValues.some(v => v.includes("re-rework"))
+                  ) {
+                    counts.na += 1;
+                  }
+                }
               }
             }
-          });
-        }
+          }
+        });
+
         question.followUpQuestions?.forEach(processQuestion);
       };
 
@@ -608,8 +810,10 @@ const computeSectionPerformanceStats = (
         yes: counts.yes,
         no: counts.no,
         na: counts.na,
+        accepted: counts.accepted,
+        rejected: counts.rejected,
+        rework: counts.rework,
         total: counts.total,
-        weightage,
       };
     }) ?? [];
 
@@ -622,8 +826,10 @@ interface SectionStat {
   yes: number;
   no: number;
   na: number;
+  accepted?: number;
+  rejected?: number;
+  rework?: number;
   total: number;
-  weightage: number;
 }
 
 const getSectionYesNoStats = (
@@ -632,67 +838,117 @@ const getSectionYesNoStats = (
 ): SectionStat[] => {
   const stats =
     form.sections?.map((section: any) => {
-      const counts = { yes: 0, no: 0, na: 0, total: 0 };
-      const weightageNumber = Number(section.weightage);
-      const weightage = Number.isFinite(weightageNumber) ? weightageNumber : 0;
+      const counts = {
+        yes: 0,
+        no: 0,
+        na: 0,
+        accepted: 0,
+        rejected: 0,
+        rework: 0,
+        total: 0,
+      };
 
       const processQuestion = (question: any) => {
         if (!question) {
           return;
         }
-        if (question.type !== "yesNoNA" || !question.id) {
-          question.followUpQuestions?.forEach(processQuestion);
-          return;
-        }
 
         const answer = answers?.[question.id];
-        if (answer === null || answer === undefined || answer === "") {
-          question.followUpQuestions?.forEach(processQuestion);
-          return;
-        }
-
-        const normalizedValues = extractYesNoValues(answer);
-        const options = question.options || [];
-
-        if (options.length >= 3) {
-          const yesOption = String(options[0]).toLowerCase().trim();
-          const noOption = String(options[1]).toLowerCase().trim();
-          const naOption = String(options[2]).toLowerCase().trim();
-
-          normalizedValues.forEach((val) => {
-            if (val === yesOption) {
-              counts.yes += 1;
+        if (answer !== null && answer !== undefined && answer !== "") {
+          // Check if it's an inspection status object
+          if (typeof answer === "object" && answer.status) {
+            const status = String(answer.status).toLowerCase().trim();
+            if (
+              status === "accepted" ||
+              status === "rework completed" ||
+              status === "verified"
+            ) {
+              counts.accepted += 1;
               counts.total += 1;
-            } else if (val === noOption) {
-              counts.no += 1;
+            } else if (status === "rejected") {
+              counts.rejected += 1;
               counts.total += 1;
-            } else if (val === naOption) {
-              counts.na += 1;
+            } else if (
+              status === "rework" ||
+              status === "reworked" ||
+              status.includes("re-rework")
+            ) {
+              counts.rework += 1;
               counts.total += 1;
             }
-          });
-        } else {
-          const hasRecognizedValue = normalizedValues.some((value) =>
-            ["yes", "no", "n/a", "na", "not applicable"].includes(value),
-          );
-          if (!hasRecognizedValue) {
-            question.followUpQuestions?.forEach(processQuestion);
-            return;
-          }
+          } else {
+            // Handle string answers that might be inspection statuses
+            const answerStr = String(answer).toLowerCase().trim();
+            const normalizedValues = extractYesNoValues(answer);
 
-          counts.total += 1;
-          if (normalizedValues.includes("yes")) {
-            counts.yes += 1;
-          }
-          if (normalizedValues.includes("no")) {
-            counts.no += 1;
-          }
-          if (
-            normalizedValues.includes("n/a") ||
-            normalizedValues.includes("na") ||
-            normalizedValues.includes("not applicable")
-          ) {
-            counts.na += 1;
+            if (
+              answerStr === "accepted" ||
+              answerStr === "rework completed" ||
+              answerStr === "verified"
+            ) {
+              counts.accepted += 1;
+              counts.total += 1;
+            } else if (answerStr === "rejected") {
+              counts.rejected += 1;
+              counts.total += 1;
+            } else if (
+              answerStr === "rework" ||
+              answerStr === "reworked" ||
+              answerStr.includes("re-rework")
+            ) {
+              counts.rework += 1;
+              counts.total += 1;
+            } else if (
+              question.type === "yesNoNA" ||
+              question.type === "chassisWithZone" ||
+              question.type === "chassisWithoutZone" ||
+              question.type === "chassis" ||
+              question.text?.toLowerCase().includes("chassis")
+            ) {
+              const options = question.options || [];
+
+              if (options.length >= 3) {
+                const yesOption = String(options[0]).toLowerCase().trim();
+                const noOption = String(options[1]).toLowerCase().trim();
+                const naOption = String(options[2]).toLowerCase().trim();
+
+                normalizedValues.forEach((val) => {
+                  if (val === yesOption) {
+                    counts.yes += 1;
+                    counts.total += 1;
+                  } else if (val === noOption) {
+                    counts.no += 1;
+                    counts.total += 1;
+                  } else if (val === naOption) {
+                    counts.na += 1;
+                    counts.total += 1;
+                  }
+                });
+              } else {
+                const hasRecognizedValue = normalizedValues.some((value) =>
+                  recognizedYesNoValues.includes(value),
+                );
+                if (hasRecognizedValue) {
+                  counts.total += 1;
+                  if (normalizedValues.includes("yes") || normalizedValues.includes("accepted") || normalizedValues.includes("verified")) {
+                    counts.yes += 1;
+                  }
+                  if (normalizedValues.includes("no") || normalizedValues.includes("rejected")) {
+                    counts.no += 1;
+                  }
+                  if (
+                    normalizedValues.includes("n/a") ||
+                    normalizedValues.includes("na") ||
+                    normalizedValues.includes("not applicable") ||
+                    normalizedValues.includes("rework") ||
+                    normalizedValues.includes("reworked") ||
+                    normalizedValues.some(v => v.includes("re-rework"))
+                  ) {
+                    counts.na += 1;
+                  }
+                }
+              }
+            }
           }
         }
 
@@ -711,8 +967,10 @@ const getSectionYesNoStats = (
         yes: counts.yes,
         no: counts.no,
         na: counts.na,
+        accepted: counts.accepted,
+        rejected: counts.rejected,
+        rework: counts.rework,
         total: counts.total,
-        weightage,
       };
     }) ?? [];
 
@@ -768,23 +1026,6 @@ export default function FormAnalyticsDashboard() {
   const [selectedQuestion, setSelectedQuestion] = useState<any>(null);
   const [filterValues, setFilterValues] = useState<string[]>([]);
   const [selectedAnswers, setSelectedAnswers] = useState<string[]>([]);
-
-  const [showWeightageColumns, setShowWeightageColumns] = useState(false);
-  const [addWeightMode, setAddWeightMode] = useState(false);
-  const [showWeightageCheckbox, setShowWeightageCheckbox] = useState(true);
-  const [editingWeightage, setEditingWeightage] = useState<string | null>(null);
-  const [weightageValue, setWeightageValue] = useState<string>("");
-  const [savingWeightage, setSavingWeightage] = useState(false);
-  const [editingAllWeightages, setEditingAllWeightages] = useState(false);
-  const [weightageValues, setWeightageValues] = useState<
-    Record<string, string>
-  >({});
-
-  const [redistributionMode, setRedistributionMode] = useState(false);
-  const [tempWeightageValues, setTempWeightageValues] = useState<
-    Record<string, string>
-  >({});
-  const [weightageBalance, setWeightageBalance] = useState(0);
 
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showSectionSelector, setShowSectionSelector] = useState(false);
@@ -843,6 +1084,103 @@ export default function FormAnalyticsDashboard() {
     const defaultLabels = { yes: "Yes", no: "No", na: "N/A" };
     let labels = { ...defaultLabels };
 
+    // Check if the form has any inspection status based questions
+    let hasInspectionQuestions = false;
+
+    // Check form title for inspection keywords
+    if (
+      form?.title?.toLowerCase().includes("inspection") ||
+      form?.title?.toLowerCase().includes("chassis") ||
+      form?.title?.toLowerCase().includes("pdi") ||
+      form?.title?.toLowerCase().includes("rework") ||
+      form?.title?.toLowerCase().includes("accepted") ||
+      form?.title?.toLowerCase().includes("rejected") ||
+      form?.title?.toLowerCase().includes("verified")
+    ) {
+      hasInspectionQuestions = true;
+    }
+
+    if (!hasInspectionQuestions && form?.sections) {
+      for (const section of form.sections) {
+        // Check section title
+        const sectionTitle = section.title?.toLowerCase() || "";
+        if (
+          sectionTitle.includes("inspection") ||
+          sectionTitle.includes("chassis") ||
+          sectionTitle.includes("rework") ||
+          sectionTitle.includes("accepted") ||
+          sectionTitle.includes("rejected") ||
+          sectionTitle.includes("verified")
+        ) {
+          hasInspectionQuestions = true;
+          break;
+        }
+
+        if (section.questions) {
+          for (const question of section.questions) {
+            // Check for ChassisWithZone or similar that might not have a specific type but we handle as status objects
+              if (
+                question.type === "chassisWithZone" ||
+                question.type === "chassisWithoutZone" ||
+                question.type === "chassis" ||
+                question.text?.toLowerCase().includes("chassis") ||
+                question.text?.toLowerCase().includes("inspection") ||
+                question.text?.toLowerCase().includes("accepted") ||
+                question.text?.toLowerCase().includes("rework") ||
+                question.options?.some(opt => {
+                  const o = String(opt).toLowerCase();
+                  return o.includes("accepted") || o.includes("rejected") || o.includes("rework") || o.includes("re-rework");
+                })
+              ) {
+                hasInspectionQuestions = true;
+                break;
+              }
+          }
+        }
+        if (hasInspectionQuestions) break;
+      }
+    }
+
+    if (hasInspectionQuestions) {
+      return { yes: "Accepted", no: "Rejected", na: "Rework" };
+    }
+
+    // Check if the responses contain any inspection status objects
+    if (!hasInspectionQuestions && responses && responses.length > 0) {
+      for (const response of responses) {
+        if (response.answers) {
+          for (const answer of Object.values(response.answers)) {
+            if (
+              typeof answer === "object" &&
+              answer !== null &&
+              (answer as any).status
+            ) {
+              const status = String((answer as any).status).toLowerCase().trim();
+              if (
+                [
+                  "accepted",
+                  "rejected",
+                  "rework",
+                  "reworked",
+                  "verified",
+                  "rework completed",
+                ].includes(status) ||
+                status.includes("re-rework")
+              ) {
+                hasInspectionQuestions = true;
+                break;
+              }
+            }
+          }
+        }
+        if (hasInspectionQuestions) break;
+      }
+    }
+
+    if (hasInspectionQuestions) {
+      return { yes: "Accepted", no: "Rejected", na: "Rework" };
+    }
+
     if (form?.sections) {
       for (const section of form.sections) {
         if (section.questions) {
@@ -876,7 +1214,7 @@ export default function FormAnalyticsDashboard() {
       }
     }
     return labels;
-  }, [form]);
+  }, [form, responses]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -1266,7 +1604,12 @@ export default function FormAnalyticsDashboard() {
     () =>
       sectionPerformanceStats.filter(
         (stat) =>
-          stat.yes > 0 || stat.no > 0 || stat.na > 0 || stat.weightage > 0,
+          stat.yes > 0 ||
+          stat.no > 0 ||
+          stat.na > 0 ||
+          (stat.accepted && stat.accepted > 0) ||
+          (stat.rejected && stat.rejected > 0) ||
+          (stat.rework && stat.rework > 0),
       ),
     [sectionPerformanceStats],
   );
@@ -1291,6 +1634,11 @@ export default function FormAnalyticsDashboard() {
         selectedSectionIds.includes(stat.id),
       ),
     [filteredSectionStats, selectedSectionIds],
+  );
+
+  const zoneAnalytics = useMemo(
+    () => getZoneAnalytics(filteredResponses),
+    [filteredResponses],
   );
 
   const getUniqueColumnValues = (
@@ -1902,7 +2250,7 @@ export default function FormAnalyticsDashboard() {
         {
           label: complianceLabels.yes,
           data: visibleSectionStats.map((stat) =>
-            calculatePercentage(stat.yes, stat.total),
+            calculatePercentage(stat.yes + (stat.accepted || 0), stat.total),
           ),
           backgroundColor: "#1d4ed8",
           borderRadius: 4,
@@ -1910,7 +2258,7 @@ export default function FormAnalyticsDashboard() {
         {
           label: complianceLabels.no,
           data: visibleSectionStats.map((stat) =>
-            calculatePercentage(stat.no, stat.total),
+            calculatePercentage(stat.no + (stat.rejected || 0), stat.total),
           ),
           backgroundColor: "#3b82f6",
           borderRadius: 4,
@@ -1918,7 +2266,7 @@ export default function FormAnalyticsDashboard() {
         {
           label: complianceLabels.na,
           data: visibleSectionStats.map((stat) =>
-            calculatePercentage(stat.na, stat.total),
+            calculatePercentage(stat.na + (stat.rework || 0), stat.total),
           ),
           backgroundColor: "#93c5fd",
           borderRadius: 4,
@@ -2012,31 +2360,23 @@ export default function FormAnalyticsDashboard() {
     () =>
       visibleSectionStats
         .map((stat) => {
-          let weightage = stat.weightage;
-          if (weightage > 0 && weightage <= 1) {
-            weightage = weightage * 100;
-          }
+          const rowYesCount = stat.yes + (stat.accepted || 0);
+          const rowNoCount = stat.no + (stat.rejected || 0);
+          const rowNaCount = stat.na + (stat.rework || 0);
 
-          const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
-          const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
-          const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
-          const yesWeighted = (yesPercent * weightage) / 100;
-          const noWeighted = (noPercent * weightage) / 100;
-          const naWeighted = (naPercent * weightage) / 100;
+          const yesPercent = stat.total ? (rowYesCount / stat.total) * 100 : 0;
+          const noPercent = stat.total ? (rowNoCount / stat.total) * 100 : 0;
+          const naPercent = stat.total ? (rowNaCount / stat.total) * 100 : 0;
 
           return {
             id: stat.id,
             title: stat.title,
-            weightage,
             yesPercent,
-            yesWeighted,
-            yesCount: stat.yes,
+            yesCount: rowYesCount,
             noPercent,
-            noWeighted,
-            noCount: stat.no,
+            noCount: rowNoCount,
             naPercent,
-            naWeighted,
-            naCount: stat.na,
+            naCount: rowNaCount,
             total: stat.total,
           };
         })
@@ -2052,125 +2392,14 @@ export default function FormAnalyticsDashboard() {
         yesCount: acc.yesCount + (row.yesCount || 0),
         noCount: acc.noCount + (row.noCount || 0),
         naCount: acc.naCount + (row.naCount || 0),
-        weightage: acc.weightage + row.weightage,
-        yesWeighted: acc.yesWeighted + row.yesWeighted,
-        noWeighted: acc.noWeighted + row.noWeighted,
-        naWeighted: acc.naWeighted + row.naWeighted,
       }),
       {
         total: 0,
         yesCount: 0,
         noCount: 0,
         naCount: 0,
-        weightage: 0,
-        yesWeighted: 0,
-        noWeighted: 0,
-        naWeighted: 0,
       },
     );
-  }, [sectionSummaryRows]);
-
-  useEffect(() => {
-    if (sectionSummaryRows.length > 0) {
-      // Check if ALL sections have weightage = 0
-      const allZero = sectionSummaryRows.every((row) => row.weightage === 0);
-
-      // Check if ANY section has weightage > 0
-      const hasWeightage = sectionSummaryRows.some((row) => row.weightage > 0);
-
-      // Auto-detect whether to show weightage columns
-      if (hasWeightage) {
-        setShowWeightageColumns(true);
-        setShowWeightageCheckbox(false); // Hide checkbox when weightage exists
-        setAddWeightMode(false); // Exit add weight mode
-      } else {
-        setShowWeightageColumns(false);
-        setShowWeightageCheckbox(true); // Show checkbox when no weightage
-      }
-    }
-  }, [sectionSummaryRows]);
-
-  // Weightage Edit Functions
-  const handleEditWeightage = (sectionId: string, currentWeightage: number) => {
-    setEditingWeightage(sectionId);
-    setWeightageValue(currentWeightage.toString());
-  };
-
-  const handleSaveWeightage = async (sectionId: string) => {
-    if (savingWeightage || !form || !weightageValue.trim()) {
-      return;
-    }
-
-    const numericValue = parseFloat(weightageValue);
-    if (isNaN(numericValue) || numericValue < 0 || numericValue > 100) {
-      // Show error using your notification system or console
-      console.error("Please enter a valid weightage between 0 and 100");
-      return;
-    }
-
-    setSavingWeightage(true);
-    try {
-      // Get the form ID
-      const formId = form._id || form.id;
-      if (!formId) {
-        throw new Error("Form ID not found");
-      }
-
-      // Create updated sections with new weightage
-      const updatedSections =
-        form.sections?.map((section: any) =>
-          section.id === sectionId
-            ? { ...section, weightage: numericValue }
-            : section,
-        ) || [];
-
-      // Prepare the form data to update
-      const formDataToUpdate = {
-        ...form,
-        sections: updatedSections,
-      };
-
-      // Remove MongoDB-specific fields if they exist
-      delete formDataToUpdate._id;
-      delete formDataToUpdate.__v;
-      delete formDataToUpdate.createdAt;
-      delete formDataToUpdate.updatedAt;
-
-      console.log("Updating form with ID:", formId);
-      console.log("Updated sections:", updatedSections);
-
-      // Call the updateForm API
-      const response = await apiClient.updateForm(formId, formDataToUpdate);
-
-      // Update local state with the response
-      if (response.form) {
-        setForm(response.form);
-      } else {
-        // Fallback to local update if response doesn't have form
-        setForm({
-          ...form,
-          sections: updatedSections,
-        });
-      }
-
-      console.log(`Weightage updated to ${numericValue}%`);
-      setEditingWeightage(null);
-      setWeightageValue("");
-    } catch (error) {
-      console.error("Failed to update weightage:", error);
-    } finally {
-      setSavingWeightage(false);
-    }
-  };
-
-  const handleCancelWeightageEdit = () => {
-    setEditingWeightage(null);
-    setWeightageValue("");
-  };
-
-  // Calculate total weightage
-  const totalWeightage = useMemo(() => {
-    return sectionSummaryRows.reduce((total, row) => total + row.weightage, 0);
   }, [sectionSummaryRows]);
 
   // Add this after sectionSummaryRows calculation
@@ -2215,128 +2444,7 @@ export default function FormAnalyticsDashboard() {
     };
   }, [sectionSummaryRows]);
 
-  const weightedPercentageChartData = useMemo(() => {
-    return {
-      labels: sectionSummaryRows.map((row) => formatSectionLabel(row.title)),
-      datasets: [
-        {
-          label: "Yes % × Weightage",
-          data: sectionSummaryRows.map((row) =>
-            parseFloat(row.yesWeighted.toFixed(1)),
-          ),
-          borderColor: "#1d4ed8",
-          backgroundColor: "rgba(29, 78, 216, 0.1)",
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointBackgroundColor: "#1d4ed8",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-        },
-        {
-          label: "No % × Weightage",
-          data: sectionSummaryRows.map((row) =>
-            parseFloat(row.noWeighted.toFixed(1)),
-          ),
-          borderColor: "#3b82f6",
-          backgroundColor: "rgba(59, 130, 246, 0.1)",
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointBackgroundColor: "#3b82f6",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-        },
-        {
-          label: "N/A % × Weightage",
-          data: sectionSummaryRows.map((row) =>
-            parseFloat(row.naWeighted.toFixed(1)),
-          ),
-          borderColor: "#93c5fd",
-          backgroundColor: "rgba(147, 197, 253, 0.1)",
-          borderWidth: 2,
-          fill: true,
-          tension: 0.4,
-          pointBackgroundColor: "#93c5fd",
-          pointBorderColor: "#fff",
-          pointBorderWidth: 2,
-        },
-      ],
-    };
-  }, [sectionSummaryRows]);
-
-  const weightedPercentageChartOptions = useMemo(
-    () => ({
-      responsive: true,
-      maintainAspectRatio: false,
-      layout: {
-        padding: { top: 16, right: 32, bottom: 16, left: 8 },
-      },
-      plugins: {
-        legend: {
-          position: "bottom",
-          labels: {
-            color: "#374151",
-            generateLabels: (chart: any) => {
-              const labels =
-                ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
-              labels.forEach((label: any) => {
-                label.color = document.documentElement.classList.contains(
-                  "dark",
-                )
-                  ? "#d1d5db"
-                  : "#374151";
-              });
-              return labels;
-            },
-          },
-        },
-        tooltip: {
-          callbacks: {
-            label: (context: any) => {
-              const value = context.parsed?.y ?? 0;
-              return `${context.dataset.label}: ${value.toFixed(1)}%`;
-            },
-          },
-        },
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            callback: (value: any) => `${value}%`,
-            color: "#374151",
-          },
-          title: {
-            display: true,
-            text: "Weighted Percentage",
-            color: "#374151",
-          },
-          grid: {
-            color: "#e5e7eb",
-          },
-        },
-        x: {
-          ticks: {
-            autoSkip: false,
-            color: "#374151",
-          },
-          title: {
-            display: true,
-            text: "Sections",
-            color: "#374151",
-          },
-          grid: {
-            color: "#e5e7eb",
-          },
-        },
-      },
-    }),
-    [],
-  );
-
   const sectionChartHeight = Math.max(320, visibleSectionStats.length * 56);
-  const weightedChartHeight = Math.max(320, sectionSummaryRows.length * 32);
 
   const sectionsStats = useMemo(() => {
     if (!form?.sections) return [];
@@ -2358,6 +2466,11 @@ export default function FormAnalyticsDashboard() {
 
   const OverallQualityPieChart = () => {
     const data = {
+      labels: [
+        complianceLabels.yes,
+        complianceLabels.no,
+        complianceLabels.na,
+      ],
       datasets: [
         {
           data: [
@@ -2406,10 +2519,17 @@ export default function FormAnalyticsDashboard() {
             label: function (context) {
               const label = context.label || "";
               const value = context.raw || 0;
+              const index = context.dataIndex;
               const total = context.dataset.data.reduce((a, b) => a + b, 0);
               const percentage =
                 total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-              return `${label}: ${value}% (${totalPieChartData.counts[label.toLowerCase()]} responses)`;
+
+              let count = 0;
+              if (index === 0) count = totalPieChartData.counts.yes;
+              else if (index === 1) count = totalPieChartData.counts.no;
+              else if (index === 2) count = totalPieChartData.counts.na;
+
+              return `${label}: ${value}% (${count} responses)`;
             },
           },
         },
@@ -2430,7 +2550,7 @@ export default function FormAnalyticsDashboard() {
                 Overall Response Quality
               </h2>
               <p className="text-xs text-primary-500 dark:text-primary-400">
-                Yes/No/N/A Distribution
+                {complianceLabels.yes}/{complianceLabels.no}/{complianceLabels.na} Distribution
               </p>
             </div>
           </div>
@@ -2445,7 +2565,7 @@ export default function FormAnalyticsDashboard() {
                   No quality data available
                 </p>
                 <p className="text-xs text-primary-400 dark:text-primary-500 mt-1">
-                  Will appear when sections have Yes/No/N/A questions
+                  Will appear when sections have {complianceLabels.yes}/{complianceLabels.no}/{complianceLabels.na} questions
                 </p>
               </div>
             </div>
@@ -2586,7 +2706,6 @@ export default function FormAnalyticsDashboard() {
         "response-trend-chart",
         "overall-quality-chart",
         "section-performance-chart",
-        "weighted-trends-chart",
         "location-heatmap",
       ].forEach((id) => {
         if (document.getElementById(id)) chartElementIds.push(id);
@@ -2647,10 +2766,20 @@ export default function FormAnalyticsDashboard() {
 
       Object.values(response.answers).forEach((val) => {
         if (val && typeof val === "object" && val.status) {
-          const status = String(val.status).toLowerCase();
-          if (status === "accepted") accepted++;
+          const status = String(val.status).toLowerCase().trim();
+          if (
+            status === "accepted" ||
+            status === "verified" ||
+            status === "rework completed"
+          )
+            accepted++;
           else if (status === "rejected") rejected++;
-          else if (status === "rework" || status === "reworked") reworked++;
+          else if (
+            status === "rework" ||
+            status === "reworked" ||
+            status.includes("re-rework")
+          )
+            reworked++;
         }
       });
     });
@@ -3059,7 +3188,7 @@ export default function FormAnalyticsDashboard() {
                   <FileText className="w-4 h-4" />
                   Sections
                 </button>
-                <button
+                {/* <button
                   onClick={() => setAnalyticsView("table")}
                   className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${
                     analyticsView === "table"
@@ -3069,7 +3198,7 @@ export default function FormAnalyticsDashboard() {
                 >
                   <Table className="w-4 h-4" />
                   Table
-                </button>
+                </button> */}
               </>
             )}
             <button
@@ -3083,7 +3212,7 @@ export default function FormAnalyticsDashboard() {
               <Users className="w-4 h-4" />
               Responses
             </button>
-            {!isInspector && !isGuest && (
+            {/* {!isInspector && !isGuest && (
               <button
                 onClick={() => setAnalyticsView("comparison")}
                 className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${
@@ -3095,7 +3224,7 @@ export default function FormAnalyticsDashboard() {
                 <Users className="w-4 h-4" />
                 Comparison
               </button>
-            )}
+            )} */}
           </div>
 
           {/* Right Side - Count and Actions */}
@@ -3432,60 +3561,6 @@ export default function FormAnalyticsDashboard() {
                       </div>
 
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* Add Weight Toggle */}
-                        {showWeightageCheckbox && (
-                          <label className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={addWeightMode}
-                              onChange={(e) => {
-                                setAddWeightMode(e.target.checked);
-                                if (e.target.checked) {
-                                  setShowWeightageColumns(true);
-                                }
-                              }}
-                              className="w-3 h-3 text-indigo-600 border-gray-300 rounded cursor-pointer"
-                            />
-                            <span className="text-gray-700 dark:text-gray-300">
-                              Add Weight
-                            </span>
-                          </label>
-                        )}
-
-                        {/* Show Weightage Toggle */}
-                        {totalWeightage > 0 && (
-                          <button
-                            onClick={() =>
-                              setShowWeightageColumns(!showWeightageColumns)
-                            }
-                            className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
-                              showWeightageColumns
-                                ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 border border-indigo-300 dark:border-indigo-700"
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700"
-                            }`}
-                          >
-                            {showWeightageColumns ? "Hide" : "Show"} Weight
-                          </button>
-                        )}
-
-                        {/* Edit Weightage Button */}
-                        {showWeightageColumns && !redistributionMode && (
-                          <button
-                            onClick={() => {
-                              setRedistributionMode(true);
-                              const initialValues: Record<string, string> = {};
-                              sectionSummaryRows.forEach((row) => {
-                                initialValues[row.id] =
-                                  row.weightage.toString();
-                              });
-                              setTempWeightageValues(initialValues);
-                              setWeightageBalance(0);
-                            }}
-                            className="px-2 py-1 text-xs font-medium bg-purple-600 hover:bg-purple-700 text-white rounded transition-colors"
-                          >
-                            Edit Weight
-                          </button>
-                        )}
                       </div>
                     </div>
 
@@ -3508,22 +3583,6 @@ export default function FormAnalyticsDashboard() {
                                 <th className="text-center px-3 py-3">
                                   {complianceLabels.na}
                                 </th>
-
-                                {/* Conditionally show weightage columns */}
-                                {showWeightageColumns && (
-                                  <>
-                                    <th className="text-center px-3 py-3">W</th>
-                                    <th className="text-center px-3 py-3">
-                                      Y×W
-                                    </th>
-                                    <th className="text-center px-3 py-3">
-                                      N×W
-                                    </th>
-                                    <th className="text-center px-3 py-3">
-                                      NA×W
-                                    </th>
-                                  </>
-                                )}
                               </tr>
                             </thead>
                             <tbody>
@@ -3674,13 +3733,11 @@ export default function FormAnalyticsDashboard() {
                                   <tr
                                     key={row.id}
                                     onClick={() => {
-                                      if (!redistributionMode) {
-                                        setAutoOpenSectionId(null);
-                                        setTimeout(
-                                          () => setAutoOpenSectionId(row.id),
-                                          10,
-                                        );
-                                      }
+                                      setAutoOpenSectionId(null);
+                                      setTimeout(
+                                        () => setAutoOpenSectionId(row.id),
+                                        10,
+                                      );
                                     }}
                                     className={`border-t border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${rowBgColor}`}
                                   >
@@ -3689,14 +3746,12 @@ export default function FormAnalyticsDashboard() {
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          if (!redistributionMode) {
-                                            setAutoOpenSectionId(null);
-                                            setTimeout(
-                                              () =>
-                                                setAutoOpenSectionId(row.id),
-                                              10,
-                                            );
-                                          }
+                                          setAutoOpenSectionId(null);
+                                          setTimeout(
+                                            () =>
+                                              setAutoOpenSectionId(row.id),
+                                            10,
+                                          );
                                         }}
                                         className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm truncate max-w-[150px] transition-colors text-left"
                                       >
@@ -3753,151 +3808,6 @@ export default function FormAnalyticsDashboard() {
                                       </div>
                                     </td>
 
-                                    {/* Conditionally render weightage columns */}
-                                    {showWeightageColumns && (
-                                      <>
-                                        {/* Weightage Column */}
-                                        <td className="text-center px-3 py-2.5">
-                                          {redistributionMode ? (
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              max="100"
-                                              step="0.1"
-                                              value={
-                                                tempWeightageValues[row.id] ||
-                                                row.weightage.toString()
-                                              }
-                                              onChange={(e) => {
-                                                const newValue = e.target.value;
-                                                const oldValue =
-                                                  parseFloat(
-                                                    tempWeightageValues[
-                                                      row.id
-                                                    ] ||
-                                                      row.weightage.toString(),
-                                                  ) || 0;
-                                                const newNumericValue =
-                                                  parseFloat(newValue) || 0;
-                                                const updatedTempValues = {
-                                                  ...tempWeightageValues,
-                                                  [row.id]: newValue,
-                                                };
-                                                setTempWeightageValues(
-                                                  updatedTempValues,
-                                                );
-                                                const total = Object.values(
-                                                  updatedTempValues,
-                                                ).reduce((sum, val) => {
-                                                  return (
-                                                    sum + (parseFloat(val) || 0)
-                                                  );
-                                                }, 0);
-                                                setWeightageBalance(
-                                                  100 - total,
-                                                );
-                                              }}
-                                              className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded text-center dark:bg-gray-700 dark:text-gray-100"
-                                            />
-                                          ) : (
-                                            <span className="font-semibold text-indigo-600 dark:text-indigo-400 text-sm">
-                                              {Number.isFinite(row.weightage)
-                                                ? row.weightage.toFixed(1)
-                                                : "0.0"}
-                                              %
-                                            </span>
-                                          )}
-                                        </td>
-
-                                        {/* Yes × Weightage */}
-                                        <td className="text-center px-3 py-2.5">
-                                          <span className="font-semibold text-green-700 dark:text-green-300 text-sm">
-                                            {Number.isFinite(row.yesWeighted)
-                                              ? row.yesWeighted.toFixed(1)
-                                              : "0.0"}
-                                          </span>
-                                        </td>
-
-                                        {/* No × Weightage */}
-                                        <td className="text-center px-3 py-2.5">
-                                          <span className="font-semibold text-red-700 dark:text-red-300 text-sm">
-                                            {Number.isFinite(row.noWeighted)
-                                              ? row.noWeighted.toFixed(1)
-                                              : "0.0"}
-                                          </span>
-                                        </td>
-
-                                        {/* N/A × Weightage */}
-                                        <td className="text-center px-3 py-2.5">
-                                          <span className="font-semibold text-slate-700 dark:text-slate-400 text-sm">
-                                            {Number.isFinite(row.naWeighted)
-                                              ? row.naWeighted.toFixed(1)
-                                              : "0.0"}
-                                          </span>
-                                        </td>
-                                      </>
-                                    )}
-                                    {/* Batch Edit Controls - Only show when in addWeightMode */}
-                                    {addWeightMode &&
-                                      editingAllWeightages &&
-                                      showWeightageColumns && (
-                                        <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
-                                          <div className="flex items-center justify-between">
-                                            <div>
-                                              <h4 className="font-medium text-gray-900 dark:text-white">
-                                                Batch Weightage Edit
-                                              </h4>
-                                              <p className="text-sm text-gray-600 dark:text-gray-400">
-                                                Total:{" "}
-                                                {totalWeightage.toFixed(1)}% /
-                                                100%
-                                              </p>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <button
-                                                onClick={() => {
-                                                  // Distribute remaining weightage evenly
-                                                  const remaining =
-                                                    100 - totalWeightage;
-                                                  const perSection =
-                                                    remaining /
-                                                    sectionSummaryRows.length;
-
-                                                  // Update all sections
-                                                  sectionSummaryRows.forEach(
-                                                    (row) => {
-                                                      const newWeightage = (
-                                                        row.weightage +
-                                                        perSection
-                                                      ).toFixed(1);
-                                                      // You would update your weightageValues state here
-                                                    },
-                                                  );
-                                                }}
-                                                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                                              >
-                                                Distribute Evenly
-                                              </button>
-                                              <button
-                                                onClick={() => {
-                                                  setAddWeightMode(false);
-                                                  setEditingAllWeightages(
-                                                    false,
-                                                  );
-                                                  if (totalWeightage === 0) {
-                                                    setShowWeightageColumns(
-                                                      false,
-                                                    );
-                                                  }
-                                                }}
-                                                className="px-3 py-1.5 text-sm bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-                                              >
-                                                Cancel
-                                              </button>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
                                   </tr>
                                 );
                               })}
@@ -3944,223 +3854,7 @@ export default function FormAnalyticsDashboard() {
                                     : 0}
                                   %)
                                 </td>
-                                {showWeightageColumns && (
-                                  <>
-                                    <td className="text-center px-3 py-2.5">
-                                      <span
-                                        className={`inline-flex items-center justify-center px-3 py-1 rounded-full font-bold ${
-                                          redistributionMode
-                                            ? Math.abs(weightageBalance) < 0.1
-                                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                            : Math.abs(
-                                                  summaryTotals.weightage - 100,
-                                                ) < 0.1
-                                              ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                              : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                                        }`}
-                                      >
-                                        {redistributionMode
-                                          ? `${weightageBalance.toFixed(1)}%`
-                                          : `${summaryTotals.weightage.toFixed(1)}%`}
-                                      </span>
-                                    </td>
-                                    <td className="text-center px-3 py-2.5 text-green-700 dark:text-green-300 font-bold">
-                                      {summaryTotals.yesWeighted.toFixed(1)}
-                                    </td>
-                                    <td className="text-center px-3 py-2.5 text-red-700 dark:text-red-300 font-bold">
-                                      {summaryTotals.noWeighted.toFixed(1)}
-                                    </td>
-                                    <td className="text-center px-3 py-2.5 text-slate-700 dark:text-slate-400 font-bold">
-                                      {summaryTotals.naWeighted.toFixed(1)}
-                                    </td>
-                                  </>
-                                )}
                               </tr>
-
-                              {/* Status Message and Action Buttons Row - Only show in redistribution mode */}
-                              {redistributionMode && (
-                                <tr className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
-                                  <td
-                                    colSpan={showWeightageColumns ? 9 : 5}
-                                    className="px-6 py-4"
-                                  >
-                                    <div className="flex flex-col md:flex-row items-center justify-center gap-4">
-                                      {/* Status Message */}
-                                      <div className="flex items-center gap-2">
-                                        <span
-                                          className={`text-sm font-medium ${Math.abs(weightageBalance) < 0.1 ? "text-green-600 dark:text-green-400" : "text-yellow-600 dark:text-yellow-400"}`}
-                                        >
-                                          {Math.abs(weightageBalance) < 0.1
-                                            ? "✓ Ready to save"
-                                            : `Adjust by ${Math.abs(weightageBalance).toFixed(1)}% to reach 100%`}
-                                        </span>
-                                      </div>
-
-                                      {/* Action Buttons */}
-                                      <div className="flex items-center gap-2">
-                                        <button
-                                          onClick={() => {
-                                            const originalValues: Record<
-                                              string,
-                                              string
-                                            > = {};
-                                            sectionSummaryRows.forEach(
-                                              (row) => {
-                                                originalValues[row.id] =
-                                                  row.weightage.toString();
-                                              },
-                                            );
-                                            setTempWeightageValues(
-                                              originalValues,
-                                            );
-                                            setWeightageBalance(0);
-                                          }}
-                                          className="px-3 py-1.5 text-xs bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-1"
-                                          title="Reset to original values"
-                                        >
-                                          <svg
-                                            className="w-3.5 h-3.5"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth={2}
-                                              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                                            />
-                                          </svg>
-                                          Reset
-                                        </button>
-
-                                        <button
-                                          onClick={() => {
-                                            setRedistributionMode(false);
-                                            setTempWeightageValues({});
-                                            setWeightageBalance(0);
-                                          }}
-                                          className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                                          title="Cancel redistribution"
-                                        >
-                                          Cancel
-                                        </button>
-
-                                        <button
-                                          onClick={async () => {
-                                            if (
-                                              Math.abs(weightageBalance) >= 0.1
-                                            ) {
-                                              console.error(
-                                                `Cannot save: Balance must be 0%. Current: ${weightageBalance.toFixed(1)}%`,
-                                              );
-                                              return;
-                                            }
-
-                                            setSavingWeightage(true);
-                                            try {
-                                              const formId =
-                                                form?._id || form?.id;
-                                              if (!formId)
-                                                throw new Error(
-                                                  "Form ID not found",
-                                                );
-
-                                              const updatedSections =
-                                                form?.sections?.map(
-                                                  (section: any) => {
-                                                    const row =
-                                                      sectionSummaryRows.find(
-                                                        (r) =>
-                                                          r.id === section.id,
-                                                      );
-                                                    if (
-                                                      row &&
-                                                      tempWeightageValues[
-                                                        row.id
-                                                      ] !== undefined
-                                                    ) {
-                                                      return {
-                                                        ...section,
-                                                        weightage:
-                                                          parseFloat(
-                                                            tempWeightageValues[
-                                                              row.id
-                                                            ],
-                                                          ) || 0,
-                                                      };
-                                                    }
-                                                    return section;
-                                                  },
-                                                ) || [];
-
-                                              const formDataToUpdate = {
-                                                ...form,
-                                                sections: updatedSections,
-                                              };
-                                              delete formDataToUpdate._id;
-                                              delete formDataToUpdate.__v;
-                                              delete formDataToUpdate.createdAt;
-                                              delete formDataToUpdate.updatedAt;
-
-                                              await apiClient.updateForm(
-                                                formId,
-                                                formDataToUpdate,
-                                              );
-
-                                              setForm({
-                                                ...form,
-                                                sections: updatedSections,
-                                              });
-                                              setRedistributionMode(false);
-                                              setTempWeightageValues({});
-                                              setWeightageBalance(0);
-                                            } catch (error) {
-                                              console.error(
-                                                "Failed to save weightages:",
-                                                error,
-                                              );
-                                            } finally {
-                                              setSavingWeightage(false);
-                                            }
-                                          }}
-                                          disabled={
-                                            Math.abs(weightageBalance) >= 0.1 ||
-                                            savingWeightage
-                                          }
-                                          className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
-                                          title="Save all weightage changes"
-                                        >
-                                          {savingWeightage ? (
-                                            <>
-                                              <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                              Saving...
-                                            </>
-                                          ) : (
-                                            <>
-                                              <svg
-                                                className="w-3.5 h-3.5"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                              >
-                                                <path
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                  strokeWidth={2}
-                                                  d="M5 13l4 4L19 7"
-                                                />
-                                              </svg>
-                                              Save
-                                            </>
-                                          )}
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </td>
-                                </tr>
-                              )}
                             </tbody>
                           </table>
                         </div>
@@ -4176,15 +3870,15 @@ export default function FormAnalyticsDashboard() {
                             <div className="flex items-center gap-2">
                               <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                               <span className="text-xs text-gray-600 dark:text-gray-400">
-                                Yes
+                                {complianceLabels.yes}
                               </span>
                               <div className="w-2 h-2 bg-red-500 rounded-full ml-2"></div>
                               <span className="text-xs text-gray-600 dark:text-gray-400">
-                                No
+                                {complianceLabels.no}
                               </span>
                               <div className="w-2 h-2 bg-gray-400 rounded-full ml-2"></div>
                               <span className="text-xs text-gray-600 dark:text-gray-400">
-                                N/A
+                                {complianceLabels.na}
                               </span>
                             </div>
                           </div>
@@ -4203,10 +3897,12 @@ export default function FormAnalyticsDashboard() {
 
                                 datasets: [
                                   {
-                                    label: "Yes %",
+                                    label: `${complianceLabels.yes} %`,
                                     data: visibleSectionStats.map((stat) =>
                                       stat.total > 0
-                                        ? (stat.yes / stat.total) * 100
+                                        ? ((stat.yes + (stat.accepted || 0)) /
+                                            stat.total) *
+                                          100
                                         : 0,
                                     ),
                                     backgroundColor: "rgba(34, 197, 94, 0.2)",
@@ -4220,10 +3916,12 @@ export default function FormAnalyticsDashboard() {
                                       "rgba(34, 197, 94, 1)",
                                   },
                                   {
-                                    label: "No %",
+                                    label: `${complianceLabels.no} %`,
                                     data: visibleSectionStats.map((stat) =>
                                       stat.total > 0
-                                        ? (stat.no / stat.total) * 100
+                                        ? ((stat.no + (stat.rejected || 0)) /
+                                            stat.total) *
+                                          100
                                         : 0,
                                     ),
                                     backgroundColor: "rgba(239, 68, 68, 0.2)",
@@ -4237,10 +3935,12 @@ export default function FormAnalyticsDashboard() {
                                       "rgba(239, 68, 68, 1)",
                                   },
                                   {
-                                    label: "N/A %",
+                                    label: `${complianceLabels.na} %`,
                                     data: visibleSectionStats.map((stat) =>
                                       stat.total > 0
-                                        ? (stat.na / stat.total) * 100
+                                        ? ((stat.na + (stat.rework || 0)) /
+                                            stat.total) *
+                                          100
                                         : 0,
                                     ),
                                     backgroundColor: "rgba(156, 163, 175, 0.2)",
@@ -4364,6 +4064,159 @@ export default function FormAnalyticsDashboard() {
                   complianceLabels={complianceLabels}
                 />
               </div>
+
+              {/* Analytics Zone */}
+              <div className="card p-6 space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-indigo-600" />
+                    Analytics Zone
+                  </h3>
+                  <div className="flex items-center gap-4 text-xs font-medium">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-amber-500/60 rounded" />
+                      <span className="text-gray-600 dark:text-gray-400">Rework</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 bg-red-500/60 rounded" />
+                      <span className="text-gray-600 dark:text-gray-400">Rejected</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                    Advanced Hierarchical Analytics (Zone &gt; Category &gt; Defect)
+                  </h4>
+                  
+                  <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
+                    {/* Header Scale */}
+                    <div className="flex bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                      <div className="w-1/3 min-w-[300px] p-4 border-r border-gray-200 dark:border-gray-700 font-bold text-xs text-gray-500 uppercase tracking-wider">Hierarchy</div>
+                      <div className="flex-1 p-4 relative">
+                        <div className="flex justify-between text-[10px] font-bold text-gray-400">
+                          <span>0%</span>
+                          <span>20%</span>
+                          <span>40%</span>
+                          <span>60%</span>
+                          <span>80%</span>
+                          <span>100%</span>
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 h-1 flex justify-between px-4">
+                          {[0, 1, 2, 3, 4, 5].map(i => (
+                            <div key={i} className="w-px h-full bg-gray-200 dark:bg-gray-700" />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Hierarchical Content */}
+                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                      {zoneAnalytics.zoneBreakdown.length === 0 ? (
+                        <div className="p-12 text-center text-gray-500 italic">No defect data available for selected filters</div>
+                      ) : (
+                        zoneAnalytics.zoneBreakdown.map((zone) => (
+                          <div key={zone.zone} className="flex group">
+                            {/* Zone Label - Merged Side */}
+                            <div className="w-[100px] p-4 flex items-center justify-center bg-indigo-50/30 dark:bg-indigo-900/10 border-r border-gray-200 dark:border-gray-700 shrink-0">
+                              <span className="[writing-mode:vertical-lr] rotate-180 font-bold text-sm text-indigo-700 dark:text-indigo-400 uppercase tracking-widest">{zone.zone}</span>
+                            </div>
+
+                            <div className="flex-1 divide-y divide-gray-100 dark:divide-gray-800">
+                              {zone.categories.map((cat) => (
+                                <div key={cat.category} className="flex">
+                                  {/* Category Label */}
+                                  <div className="w-[150px] p-4 flex items-center bg-gray-50/50 dark:bg-gray-800/20 border-r border-gray-200 dark:border-gray-700 shrink-0">
+                                    <span className="font-semibold text-xs text-gray-700 dark:text-gray-300 leading-tight">{cat.category}</span>
+                                  </div>
+
+                                  <div className="flex-1 divide-y divide-gray-50 dark:divide-gray-800/50">
+                                    {cat.defects.map((defect) => {
+                                      const total = defect.count;
+                                      const reworkWidth = total > 0 ? (defect.reworkCount / total) * 100 : 0;
+                                      const rejectedWidth = total > 0 ? (defect.rejectedCount / total) * 100 : 0;
+
+                                      return (
+                                        <div key={defect.name} className="flex items-center hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                                          {/* Defect Name */}
+                                          <div className="w-[150px] p-3 border-r border-gray-100 dark:border-gray-800 shrink-0">
+                                            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-400">{defect.name}</span>
+                                          </div>
+                                          
+                                          {/* Bar Chart Section */}
+                                          <div className="flex-1 p-3 px-4 relative flex items-center h-12">
+                                            {/* Grid Lines Overlay */}
+                                            <div className="absolute inset-0 flex justify-between px-4 pointer-events-none">
+                                              {[0, 1, 2, 3, 4, 5].map(i => (
+                                                <div key={i} className="w-px h-full bg-gray-100/50 dark:bg-gray-800/30" />
+                                              ))}
+                                            </div>
+
+                                            {/* Stacked Bar */}
+                                            <div className="relative flex-1 h-6 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex shadow-inner">
+                                              {defect.reworkCount > 0 && (
+                                                <div 
+                                                  style={{ width: `${reworkWidth}%` }}
+                                                  className="h-full bg-gradient-to-r from-amber-400 to-amber-500 relative group/bar"
+                                                  title={`Rework: ${defect.reworkCount} (${reworkWidth.toFixed(1)}%)`}
+                                                >
+                                                  {reworkWidth > 15 && (
+                                                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-amber-900">
+                                                      {reworkWidth.toFixed(0)}%
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              )}
+                                              {defect.rejectedCount > 0 && (
+                                                <div 
+                                                  style={{ width: `${rejectedWidth}%` }}
+                                                  className="h-full bg-gradient-to-r from-red-400 to-red-500 relative group/bar"
+                                                  title={`Rejected: ${defect.rejectedCount} (${rejectedWidth.toFixed(1)}%)`}
+                                                >
+                                                  {rejectedWidth > 15 && (
+                                                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white">
+                                                      {rejectedWidth.toFixed(0)}%
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              )}
+                                            </div>
+                                            
+                                            {/* Total Pill */}
+                                            <div className="ml-4 w-12 h-5 flex items-center justify-center rounded-md bg-gray-100 dark:bg-gray-800 text-[10px] font-bold text-gray-500 dark:text-gray-400" title="Total Responses">
+                                              n={total}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Summary */}
+                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                  <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50">
+                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Accepted</p>
+                    <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{zoneAnalytics.inspectionStatus.accepted}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/50">
+                    <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">Rework</p>
+                    <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{zoneAnalytics.inspectionStatus.rework}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50">
+                    <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Rejected</p>
+                    <p className="text-2xl font-bold text-red-700 dark:text-red-300">{zoneAnalytics.inspectionStatus.rejected}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -4434,7 +4287,7 @@ export default function FormAnalyticsDashboard() {
                               {complianceLabels.na}
                             </th>
                             <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white">
-                              Yes %
+                              {complianceLabels.yes} %
                             </th>
                           </tr>
                         </thead>
@@ -4463,41 +4316,74 @@ export default function FormAnalyticsDashboard() {
                                         );
                                       const yesCount = questionResponses.filter(
                                         (r) => {
-                                          const answer = String(
-                                            r.answers[question.id],
-                                          )
+                                          const answer = r.answers[question.id];
+                                          if (
+                                            typeof answer === "object" &&
+                                            answer.status
+                                          ) {
+                                            const status = String(answer.status)
+                                              .toLowerCase()
+                                              .trim();
+                                            return (
+                                              status === "accepted" ||
+                                              status === "rework completed" ||
+                                              status === "verified"
+                                            );
+                                          }
+                                          const answerStr = String(answer)
                                             .toLowerCase()
                                             .trim();
                                           return (
-                                            answer.includes("yes") ||
-                                            answer === "y"
+                                            answerStr.includes("yes") ||
+                                            answerStr === "y"
                                           );
                                         },
                                       ).length;
                                       const noCount = questionResponses.filter(
                                         (r) => {
-                                          const answer = String(
-                                            r.answers[question.id],
-                                          )
+                                          const answer = r.answers[question.id];
+                                          if (
+                                            typeof answer === "object" &&
+                                            answer.status
+                                          ) {
+                                            return (
+                                              String(answer.status)
+                                                .toLowerCase()
+                                                .trim() === "rejected"
+                                            );
+                                          }
+                                          const answerStr = String(answer)
                                             .toLowerCase()
                                             .trim();
                                           return (
-                                            answer.includes("no") ||
-                                            answer === "n"
+                                            answerStr.includes("no") ||
+                                            answerStr === "n"
                                           );
                                         },
                                       ).length;
                                       const naCount = questionResponses.filter(
                                         (r) => {
-                                          const answer = String(
-                                            r.answers[question.id],
-                                          )
+                                          const answer = r.answers[question.id];
+                                          if (
+                                            typeof answer === "object" &&
+                                            answer.status
+                                          ) {
+                                            const status = String(answer.status)
+                                              .toLowerCase()
+                                              .trim();
+                                            return (
+                                              status === "rework" ||
+                                              status === "reworked" ||
+                                              status.includes("re-rework")
+                                            );
+                                          }
+                                          const answerStr = String(answer)
                                             .toLowerCase()
                                             .trim();
                                           return (
-                                            answer.includes("na") ||
-                                            answer.includes("n/a") ||
-                                            answer.includes("not applicable")
+                                            answerStr.includes("na") ||
+                                            answerStr.includes("n/a") ||
+                                            answerStr.includes("not applicable")
                                           );
                                         },
                                       ).length;
@@ -4609,17 +4495,21 @@ export default function FormAnalyticsDashboard() {
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                           {filteredSectionStats.map(
                             (stat: SectionPerformanceStat, index: number) => {
+                              const totalYes = stat.yes + (stat.accepted || 0);
+                              const totalNo = stat.no + (stat.rejected || 0);
+                              const totalNA = stat.na + (stat.rework || 0);
+
                               const yesPercentage =
                                 stat.total > 0
-                                  ? ((stat.yes / stat.total) * 100).toFixed(1)
+                                  ? ((totalYes / stat.total) * 100).toFixed(1)
                                   : "0.0";
                               const noPercentage =
                                 stat.total > 0
-                                  ? ((stat.no / stat.total) * 100).toFixed(1)
+                                  ? ((totalNo / stat.total) * 100).toFixed(1)
                                   : "0.0";
                               const naPercentage =
                                 stat.total > 0
-                                  ? ((stat.na / stat.total) * 100).toFixed(1)
+                                  ? ((totalNA / stat.total) * 100).toFixed(1)
                                   : "0.0";
 
                               return (
@@ -4637,17 +4527,17 @@ export default function FormAnalyticsDashboard() {
                                   </td>
                                   <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
                                     <span className="bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-300 px-3 py-1 rounded-full text-xs">
-                                      {stat.yes} ({yesPercentage}%)
+                                      {totalYes} ({yesPercentage}%)
                                     </span>
                                   </td>
                                   <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
                                     <span className="bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-300 px-3 py-1 rounded-full text-xs">
-                                      {stat.no} ({noPercentage}%)
+                                      {totalNo} ({noPercentage}%)
                                     </span>
                                   </td>
                                   <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 font-medium">
                                     <span className="bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-gray-200 px-3 py-1 rounded-full text-xs">
-                                      {stat.na} ({naPercentage}%)
+                                      {totalNA} ({naPercentage}%)
                                     </span>
                                   </td>
                                 </tr>
@@ -4869,7 +4759,7 @@ export default function FormAnalyticsDashboard() {
                         <div className="flex flex-wrap items-center gap-8">
                           <div className="flex flex-col">
                             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                              Total Accepted
+                              Total {complianceLabels.yes}
                             </span>
                             <div className="flex items-baseline gap-1">
                               <span className="text-xl font-bold text-green-600 dark:text-green-400">
@@ -4883,7 +4773,7 @@ export default function FormAnalyticsDashboard() {
 
                           <div className="flex flex-col">
                             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                              Total Rejected
+                              Total {complianceLabels.no}
                             </span>
                             <div className="flex items-baseline gap-1">
                               <span className="text-xl font-bold text-red-600 dark:text-red-400">
@@ -4897,7 +4787,7 @@ export default function FormAnalyticsDashboard() {
 
                           <div className="flex flex-col">
                             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                              Total Reworked
+                              Total {complianceLabels.na}
                             </span>
                             <div className="flex items-baseline gap-1">
                               <span className="text-xl font-bold text-amber-500 dark:text-amber-400">
@@ -5617,7 +5507,9 @@ export default function FormAnalyticsDashboard() {
                         stat.yes > 0 ||
                         stat.no > 0 ||
                         stat.na > 0 ||
-                        stat.weightage > 0,
+                        (stat.accepted && stat.accepted > 0) ||
+                        (stat.rejected && stat.rejected > 0) ||
+                        (stat.rework && stat.rework > 0),
                     );
 
                     const totalQuestions = filteredSectionStats.reduce(
@@ -5625,15 +5517,15 @@ export default function FormAnalyticsDashboard() {
                       0,
                     );
                     const totalYes = filteredSectionStats.reduce(
-                      (sum, stat) => sum + stat.yes,
+                      (sum, stat) => sum + stat.yes + (stat.accepted || 0),
                       0,
                     );
                     const totalNo = filteredSectionStats.reduce(
-                      (sum, stat) => sum + stat.no,
+                      (sum, stat) => sum + stat.no + (stat.rejected || 0),
                       0,
                     );
                     const totalNA = filteredSectionStats.reduce(
-                      (sum, stat) => sum + stat.na,
+                      (sum, stat) => sum + stat.na + (stat.rework || 0),
                       0,
                     );
                     const totalAnswered = totalYes + totalNo + totalNA;
@@ -5725,7 +5617,7 @@ export default function FormAnalyticsDashboard() {
                             <div className="space-y-1">
                               <div className="text-center p-2 bg-green-100/60 dark:bg-green-900/20 rounded border border-green-200 dark:border-green-700">
                                 <p className="text-xs font-semibold text-green-700 dark:text-green-400">
-                                  Yes
+                                  {complianceLabels.yes}
                                 </p>
                                 <p className="text-sm font-bold text-green-800 dark:text-green-300">
                                   {totalYes} ({yesPercent}%)
@@ -5733,7 +5625,7 @@ export default function FormAnalyticsDashboard() {
                               </div>
                               <div className="text-center p-2 bg-red-100/60 dark:bg-red-900/20 rounded border border-red-200 dark:border-red-700">
                                 <p className="text-xs font-semibold text-red-700 dark:text-red-400">
-                                  No
+                                  {complianceLabels.no}
                                 </p>
                                 <p className="text-sm font-bold text-red-800 dark:text-red-300">
                                   {totalNo} ({noPercent}%)
@@ -5741,7 +5633,7 @@ export default function FormAnalyticsDashboard() {
                               </div>
                               <div className="text-center p-2 bg-yellow-100/60 dark:bg-yellow-900/20 rounded border border-yellow-200 dark:border-yellow-700">
                                 <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400">
-                                  N/A
+                                  {complianceLabels.na}
                                 </p>
                                 <p className="text-sm font-bold text-yellow-800 dark:text-yellow-300">
                                   {totalNA} ({naPercent}%)
@@ -5757,29 +5649,32 @@ export default function FormAnalyticsDashboard() {
                               </p>
                               <div className="space-y-4">
                                 {filteredSectionStats.map((row) => {
-                                  const total = row.yes + row.no + row.na;
+                                  const rowYes = row.yes + (row.accepted || 0);
+                                  const rowNo = row.no + (row.rejected || 0);
+                                  const rowNA = row.na + (row.rework || 0);
+                                  const total = rowYes + rowNo + rowNA;
                                   const yesPercent =
                                     total > 0
-                                      ? ((row.yes / total) * 100).toFixed(1)
+                                      ? ((rowYes / total) * 100).toFixed(1)
                                       : 0;
                                   const noPercent =
                                     total > 0
-                                      ? ((row.no / total) * 100).toFixed(1)
+                                      ? ((rowNo / total) * 100).toFixed(1)
                                       : 0;
                                   const naPercent =
                                     total > 0
-                                      ? ((row.na / total) * 100).toFixed(1)
+                                      ? ((rowNA / total) * 100).toFixed(1)
                                       : 0;
 
                                   const chartData = {
                                     labels: [
-                                      `Yes (${yesPercent}%)`,
-                                      `No (${noPercent}%)`,
-                                      `N/A (${naPercent}%)`,
+                                      `${complianceLabels.yes} (${yesPercent}%)`,
+                                      `${complianceLabels.no} (${noPercent}%)`,
+                                      `${complianceLabels.na} (${naPercent}%)`,
                                     ],
                                     datasets: [
                                       {
-                                        data: [row.yes, row.no, row.na],
+                                        data: [rowYes, rowNo, rowNA],
                                         backgroundColor: [
                                           "#1e3a8a",
                                           "#3b82f6",
@@ -5842,11 +5737,11 @@ export default function FormAnalyticsDashboard() {
                                                     ) => {
                                                       const total =
                                                         context.dataset.data.reduce(
-                                                          (a, b) => a + b,
+                                                          (a, b) => (a as number) + (b as number),
                                                           0,
                                                         );
                                                       const percentage = (
-                                                        (value / total) *
+                                                        ((value as number) / (total as number)) *
                                                         100
                                                       ).toFixed(0);
                                                       return `${percentage}%`;
@@ -5867,9 +5762,9 @@ export default function FormAnalyticsDashboard() {
                                               }}
                                             ></div>
                                             <span className="text-gray-700 dark:text-gray-300">
-                                              Yes:{" "}
+                                              {complianceLabels.yes}:{" "}
                                               <span className="font-bold">
-                                                {row.yes}
+                                                {rowYes}
                                               </span>{" "}
                                               ({yesPercent}%)
                                             </span>
@@ -5882,9 +5777,9 @@ export default function FormAnalyticsDashboard() {
                                               }}
                                             ></div>
                                             <span className="text-gray-700 dark:text-gray-300">
-                                              No:{" "}
+                                              {complianceLabels.no}:{" "}
                                               <span className="font-bold">
-                                                {row.no}
+                                                {rowNo}
                                               </span>{" "}
                                               ({noPercent}%)
                                             </span>
@@ -5897,9 +5792,9 @@ export default function FormAnalyticsDashboard() {
                                               }}
                                             ></div>
                                             <span className="text-gray-700 dark:text-gray-300">
-                                              N/A:{" "}
+                                              {complianceLabels.na}:{" "}
                                               <span className="font-bold">
-                                                {row.na}
+                                                {rowNA}
                                               </span>{" "}
                                               ({naPercent}%)
                                             </span>

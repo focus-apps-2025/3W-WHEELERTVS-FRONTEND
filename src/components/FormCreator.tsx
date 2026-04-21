@@ -56,7 +56,6 @@ interface FormSection {
   id: string;
   title: string;
   description?: string;
-  weightage?: number;
   questions: Question[];
   parentSectionId?: string; // For subsections
   isSubsection?: boolean; // Mark if this is a subsection
@@ -211,16 +210,12 @@ export default function FormCreator() {
         id: crypto.randomUUID(),
         title: "Section 1",
         description: "",
-        weightage: 0,
         questions: [],
       },
     ] as FormSection[],
     followUpQuestions: [] as FollowUpQuestion[],
     chassisNumbers: [] as Array<{ chassisNumber: string; partDescription: string }>,
   });
-  const [sectionWeightageDrafts, setSectionWeightageDrafts] = useState<
-    Record<string, string>
-  >({});
   const [formSectionBranching, setFormSectionBranching] = useState<any[]>([]);
   const [showFormRoutingConfig, setShowFormRoutingConfig] = useState(false);
   const [formRoutingConfigQuestion, setFormRoutingConfigQuestion] = useState<{
@@ -444,7 +439,6 @@ export default function FormCreator() {
               id: section.id || crypto.randomUUID(),
               title: section.title || "",
               description: section.description || "",
-              weightage: section.weightage || 0,
               questions: (section.questions || []).map((question: any) => ({
                 id: question.id || crypto.randomUUID(),
                 text: question.text || "",
@@ -483,7 +477,6 @@ export default function FormCreator() {
                 id: crypto.randomUUID(),
                 title: "Section 1",
                 description: "",
-                weightage: 0,
                 questions: [],
               },
             ],
@@ -504,37 +497,6 @@ export default function FormCreator() {
       }
     }
   }, [id, location.state, location.pathname]);
-
-  useEffect(() => {
-    setSectionWeightageDrafts((prev) => {
-      const currentIds = new Set(form.sections.map((section) => section.id));
-      const next = { ...prev };
-      let changed = false;
-
-      Object.keys(next).forEach((key) => {
-        if (!currentIds.has(key)) {
-          delete next[key];
-          changed = true;
-        }
-      });
-
-      form.sections.forEach((section) => {
-        if (next[section.id] === undefined) {
-          if (
-            typeof section.weightage === "number" &&
-            !Number.isNaN(section.weightage)
-          ) {
-            next[section.id] = section.weightage.toString();
-          } else {
-            next[section.id] = "";
-          }
-          changed = true;
-        }
-      });
-
-      return changed ? next : prev;
-    });
-  }, [form.sections]);
 
   // Fetch tenants when chassis modal opens
   useEffect(() => {
@@ -1978,7 +1940,6 @@ export default function FormCreator() {
           id: crypto.randomUUID(),
           title: `Section ${prev.sections.length + 1}`,
           description: "",
-          weightage: 0,
           questions: [],
           isSubsection: false,
         },

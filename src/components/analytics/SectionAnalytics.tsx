@@ -131,6 +131,11 @@ interface QuestionDetailsModalProps {
   sectionTitle: string;
   formData?: any;
   onClose: () => void;
+  complianceLabels: {
+    yes: string;
+    no: string;
+    na: string;
+  };
 }
 
 const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
@@ -139,6 +144,7 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
   sectionTitle,
   formData,
   onClose,
+  complianceLabels,
 }) => {
   console.log("=== DEBUG: Modal Data ===");
   console.log("Section Title:", sectionTitle);
@@ -255,38 +261,69 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
       ),
     };
 
-    if (question.type === "yesNoNA") {
-      const counts = { yes: 0, no: 0, na: 0 };
-      questionResponses.forEach((qr) => {
-        const answer = String(qr.answer).toLowerCase().trim();
+    const counts = { yes: 0, no: 0, na: 0 };
+    questionResponses.forEach((qr) => {
+      const answer = qr.answer;
+
+      // Handle inspection status object
+      if (typeof answer === "object" && answer !== null && answer.status) {
+        const status = String(answer.status).toLowerCase().trim();
+        if (
+          status === "accepted" ||
+          status === "rework completed" ||
+          status === "verified"
+        ) {
+          counts.yes++;
+        } else if (status === "rejected") {
+          counts.no++;
+        } else if (
+          status === "rework" ||
+          status === "reworked" ||
+          status.includes("re-rework")
+        ) {
+          counts.na++;
+        }
+        return;
+      }
+
+      if (question.type === "yesNoNA") {
+        const answerStr = String(answer).toLowerCase().trim();
         const options = (question as any).options || [];
 
         // If it's a yesNoNA question, the first option is Yes, second is No, third is N/A
         if (options.length >= 3) {
-          if (answer === String(options[0]).toLowerCase().trim()) {
+          if (answerStr === String(options[0]).toLowerCase().trim()) {
             counts.yes++;
-          } else if (answer === String(options[1]).toLowerCase().trim()) {
+          } else if (answerStr === String(options[1]).toLowerCase().trim()) {
             counts.no++;
-          } else if (answer === String(options[2]).toLowerCase().trim()) {
+          } else if (answerStr === String(options[2]).toLowerCase().trim()) {
             counts.na++;
           }
         } else {
           // Fallback to string matching if options are missing
-          if (answer.includes("yes")) counts.yes++;
-          else if (answer.includes("no")) counts.no++;
+          if (answerStr.includes("yes")) counts.yes++;
+          else if (answerStr.includes("no")) counts.no++;
           else if (
-            answer.includes("na") ||
-            answer.includes("n/a") ||
-            answer.includes("not applicable")
+            answerStr.includes("na") ||
+            answerStr.includes("n/a") ||
+            answerStr.includes("not applicable")
           )
             counts.na++;
         }
-      });
+      }
+    });
+
+    if (
+      question.type === "yesNoNA" ||
+      question.type === "chassisWithZone" ||
+      question.type === "chassisWithoutZone" ||
+      question.text?.toLowerCase().includes("chassis")
+    ) {
       return { ...stats, counts };
     }
 
     return stats;
-  }, [questionResponses, responses.length, question.type]);
+  }, [questionResponses, responses.length, question.type, question.text]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -394,6 +431,20 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
         }
       }
 
+      if (answer.status) {
+        return (
+          <div className="space-y-1">
+            <span className="font-bold text-gray-900">{answer.status}</span>
+            {answer.chassisNumber && (
+              <p className="text-xs text-gray-500">Chassis: {answer.chassisNumber}</p>
+            )}
+            {answer.remark && (
+              <p className="text-xs text-gray-600 italic">Remark: {answer.remark}</p>
+            )}
+          </div>
+        );
+      }
+
       if (Object.keys(answer).length === 0) {
         return <span className="text-gray-400 italic">No response</span>;
       }
@@ -486,24 +537,29 @@ const QuestionDetailsModal: React.FC<QuestionDetailsModalProps> = ({
                   <Eye className="w-5 h-5 text-blue-600" />
                   Responses ({questionResponses.length})
                 </h4>
-                {question.type === "yesNoNA" && answerStats.counts && (
+                {(question.type === "yesNoNA" ||
+                  question.type === "chassisWithZone" ||
+                  question.type === "chassisWithoutZone" ||
+                  question.type === "chassis" ||
+                  complianceLabels.yes === "Accepted") &&
+                  answerStats.counts && (
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        Yes: {answerStats.counts.yes}
+                        {complianceLabels.yes}: {answerStats.counts.yes}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        No: {answerStats.counts.no}
+                        {complianceLabels.no}: {answerStats.counts.no}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        N/A: {answerStats.counts.na}
+                        {complianceLabels.na}: {answerStats.counts.na}
                       </span>
                     </div>
                   </div>
@@ -768,8 +824,43 @@ export default function SectionAnalytics({
           if (answer !== null && answer !== undefined && answer !== "") {
             group.total++;
 
+            // Handle inspection status object
+            if (typeof answer === "object" && answer.status) {
+              const status = String(answer.status).toLowerCase().trim();
+              if (
+                status === "accepted" ||
+                status === "rework completed" ||
+                status === "verified"
+              ) {
+                group.yes++;
+              } else if (status === "rejected") {
+                group.no++;
+              } else if (
+                status === "rework" ||
+                status === "reworked" ||
+                status.includes("re-rework")
+              ) {
+                group.na++;
+              }
+              return;
+            }
+
             const answerStr = String(answer).toLowerCase().trim();
-            if (q.type === "yesNoNA" && q.options && q.options.length >= 3) {
+            if (
+              answerStr === "accepted" ||
+              answerStr === "rework completed" ||
+              answerStr === "verified"
+            ) {
+              group.yes++;
+            } else if (answerStr === "rejected") {
+              group.no++;
+            } else if (
+              answerStr === "rework" ||
+              answerStr === "reworked" ||
+              answerStr.includes("re-rework")
+            ) {
+              group.na++;
+            } else if (q.type === "yesNoNA" && q.options && q.options.length >= 3) {
               if (answerStr === String(q.options[0]).toLowerCase().trim()) {
                 group.yes++;
               } else if (
@@ -2106,6 +2197,7 @@ export default function SectionAnalytics({
           sectionTitle={selectedQuestion.sectionTitle}
           formData={selectedQuestion.formData}
           onClose={() => setSelectedQuestion(null)}
+          complianceLabels={complianceLabels}
         />
       )}
     </div>
