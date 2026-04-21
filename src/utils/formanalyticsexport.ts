@@ -493,10 +493,6 @@ function generateSectionPerformanceTable(sectionSummaryRows: any[]): string {
           <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">Yes</th>
           <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">No</th>
           <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">N/A</th>
-          <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">Weightage</th>
-          <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">Yes × W</th>
-          <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">No × W</th>
-          <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">N/A × W</th>
           <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">Visualization</th>
         </tr>
       </thead>
@@ -509,9 +505,6 @@ function generateSectionPerformanceTable(sectionSummaryRows: any[]): string {
               <!-- Section Column -->
               <td style="padding: 8px; font-size: 10px; font-weight: 600; color: #1e293b; border: 1px solid #e5e7eb;">
                 <div style="font-weight: 700; margin-bottom: 2px;">${row.title}</div>
-                <div style="font-size: 9px; color: #6b7280; font-weight: 500;">
-                  Weightage: ${Number.isFinite(row.weightage) ? row.weightage.toFixed(1) : "0.0"}%
-                </div>
               </td>
               
               <!-- Total Column -->
@@ -536,26 +529,6 @@ function generateSectionPerformanceTable(sectionSummaryRows: any[]): string {
               <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
                 <div style="font-weight: 700; color: #6b7280;">${row.naCount}</div>
                 <div style="font-size: 9px; color: #6b7280; font-weight: 600;">${row.naPercent.toFixed(1)}%</div>
-              </td>
-              
-              <!-- Weightage Column -->
-              <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-                <div style="font-weight: 700; color: #1e40af;">${row.weightage.toFixed(1)}</div>
-              </td>
-              
-              <!-- Yes × Weightage -->
-              <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-                <div style="font-weight: 700; color: #059669;">${row.yesWeighted.toFixed(1)}</div>
-              </td>
-              
-              <!-- No × Weightage -->
-              <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-                <div style="font-weight: 700; color: #dc2626;">${row.noWeighted.toFixed(1)}</div>
-              </td>
-              
-              <!-- N/A × Weightage -->
-              <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-                <div style="font-weight: 700; color: #6b7280;">${row.naWeighted.toFixed(1)}</div>
               </td>
               
               <!-- Visualization Column -->

@@ -74,7 +74,6 @@ type SectionStat = {
   no: number;
   na: number;
   total: number;
-  weightage: number;
 };
 
 function formatSectionLabel(label: string, maxLength = 20): string {
@@ -332,8 +331,6 @@ export default function Section1Responses() {
     const stats =
       form.sections?.map((section: any) => {
         const counts = { yes: 0, no: 0, na: 0, total: 0 };
-        const weightageNumber = Number(section.weightage);
-        const weightage = Number.isFinite(weightageNumber) ? weightageNumber : 0;
 
         const processQuestion = (question: any) => {
           if (!question) {
@@ -411,7 +408,6 @@ export default function Section1Responses() {
           no: counts.no,
           na: counts.na,
           total: counts.total,
-          weightage,
         };
       }) ?? [];
 

@@ -17,7 +17,6 @@ interface PDFOptions {
     correct: number;
     wrong: number;
     total: number;
-    weightage: number;
   }>;
   sectionSummaryRows?: Array<{
     id: string;
@@ -28,13 +27,9 @@ interface PDFOptions {
     na: number;
     correct: number;
     wrong: number;
-    weightage: number;
     yesPercent: number;
-    yesWeighted: number;
     noPercent: number;
-    noWeighted: number;
     naPercent: number;
-    naWeighted: number;
     correctPercent: number;
     wrongPercent: number;
     hasYesNo?: boolean;
@@ -160,7 +155,6 @@ function getSectionYesNoStats(form: any, answers: Record<string, any>): any[] {
         wrong: 0,
         answeredCount: 0,
       };
-      const weightage = Number(section.weightage) || 0;
 
       const processQuestion = (question: any) => {
         if (!question || !question.id) return;
@@ -284,7 +278,7 @@ function getSectionYesNoStats(form: any, answers: Record<string, any>): any[] {
 
       section.questions?.forEach(processQuestion);
 
-      if (!counts.answeredCount && !weightage) {
+      if (!counts.answeredCount) {
         return null;
       }
 
@@ -292,7 +286,6 @@ function getSectionYesNoStats(form: any, answers: Record<string, any>): any[] {
         id: section.id,
         title: section.title || section.name,
         ...counts,
-        weightage,
       };
     })
     .filter((s) => s !== null);
@@ -3561,7 +3554,6 @@ interface PDFOptions {
     correct: number;
     wrong: number;
     total: number;
-    weightage: number;
   }>;
   sectionSummaryRows?: Array<{
     id: string;
@@ -3572,13 +3564,9 @@ interface PDFOptions {
     na: number;
     correct: number;
     wrong: number;
-    weightage: number;
     yesPercent: number;
-    yesWeighted: number;
     noPercent: number;
-    noWeighted: number;
     naPercent: number;
-    naWeighted: number;
     correctPercent: number;
     wrongPercent: number;
     hasYesNo?: boolean;
@@ -4472,7 +4460,6 @@ async function generateCompleteHTMLForServer(
   let tableHeaders = "";
   let tableRows = "";
 
-  const hasWeightage = sectionStats.some((stat) => stat.weightage > 0);
   const hasAccuracyOverall = sectionStats.some(
     (stat) => stat.correct > 0 || stat.wrong > 0,
   );
@@ -4489,13 +4476,6 @@ async function generateCompleteHTMLForServer(
           ? `
         <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Correct</th>
         <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Wrong</th>
-      `
-          : ""
-      }
-      ${
-        hasWeightage
-          ? `
-        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Weightage</th>
       `
           : ""
       }
@@ -4552,15 +4532,6 @@ async function generateCompleteHTMLForServer(
             <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
               <div style="font-weight: 700; color: #991b1b;">${section.wrong || 0}</div>
               <div style="font-size: 9px; color: #991b1b;">${wrongPercent.toFixed(1)}%</div>
-            </td>
-          `
-              : ""
-          }
-          ${
-            hasWeightage
-              ? `
-            <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-              <div style="font-weight: 700; color: #7c3aed;">${section.weightage}%</div>
             </td>
           `
               : ""

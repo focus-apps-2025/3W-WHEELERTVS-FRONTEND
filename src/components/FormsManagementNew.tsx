@@ -576,7 +576,6 @@ export default function FormsManagementNew() {
       const previewSections = (parsed.sections || []).map((section: any) => ({
         title: section.title,
         description: section.description,
-        weightage: section.weightage,
         questions: section.questions.map((q: any) => ({
           text: q.text,
           type: q.type,

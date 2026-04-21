@@ -14,7 +14,6 @@ export interface Section {
   id: string;
   title: string;
   description?: string;
-  weightage?: number;
   nextSectionId?: string;
   questions: FollowUpQuestion[];
   linkedToOption?: string;

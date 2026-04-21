@@ -403,10 +403,14 @@ const getZoneAnalytics = (responses: Response[]): ZoneAnalyticsData => {
     Object.values(response.answers).forEach((answer) => {
       if (typeof answer === "object" && answer !== null && (answer.chassisNumber || answer.status || answer.zonesData)) {
         // This looks like a ChassisWithZone answer
-        const statusVal = (answer.status || "").toLowerCase();
-        if (statusVal === "accepted") stats.inspectionStatus.accepted++;
-        else if (statusVal === "rework") stats.inspectionStatus.rework++;
-        else if (statusVal === "rejected") stats.inspectionStatus.rejected++;
+        const statusVal = (answer.status || "").toLowerCase().trim();
+        const isAccepted = statusVal === "accepted" || statusVal === "rework completed" || statusVal === "verified";
+        const isRework = statusVal === "rework" || statusVal === "reworked" || statusVal.includes("re-rework");
+        const isRejected = statusVal === "rejected";
+
+        if (isAccepted) stats.inspectionStatus.accepted++;
+        else if (isRework) stats.inspectionStatus.rework++;
+        else if (isRejected) stats.inspectionStatus.rejected++;
         
         if (statusVal) stats.inspectionStatus.total++;
 
@@ -429,8 +433,8 @@ const getZoneAnalytics = (responses: Response[]): ZoneAnalyticsData => {
                   cat.defects.forEach((defect: any) => {
                     const defectStats = catData.defects.get(defect.name) || { total: 0, rework: 0, rejected: 0 };
                     defectStats.total++;
-                    if (statusVal === "rework") defectStats.rework++;
-                    else if (statusVal === "rejected") defectStats.rejected++;
+                    if (isRework) defectStats.rework++;
+                    else if (isRejected) defectStats.rejected++;
                     catData.defects.set(defect.name, defectStats);
                   });
                 }
@@ -4089,116 +4093,135 @@ export default function FormAnalyticsDashboard() {
                     Advanced Hierarchical Analytics (Zone &gt; Category &gt; Defect)
                   </h4>
                   
-                  <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
-                    {/* Header Scale */}
-                    <div className="flex bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
-                      <div className="w-1/3 min-w-[300px] p-4 border-r border-gray-200 dark:border-gray-700 font-bold text-xs text-gray-500 uppercase tracking-wider">Hierarchy</div>
-                      <div className="flex-1 p-4 relative">
-                        <div className="flex justify-between text-[10px] font-bold text-gray-400">
-                          <span>0%</span>
-                          <span>20%</span>
-                          <span>40%</span>
-                          <span>60%</span>
-                          <span>80%</span>
-                          <span>100%</span>
-                        </div>
-                        <div className="absolute inset-x-0 bottom-0 h-1 flex justify-between px-4">
-                          {[0, 1, 2, 3, 4, 5].map(i => (
-                            <div key={i} className="w-px h-full bg-gray-200 dark:bg-gray-700" />
-                          ))}
-                        </div>
-                      </div>
-                    </div>
+                  {(() => {
+                    const maxDefectCount = Math.max(
+                      ...zoneAnalytics.zoneBreakdown.flatMap(z => 
+                        z.categories.flatMap(c => 
+                          c.defects.map(d => d.count)
+                        )
+                      ), 
+                      1
+                    );
 
-                    {/* Hierarchical Content */}
-                    <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                      {zoneAnalytics.zoneBreakdown.length === 0 ? (
-                        <div className="p-12 text-center text-gray-500 italic">No defect data available for selected filters</div>
-                      ) : (
-                        zoneAnalytics.zoneBreakdown.map((zone) => (
-                          <div key={zone.zone} className="flex group">
-                            {/* Zone Label - Merged Side */}
-                            <div className="w-[100px] p-4 flex items-center justify-center bg-indigo-50/30 dark:bg-indigo-900/10 border-r border-gray-200 dark:border-gray-700 shrink-0">
-                              <span className="[writing-mode:vertical-lr] rotate-180 font-bold text-sm text-indigo-700 dark:text-indigo-400 uppercase tracking-widest">{zone.zone}</span>
+                    return (
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
+                        {/* Header Scale */}
+                        <div className="flex bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
+                          <div className="w-1/3 min-w-[300px] p-4 border-r border-gray-200 dark:border-gray-700 font-bold text-xs text-gray-500 uppercase tracking-wider">Hierarchy</div>
+                          <div className="flex-1 p-4 relative">
+                            <div className="flex justify-between text-[10px] font-bold text-gray-400">
+                              <span>0</span>
+                              <span>{Math.round(maxDefectCount * 0.2)}</span>
+                              <span>{Math.round(maxDefectCount * 0.4)}</span>
+                              <span>{Math.round(maxDefectCount * 0.6)}</span>
+                              <span>{Math.round(maxDefectCount * 0.8)}</span>
+                              <span>{maxDefectCount}</span>
                             </div>
-
-                            <div className="flex-1 divide-y divide-gray-100 dark:divide-gray-800">
-                              {zone.categories.map((cat) => (
-                                <div key={cat.category} className="flex">
-                                  {/* Category Label */}
-                                  <div className="w-[150px] p-4 flex items-center bg-gray-50/50 dark:bg-gray-800/20 border-r border-gray-200 dark:border-gray-700 shrink-0">
-                                    <span className="font-semibold text-xs text-gray-700 dark:text-gray-300 leading-tight">{cat.category}</span>
-                                  </div>
-
-                                  <div className="flex-1 divide-y divide-gray-50 dark:divide-gray-800/50">
-                                    {cat.defects.map((defect) => {
-                                      const total = defect.count;
-                                      const reworkWidth = total > 0 ? (defect.reworkCount / total) * 100 : 0;
-                                      const rejectedWidth = total > 0 ? (defect.rejectedCount / total) * 100 : 0;
-
-                                      return (
-                                        <div key={defect.name} className="flex items-center hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                                          {/* Defect Name */}
-                                          <div className="w-[150px] p-3 border-r border-gray-100 dark:border-gray-800 shrink-0">
-                                            <span className="text-[11px] font-medium text-gray-600 dark:text-gray-400">{defect.name}</span>
-                                          </div>
-                                          
-                                          {/* Bar Chart Section */}
-                                          <div className="flex-1 p-3 px-4 relative flex items-center h-12">
-                                            {/* Grid Lines Overlay */}
-                                            <div className="absolute inset-0 flex justify-between px-4 pointer-events-none">
-                                              {[0, 1, 2, 3, 4, 5].map(i => (
-                                                <div key={i} className="w-px h-full bg-gray-100/50 dark:bg-gray-800/30" />
-                                              ))}
-                                            </div>
-
-                                            {/* Stacked Bar */}
-                                            <div className="relative flex-1 h-6 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex shadow-inner">
-                                              {defect.reworkCount > 0 && (
-                                                <div 
-                                                  style={{ width: `${reworkWidth}%` }}
-                                                  className="h-full bg-gradient-to-r from-amber-400 to-amber-500 relative group/bar"
-                                                  title={`Rework: ${defect.reworkCount} (${reworkWidth.toFixed(1)}%)`}
-                                                >
-                                                  {reworkWidth > 15 && (
-                                                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-amber-900">
-                                                      {reworkWidth.toFixed(0)}%
-                                                    </span>
-                                                  )}
-                                                </div>
-                                              )}
-                                              {defect.rejectedCount > 0 && (
-                                                <div 
-                                                  style={{ width: `${rejectedWidth}%` }}
-                                                  className="h-full bg-gradient-to-r from-red-400 to-red-500 relative group/bar"
-                                                  title={`Rejected: ${defect.rejectedCount} (${rejectedWidth.toFixed(1)}%)`}
-                                                >
-                                                  {rejectedWidth > 15 && (
-                                                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white">
-                                                      {rejectedWidth.toFixed(0)}%
-                                                    </span>
-                                                  )}
-                                                </div>
-                                              )}
-                                            </div>
-                                            
-                                            {/* Total Pill */}
-                                            <div className="ml-4 w-12 h-5 flex items-center justify-center rounded-md bg-gray-100 dark:bg-gray-800 text-[10px] font-bold text-gray-500 dark:text-gray-400" title="Total Responses">
-                                              n={total}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                </div>
+                            <div className="absolute inset-x-0 bottom-0 h-1 flex justify-between px-4">
+                              {[0, 1, 2, 3, 4, 5].map(i => (
+                                <div key={i} className="w-px h-full bg-gray-200 dark:bg-gray-700" />
                               ))}
                             </div>
                           </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
+                        </div>
+
+                        {/* Hierarchical Content */}
+                        <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                          {zoneAnalytics.zoneBreakdown.length === 0 ? (
+                            <div className="p-12 text-center text-gray-500 italic">No defect data available for selected filters</div>
+                          ) : (
+                            zoneAnalytics.zoneBreakdown.map((zone) => (
+                              <div key={zone.zone} className="flex group">
+                                {/* Zone Label - Merged Side */}
+                                <div className="w-[100px] p-4 flex items-center justify-center bg-indigo-50/30 dark:bg-indigo-900/10 border-r border-gray-200 dark:border-gray-700 shrink-0">
+                                  <span className="[writing-mode:vertical-lr] rotate-180 font-bold text-sm text-indigo-700 dark:text-indigo-400 uppercase tracking-widest">{zone.zone}</span>
+                                </div>
+
+                                <div className="flex-1 divide-y divide-gray-100 dark:divide-gray-800">
+                                  {zone.categories.map((cat) => (
+                                    <div key={cat.category} className="flex">
+                                      {/* Category Label */}
+                                      <div className="w-[150px] p-4 flex items-center bg-gray-50/50 dark:bg-gray-800/20 border-r border-gray-200 dark:border-gray-700 shrink-0">
+                                        <span className="font-semibold text-xs text-gray-700 dark:text-gray-300 leading-tight">{cat.category}</span>
+                                      </div>
+
+                                      <div className="flex-1 divide-y divide-gray-50 dark:divide-gray-800/50">
+                                        {cat.defects.map((defect) => {
+                                          const total = defect.count;
+                                          const reworkWidth = total > 0 ? (defect.reworkCount / total) * 100 : 0;
+                                          const rejectedWidth = total > 0 ? (defect.rejectedCount / total) * 100 : 0;
+                                          const volumeWidth = (total / maxDefectCount) * 100;
+                                          
+                                          // Percentages relative to the global maximum for labels
+                                          const reworkLabelPct = (defect.reworkCount / maxDefectCount) * 100;
+                                          const rejectedLabelPct = (defect.rejectedCount / maxDefectCount) * 100;
+
+                                          return (
+                                            <div key={defect.name} className="flex items-center hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                                              {/* Defect Name */}
+                                              <div className="w-[150px] p-3 border-r border-gray-100 dark:border-gray-800 shrink-0 flex items-center justify-between gap-1">
+                                                <span className="text-[11px] font-medium text-gray-600 dark:text-gray-400 leading-tight">{defect.name}</span>
+                                                <span className="text-[10px] font-bold text-gray-400 shrink-0">({total})</span>
+                                              </div>
+                                              
+                                              {/* Bar Chart Section */}
+                                              <div className="flex-1 p-3 px-4 relative flex items-center h-12">
+                                                {/* Grid Lines Overlay */}
+                                                <div className="absolute inset-0 flex justify-between px-4 pointer-events-none">
+                                                  {[0, 1, 2, 3, 4, 5].map(i => (
+                                                    <div key={i} className="w-px h-full bg-gray-100/50 dark:bg-gray-800/30" />
+                                                  ))}
+                                                </div>
+
+                                                {/* Stacked Bar with Volume Normalization */}
+                                                <div className="relative flex-1 h-6">
+                                                  <div 
+                                                    style={{ width: `${volumeWidth}%` }}
+                                                    className="h-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex shadow-inner transition-all duration-500"
+                                                  >
+                                                    {defect.reworkCount > 0 && (
+                                                      <div 
+                                                        style={{ width: `${reworkWidth}%` }}
+                                                        className="h-full bg-gradient-to-r from-amber-400 to-amber-500 relative group/bar"
+                                                        title={`Rework: ${defect.reworkCount} (${reworkLabelPct.toFixed(1)}%)`}
+                                                      >
+                                                        {reworkLabelPct > 15 && (
+                                                          <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-amber-900">
+                                                            {reworkLabelPct.toFixed(0)}%
+                                                          </span>
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                    {defect.rejectedCount > 0 && (
+                                                      <div 
+                                                        style={{ width: `${rejectedWidth}%` }}
+                                                        className="h-full bg-gradient-to-r from-red-400 to-red-500 relative group/bar"
+                                                        title={`Rejected: ${defect.rejectedCount} (${rejectedLabelPct.toFixed(1)}%)`}
+                                                      >
+                                                        {rejectedLabelPct > 15 && (
+                                                          <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white">
+                                                            {rejectedLabelPct.toFixed(0)}%
+                                                          </span>
+                                                        )}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Status Summary */}

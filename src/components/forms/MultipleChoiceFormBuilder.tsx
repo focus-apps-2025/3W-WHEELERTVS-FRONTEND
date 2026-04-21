@@ -22,7 +22,6 @@ interface FormSection {
   id: string;
   title: string;
   description: string;
-  weightage?: number;
   questions: FormQuestion[];
 }
 
@@ -125,7 +124,6 @@ const DEFAULT_FORM_DATA: FormData = {
       id: "section1",
       title: "Section 1: Basic Information",
       description: "Collect basic details and preferences",
-      weightage: 20,
       questions: [
         {
           id: "q1",
@@ -198,7 +196,6 @@ const DEFAULT_FORM_DATA: FormData = {
       id: "section2",
       title: "Section 2: Product/Service Evaluation",
       description: "Evaluate your satisfaction and experience",
-      weightage: 20,
       questions: [
         {
           id: "q6",
@@ -293,7 +290,6 @@ const DEFAULT_FORM_DATA: FormData = {
       id: "section3",
       title: "Section 3: Customer Support Experience",
       description: "Feedback on support services",
-      weightage: 20,
       questions: [
         {
           id: "q11",
@@ -353,7 +349,6 @@ const DEFAULT_FORM_DATA: FormData = {
       id: "section4",
       title: "Section 4: Purchase & Billing",
       description: "Questions about purchasing and billing experience",
-      weightage: 20,
       questions: [
         {
           id: "q16",
@@ -437,7 +432,6 @@ const DEFAULT_FORM_DATA: FormData = {
       id: "section5",
       title: "Section 5: Overall Feedback & Future",
       description: "Summary feedback and future engagement",
-      weightage: 20,
       questions: [
         {
           id: "q21",
@@ -580,13 +574,6 @@ export const MultipleChoiceFormBuilder: React.FC<
       ),
     }));
   };
-
-  const totalWeightage = useMemo(() => {
-    return formData.sections.reduce(
-      (sum, section) => sum + (section.weightage || 0),
-      0,
-    );
-  }, [formData.sections]);
 
   const handleQuestionChange = <K extends keyof FormQuestion>(
     sectionIndex: number,
@@ -1093,20 +1080,6 @@ export const MultipleChoiceFormBuilder: React.FC<
       }
     }
 
-    // Validate section weightage (if any section has weightage, total must be 100)
-    const totalWeightage = formData.sections.reduce(
-      (sum, s) => sum + (s.weightage || 0),
-      0,
-    );
-    if (totalWeightage > 0 && Math.abs(totalWeightage - 100) > 0.1) {
-      setError(
-        `Section weightage must add up to 100%. Current total: ${totalWeightage.toFixed(
-          1,
-        )}%`,
-      );
-      return false;
-    }
-
     return true;
   };
 
@@ -1146,28 +1119,9 @@ export const MultipleChoiceFormBuilder: React.FC<
         {formData.sections.length > 0 && (
           <nav className="md:w-28 md:flex-shrink-0">
             <div className="sticky top-1/2 -translate-y-1/2 transform bg-white dark:bg-gray-900/95 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-2xl p-3 shadow-lg flex flex-col items-center gap-3">
-              <div className="w-full px-2 pb-3 border-b border-gray-200 dark:border-gray-700 text-center">
-                <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                  Weightage
-                </p>
-                <p
-                  className={`mt-1 text-sm font-bold ${
-                    totalWeightage === 100
-                      ? "text-green-600"
-                      : totalWeightage > 0
-                        ? "text-orange-600"
-                        : "text-gray-500"
-                  }`}
-                >
-                  {totalWeightage.toFixed(1)}%
-                </p>
-              </div>
-
               <div className="w-full space-y-2">
                 {formData.sections.map((section, index) => {
-                  const sectionWeight = section.weightage || 0;
                   const isActive = activeSectionIndex === index;
-                  const hasWeight = sectionWeight > 0;
 
                   return (
                     <button
@@ -1177,47 +1131,25 @@ export const MultipleChoiceFormBuilder: React.FC<
                       title={section.title || `Section ${index + 1}`}
                       aria-label={section.title || `Section ${index + 1}`}
                       aria-current={isActive ? "step" : undefined}
-                      className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all border ${
+                      className={`w-full flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold transition-all border ${
                         isActive
                           ? "bg-blue-600 text-white border-blue-600 shadow-lg scale-[1.02]"
                           : "bg-white text-gray-700 border-gray-300 hover:bg-blue-50"
                       }`}
                     >
-                      <span className="flex items-center gap-2">
-                        <span
-                          className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border ${
-                            isActive
-                              ? "bg-white text-blue-600 border-blue-500"
-                              : "bg-blue-50 text-blue-700 border-blue-200"
-                          }`}
-                        >
-                          {index + 1}
-                        </span>
-                        <span className="text-left line-clamp-2 leading-tight">
-                          {section.title || `Section ${index + 1}`}
-                        </span>
-                      </span>
                       <span
-                        className={`ml-2 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                          hasWeight
-                            ? isActive
-                              ? "bg-white/20 text-white border border-white/60"
-                              : "bg-blue-50 text-blue-700 border border-blue-200"
-                            : "bg-gray-100 text-gray-500 border border-gray-200"
+                        className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border ${
+                          isActive
+                            ? "bg-white text-blue-600 border-blue-500"
+                            : "bg-blue-50 text-blue-700 border-blue-200"
                         }`}
                       >
-                        {hasWeight ? `${sectionWeight.toFixed(1)}%` : "0%"}
+                        {index + 1}
                       </span>
                     </button>
                   );
                 })}
               </div>
-
-              {totalWeightage !== 100 && totalWeightage > 0 && (
-                <div className="w-full mt-2 text-center text-[11px] font-medium text-orange-600">
-                  Adjust sections to total 100%
-                </div>
-              )}
             </div>
           </nav>
         )}
@@ -1467,52 +1399,6 @@ export const MultipleChoiceFormBuilder: React.FC<
                         placeholder="Brief description of this section's purpose"
                         className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
-                    </div>
-
-                    <div>
-                      <label
-                        htmlFor={`section-${sectionIndex}-weightage`}
-                        className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                      >
-                        Section Weightage (%)
-                      </label>
-                      <input
-                        id={`section-${sectionIndex}-weightage`}
-                        type="number"
-                        min="0"
-                        max="100"
-                        step="0.1"
-                        value={section.weightage || 0}
-                        onChange={(e) =>
-                          handleSectionChange(
-                            sectionIndex,
-                            "weightage",
-                            parseFloat(e.target.value) || 0,
-                          )
-                        }
-                        placeholder="e.g., 20 for 20%"
-                        className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                      <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        Total weightage:{" "}
-                        {formData.sections
-                          .reduce((sum, s) => sum + (s.weightage || 0), 0)
-                          .toFixed(1)}
-                        %
-                        {Math.abs(
-                          formData.sections.reduce(
-                            (sum, s) => sum + (s.weightage || 0),
-                            0,
-                          ) - 100,
-                        ) > 0.1 &&
-                          formData.sections.some(
-                            (s) => (s.weightage || 0) > 0,
-                          ) && (
-                            <span className="text-orange-600 ml-2">
-                              ⚠ Should total 100%
-                            </span>
-                          )}
-                      </p>
                     </div>
 
                     {/* Questions */}

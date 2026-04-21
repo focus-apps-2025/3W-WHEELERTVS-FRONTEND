@@ -19,7 +19,6 @@ interface QuestionPreview {
 interface SectionPreview {
   title: string;
   description?: string;
-  weightage?: number;
   questions: QuestionPreview[];
 }
 
@@ -191,8 +190,6 @@ export default function ImportPreviewModal({
                       <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
                         {section.questions.length} question
                         {section.questions.length !== 1 ? "s" : ""}
-                        {section.weightage !== undefined &&
-                          ` • Weightage: ${section.weightage}%`}
                       </p>
                     </div>
                     {expandedSections[sectionIdx] ? (

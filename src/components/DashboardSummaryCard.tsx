@@ -8,7 +8,6 @@ interface SectionStat {
   no: number;
   na: number;
   total: number;
-  weightage: number;
 }
 
 interface DashboardSummaryCardProps {
