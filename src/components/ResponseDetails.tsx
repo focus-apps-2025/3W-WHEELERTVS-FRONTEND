@@ -185,8 +185,8 @@ export default function ResponseDetails({
 
     if (typeof answer === "object") {
             // Special handling for Chassis types
-      if (questionType === "chassis-with-zone" || questionType === "chassis-without-zone") {
-        const { chassisNumber, status, zone, defectCategory, defects } = answer;
+      if (questionType === "chassis-with-zone" || questionType === "chassis-without-zone" || questionType === "zone-in" || questionType === "zone-out") {
+        const { chassisNumber, status, zone, defectCategory, defects, remark, evidenceUrl, zones } = answer;
         const isFailure = status === 'Rejected' || status === 'Rework';
 
         return (
@@ -214,7 +214,33 @@ export default function ResponseDetails({
                   <span className="text-sm font-bold">{zone}</span>
                 </div>
               )}
+
+              {zones && Array.isArray(zones) && zones.length > 0 && (
+                <div className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-blue-700 dark:text-blue-400 rounded-lg shadow-sm">
+                  <span className="text-[10px] font-bold opacity-60 uppercase tracking-wider block">Zones</span>
+                  <span className="text-sm font-bold">{zones.join(", ")}</span>
+                </div>
+              )}
             </div>
+
+            {(remark || evidenceUrl) && (
+              <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+                <div className="space-y-2">
+                  {remark && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Remark:</span>
+                      <p className="text-xs text-gray-700 dark:text-gray-300">{remark}</p>
+                    </div>
+                  )}
+                  {evidenceUrl && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Evidence:</span>
+                      <FilePreview data={evidenceUrl} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {isFailure && defectCategory && (
               <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">

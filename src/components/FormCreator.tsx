@@ -3565,6 +3565,16 @@ export default function FormCreator() {
       label: "Chassis without Zone",
       description: "Chassis number input with direct status follow-up",
     },
+    {
+      value: "zone-in",
+      label: "Zone In",
+      description: "Chassis number input with Zone In status (Accepted/Rework/Rejected)",
+    },
+    {
+      value: "zone-out",
+      label: "Zone Out",
+      description: "Chassis number input with Zone Out status (Accepted/Rework/Rejected)",
+    },
 
   ];
 

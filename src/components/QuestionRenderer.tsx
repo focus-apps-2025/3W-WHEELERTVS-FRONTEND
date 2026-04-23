@@ -25,6 +25,8 @@ import EmojiReactionFeedback from "./QuestionTypes/EmojiReactionFeedback";
 import ProductNPSBuckets from "./forms/ProductNPSBuckets";
 import ChassisWithZone from "./forms/ChassisWithZone";
 import ChassisWithoutZone from "./forms/ChassisWithoutZone";
+import ZoneIn from "./forms/ZoneIn";
+import ZoneOut from "./forms/ZoneOut";
 import { apiClient } from "../api/client";
 
 interface QuestionRendererProps {
@@ -932,6 +934,86 @@ export default function QuestionRenderer({
           </div>,
         );
 
+      case "zone-in":
+        return renderInputWrapper(
+          <div className="space-y-1">
+            {isQuestionTrackingEnabled ? (
+              <ZoneIn
+                value={value}
+                onChange={(val) => {
+                  if (onChange) onChange(val);
+                  if (
+                    isQuestionTrackingEnabled &&
+                    onTrackingChange &&
+                    val?.chassisNumber !== trackingValue
+                  ) {
+                    onTrackingChange(val?.chassisNumber || "");
+                  }
+                }}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                disabled={readOnly}
+                isApplied={isApplied}
+                suggestions={suggestedMatches || []}
+              />
+            ) : (
+              <ZoneIn
+                value={value}
+                onChange={(val) => onChange && onChange(val)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                disabled={readOnly}
+                isApplied={isApplied}
+                hideChassisNumber={true}
+                suggestions={suggestedMatches || []}
+              />
+            )}
+            {renderLoadingIndicator()}
+            {renderNoMatchIndicator()}
+            {renderSuggestions()}
+          </div>,
+        );
+
+      case "zone-out":
+        return renderInputWrapper(
+          <div className="space-y-1">
+            {isQuestionTrackingEnabled ? (
+              <ZoneOut
+                value={value}
+                onChange={(val) => {
+                  if (onChange) onChange(val);
+                  if (
+                    isQuestionTrackingEnabled &&
+                    onTrackingChange &&
+                    val?.chassisNumber !== trackingValue
+                  ) {
+                    onTrackingChange(val?.chassisNumber || "");
+                  }
+                }}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                disabled={readOnly}
+                isApplied={isApplied}
+                suggestions={suggestedMatches || []}
+              />
+            ) : (
+              <ZoneOut
+                value={value}
+                onChange={(val) => onChange && onChange(val)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                disabled={readOnly}
+                isApplied={isApplied}
+                hideChassisNumber={true}
+                suggestions={suggestedMatches || []}
+              />
+            )}
+            {renderLoadingIndicator()}
+            {renderNoMatchIndicator()}
+            {renderSuggestions()}
+          </div>,
+        );
+
       case "file":
         return renderInputWrapper(
           <div className="space-y-1">
@@ -996,7 +1078,7 @@ export default function QuestionRenderer({
   const renderTrackingInput = () => {
     if (!isQuestionTrackingEnabled) return null;
 
-    if (question.type?.startsWith("chassis-")) {
+    if (question.type?.startsWith("chassis-") || question.type?.startsWith("zone-")) {
       return (
         <div className="mt-4 mb-2 space-y-2 pt-4 border-t border-slate-100 dark:border-slate-800">
           <label

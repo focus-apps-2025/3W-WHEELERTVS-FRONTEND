@@ -1532,6 +1532,147 @@ export default function FormAnalyticsDashboard() {
     return result;
   }, [responses, cascadingFilters, dateFilter, locationFilter, columnFilters]);
 
+  // Find the primary chassis question to identify unique items/vehicles
+  const chassisQuestionId = useMemo(() => {
+    if (!form?.sections) {
+      return null;
+    }
+    for (const section of form.sections) {
+      if (section.questions) {
+        for (const q of section.questions) {
+          if (
+            q.type === "chassis" ||
+            q.type === "chassisWithZone" ||
+            q.type === "chassisWithoutZone" ||
+            q.text?.toLowerCase().includes("chassis") ||
+            q.trackResponseRank === true ||
+            q.trackResponseRank === "true" ||
+            q.trackResponseQuestion === true ||
+            q.trackResponseQuestion === "true"
+          ) {
+            return q.id;
+          }
+        }
+      }
+    }
+    return null;
+  }, [form]);
+
+  // Calculate sequential status (Direct Ok, Rework 1, Rework 2, etc.)
+  const responseStatuses = useMemo(() => {
+    if (!filteredResponses.length) {
+      return {};
+    }
+
+    // Group responses by unique item (e.g., chassis number)
+    const itemGroups: Record<string, Response[]> = {};
+
+    // Sort responses by timestamp ascending to determine sequential order
+    const sortedResponses = [...filteredResponses].sort((a, b) => {
+      const tA = new Date(getResponseTimestamp(a) || 0).getTime();
+      const tB = new Date(getResponseTimestamp(b) || 0).getTime();
+      return tA - tB;
+    });
+
+    sortedResponses.forEach((r) => {
+      let itemId = "unknown";
+      if (chassisQuestionId) {
+        const answer = r.answers[chassisQuestionId];
+        if (answer) {
+          if (typeof answer === "object") {
+            itemId = answer.chassisNumber || JSON.stringify(answer);
+          } else {
+            itemId = String(answer);
+          }
+        }
+      } else {
+        // Fallback to submittedBy if no chassis question is found
+        itemId = r.submittedBy || r.createdBy || "anonymous";
+      }
+
+      if (!itemGroups[itemId]) {
+        itemGroups[itemId] = [];
+      }
+      itemGroups[itemId].push(r);
+    });
+
+    const statuses: Record<string, string> = {};
+
+    Object.values(itemGroups).forEach((group) => {
+      let reworkCount = 0;
+      let hasBeenReworked = false;
+
+      group.forEach((r, index) => {
+        let isRework = false;
+        let isAccepted = false;
+        let isRejected = false;
+
+        // Check individual answers for inspection status
+        Object.values(r.answers).forEach((ans) => {
+          if (typeof ans === "object" && ans !== null && (ans as any).status) {
+            const s = String((ans as any).status).toLowerCase().trim();
+            if (
+              s === "rework" ||
+              s === "reworked" ||
+              s.includes("re-rework")
+            ) {
+              isRework = true;
+            } else if (
+              s === "accepted" ||
+              s === "rework completed" ||
+              s === "verified"
+            ) {
+              isAccepted = true;
+            } else if (s === "rejected") {
+              isRejected = true;
+            }
+          } else if (typeof ans === "string") {
+            const s = ans.toLowerCase().trim();
+            if (
+              s === "rework" ||
+              s === "reworked" ||
+              s.includes("re-rework")
+            ) {
+              isRework = true;
+            } else if (
+              s === "accepted" ||
+              s === "rework completed" ||
+              s === "verified"
+            ) {
+              isAccepted = true;
+            } else if (s === "rejected") {
+              isRejected = true;
+            }
+          }
+        });
+
+        const rank = chassisQuestionId ? r.responseRanks?.[chassisQuestionId] : null;
+
+        if (isRejected) {
+          statuses[r.id] = "Rejected";
+        } else if (isRework) {
+          reworkCount++;
+          hasBeenReworked = true;
+          statuses[r.id] = `Rework ${reworkCount}`;
+        } else if (isAccepted) {
+          // If rank is 1, it's definitely the first time this item is seen
+          // If no rank but index 0, assume it's the first time in the current view
+          if (rank === 1 || (index === 0 && !hasBeenReworked)) {
+            statuses[r.id] = "Direct Ok";
+          } else if ((rank && rank > 1) || hasBeenReworked) {
+            statuses[r.id] = "Rework Accepted";
+          } else {
+            statuses[r.id] = "Accepted";
+          }
+        } else {
+          statuses[r.id] = "-";
+        }
+      });
+    });
+
+    return statuses;
+  }, [filteredResponses, chassisQuestionId]);
+
   const analytics = useMemo(() => {
     const total = filteredResponses.length;
     const pending = filteredResponses.filter(
@@ -1644,6 +1785,36 @@ export default function FormAnalyticsDashboard() {
     () => getZoneAnalytics(filteredResponses),
     [filteredResponses],
   );
+
+  const top20Issues = useMemo(() => {
+    const allDefects: Array<{
+      name: string;
+      zone: string;
+      category: string;
+      reworkCount: number;
+      rejectedCount: number;
+      total: number;
+    }> = [];
+
+    zoneAnalytics.zoneBreakdown.forEach((zone) => {
+      zone.categories.forEach((cat) => {
+        cat.defects.forEach((defect) => {
+          allDefects.push({
+            name: defect.name,
+            zone: zone.zone,
+            category: cat.category,
+            reworkCount: defect.reworkCount,
+            rejectedCount: defect.rejectedCount,
+            total: defect.reworkCount + defect.rejectedCount,
+          });
+        });
+      });
+    });
+
+    return allDefects
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 20);
+  }, [zoneAnalytics]);
 
   const getUniqueColumnValues = (
     questionId: string,
@@ -2793,7 +2964,7 @@ export default function FormAnalyticsDashboard() {
 
   const handleExportToExcel = () => {
     try {
-      const headerRow: any[] = ["Timestamp"];
+      const headerRow: any[] = ["Timestamp", "Status"];
       const columnInfo: Array<{
         questionId: string;
         isFollowUp: boolean;
@@ -2821,6 +2992,7 @@ export default function FormAnalyticsDashboard() {
           getResponseTimestamp(response)
             ? new Date(getResponseTimestamp(response)!).toLocaleString()
             : "-",
+          responseStatuses[response.id] || "-",
         ];
 
         columnInfo.forEach(({ questionId }) => {
@@ -2930,9 +3102,34 @@ export default function FormAnalyticsDashboard() {
           },
         };
 
+        // Style Status column
+        const statusCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 1 });
+        const currentStatus = responseStatuses[response.id] || "-";
+        let statusBgColor = "FFF9FAFB"; // Default
+
+        if (currentStatus === "Direct Ok" || currentStatus === "Rework Accepted" || currentStatus === "Accepted") {
+          statusBgColor = "FFDCFCE7"; // green-100
+        } else if (currentStatus.includes("Rework")) {
+          statusBgColor = "FFFEF3C7"; // amber-100
+        } else if (currentStatus === "Rejected") {
+          statusBgColor = "FFFEE2E2"; // red-100
+        }
+
+        ws[statusCellRef].s = {
+          fill: { fgColor: { rgb: statusBgColor } },
+          font: { bold: true },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          },
+        };
+
         // Style Question columns
         for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 1 });
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 2 });
           const info = columnInfo[colIdx];
           const answer = response.answers?.[info.questionId];
 
@@ -2983,7 +3180,11 @@ export default function FormAnalyticsDashboard() {
         };
       }
 
-      ws["!cols"] = [{ wch: 22 }, ...columnInfo.map(() => ({ wch: 35 }))];
+      ws["!cols"] = [
+        { wch: 22 }, // Timestamp
+        { wch: 15 }, // Status
+        ...columnInfo.map(() => ({ wch: 35 })),
+      ];
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Responses");
@@ -4832,6 +5033,7 @@ export default function FormAnalyticsDashboard() {
                             <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                             <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                             <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
+                            <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                             {form?.sections?.map((section: Section) => {
                               const sectionQuestionsCount =
                                 section.questions?.length || 0;
@@ -4877,6 +5079,9 @@ export default function FormAnalyticsDashboard() {
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
                               Submitted by
+                            </th>
+                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
+                              Status
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                               Timestamp
@@ -4936,6 +5141,7 @@ export default function FormAnalyticsDashboard() {
                             <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 sticky left-12 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">
                               Correct Answer
                             </td>
+                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
                             <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
                             <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
                             <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
@@ -5088,6 +5294,30 @@ export default function FormAnalyticsDashboard() {
                                       response.createdBy ||
                                       "Anonymous"}
                                   </td>
+                                  <td className="px-6 py-3 text-sm font-bold border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
+                                    <span
+                                      className={`px-2 py-1 rounded-full text-xs ${
+                                        responseStatuses[response.id] === "Rejected"
+                                          ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                          : responseStatuses[response.id]?.includes(
+                                              "Rework",
+                                            ) &&
+                                            responseStatuses[response.id] !==
+                                              "Rework Accepted"
+                                            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                                            : responseStatuses[response.id] ===
+                                                "Direct Ok" ||
+                                              responseStatuses[response.id] ===
+                                                "Rework Accepted" ||
+                                              responseStatuses[response.id] ===
+                                                "Accepted"
+                                              ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                              : "text-gray-500"
+                                      }`}
+                                    >
+                                      {responseStatuses[response.id] || "-"}
+                                    </span>
+                                  </td>
                                   <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                                     {getResponseTimestamp(response)
                                       ? new Date(
@@ -5212,7 +5442,7 @@ export default function FormAnalyticsDashboard() {
                             <tr>
                               <td
                                 colSpan={
-                                  4 +
+                                  6 +
                                   (form?.sections?.reduce(
                                     (acc: number, sec: Section) =>
                                       selectedResponsesSectionIds.includes(

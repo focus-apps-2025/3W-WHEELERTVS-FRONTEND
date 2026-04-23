@@ -27,4 +27,6 @@ export type QuestionType =
   | "number"
   | "chassisNumber"
   | "chassis-with-zone"
-  | "chassis-without-zone";
+  | "chassis-without-zone"
+  | "zone-in"
+  | "zone-out";

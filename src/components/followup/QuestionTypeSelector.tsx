@@ -28,6 +28,8 @@ export default function QuestionTypeSelector({ value, onChange }: QuestionTypeSe
     { value: 'radio-image', label: 'Image Choice' },
     { value: 'chassis-with-zone', label: 'Chassis with Zone' },
     { value: 'chassis-without-zone', label: 'Chassis without Zone' },
+    { value: 'zone-in', label: 'Zone In' },
+    { value: 'zone-out', label: 'Zone Out' },
   ];
 
   return (
