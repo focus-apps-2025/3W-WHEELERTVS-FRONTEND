@@ -1,5 +1,5 @@
 export const LAYOUT_CONFIG = {
-  zoomScale: 1.0,
+  zoomScale: 0.8,
 } as const;
 
 export default LAYOUT_CONFIG;

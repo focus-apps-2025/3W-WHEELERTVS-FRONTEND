@@ -40,6 +40,7 @@ import {
   RadialLinearScale,
 } from "chart.js";
 import { Line, Bar } from "react-chartjs-2";
+import ChartDataLabels from "chartjs-plugin-datalabels";
 import { apiClient } from "../../api/client";
 import ResponseQuestion from "./ResponseQuestion";
 import SectionAnalytics from "./SectionAnalytics";
@@ -66,6 +67,7 @@ ChartJS.register(
   Legend,
   Filler,
   RadialLinearScale,
+  ChartDataLabels,
 );
 
 interface Response {
@@ -148,6 +150,16 @@ type SectionPerformanceStat = {
   accepted?: number;
   rejected?: number;
   rework?: number;
+  total: number;
+};
+
+type QuestionPerformanceStat = {
+  id: string;
+  text: string;
+  sectionTitle: string;
+  accepted: number;
+  rejected: number;
+  rework: number;
   total: number;
 };
 
@@ -824,6 +836,473 @@ const computeSectionPerformanceStats = (
   return stats.filter((stat): stat is SectionPerformanceStat => Boolean(stat));
 };
 
+const computeQuestionPerformanceStats = (
+  form: Form | null,
+  responses: Response[],
+): QuestionPerformanceStat[] => {
+  if (!form?.sections || !responses.length) {
+    return [];
+  }
+
+  const allQuestionStats: QuestionPerformanceStat[] = [];
+
+  form.sections.forEach((section) => {
+    section.questions.forEach((question: any) => {
+      const counts = {
+        accepted: 0,
+        rejected: 0,
+        rework: 0,
+        total: 0,
+      };
+
+      responses.forEach((response) => {
+        const answer = response.answers?.[question.id];
+        if (answer === null || answer === undefined || answer === "") {
+          return;
+        }
+
+        if (typeof answer === "object" && answer.status) {
+          const status = String(answer.status).toLowerCase().trim();
+          if (
+            status === "accepted" ||
+            status === "rework completed" ||
+            status === "verified"
+          ) {
+            counts.accepted += 1;
+            counts.total += 1;
+          } else if (status === "rejected") {
+            counts.rejected += 1;
+            counts.total += 1;
+          } else if (
+            status === "rework" ||
+            status === "reworked" ||
+            status.includes("re-rework")
+          ) {
+            counts.rework += 1;
+            counts.total += 1;
+          }
+        } else {
+          const answerStr = String(answer).toLowerCase().trim();
+          const normalizedValues = extractYesNoValues(answer);
+
+          if (
+            answerStr === "accepted" ||
+            answerStr === "rework completed" ||
+            answerStr === "verified"
+          ) {
+            counts.accepted += 1;
+            counts.total += 1;
+          } else if (answerStr === "rejected") {
+            counts.rejected += 1;
+            counts.total += 1;
+          } else if (
+            answerStr === "rework" ||
+            answerStr === "reworked" ||
+            answerStr.includes("re-rework")
+          ) {
+            counts.rework += 1;
+            counts.total += 1;
+          } else if (
+            question.type === "yesNoNA" ||
+            question.type === "chassisWithZone" ||
+            question.type === "chassisWithoutZone" ||
+            question.type === "chassis" ||
+            question.text?.toLowerCase().includes("chassis")
+          ) {
+            const options = question.options || [];
+            if (options.length >= 3) {
+              const yesOption = String(options[0]).toLowerCase().trim();
+              const noOption = String(options[1]).toLowerCase().trim();
+              const naOption = String(options[2]).toLowerCase().trim();
+
+              normalizedValues.forEach((val) => {
+                if (val === yesOption) {
+                  counts.accepted += 1;
+                  counts.total += 1;
+                } else if (val === noOption) {
+                  counts.rejected += 1;
+                  counts.total += 1;
+                } else if (val === naOption) {
+                  counts.rework += 1;
+                  counts.total += 1;
+                }
+              });
+            } else {
+              const hasRecognizedValue = normalizedValues.some((value) =>
+                recognizedYesNoValues.includes(value),
+              );
+              if (hasRecognizedValue) {
+                counts.total += 1;
+                if (normalizedValues.includes("yes") || normalizedValues.includes("accepted") || normalizedValues.includes("verified")) {
+                  counts.accepted += 1;
+                }
+                if (normalizedValues.includes("no") || normalizedValues.includes("rejected")) {
+                  counts.rejected += 1;
+                }
+                if (
+                  normalizedValues.includes("n/a") ||
+                  normalizedValues.includes("na") ||
+                  normalizedValues.includes("not applicable") ||
+                  normalizedValues.includes("rework") ||
+                  normalizedValues.includes("reworked") ||
+                  normalizedValues.some(v => v.includes("re-rework"))
+                ) {
+                  counts.rework += 1;
+                }
+              }
+            }
+          }
+        }
+      });
+
+      if (counts.total > 0) {
+        allQuestionStats.push({
+          id: question.id,
+          text: question.text,
+          sectionTitle: section.title,
+          accepted: counts.accepted,
+          rejected: counts.rejected,
+          rework: counts.rework,
+          total: counts.total,
+        });
+      }
+    });
+  });
+
+  return allQuestionStats;
+};
+
+type DailyPerformanceStat = {
+  date: string;
+  dateKey: string;
+  totalResponses: number;
+  reworkCount: number;
+  acceptedCount: number;
+};
+
+const computeDailyPerformanceStats = (
+  responses: Response[],
+  startDate?: string,
+  endDate?: string,
+): DailyPerformanceStat[] => {
+  const dailyMap = new Map<string, { total: number; rework: number; accepted: number }>();
+
+  let start: Date | null = null;
+  let end: Date | null = null;
+
+  if (startDate) {
+    start = new Date(startDate);
+  } else {
+    // Default to start of current month if no start date provided
+    start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  }
+
+  if (endDate) {
+    end = new Date(endDate);
+  } else {
+    // Default to today if no end date provided
+    end = new Date();
+    end.setHours(23, 59, 59, 999);
+  }
+
+  if (responses.length > 0 && !startDate && !endDate) {
+    const timestamps = responses.map((r) =>
+      new Date(getResponseTimestamp(r) || 0).getTime(),
+    );
+    const minTS = Math.min(...timestamps);
+    const maxTS = Math.max(...timestamps);
+    
+    // Expand range to include responses if they are outside current month
+    if (minTS < start.getTime()) start = new Date(minTS);
+    if (maxTS > end.getTime()) end = new Date(maxTS);
+  }
+
+  if (start && end) {
+    const curr = new Date(start);
+    curr.setHours(0, 0, 0, 0);
+    const last = new Date(end);
+    last.setHours(0, 0, 0, 0);
+
+    while (curr <= last) {
+      const dKey = curr.toISOString().split("T")[0];
+      dailyMap.set(dKey, { total: 0, rework: 0, accepted: 0 });
+      curr.setDate(curr.getDate() + 1);
+    }
+  }
+
+  responses.forEach((response) => {
+    const timestamp = getResponseTimestamp(response);
+    if (!timestamp) return;
+
+    const dateKey = new Date(timestamp).toISOString().split("T")[0];
+    if (!dailyMap.has(dateKey)) {
+      dailyMap.set(dateKey, { total: 0, rework: 0, accepted: 0 });
+    }
+
+    const dayStats = dailyMap.get(dateKey)!;
+    dayStats.total += 1;
+
+    if (response.answers) {
+      Object.values(response.answers).forEach((answer) => {
+        if (answer && typeof answer === "object" && answer.status) {
+          const status = String(answer.status).toLowerCase().trim();
+          if (
+            status === "rework" ||
+            status === "reworked" ||
+            status.includes("re-rework")
+          ) {
+            dayStats.rework += 1;
+          } else if (
+            status === "accepted" ||
+            status === "rework completed" ||
+            status === "verified" ||
+            status === "yes"
+          ) {
+            dayStats.accepted += 1;
+          }
+        } else if (answer) {
+          const answerStr = String(answer).toLowerCase().trim();
+          if (
+            answerStr === "rework" ||
+            answerStr === "reworked" ||
+            answerStr.includes("re-rework")
+          ) {
+            dayStats.rework += 1;
+          } else if (
+            answerStr === "accepted" ||
+            answerStr === "rework completed" ||
+            answerStr === "verified" ||
+            answerStr === "yes"
+          ) {
+            dayStats.accepted += 1;
+          }
+        }
+      });
+    }
+  });
+
+  return Array.from(dailyMap.entries())
+    .map(([dateKey, stats]) => {
+      const dateObj = new Date(dateKey);
+      const formattedDate = dateObj.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      return {
+        date: formattedDate,
+        dateKey,
+        totalResponses: stats.total,
+        reworkCount: stats.rework,
+        acceptedCount: stats.accepted,
+      };
+    })
+    .sort((a, b) => (a.dateKey > b.dateKey ? 1 : -1));
+};
+
+const computeMonthlyPerformanceStats = (
+  responses: Response[],
+  startDate?: string,
+  endDate?: string,
+): DailyPerformanceStat[] => {
+  const monthMap = new Map<string, { total: number; rework: number; accepted: number }>();
+
+  let start: Date | null = null;
+  let end: Date | null = null;
+
+  if (startDate) {
+    start = new Date(startDate);
+  } else {
+    // Default to start of current month if no start date provided
+    start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  }
+
+  if (endDate) {
+    end = new Date(endDate);
+  } else {
+    // Default to today if no end date provided
+    end = new Date();
+    end.setHours(23, 59, 59, 999);
+  }
+
+  if (responses.length > 0 && !startDate && !endDate) {
+    const timestamps = responses.map((r) =>
+      new Date(getResponseTimestamp(r) || 0).getTime(),
+    );
+    const minTS = Math.min(...timestamps);
+    const maxTS = Math.max(...timestamps);
+    
+    // Expand range to include responses if they are outside current month
+    if (minTS < start.getTime()) start = new Date(minTS);
+    if (maxTS > end.getTime()) end = new Date(maxTS);
+  }
+
+  if (start && end) {
+    const curr = new Date(start);
+    curr.setDate(1);
+    const last = new Date(end);
+    last.setDate(1);
+
+    while (curr <= last) {
+      const monthKey = `${curr.getFullYear()}-${String(
+        curr.getMonth() + 1,
+      ).padStart(2, "0")}`;
+      monthMap.set(monthKey, { total: 0, rework: 0, accepted: 0 });
+      curr.setMonth(curr.getMonth() + 1);
+    }
+  }
+
+  responses.forEach((response) => {
+    const timestamp = getResponseTimestamp(response);
+    if (!timestamp) return;
+
+    const dateObj = new Date(timestamp);
+    const monthKey = `${dateObj.getFullYear()}-${String(
+      dateObj.getMonth() + 1,
+    ).padStart(2, "0")}`;
+
+    if (!monthMap.has(monthKey)) {
+      monthMap.set(monthKey, { total: 0, rework: 0, accepted: 0 });
+    }
+
+    const monthStats = monthMap.get(monthKey)!;
+    monthStats.total += 1;
+
+    if (response.answers) {
+      Object.values(response.answers).forEach((answer) => {
+        if (answer && typeof answer === "object" && answer.status) {
+          const status = String(answer.status).toLowerCase().trim();
+          if (
+            status === "rework" ||
+            status === "reworked" ||
+            status.includes("re-rework")
+          ) {
+            monthStats.rework += 1;
+          } else if (
+            status === "accepted" ||
+            status === "rework completed" ||
+            status === "verified" ||
+            status === "yes"
+          ) {
+            monthStats.accepted += 1;
+          }
+        } else if (answer) {
+          const answerStr = String(answer).toLowerCase().trim();
+          if (
+            answerStr === "rework" ||
+            answerStr === "reworked" ||
+            answerStr.includes("re-rework")
+          ) {
+            monthStats.rework += 1;
+          } else if (
+            answerStr === "accepted" ||
+            answerStr === "rework completed" ||
+            answerStr === "verified" ||
+            answerStr === "yes"
+          ) {
+            monthStats.accepted += 1;
+          }
+        }
+      });
+    }
+  });
+
+  return Array.from(monthMap.entries())
+    .map(([monthKey, stats]) => {
+      const [year, month] = monthKey.split("-");
+      const dateObj = new Date(parseInt(year), parseInt(month) - 1);
+      const formattedMonth = dateObj.toLocaleDateString("en-US", {
+        month: "short",
+        year: "numeric",
+      });
+      return {
+        date: formattedMonth,
+        dateKey: monthKey,
+        totalResponses: stats.total,
+        reworkCount: stats.rework,
+        acceptedCount: stats.accepted,
+      };
+    })
+    .sort((a, b) => (a.dateKey > b.dateKey ? 1 : -1));
+};
+
+const computeDirectAcceptedDailyStats = (
+  responses: Response[],
+  statuses: Record<string, string>,
+  startDate?: string,
+  endDate?: string,
+): { date: string; dateKey: string; directAcceptedPercentage: number; total: number; directCount: number }[] => {
+  const dailyMap = new Map<string, { total: number; directOk: number }>();
+
+  let start: Date | null = null;
+  let end: Date | null = null;
+
+  if (startDate) {
+    start = new Date(startDate);
+  } else {
+    start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+  }
+
+  if (endDate) {
+    end = new Date(endDate);
+  } else {
+    end = new Date();
+    end.setHours(23, 59, 59, 999);
+  }
+
+  if (start && end) {
+    const curr = new Date(start);
+    curr.setHours(0, 0, 0, 0);
+    const last = new Date(end);
+    last.setHours(0, 0, 0, 0);
+
+    while (curr <= last) {
+      const dKey = curr.toISOString().split("T")[0];
+      dailyMap.set(dKey, { total: 0, directOk: 0 });
+      curr.setDate(curr.getDate() + 1);
+    }
+  }
+
+  responses.forEach((response) => {
+    const timestamp = getResponseTimestamp(response);
+    if (!timestamp) return;
+
+    const dateKey = new Date(timestamp).toISOString().split("T")[0];
+    if (!dailyMap.has(dateKey)) {
+      dailyMap.set(dateKey, { total: 0, directOk: 0 });
+    }
+
+    const dayStats = dailyMap.get(dateKey)!;
+    dayStats.total += 1;
+    
+    if (statuses[response.id] === "Direct Ok") {
+      dayStats.directOk += 1;
+    }
+  });
+
+  return Array.from(dailyMap.entries())
+    .map(([dateKey, stats]) => {
+      const dateObj = new Date(dateKey);
+      const formattedDate = dateObj.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      });
+      return {
+        date: formattedDate,
+        dateKey,
+        directAcceptedPercentage: stats.total > 0 ? Math.round((stats.directOk / stats.total) * 100) : 0,
+        total: stats.total,
+        directCount: stats.directOk
+      };
+    })
+    .sort((a, b) => (a.dateKey > b.dateKey ? 1 : -1));
+};
+
 interface SectionStat {
   id: string;
   title: string;
@@ -1083,6 +1562,19 @@ export default function FormAnalyticsDashboard() {
     "dashboard" | "responses"
   >("dashboard");
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [defectStartDate, setDefectStartDate] = useState<string>("");
+  const [defectEndDate, setDefectEndDate] = useState<string>("");
+  const [trendStartDate, setTrendStartDate] = useState<string>("");
+  const [trendEndDate, setTrendEndDate] = useState<string>("");
+  const [qualityStartDate, setQualityStartDate] = useState<string>("");
+  const [qualityEndDate, setQualityEndDate] = useState<string>("");
+  const [sectionStartDate, setSectionStartDate] = useState<string>("");
+  const [sectionEndDate, setSectionEndDate] = useState<string>("");
+  const [directAcceptedStartDate, setDirectAcceptedStartDate] = useState<string>("");
+  const [directAcceptedEndDate, setDirectAcceptedEndDate] = useState<string>("");
+  const [chartOrientation, setChartOrientation] = useState<"v" | "h">("v");
+  const [timeSeriesView, setTimeSeriesView] = useState<"daily" | "monthly">("daily");
+  const [chartSortOrder, setChartSortOrder] = useState<"default" | "percentage">("percentage");
 
   const complianceLabels = useMemo(() => {
     const defaultLabels = { yes: "Yes", no: "No", na: "N/A" };
@@ -1366,32 +1858,25 @@ export default function FormAnalyticsDashboard() {
     return { correct, wrong };
   };
 
-  const filteredResponses = useMemo(() => {
+  const baseFilteredResponses = useMemo(() => {
     let result = responses;
 
     // 0. Role-based Filter (Inspector sees their own responses only)
     if (user?.role === "inspector") {
+      const userId = user._id || user.id;
+      const userIdStr = String(userId);
       const userEmail = user.email || "";
       const userUsername = user.username || "";
-      const userId = user._id || user.id;
 
       result = result.filter((r) => {
-        // Match by createdBy (strict - only if not null)
         const creatorId =
           typeof r.createdBy === "object"
             ? (r.createdBy as any)?._id || (r.createdBy as any)?.id
             : r.createdBy;
         const creatorIdStr = creatorId ? String(creatorId) : null;
-        const userIdStr = String(userId);
-
-        // Match by submittedBy (username or email) - only if NOT "Anonymous"
         const submittedBy = r.submittedBy || "";
-
-        // Match by submitterContact.email
         const submitterEmail = r.submitterContact?.email || "";
 
-        // Return true ONLY if we have a strict match (not null createdBy)
-        // This ensures inspectors only see their OWN responses
         return (
           creatorIdStr === userIdStr ||
           (submittedBy !== "Anonymous" &&
@@ -1403,7 +1888,64 @@ export default function FormAnalyticsDashboard() {
       });
     }
 
-    // 1. Date Filter
+    // 2. Location Filter
+    if (locationFilter.length > 0) {
+      result = result.filter((response) => {
+        const meta = response.submissionMetadata?.location;
+        if (!meta) return false;
+        const city = meta.city || "";
+        const country = meta.country || "";
+        const locationStr =
+          city && country ? `${city}, ${country}` : country || "Unknown";
+        return locationFilter.includes(locationStr);
+      });
+    }
+
+    // 3. Cascading Question Filters
+    const cascadingFiltersArray = Object.entries(cascadingFilters).filter(
+      ([_, answers]) => answers.length > 0,
+    );
+
+    if (cascadingFiltersArray.length > 0) {
+      result = result.filter((response) => {
+        return cascadingFiltersArray.every(([questionId, selectedAnswers]) => {
+          const answer = response.answers?.[questionId];
+          if (answer === null || answer === undefined) return false;
+          
+          if (Array.isArray(answer)) {
+            return answer.some((a) => selectedAnswers.includes(String(a)));
+          }
+          if (typeof answer === "object" && answer.status) {
+            return selectedAnswers.includes(String(answer.status));
+          }
+          return selectedAnswers.includes(String(answer));
+        });
+      });
+    }
+
+    // 4. Column Filters
+    const activeColumnFilters = Object.entries(columnFilters).filter(
+      ([_, values]) => values && values.length > 0,
+    );
+
+    if (activeColumnFilters.length > 0) {
+      result = result.filter((response) => {
+        return activeColumnFilters.every(([columnId, allowedValues]) => {
+          if (!allowedValues) return true;
+          const answer = response.answers?.[columnId];
+          const val = answer === null || answer === undefined ? "No Response" : String(answer);
+          return allowedValues.includes(val);
+        });
+      });
+    }
+
+    return result;
+  }, [responses, user, locationFilter, cascadingFilters, columnFilters]);
+
+  const filteredResponses = useMemo(() => {
+    let result = baseFilteredResponses;
+
+    // 1. Global Date Filter
     if (dateFilter.type !== "all") {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
@@ -1426,111 +1968,8 @@ export default function FormAnalyticsDashboard() {
       });
     }
 
-    // 2. Location Filter
-    if (locationFilter.length > 0) {
-      result = result.filter((response) => {
-        const meta = response.submissionMetadata?.location;
-        if (!meta) return false;
-
-        const city = meta.city || "";
-        const country = meta.country || "";
-        const locationStr =
-          city && country ? `${city}, ${country}` : country || "Unknown";
-
-        return locationFilter.includes(locationStr);
-      });
-    }
-
-    // 3. Cascading Question Filters
-    const cascadingFiltersArray = Object.entries(cascadingFilters).filter(
-      ([_, answers]) => answers.length > 0,
-    );
-
-    if (cascadingFiltersArray.length > 0) {
-      // Create a map of all questions for quick lookup
-      const allQuestionsMap = new Map();
-      form?.sections?.forEach(section => {
-        section.questions?.forEach(q => {
-          allQuestionsMap.set(q.id, q);
-        });
-      });
-      form?.followUpQuestions?.forEach(q => {
-        allQuestionsMap.set(q.id, q);
-      });
-
-      result = result.filter((response) => {
-        return cascadingFiltersArray.every(([questionId, selectedAnswers]) => {
-          const answer = response.answers[questionId];
-          if (!answer) return false;
-
-          const question = allQuestionsMap.get(questionId);
-
-          if (question?.type === 'chassis-with-zone') {
-            const zones = Array.isArray(answer.zone) ? answer.zone : [answer.zone];
-            return zones.some((z: string) => 
-              selectedAnswers.some(sel => String(z || '').toLowerCase() === String(sel || '').toLowerCase())
-            );
-          } else if (question?.type === 'chassis-without-zone') {
-            return selectedAnswers.some(sel => String(answer.chassisNumber || '').toLowerCase() === String(sel || '').toLowerCase());
-          }
-
-          // Handle different answer types
-          if (Array.isArray(answer)) {
-            return answer.some((item) =>
-              selectedAnswers.some(
-                (selectedAnswer) =>
-                  String(item).toLowerCase() === selectedAnswer.toLowerCase(),
-              ),
-            );
-          }
-          return selectedAnswers.some(
-            (selectedAnswer) =>
-              String(answer).toLowerCase() === selectedAnswer.toLowerCase(),
-          );
-        });
-      });
-    }
-
-    // 4. Column Filters (Excel-like filtering)
-    const columnFiltersArray = Object.entries(columnFilters).filter(
-      ([_, values]) => values !== null && values.length > 0,
-    );
-
-    if (columnFiltersArray.length > 0) {
-      result = result.filter((response) => {
-        return columnFiltersArray.every(([questionId, selectedValues]) => {
-          const answer = response.answers[questionId];
-
-          if (selectedValues === null || selectedValues.length === 0) {
-            return true;
-          }
-
-          if (answer === null || answer === undefined) {
-            return selectedValues.includes("");
-          }
-
-          // Handle different answer types
-          if (Array.isArray(answer)) {
-            return answer.some((item) =>
-              selectedValues.some(
-                (selectedValue) =>
-                  String(item).trim().toLowerCase() ===
-                  selectedValue.toLowerCase(),
-              ),
-            );
-          }
-
-          return selectedValues.some(
-            (selectedValue) =>
-              String(answer).trim().toLowerCase() ===
-              selectedValue.toLowerCase(),
-          );
-        });
-      });
-    }
-
     return result;
-  }, [responses, cascadingFilters, dateFilter, locationFilter, columnFilters]);
+  }, [baseFilteredResponses, dateFilter]);
 
   // Find the primary chassis question to identify unique items/vehicles
   const chassisQuestionId = useMemo(() => {
@@ -1560,7 +1999,7 @@ export default function FormAnalyticsDashboard() {
 
   // Calculate sequential status (Direct Ok, Rework 1, Rework 2, etc.)
   const responseStatuses = useMemo(() => {
-    if (!filteredResponses.length) {
+    if (!baseFilteredResponses.length) {
       return {};
     }
 
@@ -1568,7 +2007,7 @@ export default function FormAnalyticsDashboard() {
     const itemGroups: Record<string, Response[]> = {};
 
     // Sort responses by timestamp ascending to determine sequential order
-    const sortedResponses = [...filteredResponses].sort((a, b) => {
+    const sortedResponses = [...baseFilteredResponses].sort((a, b) => {
       const tA = new Date(getResponseTimestamp(a) || 0).getTime();
       const tB = new Date(getResponseTimestamp(b) || 0).getTime();
       return tA - tB;
@@ -1608,43 +2047,45 @@ export default function FormAnalyticsDashboard() {
         let isRejected = false;
 
         // Check individual answers for inspection status
-        Object.values(r.answers).forEach((ans) => {
-          if (typeof ans === "object" && ans !== null && (ans as any).status) {
-            const s = String((ans as any).status).toLowerCase().trim();
-            if (
-              s === "rework" ||
-              s === "reworked" ||
-              s.includes("re-rework")
-            ) {
-              isRework = true;
-            } else if (
-              s === "accepted" ||
-              s === "rework completed" ||
-              s === "verified"
-            ) {
-              isAccepted = true;
-            } else if (s === "rejected") {
-              isRejected = true;
+        if (r.answers) {
+          Object.values(r.answers).forEach((ans) => {
+            if (typeof ans === "object" && ans !== null && (ans as any).status) {
+              const s = String((ans as any).status).toLowerCase().trim();
+              if (
+                s === "rework" ||
+                s === "reworked" ||
+                s.includes("re-rework")
+              ) {
+                isRework = true;
+              } else if (
+                s === "accepted" ||
+                s === "rework completed" ||
+                s === "verified"
+              ) {
+                isAccepted = true;
+              } else if (s === "rejected") {
+                isRejected = true;
+              }
+            } else if (typeof ans === "string") {
+              const s = ans.toLowerCase().trim();
+              if (
+                s === "rework" ||
+                s === "reworked" ||
+                s.includes("re-rework")
+              ) {
+                isRework = true;
+              } else if (
+                s === "accepted" ||
+                s === "rework completed" ||
+                s === "verified"
+              ) {
+                isAccepted = true;
+              } else if (s === "rejected") {
+                isRejected = true;
+              }
             }
-          } else if (typeof ans === "string") {
-            const s = ans.toLowerCase().trim();
-            if (
-              s === "rework" ||
-              s === "reworked" ||
-              s.includes("re-rework")
-            ) {
-              isRework = true;
-            } else if (
-              s === "accepted" ||
-              s === "rework completed" ||
-              s === "verified"
-            ) {
-              isAccepted = true;
-            } else if (s === "rejected") {
-              isRejected = true;
-            }
-          }
-        });
+          });
+        }
 
         const rank = chassisQuestionId ? r.responseRanks?.[chassisQuestionId] : null;
 
@@ -1671,7 +2112,7 @@ export default function FormAnalyticsDashboard() {
     });
 
     return statuses;
-  }, [filteredResponses, chassisQuestionId]);
+  }, [baseFilteredResponses, chassisQuestionId]);
 
   const analytics = useMemo(() => {
     const total = filteredResponses.length;
@@ -1739,6 +2180,56 @@ export default function FormAnalyticsDashboard() {
       percentageData,
     };
   }, [filteredResponses]);
+
+  const qualityChartResponses = useMemo(() => {
+    let result = [...filteredResponses];
+    if (qualityStartDate || qualityEndDate) {
+      result = result.filter((response) => {
+        const timestamp = getResponseTimestamp(response);
+        if (!timestamp) return false;
+        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        if (qualityStartDate && qualityEndDate) {
+          return responseDate >= qualityStartDate && responseDate <= qualityEndDate;
+        } else if (qualityStartDate) {
+          return responseDate >= qualityStartDate;
+        } else if (qualityEndDate) {
+          return responseDate <= qualityEndDate;
+        }
+        return true;
+      });
+    }
+    return result;
+  }, [filteredResponses, qualityStartDate, qualityEndDate]);
+
+  const sectionChartResponses = useMemo(() => {
+    let result = [...filteredResponses];
+    if (sectionStartDate || sectionEndDate) {
+      result = result.filter((response) => {
+        const timestamp = getResponseTimestamp(response);
+        if (!timestamp) return false;
+        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        if (sectionStartDate && sectionEndDate) {
+          return responseDate >= sectionStartDate && responseDate <= sectionEndDate;
+        } else if (sectionStartDate) {
+          return responseDate >= sectionStartDate;
+        } else if (sectionEndDate) {
+          return responseDate <= sectionEndDate;
+        }
+        return true;
+      });
+    }
+    return result;
+  }, [filteredResponses, sectionStartDate, sectionEndDate]);
+
+  const qualitySectionPerformanceStats = useMemo(
+    () => computeSectionPerformanceStats(form, qualityChartResponses),
+    [form, qualityChartResponses],
+  );
+
+  const dashboardSectionPerformanceStats = useMemo(
+    () => computeSectionPerformanceStats(form, sectionChartResponses),
+    [form, sectionChartResponses],
+  );
 
   const sectionPerformanceStats = useMemo(
     () => computeSectionPerformanceStats(form, filteredResponses),
@@ -2531,9 +3022,17 @@ export default function FormAnalyticsDashboard() {
     [visibleSectionStats],
   );
 
+  const visibleDashboardSectionStats = useMemo(
+    () =>
+      dashboardSectionPerformanceStats.filter((stat) =>
+        selectedSectionIds.includes(stat.id),
+      ),
+    [dashboardSectionPerformanceStats, selectedSectionIds],
+  );
+
   const sectionSummaryRows = useMemo(
     () =>
-      visibleSectionStats
+      visibleDashboardSectionStats
         .map((stat) => {
           const rowYesCount = stat.yes + (stat.accepted || 0);
           const rowNoCount = stat.no + (stat.rejected || 0);
@@ -2557,7 +3056,7 @@ export default function FormAnalyticsDashboard() {
         })
         // Sort by Yes percentage in descending order
         .sort((a, b) => b.yesPercent - a.yesPercent),
-    [visibleSectionStats],
+    [visibleDashboardSectionStats],
   );
 
   const summaryTotals = useMemo(() => {
@@ -2577,30 +3076,53 @@ export default function FormAnalyticsDashboard() {
     );
   }, [sectionSummaryRows]);
 
-  // Add this after sectionSummaryRows calculation
+  const qualitySectionSummaryRows = useMemo(
+    () =>
+      qualitySectionPerformanceStats
+        .map((stat) => {
+          const rowYesCount = stat.yes + (stat.accepted || 0);
+          const rowNoCount = stat.no + (stat.rejected || 0);
+          const rowNaCount = stat.na + (stat.rework || 0);
+
+          const yesPercent = stat.total ? (rowYesCount / stat.total) * 100 : 0;
+          const noPercent = stat.total ? (rowNoCount / stat.total) * 100 : 0;
+          const naPercent = stat.total ? (rowNaCount / stat.total) * 100 : 0;
+
+          return {
+            id: stat.id,
+            title: stat.title,
+            yesPercent,
+            yesCount: rowYesCount,
+            noPercent,
+            noCount: rowNoCount,
+            naPercent,
+            naCount: rowNaCount,
+            total: stat.total,
+          };
+        }),
+    [qualitySectionPerformanceStats],
+  );
+
   const totalPieChartData = useMemo(() => {
-    if (sectionSummaryRows.length === 0) {
+    if (qualitySectionSummaryRows.length === 0) {
       return {
         yes: 0,
         no: 0,
         na: 0,
-        counts: { yes: 0, no: 0, na: 0, total: 0 }, // Ensure counts exists
+        counts: { yes: 0, no: 0, na: 0, total: 0 },
       };
     }
 
     let totalYes = 0;
     let totalNo = 0;
     let totalNA = 0;
-    let totalResponses = 0;
 
-    sectionSummaryRows.forEach((row) => {
+    qualitySectionSummaryRows.forEach((row) => {
       totalYes += row.yesCount;
       totalNo += row.noCount;
       totalNA += row.naCount;
-      totalResponses += row.total;
     });
 
-    // Calculate percentages
     const total = totalYes + totalNo + totalNA;
     const yesPercent = total > 0 ? (totalYes / total) * 100 : 0;
     const noPercent = total > 0 ? (totalNo / total) * 100 : 0;
@@ -2617,7 +3139,78 @@ export default function FormAnalyticsDashboard() {
         total: total,
       },
     };
-  }, [sectionSummaryRows]);
+  }, [qualitySectionSummaryRows]);
+
+  const questionPerformanceStats = useMemo(
+    () => computeQuestionPerformanceStats(form, filteredResponses),
+    [form, filteredResponses],
+  );
+
+  const defectChartResponses = useMemo(() => {
+    let result = [...filteredResponses];
+
+    if (defectStartDate || defectEndDate) {
+      result = result.filter((response) => {
+        const timestamp = getResponseTimestamp(response);
+        if (!timestamp) return false;
+        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        
+        if (defectStartDate && defectEndDate) {
+          return responseDate >= defectStartDate && responseDate <= defectEndDate;
+        } else if (defectStartDate) {
+          return responseDate >= defectStartDate;
+        } else if (defectEndDate) {
+          return responseDate <= defectEndDate;
+        }
+        return true;
+      });
+    }
+
+    result.sort((a, b) => {
+      const dateA = new Date(getResponseTimestamp(a) || 0).getTime();
+      const dateB = new Date(getResponseTimestamp(b) || 0).getTime();
+      return dateB - dateA;
+    });
+    
+    if (!defectStartDate && !defectEndDate) {
+      return result.slice(0, 20);
+    }
+    
+    return result;
+  }, [filteredResponses, defectStartDate, defectEndDate]);
+
+  const trendChartResponses = useMemo(() => {
+    let result = [...filteredResponses];
+
+    if (trendStartDate || trendEndDate) {
+      result = result.filter((response) => {
+        const timestamp = getResponseTimestamp(response);
+        if (!timestamp) return false;
+        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        
+        if (trendStartDate && trendEndDate) {
+          return responseDate >= trendStartDate && responseDate <= trendEndDate;
+        } else if (trendStartDate) {
+          return responseDate >= trendStartDate;
+        } else if (trendEndDate) {
+          return responseDate <= trendEndDate;
+        }
+        return true;
+      });
+    }
+
+    result.sort((a, b) => {
+      const dateA = new Date(getResponseTimestamp(a) || 0).getTime();
+      const dateB = new Date(getResponseTimestamp(b) || 0).getTime();
+      return dateA - dateB; // Sort ascending for trend
+    });
+    
+    return result;
+  }, [filteredResponses, trendStartDate, trendEndDate]);
+
+  const chartQuestionPerformanceStats = useMemo(() => {
+    return computeQuestionPerformanceStats(form, defectChartResponses);
+  }, [form, defectChartResponses]);
 
   const sectionChartHeight = Math.max(320, visibleSectionStats.length * 56);
 
@@ -2715,18 +3308,41 @@ export default function FormAnalyticsDashboard() {
 
     return (
       <div className="p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center">
-            <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg mr-1.5">
-              <PieChart className="w-4 h-4 text-white" />
+        <div className="flex flex-col gap-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg mr-1.5">
+                <PieChart className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-primary-900 dark:text-white">
+                  Overall Response Quality
+                </h2>
+                <p className="text-xs text-primary-500 dark:text-primary-400">
+                  {complianceLabels.yes}/{complianceLabels.no}/{complianceLabels.na} Distribution
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-primary-900 dark:text-white">
-                Overall Response Quality
-              </h2>
-              <p className="text-xs text-primary-500 dark:text-primary-400">
-                {complianceLabels.yes}/{complianceLabels.no}/{complianceLabels.na} Distribution
-              </p>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">From:</span>
+              <input
+                type="date"
+                value={qualityStartDate}
+                onChange={(e) => setQualityStartDate(e.target.value)}
+                className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-purple-500 text-slate-700 dark:text-slate-200"
+              />
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">To:</span>
+              <input
+                type="date"
+                value={qualityEndDate}
+                onChange={(e) => setQualityEndDate(e.target.value)}
+                className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-purple-500 text-slate-700 dark:text-slate-200"
+              />
             </div>
           </div>
         </div>
@@ -2794,6 +3410,586 @@ export default function FormAnalyticsDashboard() {
               </div>
             </>
           )}
+        </div>
+      </div>
+    );
+  };
+
+  const QuestionStatusDistributionChart = () => {
+    // Filter and Sort questions based on issue volume
+    const processedQuestions = useMemo(() => {
+      let filtered = chartQuestionPerformanceStats.filter((q) => q.rejected > 0 || q.rework > 0);
+      
+      if (chartSortOrder === "percentage") {
+        filtered = [...filtered].sort((a, b) => {
+          const percentA = ((a.rejected + a.rework) / a.total) * 100;
+          const percentB = ((b.rejected + b.rework) / b.total) * 100;
+          return percentB - percentA;
+        });
+      }
+      
+      return filtered.slice(0, 20);
+    }, [chartQuestionPerformanceStats, chartSortOrder]);
+
+    const dateRangeLabel = useMemo(() => {
+      if (defectChartResponses.length === 0) return "";
+      const timestamps = defectChartResponses.map(r => new Date(getResponseTimestamp(r) || 0).getTime());
+      const minDate = new Date(Math.min(...timestamps));
+      const maxDate = new Date(Math.max(...timestamps));
+      
+      const format = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      
+      if (format(minDate) === format(maxDate)) return format(minDate);
+      return `${format(minDate)} - ${format(maxDate)}`;
+    }, [defectChartResponses]);
+
+    if (!processedQuestions.length && !defectStartDate && !defectEndDate) return null;
+
+    const data = {
+      labels: processedQuestions.map((q) =>
+        q.text.length > 25 ? q.text.substring(0, 25) + "..." : q.text,
+      ),
+      datasets: [
+        {
+          label: complianceLabels.no,
+          data: processedQuestions.map(
+            (q) => (q.rejected / q.total) * 100,
+          ),
+          backgroundColor: "rgba(153, 27, 27, 0.85)", // Dark Red
+          borderColor: "rgb(127, 29, 29)",
+          borderWidth: 1,
+          barPercentage: processedQuestions.length <= 2 ? 0.3 : 0.7,
+          categoryPercentage: 0.8,
+          datalabels: {
+            color: "#ffffff",
+            font: { weight: "bold" as const, size: 10 },
+            formatter: (value: number, context: any) => {
+              if (value < 5) return "";
+              const q = processedQuestions[context.dataIndex];
+              return `${value.toFixed(0)}%\n(${q.rejected})`;
+            },
+            textAlign: "center" as const,
+          },
+        },
+        {
+          label: complianceLabels.na,
+          data: processedQuestions.map((q) => (q.rework / q.total) * 100),
+          backgroundColor: "rgba(55, 65, 81, 0.85)", // Dark Gray
+          borderColor: "rgb(31, 41, 55)",
+          borderWidth: 1,
+          barPercentage: processedQuestions.length <= 2 ? 0.3 : 0.7,
+          categoryPercentage: 0.8,
+          datalabels: {
+            color: "#ffffff",
+            font: { weight: "bold" as const, size: 10 },
+            formatter: (value: number, context: any) => {
+              if (value < 5) return "";
+              const q = processedQuestions[context.dataIndex];
+              return `${value.toFixed(0)}%\n(${q.rework})`;
+            },
+            textAlign: "center" as const,
+          },
+        },
+      ],
+    };
+
+    const options = {
+      indexAxis: chartOrientation === "h" ? "y" as const : "x" as const,
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom" as const,
+          labels: {
+            color: document.documentElement.classList.contains("dark")
+              ? "#e5e7eb"
+              : "#374151",
+            font: { size: 11, weight: "bold" as const },
+            padding: 20,
+            usePointStyle: true,
+          },
+        },
+        datalabels: {
+          display: (context: any) => {
+            return context.dataset.data[context.dataIndex] > 0;
+          },
+        },
+        tooltip: {
+          backgroundColor: "rgba(0, 0, 0, 0.8)",
+          padding: 12,
+          cornerRadius: 8,
+          callbacks: {
+            label: function (context: any) {
+              const q = processedQuestions[context.dataIndex];
+              const value = context.raw.toFixed(1);
+              let count = 0;
+              if (context.datasetIndex === 0) count = q.rejected;
+              else if (context.datasetIndex === 1) count = q.rework;
+              return `${context.dataset.label}: ${value}% (${count} responses)`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: {
+            color: document.documentElement.classList.contains("dark")
+              ? "#e5e7eb"
+              : "#374151",
+            font: { size: 10, weight: "600" as const },
+            maxRotation: chartOrientation === "v" ? 45 : 0,
+            minRotation: 0,
+          },
+          grid: {
+            display: false,
+          },
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          max: 100,
+          ticks: {
+            callback: (value: any) => value + "%",
+            color: document.documentElement.classList.contains("dark")
+              ? "#9ca3af"
+              : "#6b7280",
+            font: { size: 10 },
+          },
+          grid: {
+            color: document.documentElement.classList.contains("dark")
+              ? "rgba(255, 255, 255, 0.05)"
+              : "rgba(0, 0, 0, 0.03)",
+          },
+        },
+      },
+    };
+
+    const containerStyle = chartOrientation === "h" 
+      ? { height: `${Math.max(450, processedQuestions.length * 40)}px` }
+      : { height: "450px" };
+
+    return (
+      <div className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center">
+            <div className="p-2 bg-gradient-to-br from-red-600 to-slate-700 rounded-lg mr-2">
+              <BarChart3 className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                Defect Distribution
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                {complianceLabels.no} & {complianceLabels.na} volume ({dateRangeLabel})
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Sort Toggle */}
+            <div className="flex items-center bg-slate-100 dark:bg-gray-700 p-1 rounded-lg">
+              <button
+                onClick={() => setChartSortOrder("default")}
+                className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${
+                  chartSortOrder === "default" 
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm" 
+                  : "text-slate-500"
+                }`}
+              >
+                FORM ORDER
+              </button>
+              <button
+                onClick={() => setChartSortOrder("percentage")}
+                className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${
+                  chartSortOrder === "percentage" 
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm" 
+                  : "text-slate-500"
+                }`}
+              >
+                BY ISSUE %
+              </button>
+            </div>
+
+            {/* Orientation Toggle */}
+            <div className="flex items-center bg-slate-100 dark:bg-gray-700 p-1 rounded-lg">
+              <button
+                onClick={() => setChartOrientation("v")}
+                title="Vertical View"
+                className={`p-1 rounded transition-all ${
+                  chartOrientation === "v" 
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm" 
+                  : "text-slate-500"
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2" />
+                </svg>
+              </button>
+              <button
+                onClick={() => setChartOrientation("h")}
+                title="Horizontal View"
+                className={`p-1 rounded transition-all ${
+                  chartOrientation === "h" 
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm" 
+                  : "text-slate-500"
+                }`}
+              >
+                <svg className="w-4 h-4 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From:</span>
+              <input
+                type="date"
+                value={defectStartDate}
+                onChange={(e) => setDefectStartDate(e.target.value)}
+                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+              />
+            </div>
+            
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To:</span>
+              <input
+                type="date"
+                value={defectEndDate}
+                onChange={(e) => setDefectEndDate(e.target.value)}
+                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+              />
+            </div>
+          </div>
+        </div>
+        
+        {processedQuestions.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center min-h-[300px] text-center p-8">
+            <div className="p-4 bg-slate-50 dark:bg-gray-800/50 rounded-full mb-4">
+              <CheckCircle className="w-12 h-12 text-green-500 opacity-50" />
+            </div>
+            <h4 className="text-slate-900 dark:text-white font-bold mb-1">No Defects Found</h4>
+            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs">
+              No rejected or rework responses were found for your current selection.
+            </p>
+          </div>
+        ) : (
+          <div className={chartOrientation === "h" ? "overflow-y-auto" : "w-full"}>
+            <div style={containerStyle}>
+              <Bar data={data} options={options} />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const TimeBasedPerformanceGraph = () => {
+    const timeData = useMemo(() => {
+      if (timeSeriesView === "monthly") {
+        return computeMonthlyPerformanceStats(
+          trendChartResponses,
+          trendStartDate,
+          trendEndDate,
+        );
+      }
+      return computeDailyPerformanceStats(
+        trendChartResponses,
+        trendStartDate,
+        trendEndDate,
+      );
+    }, [trendChartResponses, timeSeriesView, trendStartDate, trendEndDate]);
+
+    if (timeData.length === 0) return null;
+
+    const data = {
+      labels: timeData.map((s) => s.date),
+      datasets: [
+        {
+          label: "Total Responses",
+          data: timeData.map((s) => s.totalResponses),
+          borderColor: "rgb(55, 65, 81)", // Dark Gray
+          backgroundColor: "rgba(55, 65, 81, 0.1)",
+          borderWidth: 3,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: "rgb(55, 65, 81)",
+          fill: true,
+          datalabels: {
+            color: darkMode ? "#e5e7eb" : "#374151",
+            align: "top" as const,
+            offset: 4,
+            font: { weight: "bold" as const, size: 10 },
+            formatter: (value: number) => (value > 0 ? value : ""),
+          },
+        },
+        {
+          label: "Rework Received",
+          data: timeData.map((s) => s.reworkCount),
+          borderColor: "rgb(153, 27, 27)", // Dark Red
+          backgroundColor: "rgba(153, 27, 27, 0.1)",
+          borderWidth: 3,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: "rgb(153, 27, 27)",
+          fill: true,
+          datalabels: {
+            color: "rgb(153, 27, 27)",
+            align: "bottom" as const,
+            offset: 4,
+            font: { weight: "bold" as const, size: 10 },
+            formatter: (value: number) => (value > 0 ? value : ""),
+          },
+        },
+      ],
+    };
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom" as const,
+          labels: {
+            color: darkMode ? "#e5e7eb" : "#374151",
+            font: { size: 11, weight: "bold" as const },
+            usePointStyle: true,
+            padding: 20,
+          },
+        },
+        tooltip: {
+          mode: "index" as const,
+          intersect: false,
+          backgroundColor: darkMode ? "#1f2937" : "#ffffff",
+          titleColor: darkMode ? "#ffffff" : "#111827",
+          bodyColor: darkMode ? "#d1d5db" : "#374151",
+          borderColor: darkMode ? "#374151" : "#e5e7eb",
+          borderWidth: 1,
+          padding: 12,
+          cornerRadius: 8,
+        },
+        datalabels: {
+          display: true,
+        },
+      },
+      scales: {
+        x: {
+          grid: {
+            display: false,
+          },
+          ticks: {
+            color: darkMode ? "#e5e7eb" : "#374151",
+            font: { size: 10, weight: "500" as const },
+          },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            color: darkMode ? "#9ca3af" : "#6b7280",
+            font: { size: 10 },
+          },
+          grid: {
+            color: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+          },
+        },
+      },
+      interaction: {
+        mode: "nearest" as const,
+        axis: "x" as const,
+        intersect: false,
+      },
+    };
+
+    return (
+      <div className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center">
+            <div className="p-2 bg-gradient-to-br from-slate-700 to-red-600 rounded-lg mr-2">
+              <TrendingUp className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+                Performance Trend
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Response volume and rework frequency over time
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center bg-slate-100 dark:bg-gray-700 p-1 rounded-lg">
+              <button
+                onClick={() => setTimeSeriesView("daily")}
+                className={`px-3 py-1 text-[10px] font-bold rounded transition-all ${
+                  timeSeriesView === "daily"
+                    ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                    : "text-slate-500"
+                }`}
+              >
+                DAILY
+              </button>
+              <button
+                onClick={() => setTimeSeriesView("monthly")}
+                className={`px-3 py-1 text-[10px] font-bold rounded transition-all ${
+                  timeSeriesView === "monthly"
+                    ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                    : "text-slate-500"
+                }`}
+              >
+                MONTHLY
+              </button>
+            </div>
+
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From:</span>
+              <input
+                type="date"
+                value={trendStartDate}
+                onChange={(e) => setTrendStartDate(e.target.value)}
+                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+              />
+            </div>
+            
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To:</span>
+              <input
+                type="date"
+                value={trendEndDate}
+                onChange={(e) => setTrendEndDate(e.target.value)}
+                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+              />
+            </div>
+          </div>
+        </div>
+        <div style={{ height: "400px" }}>
+          <Line data={data} options={options} />
+        </div>
+      </div>
+    );
+  };
+
+  const DirectAcceptedPerformanceGraph = () => {
+    const timeData = useMemo(() => {
+      return computeDirectAcceptedDailyStats(
+        baseFilteredResponses,
+        responseStatuses,
+        directAcceptedStartDate,
+        directAcceptedEndDate,
+      );
+    }, [baseFilteredResponses, responseStatuses, directAcceptedStartDate, directAcceptedEndDate]);
+
+    if (timeData.length === 0) return null;
+
+    const data = {
+      labels: timeData.map((s) => s.date),
+      datasets: [
+        {
+          label: "Direct Accepted %",
+          data: timeData.map((s) => s.directAcceptedPercentage),
+          backgroundColor: "rgba(34, 197, 94, 0.7)", // Green-500
+          borderColor: "rgb(21, 128, 61)", // Green-700
+          borderWidth: 1,
+          borderRadius: 4,
+          datalabels: {
+            color: "#fff",
+            anchor: "center" as const,
+            align: "center" as const,
+            formatter: (value: number) => (value > 0 ? value + "%" : ""),
+            font: { weight: "bold" as const, size: 10 },
+          },
+        },
+      ],
+    };
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          callbacks: {
+            label: (context: any) => {
+              const item = timeData[context.dataIndex];
+              return `Direct Accepted: ${item.directAcceptedPercentage}% (${item.directCount}/${item.total})`;
+            },
+          },
+        },
+        datalabels: {
+          display: true,
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          max: 100,
+          ticks: {
+            callback: (value: any) => value + "%",
+            color: darkMode ? "#9ca3af" : "#6b7280",
+          },
+          grid: {
+            color: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+          },
+        },
+        x: {
+          ticks: {
+            color: darkMode ? "#9ca3af" : "#6b7280",
+          },
+          grid: {
+            display: false,
+          },
+        },
+      },
+    };
+
+    return (
+      <div id="direct-accepted-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center">
+            <div className="p-2 bg-gradient-to-br from-green-600 to-green-800 rounded-lg mr-2">
+              <CheckCircle className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+                Direct Accepted Trend
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Percentage of responses accepted on first inspection
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From:</span>
+              <input
+                type="date"
+                value={directAcceptedStartDate}
+                onChange={(e) => setDirectAcceptedStartDate(e.target.value)}
+                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+              />
+            </div>
+            
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To:</span>
+              <input
+                type="date"
+                value={directAcceptedEndDate}
+                onChange={(e) => setDirectAcceptedEndDate(e.target.value)}
+                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+              />
+            </div>
+          </div>
+        </div>
+        <div style={{ height: "400px" }}>
+          <Bar data={data} options={options} />
         </div>
       </div>
     );
@@ -3346,18 +4542,27 @@ export default function FormAnalyticsDashboard() {
   }
 
   return (
-    <div className="px-4 py-3 space-y-3" id="analytics-scroll-container">
+    <div className="p-4 sm:p-6 space-y-6 bg-gray-50 dark:bg-gray-950 min-h-screen" id="analytics-scroll-container">
       {/* Header with Tabs - Single Row */}
       {form && (
-        <div className="flex items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-700">
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+        <div className="bg-white dark:bg-gray-900 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4 w-full md:w-auto">
+            {!isGuest && (
+              <button
+                onClick={() => navigate(-1)}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                title="Go back"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+            )}
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">
               {form?.title || "Form"}
             </h1>
           </div>
 
           {/* Tabs - Center */}
-          <div className="flex items-center gap-1 flex-1 justify-center overflow-x-auto px-4">
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 max-w-full">
             {!isInspector && (
               <>
                 <button
@@ -3486,15 +4691,6 @@ export default function FormAnalyticsDashboard() {
             >
               <Download className="w-4 h-4" />
             </button>
-            {!isGuest && (
-              <button
-                onClick={() => navigate(-1)}
-                className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                title="Go back"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-            )}
             {isGuest && (
               <button
                 onClick={handleLogout}
@@ -3509,9 +4705,9 @@ export default function FormAnalyticsDashboard() {
 
       {/* Dashboard View */}
       {analyticsView === "dashboard" && (
-        <>
+        <div className="space-y-6">
           <div
-            className="flex items-center justify-center min-h-screen px-4 py-24"
+            className="w-full"
             id="summary-cards"
           >
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
@@ -3639,7 +4835,18 @@ export default function FormAnalyticsDashboard() {
               <OverallQualityPieChart />
             </div>
           </div>
-        </>
+
+          {/* Question Distribution Chart */}
+          {questionPerformanceStats.length > 0 && (
+            <div className="w-full" id="question-distribution-card">
+              <div className="w-full space-y-6">
+                <QuestionStatusDistributionChart />
+                <TimeBasedPerformanceGraph />
+                <DirectAcceptedPerformanceGraph />
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {form && (
@@ -3668,6 +4875,28 @@ export default function FormAnalyticsDashboard() {
                         Section Summary with Visualization
                       </h3>
                       <div className="flex items-center gap-2">
+                        {/* Section Date Filters */}
+                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 p-1 rounded border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">From:</span>
+                            <input
+                              type="date"
+                              value={sectionStartDate}
+                              onChange={(e) => setSectionStartDate(e.target.value)}
+                              className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">To:</span>
+                            <input
+                              type="date"
+                              value={sectionEndDate}
+                              onChange={(e) => setSectionEndDate(e.target.value)}
+                              className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                            />
+                          </div>
+                        </div>
+
                         {/* Section Selection Dropdown */}
                         <div className="relative">
                           <button
@@ -4024,11 +5253,11 @@ export default function FormAnalyticsDashboard() {
                                   <span>TOTAL</span>
                                 </td>
                                 <td className="text-center px-3 py-2.5 text-gray-900 dark:text-gray-100 font-bold">
-                                  {summaryTotals.total}
+                                  {summaryTotals?.total || 0}
                                 </td>
                                 <td className="text-center px-3 py-2.5 text-green-600 dark:text-green-400 font-bold">
-                                  {summaryTotals.yesCount} (
-                                  {summaryTotals.total > 0
+                                  {summaryTotals?.yesCount || 0} (
+                                  {summaryTotals?.total > 0
                                     ? (
                                         (summaryTotals.yesCount /
                                           summaryTotals.total) *
@@ -4038,8 +5267,8 @@ export default function FormAnalyticsDashboard() {
                                   %)
                                 </td>
                                 <td className="text-center px-3 py-2.5 text-red-600 dark:text-red-400 font-bold">
-                                  {summaryTotals.noCount} (
-                                  {summaryTotals.total > 0
+                                  {summaryTotals?.noCount || 0} (
+                                  {summaryTotals?.total > 0
                                     ? (
                                         (summaryTotals.noCount /
                                           summaryTotals.total) *
@@ -4049,8 +5278,8 @@ export default function FormAnalyticsDashboard() {
                                   %)
                                 </td>
                                 <td className="text-center px-3 py-2.5 text-slate-600 dark:text-slate-400 font-bold">
-                                  {summaryTotals.naCount} (
-                                  {summaryTotals.total > 0
+                                  {summaryTotals?.naCount || 0} (
+                                  {summaryTotals?.total > 0
                                     ? (
                                         (summaryTotals.naCount /
                                           summaryTotals.total) *
@@ -5669,8 +6898,8 @@ export default function FormAnalyticsDashboard() {
 
       {/* Comparison View - Last 3 Responses */}
       {analyticsView === "comparison" && (
-        <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-          <div className="px-6 md:px-8 py-6">
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-xl border border-gray-200 dark:border-gray-800">
+          <div className="p-4 sm:p-6">
             {/* View Mode Tabs */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex gap-1 bg-white dark:bg-gray-700 rounded-lg p-1 w-fit border border-gray-200 dark:border-gray-600">

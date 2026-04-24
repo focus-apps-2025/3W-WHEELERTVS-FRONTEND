@@ -64,10 +64,10 @@ export default function LoginPage() {
   const socialIcons = [Chrome, Facebook, Github, Linkedin];
 
   return (
-    <div className="min-h-screen w-full flex flex-col md:flex-row bg-white font-sans overflow-hidden">
+    <div className="min-h-screen md:h-screen w-full flex flex-col md:flex-row bg-white font-sans overflow-x-hidden">
 
       {/* Left Side: Welcome Panel - Full Height, Blue Background, Smaller Curve */}
-      <div className="w-full md:w-1/2 bg-[#1e3a8a] text-white p-8 md:p-12 flex flex-col justify-center items-center text-center relative z-20 rounded-b-[3rem] md:rounded-b-none md:rounded-r-[10rem]">
+      <div className="w-full md:w-1/2 flex-none md:flex-1 bg-[#1e3a8a] text-white p-8 md:p-12 flex flex-col justify-center items-center text-center relative z-20 rounded-b-[3rem] md:rounded-b-none md:rounded-r-[10rem] min-h-[40vh] md:min-h-0">
         <div className="max-w-md animate-in fade-in slide-in-from-left-8 duration-700">
           <h1 className="text-3xl md:text-4xl font-bold mb-4">Hello, Welcome!</h1>
           <p className="text-blue-100 text-base md:text-lg mb-4 font-light font-sans">
@@ -83,7 +83,7 @@ export default function LoginPage() {
       </div>
 
       {/* Right Side: Login Form - Centered on White Background */}
-      <div className="w-full md:w-1/2 flex items-center justify-center p-8 md:p-12 bg-white z-10">
+      <div className="w-full md:w-1/2 flex-1 flex items-center justify-center p-8 md:p-12 bg-white z-10 overflow-y-auto">
         <div className="w-full max-w-sm animate-in fade-in slide-in-from-right-8 duration-700">
           <div className="mb-8">
             <h2 className="text-3xl font-bold text-gray-800 mb-1">Login</h2>

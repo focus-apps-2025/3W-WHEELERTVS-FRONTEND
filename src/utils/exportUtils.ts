@@ -860,7 +860,7 @@ export function downloadNestedFormImportTemplate() {
     "Subsection Of: Enter the parent section number (e.g., '1' to make this section a subsection of section 1)",
     "The question text to ask",
     "Additional details about the question",
-    "Type: text, paragraph, radio, checkbox, search-select, yesNoNA, file, chassis-with-zone, chassis-without-zone",
+    "Type: text, paragraph, radio, checkbox, search-select, yesNoNA, file, chassis-with-zone, chassis-without-zone, zone-in, zone-out",
     "TRUE/FALSE - is this question required?",
     "For choice questions: Option 1, Option 2, Option 3 (comma-separated)",
     "Jump to Section for Option 1: number (e.g. 2), 'end', or '0' (none)",
@@ -1694,7 +1694,7 @@ export function downloadFormImportTemplate() {
     "Subsection Of: Enter the parent section number (e.g., '1' to make this section a subsection of section 1)",
     "The question text to ask",
     "Additional details about the question",
-    "Type: text, paragraph, radio, checkbox, search-select, yesNoNA, file, chassis-with-zone, chassis-without-zone",
+    "Type: text, paragraph, radio, checkbox, search-select, yesNoNA, file, chassis-with-zone, chassis-without-zone, zone-in, zone-out",
     "TRUE/FALSE - is this question required?",
     "For choice questions: Option 1, Option 2, Option 3 (comma-separated)",
     "Jump to Section for Option 1: number (e.g. 2), 'end', or '0' (none)",
@@ -2167,11 +2167,50 @@ export async function parseFormWorkbook(file: File) {
     throw new Error("Form Template sheet is empty");
   }
 
-  const dataRows = rawData.slice(3);
+  // Find the header row (containing "Question" or "Question Type")
+  let headerRowIndex = -1;
+  for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+    const row = rawData[i];
+    const values = Object.values(row).map(v => String(v).toLowerCase());
+    if (values.some(v => v === "question" || v === "question type" || v === "question text")) {
+      headerRowIndex = i;
+      break;
+    }
+  }
+
+  // If we find the header, start after it. 
+  // We also skip rows that look like descriptions or are empty.
+  let startIndex = headerRowIndex !== -1 ? headerRowIndex + 1 : 0;
+  
+  while (startIndex < rawData.length && startIndex < 20) {
+    const row = rawData[startIndex];
+    const values = Object.values(row).map(v => String(v).toLowerCase());
+    const isDescription = values.some(v => 
+      v.includes("the question text to ask") || 
+      v.includes("which section (1, 2, 3") ||
+      v.includes("name of the form") ||
+      v.includes("title of the section") ||
+      v.includes("overview/purpose of the form") ||
+      v.includes("percentage weight") ||
+      v.includes("action after section") ||
+      v.includes("true/false") ||
+      v.includes("comma-separated") ||
+      v.includes("jump to section")
+    );
+    const isEmpty = values.every(v => !v || v.trim() === "" || v === "undefined" || v === "null");
+    
+    if (isDescription || isEmpty) {
+      startIndex++;
+    } else {
+      break;
+    }
+  }
+
+  const dataRows = rawData.slice(startIndex);
 
   if (dataRows.length === 0) {
     throw new Error(
-      "No data rows found in Form Template. Please add content starting from row 4 (after the example header and descriptions)."
+      "No data rows found in Form Template. Please ensure your questions start after the header and description rows."
     );
   }
 
@@ -2188,9 +2227,68 @@ function parseNewTemplateFormat(
   rows: FormRowData[],
   parametersToCreate: Array<{ name: string; type: "main" | "followup" }>
 ): Partial<Question> & { sections: Section[] } {
+  // Helper function to find column name (case-insensitive and flexible)
+  const findColumnName = (
+    availableColumns: string[],
+    searchPatterns: string[]
+  ): string | null => {
+    // First try exact match
+    const exactMatch = availableColumns.find((col) =>
+      searchPatterns.some((p) => col === p)
+    );
+    if (exactMatch) return exactMatch;
+
+    // Try case-insensitive match
+    const caseInsensitiveMatch = availableColumns.find((col) =>
+      searchPatterns.some((p) => col.toLowerCase() === p.toLowerCase())
+    );
+    if (caseInsensitiveMatch) return caseInsensitiveMatch;
+
+    // Try loose match (contains any search term)
+    const looseMatch = availableColumns.find((col) =>
+      searchPatterns.some((p) => col.toLowerCase().includes(p.toLowerCase()))
+    );
+    if (looseMatch) {
+      console.log(
+        `[Excel Import] Using approximate column match: "${looseMatch}" for "${searchPatterns.join(
+          ", "
+        )}"`
+      );
+      return looseMatch;
+    }
+
+    return null;
+  };
+
   const sectionsMap = new Map<string, Section>();
-  const formTitle = rows[0]["Form Title"]?.toString().trim() || "Imported Form";
-  const formDescription = rows[0]["Form Description"]?.toString().trim() || "";
+  const availableColumns = rows.length > 0 ? Object.keys(rows[0]) : [];
+  
+  const formTitleColumn = findColumnName(availableColumns, ["Form Title", "Title", "FormTitle"]);
+  const formDescColumn = findColumnName(availableColumns, ["Form Description", "Description", "FormDescription"]);
+  const questionTextColumn = findColumnName(availableColumns, ["Question", "Question Text", "QuestionText"]);
+
+  // Filter out any remaining instruction/description rows from the data rows
+  const dataRows = rows.filter(row => {
+    const qText = (questionTextColumn ? row[questionTextColumn] : row["Question"])?.toString().trim() || "";
+    const isInstruction = 
+      !qText || 
+      qText.toLowerCase().includes("the question text to ask") ||
+      qText.toLowerCase().includes("initial qualification questions") ||
+      qText.toLowerCase() === "question";
+    return !isInstruction;
+  });
+
+  if (dataRows.length === 0) {
+    return {
+      title: "Imported Form",
+      description: "",
+      sections: []
+    };
+  }
+
+  const formTitle = (formTitleColumn ? dataRows[0][formTitleColumn] : dataRows[0]["Form Title"])?.toString().trim() || "Imported Form";
+  const formDescription = (formDescColumn ? dataRows[0][formDescColumn] : dataRows[0]["Form Description"])?.toString().trim() || "";
+  
   let currentSectionNo: string | null = null;
   const sectionLinkMap = new Map<
     string,
@@ -2198,7 +2296,6 @@ function parseNewTemplateFormat(
   >();
   const questionMap = new Map<string, FollowUpQuestion>();
   const sectionMergingMap = new Map<string, string>(); // Map to store section merging info
-  let availableColumns: string[] = [];
 
   const normalizeQuestionType = (type: string): string => {
     if (!type) return "text";
@@ -2257,6 +2354,12 @@ function parseNewTemplateFormat(
       "chassis without zone": "chassis-without-zone",
       "chassis-without-zone": "chassis-without-zone",
       "chassiswithoutzone": "chassis-without-zone",
+      "zone in": "zone-in",
+      "zone-in": "zone-in",
+      "zonein": "zone-in",
+      "zone out": "zone-out",
+      "zone-out": "zone-out",
+      "zoneout": "zone-out",
     };
 
     // First try exact match after normalization
@@ -2400,47 +2503,34 @@ function parseNewTemplateFormat(
     });
   }
 
-  // Helper function to find column name (case-insensitive and flexible)
-  const findColumnName = (
-    availableColumns: string[],
-    searchPatterns: string[]
-  ): string | null => {
-    // First try exact match
-    const exactMatch = availableColumns.find((col) =>
-      searchPatterns.some((p) => col === p)
-    );
-    if (exactMatch) return exactMatch;
-
-    // Try case-insensitive match
-    const caseInsensitiveMatch = availableColumns.find((col) =>
-      searchPatterns.some((p) => col.toLowerCase() === p.toLowerCase())
-    );
-    if (caseInsensitiveMatch) return caseInsensitiveMatch;
-
-    // Try loose match (contains any search term)
-    const looseMatch = availableColumns.find((col) =>
-      searchPatterns.some((p) => col.toLowerCase().includes(p.toLowerCase()))
-    );
-    if (looseMatch) {
-      console.log(
-        `[Excel Import] Using approximate column match: "${looseMatch}" for "${searchPatterns.join(
-          ", "
-        )}"`
-      );
-      return looseMatch;
-    }
-
-    return null;
-  };
-
   // Log available columns for debugging
   let mergingColumnName = "Section Merging";
   let nextSectionColumnName = "Next Section";
   let branchingColumnName = "Branching";
+  let sectionNoColumnName = "Section Number";
+  let questionTextColumnName = "Question";
 
   if (rows.length > 0) {
-    availableColumns = Object.keys(rows[0]);
     console.log("[Excel Import] Available columns:", availableColumns);
+
+    const foundSectionNoColumn = findColumnName(availableColumns, [
+      "Section Number",
+      "Section No",
+      "Section #",
+      "Section",
+    ]);
+    if (foundSectionNoColumn) {
+      sectionNoColumnName = foundSectionNoColumn;
+    }
+
+    const foundQuestionTextColumn = findColumnName(availableColumns, [
+      "Question",
+      "Question Text",
+      "QuestionText",
+    ]);
+    if (foundQuestionTextColumn) {
+      questionTextColumnName = foundQuestionTextColumn;
+    }
 
     const foundMergingColumn = findColumnName(availableColumns, [
       "Subsection Of",
@@ -2502,13 +2592,17 @@ function parseNewTemplateFormat(
     targetSectionNo: string;
   }> = [];
 
-  rows.forEach((row: FormRowData) => {
-    const sectionNo = row["Section Number"]?.toString().trim();
+  dataRows.forEach((row: FormRowData) => {
+    const sectionNo = row[sectionNoColumnName]?.toString().trim();
     const sectionTitle = row["Section Title"]?.toString().trim();
     const sectionDesc = row["Section Description"]?.toString().trim();
-    const questionText = row["Question"]?.toString().trim();
+    const questionText = row[questionTextColumnName]?.toString().trim();
 
-    if (!questionText) {
+    // Secondary safety check for instructions
+    if (!questionText || 
+        questionText.toLowerCase().includes("the question text to ask") ||
+        questionText.toLowerCase().includes("initial qualification questions") ||
+        questionText.toLowerCase() === "question") {
       return;
     }
 
@@ -2577,12 +2671,15 @@ function parseNewTemplateFormat(
     const suggestion = row["Suggestion"]?.toString().trim();
     const questionDescColumn = findColumnName(availableColumns, ["Question Description", "Description"]);
     const questionDesc = questionDescColumn ? row[questionDescColumn]?.toString().trim() : undefined;
-    const questionTypeRaw = row["Question Type"]?.toString().trim() || "text";
+    const questionTypeColumn = findColumnName(availableColumns, ["Question Type", "Type", "QuestionType"]);
+    const questionTypeRaw = (questionTypeColumn ? row[questionTypeColumn] : row["Question Type"])?.toString().trim() || "text";
     const questionType = normalizeQuestionType(questionTypeRaw);
-    const requiredStr = row["Required"]?.toString().trim().toLowerCase();
+    const requiredColumn = findColumnName(availableColumns, ["Required", "Is Required", "Mandatory"]);
+    const requiredStr = (requiredColumn ? row[requiredColumn] : row["Required"])?.toString().trim().toLowerCase();
     const required =
       requiredStr === "true" || requiredStr === "yes" || requiredStr === "1";
-    const optionsStr = row["Options"]?.toString().trim() || "";
+    const optionsColumn = findColumnName(availableColumns, ["Options", "Choices", "Values"]);
+    const optionsStr = (optionsColumn ? row[optionsColumn] : row["Options"])?.toString().trim() || "";
     const correctAnswer = row["Correct Answer"]?.toString().trim();
     const correctAnswersStr = row["Correct Answers"]?.toString().trim();
     const correctAnswers = correctAnswersStr

@@ -42,10 +42,10 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col md:flex-row bg-white font-sans overflow-hidden">
+    <div className="min-h-screen md:h-screen w-full flex flex-col md:flex-row bg-white font-sans overflow-x-hidden">
       
       {/* Left Side: Welcome Panel */}
-      <div className="w-full md:w-1/3 bg-[#1e3a8a] text-white p-8 md:p-10 flex flex-col justify-center items-center text-center relative z-20 rounded-b-[3rem] md:rounded-b-none md:rounded-r-[10rem]">
+      <div className="w-full md:w-1/3 flex-none md:flex-1 bg-[#1e3a8a] text-white p-8 md:p-10 flex flex-col justify-center items-center text-center relative z-20 rounded-b-[3rem] md:rounded-b-none md:rounded-r-[10rem] min-h-[30vh] md:min-h-0">
         <div className="max-w-md animate-in fade-in slide-in-from-left-8 duration-700">
           <h1 className="text-3xl md:text-4xl font-bold mb-4 font-sans">Join Us!</h1>
           <p className="text-blue-100 text-base mb-4 font-light font-sans">
@@ -60,7 +60,7 @@ export default function SignupPage() {
       </div>
 
       {/* Right Side: Signup Form */}
-      <div className="w-full md:w-2/3 flex items-center justify-center p-8 bg-white z-10 overflow-y-auto">
+      <div className="w-full md:w-2/3 flex-1 flex items-center justify-center p-8 bg-white z-10 overflow-y-auto">
         <div className="w-full max-w-xl animate-in fade-in slide-in-from-right-8 duration-700 py-8">
           <div className="mb-6 text-center md:text-left">
             <h2 className="text-2xl font-bold text-gray-800 mb-1 font-sans">Create Account</h2>

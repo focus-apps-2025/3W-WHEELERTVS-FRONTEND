@@ -45,6 +45,7 @@ import PreviewForm from "./PreviewForm";
 import ParameterModal from "./ParameterModal";
 import {
   downloadFormImportTemplate,
+  downloadNestedFormImportTemplate,
   parseFormWorkbook,
 } from "../utils/exportUtils";
 
@@ -573,10 +574,14 @@ export default function FormCreator() {
     setChassisTenantAssignments(newAssignments);
   };
 
-  const handleExportTemplate = () => {
+  const handleExportTemplate = (type: 'flat' | 'nested' = 'flat') => {
     try {
-      downloadFormImportTemplate();
-      showSuccess("Template exported successfully!", "Export Template");
+      if (type === 'nested') {
+        downloadNestedFormImportTemplate();
+      } else {
+        downloadFormImportTemplate();
+      }
+      showSuccess(`${type === 'nested' ? 'Nested' : 'Flat'} template exported successfully!`, "Export Template");
     } catch (error) {
       console.error("Failed to export template:", error);
       showError("Failed to export template", "Error");
@@ -3755,11 +3760,21 @@ export default function FormCreator() {
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mr-2">
                 <button
-                  onClick={handleExportTemplate}
+                  onClick={() => handleExportTemplate('flat')}
+                  title="Download Flat Structure Template (FU1-FU99)"
                   className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
                 >
                   <Download className="w-4 h-4" />
-                  Export
+                  Export Flat
+                </button>
+                <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
+                <button
+                  onClick={() => handleExportTemplate('nested')}
+                  title="Download Nested Hierarchical Template (FU1.1, FU1.1.1)"
+                  className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
+                >
+                  <Download className="w-4 h-4" />
+                  Export Nested
                 </button>
                 <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
                 {canManage && (
