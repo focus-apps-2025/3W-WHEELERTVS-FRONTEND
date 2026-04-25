@@ -982,6 +982,7 @@ type DailyPerformanceStat = {
 
 const computeDailyPerformanceStats = (
   responses: Response[],
+  statuses: Record<string, string>,
   startDate?: string,
   endDate?: string,
 ): DailyPerformanceStat[] => {
@@ -1044,42 +1045,13 @@ const computeDailyPerformanceStats = (
     const dayStats = dailyMap.get(dateKey)!;
     dayStats.total += 1;
 
-    if (response.answers) {
-      Object.values(response.answers).forEach((answer) => {
-        if (answer && typeof answer === "object" && answer.status) {
-          const status = String(answer.status).toLowerCase().trim();
-          if (
-            status === "rework" ||
-            status === "reworked" ||
-            status.includes("re-rework")
-          ) {
-            dayStats.rework += 1;
-          } else if (
-            status === "accepted" ||
-            status === "rework completed" ||
-            status === "verified" ||
-            status === "yes"
-          ) {
-            dayStats.accepted += 1;
-          }
-        } else if (answer) {
-          const answerStr = String(answer).toLowerCase().trim();
-          if (
-            answerStr === "rework" ||
-            answerStr === "reworked" ||
-            answerStr.includes("re-rework")
-          ) {
-            dayStats.rework += 1;
-          } else if (
-            answerStr === "accepted" ||
-            answerStr === "rework completed" ||
-            answerStr === "verified" ||
-            answerStr === "yes"
-          ) {
-            dayStats.accepted += 1;
-          }
-        }
-      });
+    const status = statuses[response.id];
+    if (status) {
+      if (status.startsWith("Rework") || status === "Rework Accepted") {
+        dayStats.rework += 1;
+      } else if (status === "Direct Ok" || status === "Accepted") {
+        dayStats.accepted += 1;
+      }
     }
   });
 
@@ -1103,6 +1075,7 @@ const computeDailyPerformanceStats = (
 
 const computeMonthlyPerformanceStats = (
   responses: Response[],
+  statuses: Record<string, string>,
   startDate?: string,
   endDate?: string,
 ): DailyPerformanceStat[] => {
@@ -1171,42 +1144,13 @@ const computeMonthlyPerformanceStats = (
     const monthStats = monthMap.get(monthKey)!;
     monthStats.total += 1;
 
-    if (response.answers) {
-      Object.values(response.answers).forEach((answer) => {
-        if (answer && typeof answer === "object" && answer.status) {
-          const status = String(answer.status).toLowerCase().trim();
-          if (
-            status === "rework" ||
-            status === "reworked" ||
-            status.includes("re-rework")
-          ) {
-            monthStats.rework += 1;
-          } else if (
-            status === "accepted" ||
-            status === "rework completed" ||
-            status === "verified" ||
-            status === "yes"
-          ) {
-            monthStats.accepted += 1;
-          }
-        } else if (answer) {
-          const answerStr = String(answer).toLowerCase().trim();
-          if (
-            answerStr === "rework" ||
-            answerStr === "reworked" ||
-            answerStr.includes("re-rework")
-          ) {
-            monthStats.rework += 1;
-          } else if (
-            answerStr === "accepted" ||
-            answerStr === "rework completed" ||
-            answerStr === "verified" ||
-            answerStr === "yes"
-          ) {
-            monthStats.accepted += 1;
-          }
-        }
-      });
+    const status = statuses[response.id];
+    if (status) {
+      if (status.startsWith("Rework") || status === "Rework Accepted") {
+        monthStats.rework += 1;
+      } else if (status === "Direct Ok" || status === "Accepted") {
+        monthStats.accepted += 1;
+      }
     }
   });
 
@@ -1234,8 +1178,15 @@ const computeDirectAcceptedDailyStats = (
   statuses: Record<string, string>,
   startDate?: string,
   endDate?: string,
-): { date: string; dateKey: string; directAcceptedPercentage: number; total: number; directCount: number }[] => {
-  const dailyMap = new Map<string, { total: number; directOk: number }>();
+): { 
+  date: string; 
+  dateKey: string; 
+  directCount: number; 
+  reworkCount: number; 
+  rejectedCount: number; 
+  total: number 
+}[] => {
+  const dailyMap = new Map<string, { total: number; direct: number; rework: number; rejected: number }>();
 
   let start: Date | null = null;
   let end: Date | null = null;
@@ -1263,7 +1214,7 @@ const computeDirectAcceptedDailyStats = (
 
     while (curr <= last) {
       const dKey = curr.toISOString().split("T")[0];
-      dailyMap.set(dKey, { total: 0, directOk: 0 });
+      dailyMap.set(dKey, { total: 0, direct: 0, rework: 0, rejected: 0 });
       curr.setDate(curr.getDate() + 1);
     }
   }
@@ -1274,14 +1225,19 @@ const computeDirectAcceptedDailyStats = (
 
     const dateKey = new Date(timestamp).toISOString().split("T")[0];
     if (!dailyMap.has(dateKey)) {
-      dailyMap.set(dateKey, { total: 0, directOk: 0 });
+      dailyMap.set(dateKey, { total: 0, direct: 0, rework: 0, rejected: 0 });
     }
 
     const dayStats = dailyMap.get(dateKey)!;
     dayStats.total += 1;
     
-    if (statuses[response.id] === "Direct Ok") {
-      dayStats.directOk += 1;
+    const status = statuses[response.id];
+    if (status === "Direct Ok" || status === "Accepted") {
+      dayStats.direct += 1;
+    } else if (status && status.startsWith("Rework")) {
+      dayStats.rework += 1;
+    } else if (status === "Rejected") {
+      dayStats.rejected += 1;
     }
   });
 
@@ -1295,9 +1251,10 @@ const computeDirectAcceptedDailyStats = (
       return {
         date: formattedDate,
         dateKey,
-        directAcceptedPercentage: stats.total > 0 ? Math.round((stats.directOk / stats.total) * 100) : 0,
+        directCount: stats.direct,
+        reworkCount: stats.rework,
+        rejectedCount: stats.rejected,
         total: stats.total,
-        directCount: stats.directOk
       };
     })
     .sort((a, b) => (a.dateKey > b.dateKey ? 1 : -1));
@@ -2023,10 +1980,13 @@ export default function FormAnalyticsDashboard() {
           } else {
             itemId = String(answer);
           }
+        } else {
+          // If tracking question is present but not answered, treat as unique to avoid mixing un-tracked items
+          itemId = `untracked-${r.id}`;
         }
       } else {
-        // Fallback to submittedBy if no chassis question is found
-        itemId = r.submittedBy || r.createdBy || "anonymous";
+        // NO Tracking ID means no grouping for reworks - treat each as unique
+        itemId = `response-${r.id}`;
       }
 
       if (!itemGroups[itemId]) {
@@ -2060,10 +2020,12 @@ export default function FormAnalyticsDashboard() {
               } else if (
                 s === "accepted" ||
                 s === "rework completed" ||
-                s === "verified"
+                s === "verified" ||
+                s === "yes" ||
+                s === "y"
               ) {
                 isAccepted = true;
-              } else if (s === "rejected") {
+              } else if (s === "rejected" || s === "no" || s === "n") {
                 isRejected = true;
               }
             } else if (typeof ans === "string") {
@@ -2077,10 +2039,12 @@ export default function FormAnalyticsDashboard() {
               } else if (
                 s === "accepted" ||
                 s === "rework completed" ||
-                s === "verified"
+                s === "verified" ||
+                s === "yes" ||
+                s === "y"
               ) {
                 isAccepted = true;
-              } else if (s === "rejected") {
+              } else if (s === "rejected" || s === "no" || s === "n") {
                 isRejected = true;
               }
             }
@@ -2092,9 +2056,13 @@ export default function FormAnalyticsDashboard() {
         if (isRejected) {
           statuses[r.id] = "Rejected";
         } else if (isRework) {
-          reworkCount++;
-          hasBeenReworked = true;
-          statuses[r.id] = `Rework ${reworkCount}`;
+          if (chassisQuestionId && itemId !== `untracked-${r.id}`) {
+            reworkCount++;
+            hasBeenReworked = true;
+            statuses[r.id] = `Rework ${reworkCount}`;
+          } else {
+            statuses[r.id] = "Rework";
+          }
         } else if (isAccepted) {
           // If rank is 1, it's definitely the first time this item is seen
           // If no rank but index 0, assume it's the first time in the current view
@@ -3691,16 +3659,18 @@ export default function FormAnalyticsDashboard() {
       if (timeSeriesView === "monthly") {
         return computeMonthlyPerformanceStats(
           trendChartResponses,
+          responseStatuses,
           trendStartDate,
           trendEndDate,
         );
       }
       return computeDailyPerformanceStats(
         trendChartResponses,
+        responseStatuses,
         trendStartDate,
         trendEndDate,
       );
-    }, [trendChartResponses, timeSeriesView, trendStartDate, trendEndDate]);
+    }, [trendChartResponses, responseStatuses, timeSeriesView, trendStartDate, trendEndDate]);
 
     if (timeData.length === 0) return null;
 
@@ -3815,7 +3785,7 @@ export default function FormAnalyticsDashboard() {
                 Performance Trend
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Response volume and rework frequency over time
+                Total responses received vs total rework received over time (Response-wise)
               </p>
             </div>
           </div>
@@ -3890,19 +3860,28 @@ export default function FormAnalyticsDashboard() {
       labels: timeData.map((s) => s.date),
       datasets: [
         {
-          label: "Direct Accepted %",
-          data: timeData.map((s) => s.directAcceptedPercentage),
+          label: "Direct",
+          data: timeData.map((s) => s.total > 0 ? Math.round((s.directCount / s.total) * 100) : 0),
           backgroundColor: "rgba(34, 197, 94, 0.7)", // Green-500
           borderColor: "rgb(21, 128, 61)", // Green-700
           borderWidth: 1,
-          borderRadius: 4,
-          datalabels: {
-            color: "#fff",
-            anchor: "center" as const,
-            align: "center" as const,
-            formatter: (value: number) => (value > 0 ? value + "%" : ""),
-            font: { weight: "bold" as const, size: 10 },
-          },
+          stack: "stack1",
+        },
+        {
+          label: "Rework",
+          data: timeData.map((s) => s.total > 0 ? Math.round((s.reworkCount / s.total) * 100) : 0),
+          backgroundColor: "rgba(234, 179, 8, 0.7)", // Yellow-500
+          borderColor: "rgb(161, 98, 7)", // Yellow-700
+          borderWidth: 1,
+          stack: "stack1",
+        },
+        {
+          label: "Rejected",
+          data: timeData.map((s) => s.total > 0 ? Math.round((s.rejectedCount / s.total) * 100) : 0),
+          backgroundColor: "rgba(239, 68, 68, 0.7)", // Red-500
+          borderColor: "rgb(185, 28, 28)", // Red-700
+          borderWidth: 1,
+          stack: "stack1",
         },
       ],
     };
@@ -3912,22 +3891,41 @@ export default function FormAnalyticsDashboard() {
       maintainAspectRatio: false,
       plugins: {
         legend: {
-          display: false,
+          display: true,
+          position: "top" as const,
+          labels: {
+            color: darkMode ? "#e5e7eb" : "#374151",
+            font: { size: 10, weight: "bold" as const },
+            padding: 10,
+            usePointStyle: true,
+          },
         },
         tooltip: {
+          mode: "index" as const,
+          intersect: false,
           callbacks: {
             label: (context: any) => {
               const item = timeData[context.dataIndex];
-              return `Direct Accepted: ${item.directAcceptedPercentage}% (${item.directCount}/${item.total})`;
+              const label = context.dataset.label;
+              const value = context.raw;
+              let count = 0;
+              if (label === "Direct") count = item.directCount;
+              else if (label === "Rework") count = item.reworkCount;
+              else if (label === "Rejected") count = item.rejectedCount;
+              return `${label}: ${value}% (${count}/${item.total})`;
             },
           },
         },
         datalabels: {
-          display: true,
+          display: (context: any) => context.dataset.data[context.dataIndex] > 5,
+          color: "#fff",
+          font: { weight: "bold" as const, size: 9 },
+          formatter: (value: number) => value + "%",
         },
       },
       scales: {
         y: {
+          stacked: true,
           beginAtZero: true,
           max: 100,
           ticks: {
@@ -3939,6 +3937,7 @@ export default function FormAnalyticsDashboard() {
           },
         },
         x: {
+          stacked: true,
           ticks: {
             color: darkMode ? "#9ca3af" : "#6b7280",
           },
@@ -3953,20 +3952,20 @@ export default function FormAnalyticsDashboard() {
       <div id="direct-accepted-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center">
-            <div className="p-2 bg-gradient-to-br from-green-600 to-green-800 rounded-lg mr-2">
-              <CheckCircle className="w-4 h-4 text-white" />
+            <div className={`p-2 bg-gradient-to-br from-blue-600 to-indigo-800 rounded-lg mr-2`}>
+              <BarChart3 className="w-4 h-4 text-white" />
             </div>
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
-                Direct Accepted Trend
+                Inspection Status Trend
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Percentage of responses accepted on first inspection
+                Daily distribution of inspection outcomes (100% stacked)
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From:</span>
               <input
