@@ -42,9 +42,30 @@ export default function AttendanceDashboard({
   const [otpSent, setOtpSent] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
 
-  // Geofence config - Set your office location here
-  const OFFICE_LOCATION = { lat: 12.9455, lng: 78.8754 };
-  const ALLOWED_RADIUS_METERS = 50;
+  // Geofence config - from tenant settings
+  const [officeLocation, setOfficeLocation] = useState<{lat: number, lng: number, radius?: number} | null>(null);
+
+  // Fetch office location from tenant settings
+  useEffect(() => {
+    const fetchOfficeLocation = async () => {
+      try {
+        const response = await apiClient.get<any>('/settings/office-location');
+        if (response.success && response.data) {
+          setOfficeLocation({
+            lat: response.data.lat,
+            lng: response.data.lng,
+            radius: response.data.radius || 500,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching office location:", error);
+      }
+    };
+    fetchOfficeLocation();
+  }, []);
+
+  const OFFICE_LOCATION = officeLocation || { lat: 12.9455, lng: 78.8754 };
+  const ALLOWED_RADIUS_METERS = officeLocation?.radius || 500;
 
   // Calculate distance between two coordinates (Haversine formula)
   const getDistance = (
@@ -176,14 +197,14 @@ export default function AttendanceDashboard({
       return;
     }
 
-    if (location.accuracy > 50) {
-      if (
-        !window.confirm(
-          `GPS accuracy is low (${Math.round(location.accuracy)}m). Proceed anyway?`,
-        )
-      )
-        return;
-    }
+    // if (location.accuracy > 50) {
+    //   if (
+    //     !window.confirm(
+    //       `GPS accuracy is low (${Math.round(location.accuracy)}m). Proceed anyway?`,
+    //     )
+    //   )
+    //     return;
+    // }
 
     // Show OTP screen
     setShowOTPScreen(true);

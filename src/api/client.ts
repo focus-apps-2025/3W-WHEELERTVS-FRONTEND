@@ -140,6 +140,52 @@ class ApiClient {
     }
   }
 
+  // HTTP Helper Methods
+  public async get<T>(
+    endpoint: string,
+    options: RequestInit = {},
+  ): Promise<{ success: boolean; data: T; message?: string }> {
+    const data = await this.request<T>(endpoint, { ...options, method: "GET" });
+    return { success: true, data };
+  }
+
+  public async post<T>(
+    endpoint: string,
+    body: any,
+    options: RequestInit = {},
+  ): Promise<{ success: boolean; data: T; message?: string }> {
+    const data = await this.request<T>(endpoint, {
+      ...options,
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return { success: true, data };
+  }
+
+  public async put<T>(
+    endpoint: string,
+    body: any,
+    options: RequestInit = {},
+  ): Promise<{ success: boolean; data: T; message?: string }> {
+    const data = await this.request<T>(endpoint, {
+      ...options,
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+    return { success: true, data };
+  }
+
+  public async delete<T>(
+    endpoint: string,
+    options: RequestInit = {},
+  ): Promise<{ success: boolean; data: T; message?: string }> {
+    const data = await this.request<T>(endpoint, {
+      ...options,
+      method: "DELETE",
+    });
+    return { success: true, data };
+  }
+
   private ensureAbsoluteFileUrl(value: string) {
     if (!value) {
       return "";
@@ -1354,6 +1400,27 @@ class ApiClient {
     return this.request<{ stats: any }>(`/tenants/${tenantId}/stats`);
   }
 
+  async getOfficeLocation() {
+    return this.request<{ lat: number; lng: number; radius: number }>(
+      "/settings/office-location",
+    );
+  }
+
+  async getTenantMessages() {
+    return this.request<any[]>("/messages/tenant-messages");
+  }
+
+  async updateOfficeLocation(data: {
+    lat: number;
+    lng: number;
+    radius: number;
+  }) {
+    return this.request<{ success: boolean }>("/settings/office-location", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
   async toggleTenantStatus(tenantId: string) {
     return this.request<{ tenant: any }>(`/tenants/${tenantId}/toggle-status`, {
       method: "PATCH",
@@ -1923,7 +1990,18 @@ class ApiClient {
     });
   }
 
-  async checkIn(location: { lat: number; lng: number; accuracy: number }) {
+  async sendAttendanceOTP() {
+    return this.request("/hr/attendance/send-otp", {
+      method: "POST",
+    });
+  }
+
+  async checkIn(location: {
+    lat: number;
+    lng: number;
+    accuracy: number;
+    otp: string;
+  }) {
     return this.request<{ data: any }>("/hr/attendance/checkin", {
       method: "POST",
       body: JSON.stringify(location),
@@ -2158,21 +2236,26 @@ class ApiClient {
     invites: any[],
     channels: string[] = ["email"],
     customMessage?: string,
-) {
-    return this.request<{ 
-      sent: number, 
-      failed: number, 
-      allSuccessful: boolean, 
-      details: any[] 
-}>(`/analytics-invites/${formId}/send`, {
+  ) {
+    return this.request<{
+      sent: number;
+      failed: number;
+      allSuccessful: boolean;
+      details: any[];
+    }>(`/analytics-invites/${formId}/send`, {
       method: "POST",
-body: JSON.stringify({ invites, channels, customMessage }),
+      body: JSON.stringify({ invites, channels, customMessage }),
     });
   }
 
-  async requestAnalyticsOTP(formId: string, email: string, phone: string, channel: 'email' | 'sms' = 'email') {
+  async requestAnalyticsOTP(
+    formId: string,
+    email: string,
+    phone: string,
+    channel: "email" | "sms" = "email",
+  ) {
     return this.request<{
-success: boolean;
+      success: boolean;
       message: string;
     }>("/analytics-invites/request-otp", {
       method: "POST",
@@ -2188,11 +2271,11 @@ success: boolean;
       expiresAt: string;
     }>("/analytics-invites/verify-otp", {
       method: "POST",
-body: JSON.stringify({ formId, email, otp }),
+      body: JSON.stringify({ formId, email, otp }),
     });
   }
 
-    async deleteNotification(id: string) {
+  async deleteNotification(id: string) {
     return this.request<{ success: boolean }>(`/hr/notifications/${id}`, {
       method: "DELETE",
     });

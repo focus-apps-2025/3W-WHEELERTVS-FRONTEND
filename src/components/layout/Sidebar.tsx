@@ -149,6 +149,13 @@ export default function Sidebar() {
       description: "Test and configure WhatsApp notifications",
       roles: ["admin"],
     },
+    {
+      title: "Chat System",
+      icon: MessageCircle,
+      path: "/inspector/chat",
+      description: "Communicate with Service Analytics administrators",
+      roles: ["inspector", "admin", "tenant_admin", "staff"],
+    },
   ];
 
   const adminManagementMenuItem: MenuItem = {

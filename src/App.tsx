@@ -55,6 +55,7 @@ import InviteStatusPage from "./components/InviteStatusPage";
 import ErrorPage from "./components/ErrorPage";
 import LeaveManagement from "./components/hr/LeaveManagement";
 import PermissionManagement from "./components/hr/PermissionManagement";
+import InspectorChat from "./components/inspectors/InspectorChat";
 
 const ROUTE_PERMISSIONS = {
   DASHBOARD: "dashboard:view",
@@ -100,6 +101,7 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   return (
     <div
       className="min-h-screen bg-white dark:bg-gray-950"
+      style={{ zoom: LAYOUT_CONFIG.zoomScale }}
     >
       {!isGuest && <Header />}
       <main className={`${isGuest ? "" : "pt-16"} transition-all duration-300`}>
@@ -407,6 +409,12 @@ const router = createBrowserRouter(
         {
           path: "/forms/:id/invites",
           element: withAuthenticatedLayout(<InviteStatusPage />),
+        },
+        {
+          path: "/inspector/chat",
+          element: withAccessControl(<InspectorChat />, {
+            allowedRoles: ["inspector", "admin", "tenant_admin", "staff"],
+          }),
         },
       ],
     },

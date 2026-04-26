@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, Edit2, Save, Mail, User, Briefcase, Phone, Building2, AlertCircle, Lock } from "lucide-react";
+import { X, Edit2, Save, Mail, User, Briefcase, Phone, Building2, AlertCircle, Lock, MapPin, Navigation } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
 import ChangePasswordModal from "./management/sections/general/ChangePasswordModal";
@@ -16,6 +16,9 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [officeLocation, setOfficeLocation] = useState({ lat: '', lng: '', radius: 500 });
+  const [isTenantAdmin, setIsTenantAdmin] = useState(false);
   const [formData, setFormData] = useState({
     firstName: user?.firstName || "",
     lastName: user?.lastName || "",
@@ -35,6 +38,29 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         department: user.department || "",
         position: user.position || "",
       });
+      
+      // Check if user is tenant admin
+      const role = (user as any).role || (user as any).roles?.[0];
+      setIsTenantAdmin(role === 'admin' || role === 'tenant_admin');
+      
+      // Fetch office location if tenant admin
+      if (role === 'admin' || role === 'tenant_admin') {
+        const fetchLocation = async () => {
+          try {
+            const response = await apiClient.getOfficeLocation();
+            if (response.success && response.data) {
+              setOfficeLocation({
+                lat: response.data.lat?.toString() || '',
+                lng: response.data.lng?.toString() || '',
+                radius: response.data.radius || 500,
+              });
+            }
+          } catch (error) {
+            console.error('Error fetching office location:', error);
+          }
+        };
+        fetchLocation();
+      }
     }
   }, [user, isOpen]);
 
@@ -77,6 +103,44 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       }, 3000);
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : "Failed to update profile. Please try again.";
+      setError(errorMessage);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleGetCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setOfficeLocation(prev => ({
+            ...prev,
+            lat: position.coords.latitude.toFixed(6),
+            lng: position.coords.longitude.toFixed(6),
+          }));
+          setSuccessMessage("Location captured!");
+        },
+        (error) => {
+          setError("Failed to get location: " + error.message);
+        }
+      );
+    } else {
+      setError("Geolocation not supported");
+    }
+  };
+
+  const handleSaveLocation = async () => {
+    setIsSaving(true);
+    try {
+      await apiClient.updateOfficeLocation({
+        lat: parseFloat(officeLocation.lat),
+        lng: parseFloat(officeLocation.lng),
+        radius: parseInt(officeLocation.radius.toString()),
+      });
+      setSuccessMessage("Office location updated!");
+      setShowLocationModal(false);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : "Failed to update location";
       setError(errorMessage);
     } finally {
       setIsSaving(false);
@@ -305,6 +369,17 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               )}
 
               <div className="pt-4 space-y-3">
+                {isTenantAdmin && (
+                  <>
+                    <button
+                      onClick={() => setShowLocationModal(true)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      <MapPin className="w-4 h-4" />
+                      Office Location (Attendance)
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={() => {
                     setIsEditing(true);
@@ -330,6 +405,83 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
       {showPasswordModal && (
         <ChangePasswordModal onClose={() => setShowPasswordModal(false)} />
+      )}
+
+      {showLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center">
+                <MapPin className="w-5 h-5 mr-2" />
+                Office Location
+              </h3>
+              <button onClick={() => setShowLocationModal(false)} className="p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              Set the office location for inspector attendance check-in
+            </p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Latitude
+                </label>
+                <input
+                  type="text"
+                  value={officeLocation.lat}
+                  onChange={(e) => setOfficeLocation({ ...officeLocation, lat: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  placeholder="12.9455"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Longitude
+                </label>
+                <input
+                  type="text"
+                  value={officeLocation.lng}
+                  onChange={(e) => setOfficeLocation({ ...officeLocation, lng: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  placeholder="78.8754"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Radius (meters)
+                </label>
+                <input
+                  type="number"
+                  value={officeLocation.radius}
+                  onChange={(e) => setOfficeLocation({ ...officeLocation, radius: parseInt(e.target.value) })}
+                  className="w-full px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  min="10"
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleGetCurrentLocation}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+              >
+                <Navigation className="w-4 h-4" />
+                Get Location
+              </button>
+              <button
+                onClick={handleSaveLocation}
+                disabled={isSaving || !officeLocation.lat || !officeLocation.lng}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+              >
+                <Save className="w-4 h-4" />
+                {isSaving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

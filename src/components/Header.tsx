@@ -24,7 +24,7 @@ import { useSidebar } from "../context/SidebarContext";
 import { useTheme } from "../context/ThemeContext";
 import ProfileModal from "./ProfileModal";
 import NotificationCenter from "./ui/NotificationCenter";
-import { Calendar } from "lucide-react";
+import { Calendar, MessageCircle } from "lucide-react";
 
 interface MenuItem {
   title: string;
@@ -176,6 +176,13 @@ export default function Header() {
       path: "/hr/permissions",
       description: "Apply for permissions",
       roles: ["inspector"],
+    },
+    {
+      title: "Chat System",
+      icon: MessageCircle,
+      path: "/inspector/chat",
+      description: "Communicate with Service Analytics administrators",
+      roles: ["inspector", "admin", "tenant_admin", "staff"],
     },
   ];
 
