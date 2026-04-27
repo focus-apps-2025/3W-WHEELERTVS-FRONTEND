@@ -2446,8 +2446,8 @@ function parseNewTemplateFormat(
 
       const childRequired =
         (childData["Required"] || "FALSE").toLowerCase() === "true";
-      const childSubParam1 = childData["SubParam1"] || undefined;
-      const childSubParam2 = childData["SubParam2"] || undefined;
+      const childSubParam1 = childData["SubParam1"] || childData["Main Parameter"] || childData["Sub Parameter 1"] || undefined;
+      const childSubParam2 = childData["SubParam2"] || childData["Followup Parameter"] || childData["Sub Parameter 2"] || childData["Follow up Parameter"] || undefined;
       const childOptionsStr = childData["Options"] || "";
       const childCorrectAnswer = childData["Correct Answer"] || undefined;
       const childRankingLogicRaw = childData["Ranking Logic"] || "FALSE";
@@ -2707,8 +2707,11 @@ function parseNewTemplateFormat(
       });
     }
 
-    const subParam1 = row["SubParam1"]?.toString().trim();
-    const subParam2 = row["SubParam2"]?.toString().trim();
+    const subParam1Column = findColumnName(availableColumns, ["SubParam1", "Main Parameter", "Sub Parameter 1", "Main Parameters"]);
+    const subParam2Column = findColumnName(availableColumns, ["SubParam2", "Followup Parameter", "Sub Parameter 2", "Followup Parameters", "Follow up Parameter"]);
+
+    const subParam1 = (subParam1Column ? row[subParam1Column] : row["SubParam1"])?.toString().trim();
+    const subParam2 = (subParam2Column ? row[subParam2Column] : row["SubParam2"])?.toString().trim();
 
     // Validate SubParam1 and SubParam2 against parameters from the Parameters sheet (if parameters exist)
     // Allow SubParam values even if no parameters are defined - they will be auto-created if needed
@@ -2846,8 +2849,11 @@ function parseNewTemplateFormat(
         const fuRequiredStr =
           (row[fuRequiredKey] as string)?.toString().trim() || "FALSE";
         const fuRequired = fuRequiredStr.toLowerCase() === "true";
-        const fuSubParam1 = (row[fuSubParam1Key] as string)?.toString().trim();
-        const fuSubParam2 = (row[fuSubParam2Key] as string)?.toString().trim();
+        const fuSubParam1Column = Object.keys(row).find(k => k.startsWith(`FU${fuIndex}:`) && (k.includes("SubParam1") || k.includes("Main Parameter") || k.includes("Sub Parameter 1")));
+        const fuSubParam2Column = Object.keys(row).find(k => k.startsWith(`FU${fuIndex}:`) && (k.includes("SubParam2") || k.includes("Followup Parameter") || k.includes("Sub Parameter 2") || k.includes("Follow up Parameter")));
+
+        const fuSubParam1 = (fuSubParam1Column ? row[fuSubParam1Column] : row[fuSubParam1Key])?.toString().trim();
+        const fuSubParam2 = (fuSubParam2Column ? row[fuSubParam2Column] : row[fuSubParam2Key])?.toString().trim();
         const fuOptionsStr =
           (row[fuOptionsKey] as string)?.toString().trim() || "";
         const fuCorrectAnswer =

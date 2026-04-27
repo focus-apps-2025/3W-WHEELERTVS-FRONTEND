@@ -427,8 +427,8 @@ const getZoneAnalytics = (responses: Response[]): ZoneAnalyticsData => {
     if (!response.answers) return;
 
     Object.values(response.answers).forEach((answer) => {
-      if (typeof answer === "object" && answer !== null && (answer.chassisNumber || answer.status || answer.zonesData)) {
-        // This looks like a ChassisWithZone answer
+      if (typeof answer === "object" && answer !== null && (answer.chassisNumber || answer.status || answer.zonesData || answer.zones)) {
+        // This looks like a ChassisWithZone or ZoneIn/Out answer
         const statusVal = (answer.status || "").toLowerCase().trim();
         const isAccepted = statusVal === "accepted" || statusVal === "rework completed" || statusVal === "verified";
         const isRework = statusVal === "rework" || statusVal === "reworked" || statusVal.includes("re-rework");
@@ -440,6 +440,7 @@ const getZoneAnalytics = (responses: Response[]): ZoneAnalyticsData => {
         
         if (statusVal) stats.inspectionStatus.total++;
 
+        // Handle hierarchical zonesData (ChassisWithZone)
         if (answer.zonesData) {
           Object.entries(answer.zonesData).forEach(([zoneName, zoneContent]: [string, any]) => {
             if (!zoneMap.has(zoneName)) {
@@ -465,6 +466,33 @@ const getZoneAnalytics = (responses: Response[]): ZoneAnalyticsData => {
                   });
                 }
               });
+            }
+          });
+        }
+        
+        // Handle simple zones array (ZoneIn/ZoneOut)
+        if (answer.zones && Array.isArray(answer.zones)) {
+          answer.zones.forEach((zoneName: string) => {
+            if (!zoneMap.has(zoneName)) {
+              zoneMap.set(zoneName, new Map());
+            }
+            const catMap = zoneMap.get(zoneName)!;
+            
+            // For simple zones, we might use a generic "Defect" category if it's a rework/rejected
+            if (isRework || isRejected) {
+              const catName = "Unspecified Defects";
+              if (!catMap.has(catName)) {
+                catMap.set(catName, { count: 0, defects: new Map() });
+              }
+              const catData = catMap.get(catName)!;
+              catData.count++;
+              
+              const defectName = answer.remark || "Generic Defect";
+              const defectStats = catData.defects.get(defectName) || { total: 0, rework: 0, rejected: 0 };
+              defectStats.total++;
+              if (isRework) defectStats.rework++;
+              else if (isRejected) defectStats.rejected++;
+              catData.defects.set(defectName, defectStats);
             }
           });
         }
@@ -799,6 +827,7 @@ const renderAnswerDisplay = (value: any, question?: any): React.ReactNode => {
         value.chassisNumber !== undefined ||
         value.status !== undefined ||
         value.zone !== undefined ||
+        value.zones !== undefined ||
         value.categories !== undefined;
 
       if (isChassisType) {
@@ -843,10 +872,11 @@ const renderAnswerDisplay = (value: any, question?: any): React.ReactNode => {
             zoneColor: "red",
           });
         }
-        if (value.zone) {
-          const zoneVal = Array.isArray(value.zone)
-            ? value.zone.join(", ")
-            : String(value.zone);
+        const zoneRaw = value.zone || value.zones;
+        if (zoneRaw) {
+          const zoneVal = Array.isArray(zoneRaw)
+            ? zoneRaw.join(", ")
+            : String(zoneRaw);
           if (zoneVal.trim()) {
             // If multiple zones, use a mixed color
             if (zoneVal.includes(",")) {
@@ -897,7 +927,7 @@ const renderAnswerDisplay = (value: any, question?: any): React.ReactNode => {
                 const catName =
                   typeof cat === "string"
                     ? cat
-                    : cat?.name || cat?.category || "-";
+                    : cat?.name || cat?.category || cat?.categoryName || "-";
                 parts.push({
                   label: "Category",
                   value: String(catName),
@@ -1306,6 +1336,8 @@ const computeSectionPerformanceStats = (
               question.type === "chassisWithZone" ||
               question.type === "chassisWithoutZone" ||
               question.type === "chassis" ||
+              question.type === "zone-in" ||
+              question.type === "zone-out" ||
               question.text?.toLowerCase().includes("chassis")
             ) {
               const options = question.options || [];
@@ -1452,6 +1484,8 @@ const computeQuestionPerformanceStats = (
             question.type === "chassisWithZone" ||
             question.type === "chassisWithoutZone" ||
             question.type === "chassis" ||
+            question.type === "zone-in" ||
+            question.type === "zone-out" ||
             question.text?.toLowerCase().includes("chassis")
           ) {
             const options = question.options || [];
@@ -1888,6 +1922,8 @@ const getSectionYesNoStats = (
               question.type === "chassisWithZone" ||
               question.type === "chassisWithoutZone" ||
               question.type === "chassis" ||
+              question.type === "zone-in" ||
+              question.type === "zone-out" ||
               question.text?.toLowerCase().includes("chassis")
             ) {
               const options = question.options || [];
@@ -3141,6 +3177,23 @@ export default function FormAnalyticsDashboard() {
   const [timeSeriesView, setTimeSeriesView] = useState<"daily" | "monthly">("daily");
   const [chartSortOrder, setChartSortOrder] = useState<"default" | "percentage">("percentage");
 
+  const activeGlobalFilterCount = useMemo(() => {
+    let count = 0;
+    Object.values(cascadingFilters).forEach((answers) => {
+      if (answers && answers.length > 0) count++;
+    });
+    if (locationFilter && locationFilter.length > 0) count++;
+    if (
+      dateFilter.type !== "all" &&
+      (dateFilter.startDate || dateFilter.endDate)
+    )
+      count++;
+    Object.values(columnFilters).forEach((values) => {
+      if (values && values.length > 0) count++;
+    });
+    return count;
+  }, [cascadingFilters, locationFilter, dateFilter, columnFilters]);
+
   const complianceLabels = useMemo(() => {
     const defaultLabels = { yes: "Yes", no: "No", na: "N/A" };
     let labels = { ...defaultLabels };
@@ -3184,6 +3237,8 @@ export default function FormAnalyticsDashboard() {
                 question.type === "chassisWithZone" ||
                 question.type === "chassisWithoutZone" ||
                 question.type === "chassis" ||
+                question.type === "zone-in" ||
+                question.type === "zone-out" ||
                 question.text?.toLowerCase().includes("chassis") ||
                 question.text?.toLowerCase().includes("inspection") ||
                 question.text?.toLowerCase().includes("accepted") ||
@@ -3695,6 +3750,8 @@ export default function FormAnalyticsDashboard() {
             q.type === "chassis" ||
             q.type === "chassisWithZone" ||
             q.type === "chassisWithoutZone" ||
+            q.type === "zone-in" ||
+            q.type === "zone-out" ||
             q.text?.toLowerCase().includes("chassis") ||
             q.trackResponseRank === true ||
             q.trackResponseRank === "true" ||
@@ -4295,6 +4352,7 @@ export default function FormAnalyticsDashboard() {
         value.chassisNumber !== undefined ||
         value.status !== undefined ||
         value.zone !== undefined ||
+        value.zones !== undefined ||
         value.categories !== undefined;
 
       if (isChassisType) {
@@ -4339,10 +4397,11 @@ export default function FormAnalyticsDashboard() {
             zoneColor: "red",
           });
         }
-        if (value.zone) {
-          const zoneVal = Array.isArray(value.zone)
-            ? value.zone.join(", ")
-            : String(value.zone);
+        const zoneRaw = value.zone || value.zones;
+        if (zoneRaw) {
+          const zoneVal = Array.isArray(zoneRaw)
+            ? zoneRaw.join(", ")
+            : String(zoneRaw);
           if (zoneVal.trim()) {
             // If multiple zones, use a mixed color
             if (zoneVal.includes(",")) {
@@ -4393,7 +4452,7 @@ export default function FormAnalyticsDashboard() {
                 const catName =
                   typeof cat === "string"
                     ? cat
-                    : cat?.name || cat?.category || "-";
+                    : cat?.name || cat?.category || cat?.categoryName || "-";
                 parts.push({
                   label: "Category",
                   value: String(catName),
@@ -5366,6 +5425,23 @@ export default function FormAnalyticsDashboard() {
 
             <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
 
+            <button
+              onClick={() => setShowFilterModal(true)}
+              className={`p-1.5 rounded transition-colors relative ${
+                activeGlobalFilterCount > 0
+                  ? "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 bg-indigo-50 dark:bg-indigo-900/20"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              }`}
+              title="Advanced Filters"
+            >
+              <Filter className="w-4 h-4" />
+              {activeGlobalFilterCount > 0 && (
+                <span className="absolute top-0 right-0 flex items-center justify-center w-3.5 h-3.5 text-[8px] font-bold text-white bg-red-500 rounded-full -translate-y-1 translate-x-1">
+                  {activeGlobalFilterCount}
+                </span>
+              )}
+            </button>
+
             <div className="flex items-center gap-1.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From:</span>
               <input
@@ -5895,10 +5971,16 @@ export default function FormAnalyticsDashboard() {
           if (
             status === "accepted" ||
             status === "verified" ||
-            status === "rework completed"
+            status === "direct ok" ||
+            status === "rework accepted" ||
+            status === "rework completed" ||
+            status === "ok" ||
+            status === "pass" ||
+            status === "yes" ||
+            status === "verified ok"
           )
             accepted++;
-          else if (status === "rejected") rejected++;
+          else if (status === "rejected" || status === "fail" || status === "no") rejected++;
           else if (
             status === "rework" ||
             status === "reworked" ||
@@ -8122,7 +8204,7 @@ export default function FormAnalyticsDashboard() {
                           <tr className="bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-200 dark:border-amber-800">
                             <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
                             <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 sticky left-12 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">
-                              Correct Answer
+                              Expected Answer
                             </td>
                             <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
                             <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
@@ -8146,7 +8228,7 @@ export default function FormAnalyticsDashboard() {
                                       {hasCorrectAnswer ? (
                                         <div className="flex flex-col gap-1">
                                           <span className="text-[10px] uppercase text-gray-500 opacity-70">
-                                            Correct Answer:
+                                            Expected Answer:
                                           </span>
                                           <span>
                                             {Array.isArray(q.correctAnswer)

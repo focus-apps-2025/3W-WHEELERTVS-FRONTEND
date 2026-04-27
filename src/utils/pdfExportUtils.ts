@@ -163,10 +163,16 @@ function getSectionYesNoStats(form: any, answers: Record<string, any>): any[] {
           "yesNoNA",
           "radio",
           "checkbox",
+          "select",
           "search-select",
           "radio-image",
           "rating",
           "scale",
+          "chassisNumber",
+          "chassis-with-zone",
+          "chassis-without-zone",
+          "zone-in",
+          "zone-out",
         ];
         if (!supportedTypes.includes(question.type)) {
           question.followUpQuestions?.forEach(processQuestion);
@@ -231,6 +237,28 @@ function getSectionYesNoStats(form: any, answers: Record<string, any>): any[] {
                 ["n/a", "na", "not applicable"].includes(v),
               );
               isCorrect = !isNA;
+
+              // Special logic for chassis/zone types: if rejected or has defects, it's "Wrong"
+              if (
+                [
+                  "chassis-with-zone",
+                  "zone-in",
+                  "zone-out",
+                  "chassis-without-zone",
+                ].includes(question.type)
+              ) {
+                if (rawValue && typeof rawValue === "object") {
+                  const hasDefects =
+                    rawValue.status === "Rejected" ||
+                    (rawValue.zonesData &&
+                      Object.keys(rawValue.zonesData).length > 0) ||
+                    (rawValue.categories &&
+                      Object.keys(rawValue.categories).length > 0);
+                  if (hasDefects) {
+                    isCorrect = false;
+                  }
+                }
+              }
             }
 
             if (isCorrect) {
@@ -304,10 +332,16 @@ function getSectionYesNoQuestionStats(
       "yesNoNA",
       "radio",
       "checkbox",
+      "select",
       "search-select",
       "radio-image",
       "rating",
       "scale",
+      "chassisNumber",
+      "chassis-with-zone",
+      "chassis-without-zone",
+      "zone-in",
+      "zone-out",
     ];
     if (supportedTypes.includes(question.type)) {
       const rawValue = answers?.[question.id];
@@ -413,6 +447,66 @@ function getSectionYesNoQuestionStats(
         isQuiz: isAccuracy,
         ...counts,
       });
+
+      // For zone types, unroll categories into individual stats if defects exist
+      // This allows the "category" to show up in the bar charts as requested
+      if (
+        ["chassis-with-zone", "zone-in", "zone-out"].includes(question.type) &&
+        rawValue &&
+        typeof rawValue === "object"
+      ) {
+        const zonesData = rawValue.zonesData || {};
+        Object.entries(zonesData).forEach(
+          ([zoneName, zoneVal]: [string, any]) => {
+            const categories = zoneVal?.categories;
+            if (Array.isArray(categories)) {
+              categories.forEach((cat: any) => {
+                const catName = cat?.name || cat?.category || "-";
+                questionStats.push({
+                  id: `${question.id}-${zoneName}-${catName}`,
+                  title: `${
+                    question.text || question.title || question.label
+                  } - ${zoneName} - ${catName}`,
+                  subParam1: catName,
+                  hasYesNo: false,
+                  isQuiz: true,
+                  yes: 0,
+                  no: 0,
+                  na: 0,
+                  total: 1,
+                  correct: 0,
+                  wrong: 1,
+                  answeredCount: 1,
+                });
+              });
+            }
+          },
+        );
+
+        // Also check for flat categories structure
+        const flatCategories = rawValue.categories;
+        if (Array.isArray(flatCategories)) {
+          flatCategories.forEach((cat: any) => {
+            const catName = cat?.name || cat?.category || "-";
+            questionStats.push({
+              id: `${question.id}-${catName}`,
+              title: `${
+                question.text || question.title || question.label
+              } - ${catName}`,
+              subParam1: catName,
+              hasYesNo: false,
+              isQuiz: true,
+              yes: 0,
+              no: 0,
+              na: 0,
+              total: 1,
+              correct: 0,
+              wrong: 1,
+              answeredCount: 1,
+            });
+          });
+        }
+      }
     }
 
     question.followUpQuestions?.forEach(processQuestion);

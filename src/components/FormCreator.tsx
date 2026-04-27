@@ -1603,18 +1603,39 @@ export default function FormCreator() {
     const mapQuestionType = (type: string | undefined): string => {
       if (!type) return "text";
 
+      const normalized = type.toLowerCase().trim().replace(/\s+/g, '');
+
       const typeMap: Record<string, string> = {
-        shortText: "text",
+        shorttext: "text",
         number: "number",
-        multipleChoice: "radio",
+        multiplechoice: "radio",
+        radio: "radio",
         dropdown: "select",
-        yesNoNA: "yesNoNA",
+        select: "select",
+        yesnona: "yesNoNA",
         checkbox: "checkbox",
+        checkboxes: "checkbox",
         paragraph: "textarea",
+        textarea: "textarea",
         rating: "rating",
         date: "date",
+        time: "time",
+        email: "email",
+        url: "url",
+        tel: "tel",
+        location: "location",
+        file: "file",
+        fileupload: "file",
+        "chassis-with-zone": "chassis-with-zone",
+        chassiswithzone: "chassis-with-zone",
+        "chassis-without-zone": "chassis-without-zone",
+        chassiswithoutzone: "chassis-without-zone",
+        "zone-in": "zone-in",
+        zonein: "zone-in",
+        "zone-out": "zone-out",
+        zoneout: "zone-out"
       };
-      return typeMap[type] || "text";
+      return typeMap[normalized] || typeMap[type] || "text";
     };
 
     // Helper function to parse options string
@@ -1696,8 +1717,8 @@ export default function FormCreator() {
           required: getBoolean(row["Required"]),
           description: getString(row["Question Description"]),
           options: parseOptions(row["Options"]),
-          subParam1: getString(row["SubParam1"]),
-          subParam2: getString(row["SubParam2"]),
+          subParam1: getString(row["SubParam1"] || row["Main Parameter"] || row["Sub Parameter 1"]),
+          subParam2: getString(row["SubParam2"] || row["Followup Parameter"] || row["Sub Parameter 2"]),
           suggestion: "",
           followUpQuestions: [],
         };

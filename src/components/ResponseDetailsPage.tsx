@@ -275,7 +275,24 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
   const complianceLabels = useMemo(() => {
     const defaultLabels = { yes: "Yes", no: "No", na: "N/A" };
     let labels = { ...defaultLabels };
-    
+
+    // Check if any question in the form is a zone/chassis type
+    const hasSpecialTypes = form?.sections?.some((s) =>
+      s.questions?.some((q: any) =>
+        [
+          "chassis-with-zone",
+          "zone-in",
+          "zone-out",
+          "chassis-without-zone",
+          "chassisNumber",
+        ].includes(q.type),
+      ),
+    );
+
+    if (hasSpecialTypes) {
+      return { yes: "Accepted", no: "Rejected", na: "Rework" };
+    }
+
     if (form?.sections) {
       // First pass: look for any question that has non-default labels
       for (const section of form.sections) {
@@ -699,7 +716,7 @@ const handleBulkDownloadZip = async () => {
       if (!question) {
         return;
       }
-      const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale"];
+      const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale", "chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"];
       if (supportedTypes.includes(question.type) && question.id) {
         ids.add(question.id);
       }
@@ -1081,7 +1098,7 @@ const handleBulkDownloadZip = async () => {
           {/* Given Correct Answer - No color (Neutral) */}
           <div className="flex-1 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm">
             <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-              Given Correct Answer
+              Expected Answer
             </div>
             <div className="font-medium text-gray-700 dark:text-gray-300">
               {correctAnswerDisplay}
@@ -1110,13 +1127,13 @@ const handleBulkDownloadZip = async () => {
           if (!question) {
             return;
           }
-          const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale"];
+          const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale", "chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"];
           if (!supportedTypes.includes(question.type) || !question.id) {
             question.followUpQuestions?.forEach(processQuestion);
             return;
           }
 
-          const isCompliance = question.type === "yesNoNA";
+          const isCompliance = question.type === "yesNoNA" || ["chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"].includes(question.type);
           const isAccuracy = !isCompliance;
 
           if (isCompliance) {
@@ -1172,6 +1189,18 @@ const handleBulkDownloadZip = async () => {
                 // Fallback for accuracy questions without explicit correct answers:
                 // If it has a value and it's not "N/A", it's considered "Correct" (Answered)
                 isCorrect = true;
+
+                // Special logic for chassis/zone types: if rejected or has defects, it's "Wrong"
+                if (["chassis-with-zone", "zone-in", "zone-out", "chassis-without-zone"].includes(question.type)) {
+                  if (rawValue && typeof rawValue === 'object') {
+                    const hasDefects = rawValue.status === 'Rejected' || 
+                                     (rawValue.zonesData && Object.keys(rawValue.zonesData).length > 0) ||
+                                     (rawValue.categories && Object.keys(rawValue.categories).length > 0);
+                    if (hasDefects) {
+                      isCorrect = false;
+                    }
+                  }
+                }
               }
 
               if (isCorrect) {
@@ -1181,24 +1210,39 @@ const handleBulkDownloadZip = async () => {
               }
             }
           } else if (isCompliance) {
-            const yesLabel = question.options?.[0]?.toLowerCase() || "yes";
-            const noLabel = question.options?.[1]?.toLowerCase() || "no";
-            const naLabel = question.options?.[2]?.toLowerCase() || "n/a";
-
-            if (normalizedValues.includes(yesLabel)) {
-              counts.yes += 1;
-            } else if (normalizedValues.includes(noLabel)) {
-              counts.no += 1;
-            } else if (
-              normalizedValues.includes(naLabel) ||
-              normalizedValues.includes("n/a") ||
-              normalizedValues.includes("na") ||
-              normalizedValues.includes("not applicable")
-            ) {
-              counts.na += 1;
+            // Special logic for chassis/zone types within compliance
+            if (["chassis-with-zone", "zone-in", "zone-out", "chassis-without-zone"].includes(question.type)) {
+              if (rawValue && typeof rawValue === 'object') {
+                const hasDefects = rawValue.status === 'Rejected' || 
+                                 (rawValue.zonesData && Object.keys(rawValue.zonesData).length > 0) ||
+                                 (rawValue.categories && Object.keys(rawValue.categories).length > 0);
+                if (hasDefects) {
+                  counts.no = 1;
+                } else {
+                  counts.yes = 1;
+                }
+              } else {
+                counts.yes = 1;
+              }
             } else {
-              // Default to yes if it has value but not recognized as no/na
-              counts.yes += 1;
+              const yesLabel = question.options?.[0]?.toLowerCase() || "yes";
+              const noLabel = question.options?.[1]?.toLowerCase() || "no";
+              const naLabel = question.options?.[2]?.toLowerCase() || "n/a";
+
+              if (normalizedValues.includes(yesLabel)) {
+                counts.yes = 1;
+              } else if (normalizedValues.includes(noLabel)) {
+                counts.no = 1;
+              } else if (
+                normalizedValues.includes(naLabel) ||
+                normalizedValues.includes("n/a") ||
+                normalizedValues.includes("na") ||
+                normalizedValues.includes("not applicable")
+              ) {
+                counts.na = 1;
+              } else {
+                counts.yes = 1;
+              }
             }
           }
 
@@ -1251,12 +1295,12 @@ const handleBulkDownloadZip = async () => {
     const processQuestion = (question: any) => {
       if (!question) return;
 
-      const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale"];
+      const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale", "chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"];
       if (supportedTypes.includes(question.type) && question.id) {
         const rawValue = response.answers?.[question.id];
         const normalizedValues = extractYesNoValues(rawValue);
         const counts = { yes: 0, no: 0, na: 0, total: 1, correct: 0, wrong: 0, answeredCount: 0 };
-        const isCompliance = question.type === "yesNoNA";
+        const isCompliance = question.type === "yesNoNA" || ["chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"].includes(question.type);
         const isAccuracy = !isCompliance;
 
         const hasValue = rawValue !== null && rawValue !== undefined && rawValue !== "" && 
@@ -1300,6 +1344,18 @@ const handleBulkDownloadZip = async () => {
                 // Fallback for accuracy questions without explicit correct answers:
                 // If it has a value and it's not "N/A", it's considered "Correct" (Answered)
                 isCorrect = true;
+
+                // Special logic for chassis/zone types: if rejected or has defects, it's "Wrong"
+                if (["chassis-with-zone", "zone-in", "zone-out", "chassis-without-zone"].includes(question.type)) {
+                  if (rawValue && typeof rawValue === 'object') {
+                    const hasDefects = rawValue.status === 'Rejected' || 
+                                     (rawValue.zonesData && Object.keys(rawValue.zonesData).length > 0) ||
+                                     (rawValue.categories && Object.keys(rawValue.categories).length > 0);
+                    if (hasDefects) {
+                      isCorrect = false;
+                    }
+                  }
+                }
               }
 
               if (isCorrect) {
@@ -1342,6 +1398,56 @@ const handleBulkDownloadZip = async () => {
           isQuiz: isAccuracy,
           ...counts,
         });
+
+        // For zone types, unroll categories into individual stats if defects exist
+        // This allows the "category" to show up in the bar charts as requested
+        if (["chassis-with-zone", "zone-in", "zone-out"].includes(question.type) && rawValue && typeof rawValue === "object") {
+          const zonesData = rawValue.zonesData || {};
+          Object.entries(zonesData).forEach(([zoneName, zoneVal]: [string, any]) => {
+            const categories = zoneVal?.categories;
+            if (Array.isArray(categories)) {
+              categories.forEach((cat: any) => {
+                const catName = cat?.name || cat?.category || "-";
+                questionStats.push({
+                  id: `${question.id}-${zoneName}-${catName}`,
+                  title: `${question.title} - ${zoneName} - ${catName}`,
+                  subParam1: catName,
+                  hasYesNo: true,
+                  isQuiz: false,
+                  yes: 0,
+                  no: 1,
+                  na: 0,
+                  total: 1,
+                  correct: 0,
+                  wrong: 0,
+                  answeredCount: 1,
+                });
+              });
+            }
+          });
+
+          // Also check for flat categories structure
+          const flatCategories = rawValue.categories;
+          if (Array.isArray(flatCategories)) {
+            flatCategories.forEach((cat: any) => {
+              const catName = cat?.name || cat?.category || "-";
+              questionStats.push({
+                id: `${question.id}-${catName}`,
+                title: `${question.title} - ${catName}`,
+                subParam1: catName,
+                hasYesNo: true,
+                isQuiz: false,
+                yes: 0,
+                no: 1,
+                na: 0,
+                total: 1,
+                correct: 0,
+                wrong: 0,
+                answeredCount: 1,
+              });
+            });
+          }
+        }
       }
 
       question.followUpQuestions?.forEach(processQuestion);
@@ -1650,7 +1756,7 @@ const handleBulkDownloadZip = async () => {
           correctPercent,
           wrongPercent,
           hasYesNo: stat.hasYesNo,
-          hasQuiz: stat.correct > 0 || stat.wrong > 0 || stat.total > 0 && !stat.hasYesNo, // If total > 0 and no yes/no, it might be quiz
+          hasQuiz: stat.correct > 0 || (stat.total > 0 && !stat.hasYesNo), // If total > 0 and no yes/no, it might be quiz
         };
       }),
     [filteredSectionStats]
@@ -1666,7 +1772,7 @@ const handleBulkDownloadZip = async () => {
         correct: acc.correct + (row.correct || 0),
         wrong: acc.wrong + (row.wrong || 0),
         hasAnyYesNo: acc.hasAnyYesNo || row.hasYesNo,
-        hasAnyQuiz: acc.hasAnyQuiz || row.hasQuiz || (row.correct + row.wrong > 0),
+        hasAnyQuiz: acc.hasAnyQuiz || row.hasQuiz || row.correct > 0,
       }),
       { total: 0, yes: 0, no: 0, na: 0, correct: 0, wrong: 0, hasAnyYesNo: false, hasAnyQuiz: false }
     );
@@ -2063,7 +2169,9 @@ const handleBulkDownloadZip = async () => {
                     <div className="flex items-start justify-between gap-2">
                       <div>
                         <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-0.5">
-                          {summaryTotals.correct + summaryTotals.wrong > 0 ? "Accuracy Score" : "Overall Score"}
+                          {summaryTotals.correct + summaryTotals.wrong > 0 
+                            ? (complianceLabels.yes === "Accepted" ? "Inspection Score" : "Accuracy Score") 
+                            : "Overall Score"}
                         </p>
                         <p className="text-lg font-bold text-blue-900 dark:text-blue-100">
                           {(() => {
@@ -2159,18 +2267,18 @@ const handleBulkDownloadZip = async () => {
                                 {/* Accuracy Section */}
                                 <div className="col-span-3 mt-1.5 pt-1.5 border-t border-green-200 dark:border-green-800/50">
                                   <p className="text-[10px] font-bold text-green-800 dark:text-green-300 uppercase mb-1 flex items-center gap-1">
-                                    <Zap className="w-2.5 h-2.5" /> Accuracy Statistics
+                                    <Zap className="w-2.5 h-2.5" /> {complianceLabels.yes === "Accepted" ? "Inspection Statistics" : "Accuracy Statistics"}
                                   </p>
                                   <div className="grid grid-cols-2 gap-2">
                                     <div className="flex items-center justify-between p-1.5 bg-emerald-100/50 dark:bg-emerald-900/20 rounded border border-emerald-200 dark:border-emerald-800/40">
-                                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">Correct</span>
+                                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">{complianceLabels.yes === "Accepted" ? "Accepted" : "Correct"}</span>
                                       <div className="text-right">
                                         <p className="text-xs font-bold text-emerald-800 dark:text-emerald-200 leading-none">{totalCorrect}</p>
                                         <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold">{correctPercent}%</p>
                                       </div>
                                     </div>
                                     <div className="flex items-center justify-between p-1.5 bg-rose-100/50 dark:bg-rose-900/20 rounded border border-rose-200 dark:border-rose-800/40">
-                                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase">Wrong</span>
+                                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase">{complianceLabels.yes === "Accepted" ? "Rejected" : "Wrong"}</span>
                                       <div className="text-right">
                                         <p className="text-xs font-bold text-rose-800 dark:text-rose-200 leading-none">{totalWrong}</p>
                                         <p className="text-[9px] text-rose-600 dark:text-rose-400 font-bold">{wrongPercent}%</p>
@@ -2488,14 +2596,18 @@ const handleBulkDownloadZip = async () => {
                         <span>Section Performance</span>
                       </h3>
                       <div className="flex gap-1 bg-white/50 dark:bg-gray-700/50 rounded-md px-1.5 py-1 flex-row">
-                        <div className="flex items-center space-x-0.5">
-                          <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">Correct</span>
-                        </div>
-                        <div className="flex items-center space-x-0.5">
-                          <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                          <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">Wrong</span>
-                        </div>
+                        {summaryTotals.correct > 0 && (
+                          <div className="flex items-center space-x-0.5">
+                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                            <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">Correct</span>
+                          </div>
+                        )}
+                        {summaryTotals.wrong > 0 && summaryTotals.correct > 0 && (
+                          <div className="flex items-center space-x-0.5">
+                            <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                            <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">Wrong</span>
+                          </div>
+                        )}
                         <div className="flex items-center space-x-0.5">
                           <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
                           <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">{complianceLabels.yes}</span>
@@ -2581,7 +2693,7 @@ const handleBulkDownloadZip = async () => {
                 const data: number[] = [];
                 const colors: string[] = [];
 
-                if (hasYesNo && hasQuiz) {
+                if (hasYesNo && hasQuiz && sectionTotals.correct > 0) {
                   labels.push("Correct", "Wrong", complianceLabels.yes, complianceLabels.no);
                   data.push(sectionTotals.correct, sectionTotals.wrong, sectionTotals.yes, sectionTotals.no);
                   colors.push("#10b981", "#ef4444", "#1e40af", "#3b82f6");
@@ -2835,7 +2947,7 @@ const handleBulkDownloadZip = async () => {
                           <div className="bg-green-50 dark:bg-green-900/20 px-4 py-2.5 border-b border-green-100 dark:border-green-800">
                             <h4 className="text-sm font-semibold text-green-900 dark:text-green-100 flex items-center">
                               <Award className="w-4 h-4 mr-2" />
-                              Accuracy Analysis (Correct/Wrong)
+                              {complianceLabels.yes === "Accepted" ? "Inspection Analysis (Accepted/Rejected)" : "Accuracy Analysis (Correct/Wrong)"}
                             </h4>
                           </div>
                           <div className="overflow-auto max-h-60">
@@ -2846,10 +2958,10 @@ const handleBulkDownloadZip = async () => {
                                     Parameter
                                   </th>
                                   <th className="px-3 py-2 text-center font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider w-[30%]">
-                                    Correct
+                                    {complianceLabels.yes === "Accepted" ? "Accepted" : "Correct"}
                                   </th>
                                   <th className="px-3 py-2 text-center font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider w-[30%]">
-                                    Wrong
+                                    {complianceLabels.yes === "Accepted" ? "Rejected" : "Wrong"}
                                   </th>
                                 </tr>
                               </thead>
@@ -3308,6 +3420,7 @@ const handleBulkDownloadZip = async () => {
       id: string;
       questionText: string;
       subParam1?: string;
+      subParam2?: string;
       answer: any;
       sectionTitle: string;
     }> = [];
@@ -3320,6 +3433,7 @@ const handleBulkDownloadZip = async () => {
             id: question.id,
             questionText: question.text || question.label || question.id,
             subParam1: question.subParam1,
+            subParam2: question.subParam2,
             answer,
             sectionTitle: section.title || "Untitled Section"
           });
@@ -3331,6 +3445,7 @@ const handleBulkDownloadZip = async () => {
               id: followUp.id,
               questionText: followUp.text || followUp.label || followUp.id,
               subParam1: followUp.subParam1,
+              subParam2: followUp.subParam2,
               answer: followUpAnswer,
               sectionTitle: section.title || "Untitled Section"
             });
@@ -3346,6 +3461,7 @@ const handleBulkDownloadZip = async () => {
           id: followUp.id,
           questionText: followUp.text || followUp.label || followUp.id,
           subParam1: followUp.subParam1,
+          subParam2: followUp.subParam2,
           answer: followUpAnswer,
           sectionTitle: "Follow-up Questions"
         });
@@ -3354,7 +3470,9 @@ const handleBulkDownloadZip = async () => {
 
     const isZoneStructured = (val: any): boolean => {
       if (!val || typeof val !== 'object') return false;
-      return 'zonesData' in val || 'zone' in val || 'status' in val;
+      // Only treat as structured if it has hierarchical zone data or explicit defects
+      return ('zonesData' in val && Object.keys(val.zonesData || {}).length > 0) || 
+             ('defects' in val && Array.isArray(val.defects) && val.defects.length > 0);
     };
 
     const renderSimpleAnswer = (val: any): React.ReactNode => {
@@ -3373,6 +3491,30 @@ const handleBulkDownloadZip = async () => {
       if (typeof val === 'object') {
         if (val.url && isImageUrl(String(val.url))) return <ImageLink text={val.url} />;
         if (val.answer !== undefined) return renderSimpleAnswer(val.answer);
+
+        // Special handling for chassis/zone types in simple view
+        const isChassisType = 'chassisNumber' in val || 'status' in val || 'zone' in val || 'zones' in val;
+        if (isChassisType) {
+          const parts = [];
+          if (val.status) parts.push(<div key="status" className="flex gap-1"><span className="font-bold text-orange-600 dark:text-orange-400 text-[10px] uppercase">Status:</span><span className="text-xs font-semibold">{val.status}</span></div>);
+          if (val.chassisNumber) parts.push(<div key="chassis" className="flex gap-1"><span className="font-bold text-blue-600 dark:text-blue-400 text-[10px] uppercase">Chassis:</span><span className="text-xs font-semibold">{val.chassisNumber}</span></div>);
+          const zones = val.zone || val.zones;
+          if (zones) {
+            const zonesStr = Array.isArray(zones) ? zones.join(', ') : zones;
+            if (zonesStr) parts.push(<div key="zones" className="flex gap-1"><span className="font-bold text-indigo-600 dark:text-indigo-400 text-[10px] uppercase">Zones:</span><span className="text-xs font-semibold">{zonesStr}</span></div>);
+          }
+          if (val.remark) parts.push(<div key="remark" className="flex gap-1 mt-0.5"><span className="font-bold text-gray-500 text-[10px] uppercase">Remark:</span><span className="text-xs italic text-gray-600 dark:text-gray-400">📝 {val.remark}</span></div>);
+          if (val.evidenceUrl) {
+            parts.push(
+              <div key="evidence" className="mt-1">
+                {isImageUrl(val.evidenceUrl) ? <ImageLink text={val.evidenceUrl} /> : <a href={val.evidenceUrl} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-600 underline font-bold uppercase tracking-tighter">View Evidence</a>}
+              </div>
+            );
+          }
+          
+          return <div className="flex flex-col gap-0.5 py-1">{parts}</div>;
+        }
+
         return (
           <div className="flex flex-col gap-1">
             {Object.entries(val).map(([k, v], i) => (
@@ -3392,8 +3534,34 @@ const handleBulkDownloadZip = async () => {
       return a.id.localeCompare(b.id);
     });
 
-    // Check if ANY row has zone-structured data
-    const hasAnyZoneData = allRows.some(r => isZoneStructured(r.answer));
+    const isChassisType = (val: any): boolean => 
+      val && typeof val === 'object' && ('chassisNumber' in val || 'status' in val || 'zone' in val || 'zones' in val || 'zonesData' in val);
+
+    // Check if ANY row has zone/chassis data
+    const hasAnyZoneData = allRows.some(r => isChassisType(r.answer));
+    
+    // Check if Category and Defects columns are actually needed
+    const showCategoryCol = allRows.some(r => {
+      const val = r.answer;
+      if (!val || typeof val !== 'object') return false;
+      if (val.zonesData) {
+        return Object.values(val.zonesData).some((z: any) => z.categories && z.categories.length > 0);
+      }
+      return val.category || val.categoryName;
+    });
+
+    const showDefectsCol = allRows.some(r => {
+      const val = r.answer;
+      if (!val || typeof val !== 'object') return false;
+      if (val.zonesData) {
+        return Object.values(val.zonesData).some((z: any) => 
+          z.categories?.some((c: any) => c.defects && c.defects.length > 0)
+        );
+      }
+      return (val.defects && val.defects.length > 0) || val.defect || val.defects;
+    });
+
+    const columnCount = 1 + (hasAnyZoneData ? (3 + (showCategoryCol ? 1 : 0) + (showDefectsCol ? 1 : 0) + 2) : 1);
 
     const rows: JSX.Element[] = [];
     let currentSection = '';
@@ -3405,7 +3573,7 @@ const handleBulkDownloadZip = async () => {
         rows.push(
           <tr key={`section-${currentSection}`} className="bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40">
             <td
-              colSpan={hasAnyZoneData ? 8 : 2}
+              colSpan={columnCount}
               className="px-4 py-2 text-sm font-bold text-blue-900 dark:text-blue-200 border border-gray-200 dark:border-gray-600"
             >
               {currentSection}
@@ -3420,7 +3588,7 @@ const handleBulkDownloadZip = async () => {
       if (isZoneStructured(row.answer)) {
   const val = row.answer;
   const status = val?.status || '-';
-  const zones = val?.zone;
+  const zones = val?.zone || val?.zones;
   const zonesData = val?.zonesData || {};
 
   // Build structured entries grouped by zone and category
@@ -3517,12 +3685,16 @@ const handleBulkDownloadZip = async () => {
 
   if (zoneEntries.length === 0) {
     const zonesStr = Array.isArray(zones) ? zones.join(', ') : (zones || '-');
+    const defectsStr = Array.isArray(val?.defects) 
+      ? val.defects.map((d: any) => typeof d === 'string' ? d : (d?.name || d?.defect || '-')).join(', ') 
+      : (val?.defect || val?.defects || '-');
+    
     zoneEntries.push({
       zone: zonesStr,
-      category: '-',
-      defects: '-',
-      remark: '-',
-      file: '',
+      category: val?.category || val?.categoryName || '-',
+      defects: defectsStr,
+      remark: val?.remark || val?.remarks || val?.comment || val?.comments || '-',
+      file: val?.evidenceUrl || val?.fileUrl || val?.file || val?.imageUrl || '',
       showZone: true,
       showCategory: true,
       zoneRowSpan: 1,
@@ -3541,6 +3713,11 @@ const handleBulkDownloadZip = async () => {
           {row.subParam1 && (
             <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
               {row.subParam1}
+            </span>
+          )}
+          {row.subParam2 && (
+            <span className="inline-block bg-emerald-100/60 dark:bg-emerald-900/30 text-emerald-900 dark:text-emerald-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
+              {row.subParam2}
             </span>
           )}
           <div className="font-medium text-gray-800 dark:text-gray-200 text-xs leading-tight">
@@ -3574,17 +3751,19 @@ const handleBulkDownloadZip = async () => {
         </td>
       )}
       {/* First entry: Category (rowspanned per category group) */}
-      {zoneEntries[0].showCategory && (
+      {entry.showCategory && showCategoryCol && (
         <td
-          rowSpan={zoneEntries[0].categoryRowSpan}
+          rowSpan={entry.categoryRowSpan}
           className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 align-middle"
         >
-          {zoneEntries[0].category}
+          {entry.category}
         </td>
       )}
-      <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
-        {zoneEntries[0].defects}
-      </td>
+      {showDefectsCol && (
+        <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
+          {entry.defects}
+        </td>
+      )}
       <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 italic">
         {zoneEntries[0].remark !== '-' ? <span className="flex items-center gap-1">📝 {zoneEntries[0].remark}</span> : '-'}
       </td>
@@ -3612,7 +3791,7 @@ const handleBulkDownloadZip = async () => {
           </td>
         )}
         {/* Category cell — only render if this is the first row of a new category group */}
-        {entry.showCategory && (
+        {entry.showCategory && showCategoryCol && (
           <td
             rowSpan={entry.categoryRowSpan}
             className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 align-middle"
@@ -3620,9 +3799,11 @@ const handleBulkDownloadZip = async () => {
             {entry.category}
           </td>
         )}
-        <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
-          {entry.defects}
-        </td>
+        {showDefectsCol && (
+          <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
+            {entry.defects}
+          </td>
+        )}
         <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 italic">
           {entry.remark !== '-' ? <span className="flex items-center gap-1">📝 {entry.remark}</span> : '-'}
         </td>
@@ -3636,27 +3817,93 @@ const handleBulkDownloadZip = async () => {
       </tr>
     );
   });
-}else {
-        // Normal non-zone row — span all 8 columns for answer
-        rows.push(
-          <tr key={row.id} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
-            <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top w-[120px] min-w-[100px] max-w-[140px]">
-              <div className="flex flex-col gap-1">
-                {row.subParam1 && (
-                  <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
-                    {row.subParam1}
-                  </span>
-                )}
-                <div className="font-medium text-gray-800 dark:text-gray-200 text-xs leading-tight">
-                  {row.questionText}
+      } else {
+        const val = row.answer;
+        const isChassisRow = isChassisType(val);
+
+        if (hasAnyZoneData && isChassisRow) {
+          const status = val.status || '-';
+          const zones = val.zone || val.zones;
+          const zonesStr = Array.isArray(zones) ? zones.join(', ') : (zones || '-');
+          const chassis = val.chassisNumber || '-';
+          const remark = val.remark || '-';
+          const file = val.evidenceUrl || '';
+
+          rows.push(
+            <tr key={row.id} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top w-[120px] min-w-[100px] max-w-[140px]">
+                <div className="flex flex-col gap-1">
+                  {row.subParam1 && (
+                    <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
+                      {row.subParam1}
+                    </span>
+                  )}
+                  <div className="font-medium text-gray-800 dark:text-gray-200 text-xs leading-tight">
+                    {row.questionText}
+                  </div>
                 </div>
-              </div>
-            </td>
-            <td colSpan={7} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top">
-              {renderSimpleAnswer(row.answer)}
-            </td>
-          </tr>
-        );
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-middle text-center w-[90px]">
+                <span className="inline-block bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 px-2 py-1 rounded-full text-xs font-bold border border-orange-200 dark:border-orange-700 whitespace-nowrap">
+                  {status}
+                </span>
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-middle w-[100px]">
+                <div className="flex flex-wrap gap-1">
+                  {(Array.isArray(zones) ? zones : [zones]).filter(Boolean).map((z: string, i: number) => (
+                    <span key={i} className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded text-xs font-semibold border border-blue-200 dark:border-blue-700 whitespace-nowrap">
+                      {z}
+                    </span>
+                  ))}
+                </div>
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-800 dark:text-gray-200 align-middle bg-blue-50/30 dark:bg-blue-900/10">
+                {chassis}
+              </td>
+              {showCategoryCol && (
+                <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 align-middle text-center">
+                  -
+                </td>
+              )}
+              {showDefectsCol && (
+                <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 text-center">
+                  -
+                </td>
+              )}
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 italic">
+                {remark !== '-' ? <span className="flex items-center gap-1">📝 {remark}</span> : '-'}
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-center">
+                {file ? (
+                  isImageUrl(file)
+                    ? <ImageLink text={file} />
+                    : <a href={file} target={"_blank"} rel={"noopener noreferrer"} className="text-blue-600 dark:text-blue-400 underline font-bold uppercase tracking-tighter text-[10px]">View</a>
+                ) : '-'}
+              </td>
+            </tr>
+          );
+        } else {
+          // Normal non-zone row
+          rows.push(
+            <tr key={row.id} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top w-[120px] min-w-[100px] max-w-[140px]">
+                <div className="flex flex-col gap-1">
+                  {row.subParam1 && (
+                    <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
+                      {row.subParam1}
+                    </span>
+                  )}
+                  <div className="font-medium text-gray-800 dark:text-gray-200 text-xs leading-tight">
+                    {row.questionText}
+                  </div>
+                </div>
+              </td>
+              <td colSpan={columnCount - 1} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top">
+                {renderSimpleAnswer(row.answer)}
+              </td>
+            </tr>
+          );
+        }
       }
     });
 
@@ -3692,12 +3939,16 @@ const handleBulkDownloadZip = async () => {
                 <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
                   Zone
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
-                  Category
-                </th>
-                <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
-                  Defects
-                </th>
+                {showCategoryCol && (
+                  <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                    Category
+                  </th>
+                )}
+                {showDefectsCol && (
+                  <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                    Defects
+                  </th>
+                )}
                 <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
                   Remark
                 </th>

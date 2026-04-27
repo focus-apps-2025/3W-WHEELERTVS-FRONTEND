@@ -117,7 +117,7 @@ export default function ResponseDetails({
           {/* Given Correct Answer - No color (Neutral) */}
           <div className="flex-1 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 rounded-lg p-3 text-sm">
             <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">
-              Given Correct Answer
+              Expected Answer
             </div>
             <div className="font-medium text-gray-700 dark:text-gray-300">
               {correctAnswerDisplay}
