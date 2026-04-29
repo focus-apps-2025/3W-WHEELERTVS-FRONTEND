@@ -9,7 +9,7 @@ const API_BASE_URL = (() => {
     hostname.startsWith("172.");
 
   const baseUrl = isLocal
-    ? "http://127.0.0.1:5001/api"
+    ? "http://127.0.0.1:5000/api"
     : "https://3wheelertvsbackend.focusengineeringapp.com/api";
 
   console.log(
@@ -225,6 +225,21 @@ class ApiClient {
 
     this.setToken(data.token);
     return data;
+  }
+
+  async signup(signupData: {
+    name: string;
+    slug: string;
+    companyName: string;
+    adminEmail: string;
+    adminPassword: string;
+    adminFirstName: string;
+    adminLastName: string;
+  }) {
+    return this.request<{ tenant: any }>("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify(signupData),
+    });
   }
 
   async logout(sessionLogId?: string) {

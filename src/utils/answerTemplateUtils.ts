@@ -915,11 +915,15 @@ function parseChassisAnswer(value: string, type: string) {
     status: "",
     defectCategory: [],
     defects: [],
+    zonesData: {}
   };
 
   if (type === "chassis-with-zone") {
     result.zone = [];
   }
+
+  // Define valid zones for normalization to match ChassisWithZone.tsx
+  const VALID_ZONES = ["Zone A+", "Zone A", "Zone B", "Zone C"];
 
   // Split by semicolon
   const parts = value.split(";").map((p) => p.trim());
@@ -930,12 +934,18 @@ function parseChassisAnswer(value: string, type: string) {
       result.chassisNumber = part.split(":")[1]?.trim() || "";
     } else if (lowerPart.startsWith("status:")) {
       result.status = part.split(":")[1]?.trim() || "";
-    } else if (lowerPart.startsWith("zones:") && type === "chassis-with-zone") {
+    } else if ((lowerPart.startsWith("zones:") || lowerPart.startsWith("zone:")) && type === "chassis-with-zone") {
       const zonesStr = part.split(":")[1]?.trim() || "";
-      result.zone = zonesStr
+      const rawZones = zonesStr
         .split(",")
         .map((z) => z.trim())
         .filter(Boolean);
+      
+      // Normalize zone names to match ZONES constant in ChassisWithZone.tsx
+      result.zone = rawZones.map(rz => {
+        const found = VALID_ZONES.find(vz => vz.toLowerCase() === rz.toLowerCase());
+        return found || rz;
+      });
     } else if (lowerPart.startsWith("category:")) {
       const catStr = part.split(":")[1]?.trim() || "";
       result.defectCategory = catStr
@@ -945,7 +955,6 @@ function parseChassisAnswer(value: string, type: string) {
     } else if (lowerPart.startsWith("defects:")) {
       const defectsStr = part.split(":")[1]?.trim() || "";
       // Split defects by comma, but be careful of commas inside remarks/brackets
-      // Simple split for now, assuming defects are comma separated
       const defectItems = defectsStr.split(",").map((d) => d.trim()).filter(Boolean);
       
       result.defects = defectItems.map(item => {
@@ -969,6 +978,30 @@ function parseChassisAnswer(value: string, type: string) {
       result.evidenceUrl = urlMatch ? urlMatch[1] : (evidenceStr || "");
     }
   });
+
+  // Populate zonesData for hierarchical UI compatibility
+  if (type === "chassis-with-zone" && result.zone && result.zone.length > 0) {
+    result.zone.forEach((z: string) => {
+      if (!result.zonesData[z]) {
+        result.zonesData[z] = { categories: [] };
+      }
+      
+      if (result.defectCategory.length > 0) {
+        result.defectCategory.forEach((catName: string) => {
+          result.zonesData[z].categories.push({
+            name: catName,
+            defects: result.defects.map((d: any) => ({
+              name: d.name,
+              details: {
+                remark: d.remark,
+                fileUrl: d.fileUrl
+              }
+            }))
+          });
+        });
+      }
+    });
+  }
 
   // Fallback for simple status-only input
   if (!result.status && (value === "Accepted" || value === "Rejected" || value === "Rework")) {

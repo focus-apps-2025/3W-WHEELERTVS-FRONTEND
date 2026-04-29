@@ -8,8 +8,8 @@ interface LoginFormProps {
 
 export default function LoginForm({ onClose }: LoginFormProps) {
   const { login, error: authError, loading: authLoading } = useAuth();
-  const [email, setEmail] = useState("admin@focus.com");
-  const [password, setPassword] = useState("admin123#");
+  const [email, setEmail] = useState("superadmin@focus.com");
+  const [password, setPassword] = useState("superadmin123#");
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -165,23 +165,23 @@ export default function LoginForm({ onClose }: LoginFormProps) {
               </h4>
               <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
                 <div className="flex items-center justify-center space-x-2">
-                  <span className="font-medium">Admin:</span>
+                  <span className="font-medium">Super Admin:</span>
                   <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-blue-600">
-                    admin@focus.com
+                    superadmin@focus.com
                   </code>
                   <span>/</span>
                   <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-blue-600">
-                    admin123#
+                    superadmin123#
                   </code>
                 </div>
                 <div className="flex items-center justify-center space-x-2">
-                  <span className="font-medium">Mechanic:</span>
+                  <span className="font-medium">Admin:</span>
                   <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-purple-600">
-                    mechanic@focus.com
+                    krishna@focusengineering.in
                   </code>
                   <span>/</span>
                   <code className="bg-white dark:bg-gray-900 px-2 py-1 rounded text-purple-600">
-                    mechanic123
+                    krishna123
                   </code>
                 </div>
               </div>

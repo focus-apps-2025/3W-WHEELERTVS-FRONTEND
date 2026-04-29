@@ -1762,6 +1762,8 @@ export default function FormAnalyticsDashboard() {
     null,
   );
   const [editFormData, setEditFormData] = useState<Record<string, any>>({});
+  const [editFormStatus, setEditFormStatus] = useState<string>("Accepted");
+  const [editFormNotes, setEditFormNotes] = useState<string>("");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingResponseId, setDeletingResponseId] = useState<string | null>(
     null,
@@ -2780,9 +2782,14 @@ export default function FormAnalyticsDashboard() {
       if (answer !== null && answer !== undefined) {
         if (Array.isArray(answer)) {
           answer.forEach((item) => {
-            const strValue = String(item).trim();
-            if (strValue) values.add(strValue);
+            const strValue = typeof item === 'object' ? (item.status || String(item)) : String(item);
+            const trimmed = strValue.trim();
+            if (trimmed) values.add(trimmed);
           });
+        } else if (typeof answer === 'object') {
+          const strValue = answer.status || String(answer);
+          const trimmed = strValue.trim();
+          if (trimmed) values.add(trimmed);
         } else {
           const strValue = String(answer).trim();
           if (strValue) values.add(strValue);
@@ -3077,6 +3084,17 @@ export default function FormAnalyticsDashboard() {
             label: "Status",
             value: String(value.status),
             zoneColor: "red",
+          });
+        }
+        if (
+          (value.remark || value.remarks) &&
+          String(value.remark || value.remarks).trim() &&
+          String(value.remark || value.remarks).toLowerCase() !== "no response"
+        ) {
+          parts.push({
+            label: "Remark",
+            value: String(value.remark || value.remarks),
+            zoneColor: "amber",
           });
         }
         if (value.zone) {
@@ -4119,17 +4137,10 @@ export default function FormAnalyticsDashboard() {
     let reworked = 0;
 
     filteredResponses.forEach((response) => {
-      // Find the inspection status from answers
-      if (!response.answers) return;
-
-      Object.values(response.answers).forEach((val) => {
-        if (val && typeof val === "object" && val.status) {
-          const status = String(val.status).toLowerCase();
-          if (status === "accepted") accepted++;
-          else if (status === "rejected") rejected++;
-          else if (status === "rework" || status === "reworked") reworked++;
-        }
-      });
+      const status = (response.status || "Accepted").toLowerCase();
+      if (status === "accepted") accepted++;
+      else if (status === "rejected") rejected++;
+      else if (status === "rework" || status === "reworked") reworked++;
     });
 
     return { accepted, rejected, reworked };
@@ -4137,7 +4148,12 @@ export default function FormAnalyticsDashboard() {
 
   const handleExportToExcel = () => {
     try {
-      const headerRow: any[] = ["Timestamp"];
+      const headerRow: any[] = [
+        "Submitted by",
+        "Status",
+        "Timestamp",
+        "Time Taken",
+      ];
       const columnInfo: Array<{
         questionId: string;
         isFollowUp: boolean;
@@ -4161,10 +4177,21 @@ export default function FormAnalyticsDashboard() {
       const wsData: any[][] = [headerRow];
 
       responses.forEach((response: Response) => {
+        const timeSpent = response.timeSpent ?? response.totalTimeSpent ?? 0;
+        const timeTakenStr =
+          timeSpent > 0
+            ? timeSpent > 60
+              ? `${Math.floor(timeSpent / 60)}m ${timeSpent % 60}s`
+              : `${timeSpent}s`
+            : "-";
+
         const rowData: any[] = [
+          response.submittedBy || response.createdBy || "Anonymous",
+          response.status || "Accepted",
           getResponseTimestamp(response)
             ? new Date(getResponseTimestamp(response)!).toLocaleString()
             : "-",
+          timeTakenStr,
         ];
 
         columnInfo.forEach(({ questionId }) => {
@@ -4260,23 +4287,34 @@ export default function FormAnalyticsDashboard() {
       for (let rowIdx = 1; rowIdx < lastResponseRowIdx; rowIdx++) {
         const response = responses[rowIdx - 1];
 
-        // Style Timestamp column
-        const timeCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 0 });
-        ws[timeCellRef].s = {
-          fill: { fgColor: { rgb: "FFF9FAFB" } },
-          font: { bold: false },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
-        };
+        // Style first 4 columns (Metadata)
+        for (let colIdx = 0; colIdx < 4; colIdx++) {
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
+          ws[cellRef].s = {
+            fill: { fgColor: { rgb: "FFF9FAFB" } },
+            font: { bold: colIdx === 0 },
+            alignment: { horizontal: "center", vertical: "center" },
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            },
+          };
+
+          // Color code Status column
+          if (colIdx === 1) {
+            const status = response.status || "Accepted";
+            let color = "FF059669"; // Green 600
+            if (status === "Rejected") color = "FFDC2626"; // Red 600
+            if (status === "Rework") color = "FFD97706"; // Amber 600
+            ws[cellRef].s.font = { color: { rgb: color }, bold: true };
+          }
+        }
 
         // Style Question columns
         for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 1 });
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 4 });
           const info = columnInfo[colIdx];
           const answer = response.answers?.[info.questionId];
 
@@ -4327,7 +4365,13 @@ export default function FormAnalyticsDashboard() {
         };
       }
 
-      ws["!cols"] = [{ wch: 22 }, ...columnInfo.map(() => ({ wch: 35 }))];
+      ws["!cols"] = [
+        { wch: 25 }, // Submitted by
+        { wch: 15 }, // Status
+        { wch: 22 }, // Timestamp
+        { wch: 15 }, // Time Taken
+        ...columnInfo.map(() => ({ wch: 35 })),
+      ];
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Responses");
@@ -4366,6 +4410,8 @@ export default function FormAnalyticsDashboard() {
   const handleEditStart = (response: Response) => {
     setEditingResponseId(response.id);
     setEditFormData({ ...response.answers });
+    setEditFormStatus(response.status || "Accepted");
+    setEditFormNotes(response.notes || "");
   };
 
   const handleSaveEdit = async () => {
@@ -4375,16 +4421,27 @@ export default function FormAnalyticsDashboard() {
       setIsSaving(true);
       await apiClient.updateResponse(editingResponseId, {
         answers: editFormData,
+        status: editFormStatus,
+        notes: editFormNotes,
       });
 
       setResponses(
         responses.map((r) =>
-          r.id === editingResponseId ? { ...r, answers: editFormData } : r,
+          r.id === editingResponseId
+            ? {
+              ...r,
+              answers: editFormData,
+              status: editFormStatus,
+              notes: editFormNotes,
+            }
+            : r,
         ),
       );
 
       setEditingResponseId(null);
       setEditFormData({});
+      setEditFormStatus("Accepted");
+      setEditFormNotes("");
       showToast("Response updated successfully!", "success");
     } catch (err) {
       console.error("Error updating response:", err);
@@ -4397,6 +4454,8 @@ export default function FormAnalyticsDashboard() {
   const handleCancelEdit = () => {
     setEditingResponseId(null);
     setEditFormData({});
+    setEditFormStatus("Accepted");
+    setEditFormNotes("");
   };
 
   const showToast = (
@@ -6383,6 +6442,8 @@ export default function FormAnalyticsDashboard() {
                             <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                             <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                             <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
+                            <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
+                            <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
                             {form?.sections?.map((section: Section) => {
                               const sectionQuestionsCount =
                                 section.questions?.length || 0;
@@ -6428,6 +6489,9 @@ export default function FormAnalyticsDashboard() {
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
                               Submitted by
+                            </th>
+                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
+                              Status
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                               Timestamp
@@ -6651,6 +6715,32 @@ export default function FormAnalyticsDashboard() {
                                       response.createdBy ||
                                       "Anonymous"}
                                   </td>
+                                  <td className="px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap">
+                                    {editingResponseId === response.id ? (
+                                      <select
+                                        value={editFormStatus}
+                                        onChange={(e) =>
+                                          setEditFormStatus(e.target.value)
+                                        }
+                                        className="w-full px-2 py-1 border border-blue-400 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      >
+                                        <option value="Accepted">Accepted</option>
+                                        <option value="Rejected">Rejected</option>
+                                        <option value="Rework">Rework</option>
+                                      </select>
+                                    ) : (
+                                      <span
+                                        className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${response.status === "Rejected"
+                                          ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+                                          : response.status === "Rework"
+                                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                                            : "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                          }`}
+                                      >
+                                        {response.status || "Accepted"}
+                                      </span>
+                                    )}
+                                  </td>
                                   <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                                     {getResponseTimestamp(response)
                                       ? new Date(
@@ -6773,7 +6863,7 @@ export default function FormAnalyticsDashboard() {
                             <tr>
                               <td
                                 colSpan={
-                                  4 +
+                                  5 +
                                   (form?.sections?.reduce(
                                     (acc: number, sec: Section) =>
                                       selectedResponsesSectionIds.includes(
