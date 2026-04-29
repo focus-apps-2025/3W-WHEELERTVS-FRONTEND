@@ -188,7 +188,7 @@ export default function ShiftManagement() {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Shift Management</h1>
-            <p className="text-gray-600">Define office hours and assign inspectors to shifts</p>
+            <p className="text-gray-600">Define office hours. System automatically assigns shifts to inspectors based on check-in time.</p>
           </div>
           <button
             onClick={() => { resetForm(); setEditingShift(null); setShowModal(true); }}
