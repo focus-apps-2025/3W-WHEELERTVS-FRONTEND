@@ -62,9 +62,15 @@ export default function DashboardNew() {
     {},
   );
   const [viewMode, setViewMode] = useState<"tenants" | "forms">("tenants");
+  const [inspectorSummary, setInspectorSummary] = useState<any[]>([]);
+  const [summaryStatuses, setSummaryStatuses] = useState<string[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryStartDate, setSummaryStartDate] = useState("");
+  const [summaryEndDate, setSummaryEndDate] = useState("");
 
   // Check user role
   const isSuperAdmin = user?.role === "superadmin";
+  const isInspector = user?.role === "inspector";
 
   // Calculate trial days left
   const getTrialDaysLeft = () => {
@@ -190,6 +196,36 @@ export default function DashboardNew() {
       fetchTenants();
     }
   }, [currentTenant, isSuperAdmin]);
+
+  // Fetch inspector summary data
+  useEffect(() => {
+    const fetchSummary = async () => {
+      setSummaryLoading(true);
+      try {
+        let url = "/analytics/inspector-summary";
+        const params = new URLSearchParams();
+        if (summaryStartDate) params.append("startDate", summaryStartDate);
+        if (summaryEndDate) params.append("endDate", summaryEndDate);
+        
+        const queryString = params.toString();
+        if (queryString) url += `?${queryString}`;
+
+        const response = await apiClient.get<any>(url);
+        if (response.data) {
+          setInspectorSummary(response.data.summary || []);
+          setSummaryStatuses(response.data.allStatuses || []);
+        }
+      } catch (error) {
+        console.error("Error fetching inspector summary:", error);
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchSummary();
+    }
+  }, [user, summaryStartDate, summaryEndDate]);
 
   // Calculate tenant statistics
   useEffect(() => {
@@ -912,6 +948,117 @@ export default function DashboardNew() {
     );
   };
 
+  const renderSummaryTable = () => {
+    if (summaryLoading) {
+      return (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-500 text-sm">Loading summary...</p>
+        </div>
+      );
+    }
+
+    if (inspectorSummary.length === 0) {
+      return (
+        <div className="text-center py-8 text-gray-500 text-sm">
+          No inspection data available for the current summary.
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-12 overflow-x-auto border-t border-gray-100 dark:border-gray-600 pt-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+              Inspection Summary Table
+            </h3>
+          </div>
+          
+          {/* Date Filters */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-1.5 border border-gray-200 dark:border-gray-700">
+              <span className="text-xs font-semibold text-gray-500 mr-2 uppercase">From</span>
+              <input 
+                type="date" 
+                value={summaryStartDate}
+                onChange={(e) => setSummaryStartDate(e.target.value)}
+                className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-1.5 border border-gray-200 dark:border-gray-700">
+              <span className="text-xs font-semibold text-gray-500 mr-2 uppercase">To</span>
+              <input 
+                type="date" 
+                value={summaryEndDate}
+                onChange={(e) => setSummaryEndDate(e.target.value)}
+                className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none"
+              />
+            </div>
+            {(summaryStartDate || summaryEndDate) && (
+              <button 
+                onClick={() => { setSummaryStartDate(""); setSummaryEndDate(""); }}
+                className="text-xs text-red-600 hover:text-red-800 font-medium underline px-2"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        <table className="w-full text-sm text-left border-collapse bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 uppercase text-[10px] font-black tracking-widest">
+            <tr>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Tenant Name</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Date</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Shift</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">QC Inspector</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Inspection</th>
+              {/* Dynamic Status Columns */}
+              {summaryStatuses.map((status) => (
+                <th 
+                  key={status} 
+                  className={`px-4 py-4 border-b border-gray-200 dark:border-gray-700 ${
+                    status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-green-600' : 
+                    status.startsWith('Rework') ? 'text-orange-600' : 
+                    status === 'Rejected' ? 'text-red-600' : 'text-blue-600'
+                  }`}
+                >
+                  {status}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            {inspectorSummary.map((row, idx) => (
+              <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.tenantName}</td>
+                <td className="px-4 py-4">{row.date}</td>
+                <td className="px-4 py-4">{row.shift}</td>
+                <td className="px-4 py-4">{row.qcInspector}</td>
+                <td className="px-4 py-4 font-bold">{row.totalInspection}</td>
+                {/* Dynamic Status Cells */}
+                {summaryStatuses.map((status) => (
+                  <td 
+                    key={status} 
+                    className={`px-4 py-4 font-bold ${
+                      status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-green-600' : 
+                      status.startsWith('Rework') ? 'text-orange-600' : 
+                      status === 'Rejected' ? 'text-red-600' : 'text-blue-600'
+                    }`}
+                  >
+                    {row.statusCounts?.[status] || 0}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   // Determine page title based on user role
   const getPageTitle = () => {
     if (viewMode === "tenants") {
@@ -936,8 +1083,8 @@ export default function DashboardNew() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6 md:p-8">
-      {/* Tenant Info Banner */}
-      {currentTenant && (
+      {/* Tenant Info Banner - Hide for inspectors */}
+      {currentTenant && !isInspector && (
         <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -1015,8 +1162,8 @@ export default function DashboardNew() {
               </h2>
             </div>
 
-            {/* Search Bar - Only show in forms view */}
-            {showSearchBar() && (
+            {/* Search Bar - Only show in forms view and not for inspectors */}
+            {showSearchBar() && !isInspector && (
               <div className="relative w-96">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
                 <input
@@ -1030,9 +1177,10 @@ export default function DashboardNew() {
             )}
           </div>
 
-          {/* Stats Summary - Only show in forms view */}
+          {/* Stats Summary - Only show in forms view and NOT for inspectors */}
           {viewMode === "forms" &&
             selectedTenant &&
+            !isInspector &&
             tenantStats[selectedTenant._id] && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
@@ -1090,6 +1238,9 @@ export default function DashboardNew() {
 
         {/* Content Area */}
         {viewMode === "tenants" ? renderTenantCards() : renderFormCards()}
+
+        {/* Inspection Summary Table - Visible for all but specially important for inspectors */}
+        {renderSummaryTable()}
       </div>
     </div>
   );

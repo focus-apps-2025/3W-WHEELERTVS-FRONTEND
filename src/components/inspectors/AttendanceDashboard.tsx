@@ -336,7 +336,7 @@ export default function AttendanceDashboard({
         <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-3xl p-6 text-white shadow-xl shadow-blue-200">
           <div className="flex items-center gap-3 mb-4">
             <Clock size={24} className="text-blue-200" />
-            <span className="font-bold opacity-80">Your Assigned Shift</span>
+            <span className="font-bold opacity-80">Detected Shift</span>
           </div>
 
           {shift ? (
@@ -357,9 +357,9 @@ export default function AttendanceDashboard({
           ) : (
             <div className="bg-white/10 p-4 rounded-2xl border border-white/10 text-center">
               <AlertCircle className="mx-auto mb-2 opacity-80" />
-              <p className="font-bold">No shift assigned to you today.</p>
+              <p className="font-bold">No active shift found for current time.</p>
               <p className="text-xs text-blue-200 mt-1">
-                Please contact your admin.
+                Check-in is only available during defined shift hours.
               </p>
             </div>
           )}
@@ -404,7 +404,7 @@ export default function AttendanceDashboard({
             <div className="flex items-center justify-between text-xs font-medium">
               <div className="flex items-center gap-2">
                 <span className={shift ? "text-green-600" : "text-red-500"}>
-                  {shift ? "✓ Shift" : "✗ No shift"}
+                  {shift ? "✓ Shift Detected" : "✗ No Shift"}
                 </span>
                 <span className={location ? "text-green-600" : "text-red-500"}>
                   {location ? "✓ GPS" : "✗ No GPS"}

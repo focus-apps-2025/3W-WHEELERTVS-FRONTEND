@@ -5234,9 +5234,7 @@ export default function FormAnalyticsDashboard() {
       datasets: [
         {
           label: complianceLabels.no,
-          data: processedQuestions.map(
-            (q) => (q.rejected / q.total) * 100,
-          ),
+          data: processedQuestions.map((q) => q.rejected),
           backgroundColor: "rgba(153, 27, 27, 0.85)", // Dark Red
           borderColor: "rgb(127, 29, 29)",
           borderWidth: 1,
@@ -5245,17 +5243,13 @@ export default function FormAnalyticsDashboard() {
           datalabels: {
             color: "#ffffff",
             font: { weight: "bold" as const, size: 10 },
-            formatter: (value: number, context: any) => {
-              if (value < 5) return "";
-              const q = processedQuestions[context.dataIndex];
-              return `${value.toFixed(0)}%\n(${q.rejected})`;
-            },
+            formatter: (value: number) => value > 0 ? value : "",
             textAlign: "center" as const,
           },
         },
         {
           label: complianceLabels.na,
-          data: processedQuestions.map((q) => (q.rework / q.total) * 100),
+          data: processedQuestions.map((q) => q.rework),
           backgroundColor: "rgba(55, 65, 81, 0.85)", // Dark Gray
           borderColor: "rgb(31, 41, 55)",
           borderWidth: 1,
@@ -5264,11 +5258,7 @@ export default function FormAnalyticsDashboard() {
           datalabels: {
             color: "#ffffff",
             font: { weight: "bold" as const, size: 10 },
-            formatter: (value: number, context: any) => {
-              if (value < 5) return "";
-              const q = processedQuestions[context.dataIndex];
-              return `${value.toFixed(0)}%\n(${q.rework})`;
-            },
+            formatter: (value: number) => value > 0 ? value : "",
             textAlign: "center" as const,
           },
         },
@@ -5302,12 +5292,8 @@ export default function FormAnalyticsDashboard() {
           cornerRadius: 8,
           callbacks: {
             label: function (context: any) {
-              const q = processedQuestions[context.dataIndex];
-              const value = context.raw.toFixed(1);
-              let count = 0;
-              if (context.datasetIndex === 0) count = q.rejected;
-              else if (context.datasetIndex === 1) count = q.rework;
-              return `${context.dataset.label}: ${value}% (${count} responses)`;
+              const value = context.raw;
+              return `${context.dataset.label}: ${value}`;
             },
           },
         },
@@ -5330,9 +5316,8 @@ export default function FormAnalyticsDashboard() {
         y: {
           stacked: true,
           beginAtZero: true,
-          max: 100,
           ticks: {
-            callback: (value: any) => value + "%",
+            stepSize: 1,
             color: document.documentElement.classList.contains("dark")
               ? "#9ca3af"
               : "#6b7280",
@@ -5692,7 +5677,7 @@ export default function FormAnalyticsDashboard() {
       datasets: [
         {
           label: "Direct",
-          data: timeData.map((s) => s.total > 0 ? Math.round((s.directCount / s.total) * 100) : 0),
+          data: timeData.map((s) => s.directCount),
           backgroundColor: "rgba(34, 197, 94, 0.7)", // Green-500
           borderColor: "rgb(21, 128, 61)", // Green-700
           borderWidth: 1,
@@ -5700,7 +5685,7 @@ export default function FormAnalyticsDashboard() {
         },
         {
           label: "Rework",
-          data: timeData.map((s) => s.total > 0 ? Math.round((s.reworkCount / s.total) * 100) : 0),
+          data: timeData.map((s) => s.reworkCount),
           backgroundColor: "rgba(234, 179, 8, 0.7)", // Yellow-500
           borderColor: "rgb(161, 98, 7)", // Yellow-700
           borderWidth: 1,
@@ -5708,7 +5693,7 @@ export default function FormAnalyticsDashboard() {
         },
         {
           label: "Rejected",
-          data: timeData.map((s) => s.total > 0 ? Math.round((s.rejectedCount / s.total) * 100) : 0),
+          data: timeData.map((s) => s.rejectedCount),
           backgroundColor: "rgba(239, 68, 68, 0.7)", // Red-500
           borderColor: "rgb(185, 28, 28)", // Red-700
           borderWidth: 1,
@@ -5736,31 +5721,25 @@ export default function FormAnalyticsDashboard() {
           intersect: false,
           callbacks: {
             label: (context: any) => {
-              const item = timeData[context.dataIndex];
               const label = context.dataset.label;
               const value = context.raw;
-              let count = 0;
-              if (label === "Direct") count = item.directCount;
-              else if (label === "Rework") count = item.reworkCount;
-              else if (label === "Rejected") count = item.rejectedCount;
-              return `${label}: ${value}% (${count}/${item.total})`;
+              return `${label}: ${value}`;
             },
           },
         },
         datalabels: {
-          display: (context: any) => context.dataset.data[context.dataIndex] > 5,
+          display: (context: any) => context.dataset.data[context.dataIndex] > 0,
           color: "#fff",
           font: { weight: "bold" as const, size: 9 },
-          formatter: (value: number) => value + "%",
+          formatter: (value: number) => value,
         },
       },
       scales: {
         y: {
           stacked: true,
           beginAtZero: true,
-          max: 100,
           ticks: {
-            callback: (value: any) => value + "%",
+            stepSize: 1,
             color: darkMode ? "#9ca3af" : "#6b7280",
           },
           grid: {
@@ -5791,7 +5770,7 @@ export default function FormAnalyticsDashboard() {
                 Inspection Status Trend
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Daily distribution of inspection outcomes (100% stacked)
+                Daily distribution of inspection outcomes (counts)
               </p>
             </div>
           </div>
@@ -5820,6 +5799,120 @@ export default function FormAnalyticsDashboard() {
         </div>
         <div style={{ height: "400px" }}>
           <Bar data={data} options={options} />
+        </div>
+      </div>
+    );
+  };
+
+  const InspectionStatusLineChart = () => {
+    const timeData = useMemo(() => {
+      return computeDirectAcceptedDailyStats(
+        baseFilteredResponses,
+        responseStatuses,
+        directAcceptedStartDate,
+        directAcceptedEndDate,
+      );
+    }, [baseFilteredResponses, responseStatuses, directAcceptedStartDate, directAcceptedEndDate]);
+
+    if (timeData.length === 0) return null;
+
+    const data = {
+      labels: timeData.map((s) => s.date),
+      datasets: [
+        {
+          label: "Rework",
+          data: timeData.map((s) => s.reworkCount),
+          borderColor: "rgb(234, 179, 8)", // Yellow-500
+          backgroundColor: "rgba(234, 179, 8, 0.3)",
+          borderWidth: 1,
+          fill: true,
+          tension: 0,
+        },
+      ],
+    };
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          mode: "index" as const,
+          intersect: false,
+          callbacks: {
+            label: (context: any) => {
+              const label = context.dataset.label;
+              const value = context.raw;
+              return `${label}: ${value}`;
+            },
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            color: darkMode ? "#9ca3af" : "#6b7280",
+          },
+          grid: {
+            color: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+          },
+        },
+        x: {
+          ticks: {
+            color: darkMode ? "#9ca3af" : "#6b7280",
+          },
+          grid: {
+            display: false,
+          },
+        },
+      },
+    };
+
+    return (
+      <div id="inspection-status-line-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center">
+            <div className={`p-2 bg-gradient-to-br from-purple-600 to-indigo-800 rounded-lg mr-2`}>
+              <TrendingUp className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+                Inspection Status Trends For REWORK
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Daily trends of inspection outcomes (line chart)
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From:</span>
+              <input
+                type="date"
+                value={directAcceptedStartDate}
+                onChange={(e) => setDirectAcceptedStartDate(e.target.value)}
+                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To:</span>
+              <input
+                type="date"
+                value={directAcceptedEndDate}
+                onChange={(e) => setDirectAcceptedEndDate(e.target.value)}
+                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+              />
+            </div>
+          </div>
+        </div>
+        <div style={{ height: "400px" }}>
+          <Line data={data} options={options} />
         </div>
       </div>
     );
@@ -6679,6 +6772,7 @@ export default function FormAnalyticsDashboard() {
                 <QuestionStatusDistributionChart />
                 <TimeBasedPerformanceGraph />
                 <DirectAcceptedPerformanceGraph />
+                <InspectionStatusLineChart />
               </div>
             </div>
           )}
