@@ -40,20 +40,17 @@ function getTimelineData(responses: Response[]) {
   const last7Days = Array.from({ length: 7 }, (_, i) => {
     const date = new Date();
     date.setDate(date.getDate() - i);
-    return date.toISOString().split("T")[0];
+    return date.toLocaleDateString('en-CA');
   }).reverse();
 
   const countsByDate = responses.reduce((acc, response) => {
-    const dateObj = new Date(response.timestamp);
+    const timestamp = response.timestamp || (response as any).createdAt || (response as any).updatedAt;
+    if (!timestamp) return acc;
+    const dateObj = new Date(timestamp);
     if (isNaN(dateObj.getTime())) {
-      console.warn(
-        "Invalid timestamp for response:",
-        response.id,
-        response.timestamp
-      );
       return acc;
     }
-    const date = dateObj.toISOString().split("T")[0];
+    const date = dateObj.toLocaleDateString('en-CA');
     acc[date] = (acc[date] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
@@ -68,5 +65,6 @@ function getTimelineData(responses: Response[]) {
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", { weekday: "short" });
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { weekday: "short" });
 }

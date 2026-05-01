@@ -1600,6 +1600,10 @@ export default function SectionAnalytics({
                                     options={{
                                       responsive: true,
                                       maintainAspectRatio: false,
+                                      interaction: {
+                                        mode: "index" as const,
+                                        intersect: false,
+                                      },
                                       plugins: {
                                         legend: {
                                           position: "right",
@@ -1865,6 +1869,11 @@ export default function SectionAnalytics({
                                   options={{
                                     responsive: true,
                                     maintainAspectRatio: false,
+                                    interaction: {
+                                      mode: "index" as const,
+                                      axis: "r" as const,
+                                      intersect: false,
+                                    },
                                     plugins: {
                                       datalabels: {
                                         display: false,
@@ -1998,6 +2007,11 @@ export default function SectionAnalytics({
                                     responsive: true,
                                     maintainAspectRatio: false,
                                     indexAxis: "y",
+                                    interaction: {
+                                      mode: "index" as const,
+                                      axis: "y" as const,
+                                      intersect: false,
+                                    },
                                     plugins: {
                                       datalabels: {
                                         display: false,

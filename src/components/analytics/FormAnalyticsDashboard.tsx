@@ -1582,7 +1582,8 @@ const computeDailyPerformanceStats = (
   let end: Date | null = null;
 
   if (startDate) {
-    start = new Date(startDate);
+    const [y, m, d] = startDate.split("-").map(Number);
+    start = new Date(y, m - 1, d);
   } else {
     // Default to start of current month if no start date provided
     start = new Date();
@@ -1591,7 +1592,9 @@ const computeDailyPerformanceStats = (
   }
 
   if (endDate) {
-    end = new Date(endDate);
+    const [y, m, d] = endDate.split("-").map(Number);
+    end = new Date(y, m - 1, d);
+    end.setHours(23, 59, 59, 999);
   } else {
     // Default to today if no end date provided
     end = new Date();
@@ -1617,7 +1620,7 @@ const computeDailyPerformanceStats = (
     last.setHours(0, 0, 0, 0);
 
     while (curr <= last) {
-      const dKey = curr.toISOString().split("T")[0];
+      const dKey = curr.toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
       dailyMap.set(dKey, { total: 0, rework: 0, accepted: 0 });
       curr.setDate(curr.getDate() + 1);
     }
@@ -1627,7 +1630,7 @@ const computeDailyPerformanceStats = (
     const timestamp = getResponseTimestamp(response);
     if (!timestamp) return;
 
-    const dateKey = new Date(timestamp).toISOString().split("T")[0];
+    const dateKey = new Date(timestamp).toLocaleDateString('en-CA');
     if (!dailyMap.has(dateKey)) {
       dailyMap.set(dateKey, { total: 0, rework: 0, accepted: 0 });
     }
@@ -1647,7 +1650,8 @@ const computeDailyPerformanceStats = (
 
   return Array.from(dailyMap.entries())
     .map(([dateKey, stats]) => {
-      const dateObj = new Date(dateKey);
+      const [y, m, d] = dateKey.split("-").map(Number);
+      const dateObj = new Date(y, m - 1, d);
       const formattedDate = dateObj.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
@@ -1675,7 +1679,8 @@ const computeMonthlyPerformanceStats = (
   let end: Date | null = null;
 
   if (startDate) {
-    start = new Date(startDate);
+    const [y, m, d] = startDate.split("-").map(Number);
+    start = new Date(y, m - 1, d);
   } else {
     // Default to start of current month if no start date provided
     start = new Date();
@@ -1684,7 +1689,9 @@ const computeMonthlyPerformanceStats = (
   }
 
   if (endDate) {
-    end = new Date(endDate);
+    const [y, m, d] = endDate.split("-").map(Number);
+    end = new Date(y, m - 1, d);
+    end.setHours(23, 59, 59, 999);
   } else {
     // Default to today if no end date provided
     end = new Date();
@@ -1782,7 +1789,8 @@ const computeDirectAcceptedDailyStats = (
   let end: Date | null = null;
 
   if (startDate) {
-    start = new Date(startDate);
+    const [y, m, d] = startDate.split("-").map(Number);
+    start = new Date(y, m - 1, d);
   } else {
     start = new Date();
     start.setDate(1);
@@ -1790,7 +1798,9 @@ const computeDirectAcceptedDailyStats = (
   }
 
   if (endDate) {
-    end = new Date(endDate);
+    const [y, m, d] = endDate.split("-").map(Number);
+    end = new Date(y, m - 1, d);
+    end.setHours(23, 59, 59, 999);
   } else {
     end = new Date();
     end.setHours(23, 59, 59, 999);
@@ -1803,7 +1813,7 @@ const computeDirectAcceptedDailyStats = (
     last.setHours(0, 0, 0, 0);
 
     while (curr <= last) {
-      const dKey = curr.toISOString().split("T")[0];
+      const dKey = curr.toLocaleDateString('en-CA');
       dailyMap.set(dKey, { total: 0, direct: 0, rework: 0, rejected: 0 });
       curr.setDate(curr.getDate() + 1);
     }
@@ -1813,7 +1823,7 @@ const computeDirectAcceptedDailyStats = (
     const timestamp = getResponseTimestamp(response);
     if (!timestamp) return;
 
-    const dateKey = new Date(timestamp).toISOString().split("T")[0];
+    const dateKey = new Date(timestamp).toLocaleDateString('en-CA');
     if (!dailyMap.has(dateKey)) {
       dailyMap.set(dateKey, { total: 0, direct: 0, rework: 0, rejected: 0 });
     }
@@ -1833,7 +1843,8 @@ const computeDirectAcceptedDailyStats = (
 
   return Array.from(dailyMap.entries())
     .map(([dateKey, stats]) => {
-      const dateObj = new Date(dateKey);
+      const [y, m, d] = dateKey.split("-").map(Number);
+      const dateObj = new Date(y, m - 1, d);
       const formattedDate = dateObj.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
@@ -3110,6 +3121,9 @@ export default function FormAnalyticsDashboard() {
 
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showSectionSelector, setShowSectionSelector] = useState(false);
+  const [inspectorSummary, setInspectorSummary] = useState<any[]>([]);
+  const [summaryStatuses, setSummaryStatuses] = useState<string[]>([]);
+  const [summaryLoading, setSummaryLoading] = useState(false);
   const [shareAnalyticsModal, setShareAnalyticsModal] = useState<{
     open: boolean;
     formId: string;
@@ -3344,6 +3358,27 @@ export default function FormAnalyticsDashboard() {
     }
     return labels;
   }, [form, responses]);
+
+  useEffect(() => {
+    const fetchSummary = async () => {
+      setSummaryLoading(true);
+      try {
+        const response = await apiClient.get<any>("/analytics/inspector-summary");
+        if (response.data) {
+          setInspectorSummary(response.data.summary || []);
+          setSummaryStatuses(response.data.allStatuses || []);
+        }
+      } catch (error) {
+        console.error("Error fetching inspector summary:", error);
+      } finally {
+        setSummaryLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchSummary();
+    }
+  }, [user]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -3730,7 +3765,7 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
-        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        const responseDate = new Date(timestamp).toLocaleDateString('en-CA');
 
         if (dateFilter.type === "single" && dateFilter.startDate) {
           return responseDate === dateFilter.startDate;
@@ -3939,7 +3974,7 @@ export default function FormAnalyticsDashboard() {
         if (timestamp) {
           const dateObj = new Date(timestamp);
           if (!isNaN(dateObj.getTime())) {
-            const date = dateObj.toISOString().split("T")[0];
+            const date = dateObj.toLocaleDateString('en-CA');
             acc[date] = (acc[date] || 0) + 1;
           }
         }
@@ -3951,7 +3986,7 @@ export default function FormAnalyticsDashboard() {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      return date.toISOString().split("T")[0];
+      return date.toLocaleDateString('en-CA');
     }).reverse();
 
     const maxCount = Math.max(
@@ -3980,7 +4015,7 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
-        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        const responseDate = new Date(timestamp).toLocaleDateString('en-CA');
         if (qualityStartDate && qualityEndDate) {
           return responseDate >= qualityStartDate && responseDate <= qualityEndDate;
         } else if (qualityStartDate) {
@@ -4000,7 +4035,7 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
-        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        const responseDate = new Date(timestamp).toLocaleDateString('en-CA');
         if (sectionStartDate && sectionEndDate) {
           return responseDate >= sectionStartDate && responseDate <= sectionEndDate;
         } else if (sectionStartDate) {
@@ -4757,6 +4792,11 @@ export default function FormAnalyticsDashboard() {
       indexAxis: "y",
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: "index" as const,
+        axis: "y" as const,
+        intersect: false,
+      },
       layout: {
         padding: { top: 16, right: 32, bottom: 16, left: 8 },
       },
@@ -4964,7 +5004,7 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
-        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        const responseDate = new Date(timestamp).toLocaleDateString('en-CA');
         
         if (defectStartDate && defectEndDate) {
           return responseDate >= defectStartDate && responseDate <= defectEndDate;
@@ -4997,7 +5037,7 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
-        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        const responseDate = new Date(timestamp).toLocaleDateString('en-CA');
         
         if (trendStartDate && trendEndDate) {
           return responseDate >= trendStartDate && responseDate <= trendEndDate;
@@ -5076,9 +5116,15 @@ export default function FormAnalyticsDashboard() {
     const options = {
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: "index" as const,
+        intersect: false,
+      },
       plugins: {
         datalabels: {
           color: "white",
+          font: { weight: "bold", size: 12 },
+          formatter: (value: number) => (value > 0 ? value.toFixed(1) + "%" : ""),
         },
         legend: {
           position: "bottom",
@@ -5263,7 +5309,9 @@ export default function FormAnalyticsDashboard() {
       datasets: [
         {
           label: complianceLabels.no,
-          data: processedQuestions.map((q) => q.rejected),
+          data: processedQuestions.map((q) => 
+            q.total > 0 ? Number(((q.rejected / q.total) * 100).toFixed(1)) : 0
+          ),
           backgroundColor: "rgba(153, 27, 27, 0.85)", // Dark Red
           borderColor: "rgb(127, 29, 29)",
           borderWidth: 1,
@@ -5272,13 +5320,17 @@ export default function FormAnalyticsDashboard() {
           datalabels: {
             color: "#ffffff",
             font: { weight: "bold" as const, size: 10 },
-            formatter: (value: number) => value > 0 ? value : "",
+            formatter: (value: number) => value > 0 ? value.toFixed(1) + "%" : "",
             textAlign: "center" as const,
+            anchor: "center" as const,
+            align: "center" as const,
           },
         },
         {
           label: complianceLabels.na,
-          data: processedQuestions.map((q) => q.rework),
+          data: processedQuestions.map((q) => 
+            q.total > 0 ? Number(((q.rework / q.total) * 100).toFixed(1)) : 0
+          ),
           backgroundColor: "rgba(55, 65, 81, 0.85)", // Dark Gray
           borderColor: "rgb(31, 41, 55)",
           borderWidth: 1,
@@ -5287,8 +5339,10 @@ export default function FormAnalyticsDashboard() {
           datalabels: {
             color: "#ffffff",
             font: { weight: "bold" as const, size: 10 },
-            formatter: (value: number) => value > 0 ? value : "",
+            formatter: (value: number) => value > 0 ? value.toFixed(1) + "%" : "",
             textAlign: "center" as const,
+            anchor: "center" as const,
+            align: "center" as const,
           },
         },
       ],
@@ -5298,6 +5352,11 @@ export default function FormAnalyticsDashboard() {
       indexAxis: chartOrientation === "h" ? "y" as const : "x" as const,
       responsive: true,
       maintainAspectRatio: false,
+      interaction: {
+        mode: "index" as const,
+        axis: chartOrientation === "h" ? "y" as const : "x" as const,
+        intersect: false,
+      },
       plugins: {
         legend: {
           position: "bottom" as const,
@@ -5321,8 +5380,12 @@ export default function FormAnalyticsDashboard() {
           cornerRadius: 8,
           callbacks: {
             label: function (context: any) {
-              const value = context.raw;
-              return `${context.dataset.label}: ${value}`;
+              const q = processedQuestions[context.dataIndex];
+              const value = Number(context.raw).toFixed(1);
+              let count = 0;
+              if (context.datasetIndex === 0) count = q.rejected;
+              else if (context.datasetIndex === 1) count = q.rework;
+              return `${context.dataset.label}: ${value}% (${count} responses)`;
             },
           },
         },
@@ -5345,8 +5408,9 @@ export default function FormAnalyticsDashboard() {
         y: {
           stacked: true,
           beginAtZero: true,
+          max: 100,
           ticks: {
-            stepSize: 1,
+            callback: (value: any) => value + "%",
             color: document.documentElement.classList.contains("dark")
               ? "#9ca3af"
               : "#6b7280",
@@ -5490,7 +5554,7 @@ export default function FormAnalyticsDashboard() {
           </div>
         ) : (
           <div className={chartOrientation === "h" ? "overflow-y-auto" : "w-full"}>
-            <div style={containerStyle}>
+            <div id="defect-distribution-chart" style={containerStyle}>
               <Bar data={data} options={options} />
             </div>
           </div>
@@ -5584,9 +5648,23 @@ export default function FormAnalyticsDashboard() {
           borderWidth: 1,
           padding: 12,
           cornerRadius: 8,
+          callbacks: {
+            title: (context: any) => {
+              const index = context[0].dataIndex;
+              return timeData[index]?.date || "";
+            },
+            label: (context: any) => {
+              const label = context.dataset.label || "";
+              const value = context.raw || 0;
+              return `${label}: ${value}`;
+            },
+          },
         },
         datalabels: {
           display: true,
+          anchor: "end" as const,
+          align: "top" as const,
+          formatter: (value: number) => (value > 0 ? value : ""),
         },
       },
       scales: {
@@ -5614,7 +5692,7 @@ export default function FormAnalyticsDashboard() {
       interaction: {
         mode: "nearest" as const,
         axis: "x" as const,
-        intersect: false,
+        intersect: true,
       },
     };
 
@@ -5682,7 +5760,7 @@ export default function FormAnalyticsDashboard() {
             </div>
           </div>
         </div>
-        <div style={{ height: "400px" }}>
+        <div id="performance-trend-chart" style={{ height: "400px" }}>
           <Line data={data} options={options} />
         </div>
       </div>
@@ -5706,7 +5784,9 @@ export default function FormAnalyticsDashboard() {
       datasets: [
         {
           label: "Direct",
-          data: timeData.map((s) => s.directCount),
+          data: timeData.map((s) => 
+            s.total > 0 ? Number(((s.directCount / s.total) * 100).toFixed(1)) : 0
+          ),
           backgroundColor: "rgba(34, 197, 94, 0.7)", // Green-500
           borderColor: "rgb(21, 128, 61)", // Green-700
           borderWidth: 1,
@@ -5714,7 +5794,9 @@ export default function FormAnalyticsDashboard() {
         },
         {
           label: "Rework",
-          data: timeData.map((s) => s.reworkCount),
+          data: timeData.map((s) => 
+            s.total > 0 ? Number(((s.reworkCount / s.total) * 100).toFixed(1)) : 0
+          ),
           backgroundColor: "rgba(234, 179, 8, 0.7)", // Yellow-500
           borderColor: "rgb(161, 98, 7)", // Yellow-700
           borderWidth: 1,
@@ -5722,7 +5804,9 @@ export default function FormAnalyticsDashboard() {
         },
         {
           label: "Rejected",
-          data: timeData.map((s) => s.rejectedCount),
+          data: timeData.map((s) => 
+            s.total > 0 ? Number(((s.rejectedCount / s.total) * 100).toFixed(1)) : 0
+          ),
           backgroundColor: "rgba(239, 68, 68, 0.7)", // Red-500
           borderColor: "rgb(185, 28, 28)", // Red-700
           borderWidth: 1,
@@ -5749,26 +5833,36 @@ export default function FormAnalyticsDashboard() {
           mode: "index" as const,
           intersect: false,
           callbacks: {
+            title: (context: any) => {
+              const index = context[0].dataIndex;
+              return timeData[index]?.date || "";
+            },
             label: (context: any) => {
+              const item = timeData[context.dataIndex];
               const label = context.dataset.label;
               const value = context.raw;
-              return `${label}: ${value}`;
+              let count = 0;
+              if (label === "Direct") count = item.directCount;
+              else if (label === "Rework") count = item.reworkCount;
+              else if (label === "Rejected") count = item.rejectedCount;
+              return `${label}: ${value}% (${count}/${item.total})`;
             },
           },
         },
         datalabels: {
-          display: (context: any) => context.dataset.data[context.dataIndex] > 0,
+          display: (context: any) => context.dataset.data[context.dataIndex] > 5,
           color: "#fff",
           font: { weight: "bold" as const, size: 9 },
-          formatter: (value: number) => value,
+          formatter: (value: number) => value + "%",
         },
       },
       scales: {
         y: {
           stacked: true,
           beginAtZero: true,
+          max: 100,
           ticks: {
-            stepSize: 1,
+            callback: (value: any) => value + "%",
             color: darkMode ? "#9ca3af" : "#6b7280",
           },
           grid: {
@@ -5785,6 +5879,11 @@ export default function FormAnalyticsDashboard() {
           },
         },
       },
+      interaction: {
+        mode: "nearest" as const,
+        axis: "x" as const,
+        intersect: true,
+      },
     };
 
     return (
@@ -5799,7 +5898,7 @@ export default function FormAnalyticsDashboard() {
                 Inspection Status Trend
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Daily distribution of inspection outcomes (counts)
+                Daily distribution of inspection outcomes (100% stacked)
               </p>
             </div>
           </div>
@@ -5826,7 +5925,7 @@ export default function FormAnalyticsDashboard() {
             </div>
           </div>
         </div>
-        <div style={{ height: "400px" }}>
+        <div id="inspection-status-distribution-chart" style={{ height: "400px" }}>
           <Bar data={data} options={options} />
         </div>
       </div>
@@ -5871,6 +5970,10 @@ export default function FormAnalyticsDashboard() {
           mode: "index" as const,
           intersect: false,
           callbacks: {
+            title: (context: any) => {
+              const index = context[0].dataIndex;
+              return timeData[index]?.date || "";
+            },
             label: (context: any) => {
               const label = context.dataset.label;
               const value = context.raw;
@@ -5898,6 +6001,11 @@ export default function FormAnalyticsDashboard() {
             display: false,
           },
         },
+      },
+      interaction: {
+        mode: "nearest" as const,
+        axis: "x" as const,
+        intersect: true,
       },
     };
 
@@ -5940,7 +6048,7 @@ export default function FormAnalyticsDashboard() {
             </div>
           </div>
         </div>
-        <div style={{ height: "400px" }}>
+        <div id="status-trends-rework-chart" style={{ height: "400px" }}>
           <Line data={data} options={options} />
         </div>
       </div>
@@ -6013,58 +6121,28 @@ export default function FormAnalyticsDashboard() {
         pending: analytics.pending,
         verified: analytics.verified,
         rejected: analytics.rejected,
+        inspectionStats: inspectionStats, // Added for PDF export
         sectionSummaryRows: sectionSummaryRows,
         totalPieChartData: totalPieChartData,
+        sectionAnalyticsData: getSectionAnalyticsData(),
+        inspectorSummary: inspectorSummary,
+        summaryStatuses: summaryStatuses,
+        defectStartDate,
+        defectEndDate
       };
 
-      // Define chart IDs to capture
-      const chartElementIds = [
-        "response-trend-chart",
-        "overall-quality-chart",
-        "location-heatmap",
-      ].filter((id) => document.getElementById(id));
+      // Generate PDF with enhanced data
+      const success = await exportDashboardToPDF(
+        form?.title || "Form Analytics",
+        analyticsData,
+        true
+      );
 
-      // Add main dashboard charts
-      [
-        "response-trend-chart",
-        "overall-quality-chart",
-        "section-performance-chart",
-        "location-heatmap",
-      ].forEach((id) => {
-        if (document.getElementById(id)) chartElementIds.push(id);
-      });
-
-      // Add section-specific charts
-      sectionAnalyticsData.forEach((section) => {
-        const pieChartId = `section-pie-chart-${section.sectionId}`;
-        const visChartId = `section-visualization-${section.sectionId}`;
-
-        if (document.getElementById(pieChartId))
-          chartElementIds.push(pieChartId);
-        if (document.getElementById(visChartId))
-          chartElementIds.push(visChartId);
-      });
-
-      // Generate PDF with section data
-      await exportFormAnalyticsToPDF({
-        filename: `${form?.title?.replace(/\s+/g, "_") || "Form"}_Analytics_${new Date().toISOString().split("T")[0]}.pdf`,
-        formTitle: form?.title || "Form Analytics",
-        generatedDate: new Date().toLocaleString(),
-        totalResponses: analytics.total,
-        sectionSummaryRows: sectionSummaryRows,
-        totalPieChartData: totalPieChartData,
-        chartElementIds: chartElementIds,
-        includeSectionAnalytics: true,
-        sectionAnalyticsData: getSectionAnalyticsData(),
-      });
-
-      // Restore button state
-      if (button) {
-        button.innerHTML = originalText;
-        button.disabled = false;
+      if (success) {
+        console.log("PDF generated successfully");
+      } else {
+        alert("Failed to generate PDF. Please check console for details.");
       }
-
-      console.log("PDF generated successfully");
     } catch (error) {
       console.error("Error downloading PDF:", error);
       alert("Failed to generate PDF. Please try again.");
@@ -6084,26 +6162,33 @@ export default function FormAnalyticsDashboard() {
     let reworked = 0;
 
     filteredResponses.forEach((response) => {
-      const status = (response.status || "Accepted").toLowerCase().trim();
-      if (
-        status === "accepted" ||
-        status === "verified" ||
-        status === "direct ok" ||
-        status === "rework accepted" ||
-        status === "rework completed" ||
-        status === "ok" ||
-        status === "pass" ||
-        status === "yes" ||
-        status === "verified ok"
-      )
-        accepted++;
-      else if (status === "rejected" || status === "fail" || status === "no") rejected++;
-      else if (
-        status === "rework" ||
-        status === "reworked" ||
-        status.includes("re-rework")
-      )
-        reworked++;
+      // Find the inspection status from answers
+      if (!response.answers) return;
+
+      Object.values(response.answers).forEach((val) => {
+        if (val && typeof val === "object" && val.status) {
+          const status = String(val.status).toLowerCase().trim();
+          if (
+            status === "accepted" ||
+            status === "verified" ||
+            status === "direct ok" ||
+            status === "rework accepted" ||
+            status === "rework completed" ||
+            status === "ok" ||
+            status === "pass" ||
+            status === "yes" ||
+            status === "verified ok"
+          )
+            accepted++;
+          else if (status === "rejected" || status === "fail" || status === "no") rejected++;
+          else if (
+            status === "rework" ||
+            status === "reworked" ||
+            status.includes("re-rework")
+          )
+            reworked++;
+        }
+      });
     });
 
     return { accepted, rejected, reworked };
@@ -6111,7 +6196,7 @@ export default function FormAnalyticsDashboard() {
 
   const handleExportToExcel = () => {
     try {
-      const headerRow: any[] = ["Timestamp", "Submitted by", "Status", "Time Taken"];
+      const headerRow: any[] = ["Timestamp", "Status"];
       const columnInfo: Array<{
         questionId: string;
         isFollowUp: boolean;
@@ -6135,16 +6220,11 @@ export default function FormAnalyticsDashboard() {
       const wsData: any[][] = [headerRow];
 
       responses.forEach((response: Response) => {
-        const timeSpent = response.timeSpent ?? response.totalTimeSpent;
         const rowData: any[] = [
           getResponseTimestamp(response)
             ? new Date(getResponseTimestamp(response)!).toLocaleString()
             : "-",
-          response.submittedBy || response.createdBy || "Anonymous",
           responseStatuses[response.id] || "-",
-          timeSpent !== undefined && timeSpent !== null && timeSpent > 0 
-            ? (timeSpent > 60 ? `${Math.floor(timeSpent / 60)}m ${timeSpent % 60}s` : `${timeSpent}s`)
-            : "-",
         ];
 
         columnInfo.forEach(({ questionId }) => {
@@ -6255,7 +6335,7 @@ export default function FormAnalyticsDashboard() {
         };
 
         // Style Status column
-        const statusCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 2 });
+        const statusCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 1 });
         const currentStatus = responseStatuses[response.id] || "-";
         let statusBgColor = "FFF9FAFB"; // Default
 
@@ -6281,7 +6361,7 @@ export default function FormAnalyticsDashboard() {
 
         // Style Question columns
         for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 4 });
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 2 });
           const info = columnInfo[colIdx];
           const answer = response.answers?.[info.questionId];
 
@@ -6334,9 +6414,7 @@ export default function FormAnalyticsDashboard() {
 
       ws["!cols"] = [
         { wch: 22 }, // Timestamp
-        { wch: 25 }, // Submitted by
-        { wch: 18 }, // Status
-        { wch: 15 }, // Time Taken
+        { wch: 15 }, // Status
         ...columnInfo.map(() => ({ wch: 35 })),
       ];
 
@@ -6344,7 +6422,7 @@ export default function FormAnalyticsDashboard() {
       XLSX.utils.book_append_sheet(wb, ws, "Responses");
       XLSX.writeFile(
         wb,
-        `${form?.title || "responses"}-${new Date().toISOString().split("T")[0]}.xlsx`,
+        `${form?.title || "responses"}-${new Date().toLocaleDateString('en-CA')}.xlsx`,
       );
     } catch (error) {
       console.error("Error exporting to Excel:", error);
@@ -6718,16 +6796,17 @@ export default function FormAnalyticsDashboard() {
                     <div style={{ height: "293px" }} id="response-trend-chart">
                       <Line
                         data={{
-                          labels: analytics.last7Days.map((date) =>
-                            new Date(date).toLocaleDateString("en-US", {
+                          labels: analytics.last7Days.map((date) => {
+                            const [y, m, d] = date.split("-").map(Number);
+                            return new Date(y, m - 1, d).toLocaleDateString("en-US", {
                               month: "short",
                               day: "numeric",
-                            }),
-                          ),
+                            });
+                          }),
                           datasets: [
                             {
-                              label: "Responses %",
-                              data: analytics.percentageData,
+                              label: "Responses",
+                              data: analytics.last7Days.map((date) => analytics.responseTrend[date] || 0),
                               borderColor: "rgb(59, 130, 246)",
                               backgroundColor: "rgba(59, 130, 246, 0.1)",
                               fill: true,
@@ -6744,6 +6823,11 @@ export default function FormAnalyticsDashboard() {
                         options={{
                           responsive: true,
                           maintainAspectRatio: false,
+                          interaction: {
+                            mode: "index" as const,
+                            axis: "x" as const,
+                            intersect: false,
+                          },
                           plugins: {
                             legend: {
                               display: false,
@@ -6757,8 +6841,19 @@ export default function FormAnalyticsDashboard() {
                               titleFont: { size: 11, weight: "bold" },
                               bodyFont: { size: 11 },
                               callbacks: {
+                                title: (context: any) => {
+                                  const index = context[0].dataIndex;
+                                  const date = analytics.last7Days[index];
+                                  if (!date) return "";
+                                  const [y, m, d] = date.split("-").map(Number);
+                                  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric"
+                                  });
+                                },
                                 label: function (context) {
-                                  return `${context.parsed.y}%`;
+                                  return `Responses: ${context.parsed.y}`;
                                 },
                               },
                             },
@@ -6766,7 +6861,6 @@ export default function FormAnalyticsDashboard() {
                           scales: {
                             y: {
                               beginAtZero: true,
-                              max: 100,
                               grid: {
                                 color: "rgba(0, 0, 0, 0.05)",
                                 drawBorder: false,
@@ -6774,9 +6868,7 @@ export default function FormAnalyticsDashboard() {
                               ticks: {
                                 color: "rgb(107, 114, 128)",
                                 font: { size: 10 },
-                                callback: function (value) {
-                                  return value + "%";
-                                },
+                                stepSize: 1,
                               },
                             },
                             x: {
@@ -6813,10 +6905,11 @@ export default function FormAnalyticsDashboard() {
           {questionPerformanceStats.length > 0 && (
             <div className="w-full" id="question-distribution-card">
               <div className="w-full space-y-6">
+                <InspectionStatusLineChart />
                 <QuestionStatusDistributionChart />
                 <TimeBasedPerformanceGraph />
                 <DirectAcceptedPerformanceGraph />
-                <InspectionStatusLineChart />
+              
               </div>
             </div>
           )}
@@ -7415,6 +7508,10 @@ export default function FormAnalyticsDashboard() {
                                     suggestedMax: 100,
                                   },
                                 },
+                                interaction: {
+                                  mode: "index" as const,
+                                  intersect: false,
+                                },
                                 plugins: {
                                   datalabels: {
                                     display: false,
@@ -7445,10 +7542,12 @@ export default function FormAnalyticsDashboard() {
                               };
 
                               return (
-                                <Radar
-                                  data={radarChartData}
-                                  options={radarOptions}
-                                />
+                                <div id="issue-percentage-chart" style={{ height: "400px" }}>
+                                  <Radar
+                                    data={radarChartData}
+                                    options={radarOptions}
+                                  />
+                                </div>
                               );
                             })()}
                           </div>
@@ -7508,7 +7607,7 @@ export default function FormAnalyticsDashboard() {
                     );
 
                     return (
-                      <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
+                      <div id="hierarchical-defect-chart" className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
                         {/* Header Scale */}
                         <div className="flex bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
                           <div className="w-1/3 min-w-[300px] p-4 border-r border-gray-200 dark:border-gray-700 font-bold text-xs text-gray-500 uppercase tracking-wider">Hierarchy</div>
@@ -7537,8 +7636,8 @@ export default function FormAnalyticsDashboard() {
                             zoneAnalytics.zoneBreakdown.map((zone) => (
                               <div key={zone.zone} className="flex group">
                                 {/* Zone Label - Merged Side */}
-                                <div className="w-[100px] p-4 flex items-center justify-center bg-indigo-50/30 dark:bg-indigo-900/10 border-r border-gray-200 dark:border-gray-700 shrink-0">
-                                  <span className="[writing-mode:vertical-lr] rotate-180 font-bold text-sm text-indigo-700 dark:text-indigo-400 uppercase tracking-widest">{zone.zone}</span>
+                                <div className="w-[80px] p-4 flex items-center justify-center bg-indigo-50/30 dark:bg-indigo-900/10 border-r border-gray-200 dark:border-gray-700 shrink-0">
+                                  <span className="font-bold text-[10px] text-indigo-700 dark:text-indigo-400 uppercase tracking-widest text-center">{zone.zone}</span>
                                 </div>
 
                                 <div className="flex-1 divide-y divide-gray-100 dark:divide-gray-800">
@@ -8523,17 +8622,29 @@ export default function FormAnalyticsDashboard() {
                                         <option value="Rework">Rework</option>
                                       </select>
                                     ) : (
-                                      <span
-                                        className={`px-2 py-1 rounded-full text-xs ${response.status === "Rejected"
+                                    <span
+                                      className={`px-2 py-1 rounded-full text-xs ${
+                                        responseStatuses[response.id] === "Rejected"
                                           ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                                          : response.status === "Rework"
+                                          : responseStatuses[response.id]?.includes(
+                                              "Rework",
+                                            ) &&
+                                            responseStatuses[response.id] !==
+                                              "Rework Accepted"
                                             ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                                            : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                                          }`}
-                                      >
-                                        {response.status || "Accepted"}
-                                      </span>
-                                    )}
+                                            : responseStatuses[response.id] ===
+                                                "Direct Ok" ||
+                                              responseStatuses[response.id] ===
+                                                "Rework Accepted" ||
+                                              responseStatuses[response.id] ===
+                                                "Accepted"
+                                              ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                              : "text-gray-500"
+                                      }`}
+                                    >
+                                      {responseStatuses[response.id] || "-"}
+                                    </span>
+                                  )}
                                   </td>
                                   <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                                     {getResponseTimestamp(response)

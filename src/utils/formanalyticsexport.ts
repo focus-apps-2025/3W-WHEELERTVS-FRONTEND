@@ -1,451 +1,98 @@
-// utils/formanalyticsexport.ts - UPDATED VERSION
-import html2pdf from "html2pdf.js";
+// utils/formanalyticsexport.ts - FINAL VERSION FOR PROFESSIONAL A4 PDF
 import html2canvas from "html2canvas";
+import { apiClient } from "../api/client";
 
 // Helper function to capture charts as images
 async function captureChartAsImage(chartElementId: string): Promise<string> {
   const chartElement = document.getElementById(chartElementId);
   if (!chartElement) {
-    console.error(`Chart element with id ${chartElementId} not found`);
+    console.warn(`Chart element not found: ${chartElementId}`);
     return '';
   }
 
   try {
+    // Wait for any animations to settle - adjusted based on chart type
+    const waitTime = chartElementId.includes('defect') || chartElementId.includes('trend') ? 1500 : 800;
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+    
+    // Get actual dimensions
+    const rect = chartElement.getBoundingClientRect();
+    const width = rect.width || chartElement.offsetWidth || 1200;
+    const height = rect.height || chartElement.offsetHeight || 800;
+
     const canvas = await html2canvas(chartElement, {
-      scale: 2,
+      scale: 3, // Increased scale for better resolution
       logging: false,
       useCORS: true,
       allowTaint: true,
-      backgroundColor: '#ffffff'
-    });
-    return canvas.toDataURL('image/png');
-  } catch (error) {
-    console.error('Error capturing chart:', error);
-    return '';
-  }
-}
-
-
-// Generate section analytics HTML from data (not images)
-function generateSectionAnalyticsFromData(
-  sectionData: any[], 
-  chartImages: Record<string, string>
-): string {
-  if (!sectionData.length) {
-    return '';
-  }
-
-  return sectionData.map((section, index) => `
-    <div class="page-break-before" style="${index > 0 ? 'page-break-before: always;' : ''}">
-      <h2 class="section-title" style="font-size: 18px; font-weight: 700; color: #1e3a8a; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb;">
-        Section Analytics: ${section.sectionTitle}
-      </h2>
-      
-     
-      <!-- Metrics Overview as HTML Table (not image) -->
-      <div style="margin-bottom: 10px;">
-  <h3 style="font-size: 11px; font-weight: 700; color: #374151; margin-bottom: 6px;">Section Metrics</h3>
-  
-  <div style="
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    justify-content: flex-start;
-    align-items: stretch;
-  ">
-    <!-- Box 1 -->
-    <div style="
-      flex: 1 1 130px;
-      background: #f0f9ff;
-      border: 1px solid #0ea5e9;
-      border-radius: 4px;
-      padding: 6px;
-      text-align: center;
-      min-width: 110px;
-    ">
-      <div style="font-size: 12px; font-weight: 900; color: #0ea5e9;">${section.stats.mainQuestionCount}</div>
-      <div style="font-size: 8px; font-weight: 700; color: #0284c7;">Main Questions</div>
-    </div>
-
-    <!-- Box 2 -->
-    <div style="
-      flex: 1 1 130px;
-      background: #faf5ff;
-      border: 1px solid #a855f7;
-      border-radius: 4px;
-      padding: 6px;
-      text-align: center;
-      min-width: 110px;
-    ">
-      <div style="font-size: 12px; font-weight: 900; color: #a855f7;">${section.stats.totalFollowUpCount}</div>
-      <div style="font-size: 8px; font-weight: 700; color: #9333ea;">Follow-ups</div>
-    </div>
-
-    <!-- Box 3 -->
-    <div style="
-      flex: 1 1 130px;
-      background: #f0fdf4;
-      border: 1px solid #22c55e;
-      border-radius: 4px;
-      padding: 6px;
-      text-align: center;
-      min-width: 110px;
-    ">
-      <div style="font-size: 12px; font-weight: 900; color: #22c55e;">${section.stats.totalAnswered}</div>
-      <div style="font-size: 8px; font-weight: 700; color: #16a34a;">Answered</div>
-      <div style="font-size: 7px; color: #15803d;">${section.stats.answeredMainQuestions}M + ${section.stats.answeredFollowUpQuestions}F</div>
-    </div>
-
-    <!-- Box 4 -->
-    <div style="
-      flex: 1 1 130px;
-      background: #eff6ff;
-      border: 1px solid #3b82f6;
-      border-radius: 4px;
-      padding: 6px;
-      text-align: center;
-      min-width: 110px;
-    ">
-      <div style="font-size: 12px; font-weight: 900; color: #3b82f6;">${section.stats.completionRate}%</div>
-      <div style="font-size: 8px; font-weight: 700; color: #1d4ed8;">Completion</div>
-      <div style="margin-top: 3px; background: #dbeafe; height: 2px; border-radius: 1px;">
-        <div style="background: #3b82f6; height: 100%; width: ${Math.min(100, parseFloat(section.stats.completionRate))}%; border-radius: 1px;"></div>
-      </div>
-    </div>
-
-    <!-- Box 5 -->
-    <div style="
-      flex: 1 1 130px;
-      background: #fef3c7;
-      border: 1px solid #f59e0b;
-      border-radius: 4px;
-      padding: 6px;
-      text-align: center;
-      min-width: 110px;
-    ">
-      <div style="font-size: 12px; font-weight: 900; color: #f59e0b;">${section.stats.avgResponsesPerQuestion}</div>
-      <div style="font-size: 8px; font-weight: 700; color: #d97706;">Avg/Question</div>
-    </div>
-
-    <!-- Box 6 -->
-    <div style="
-      flex: 1 1 130px;
-      background: #ecfeff;
-      border: 1px solid #06b6d4;
-      border-radius: 4px;
-      padding: 6px;
-      text-align: center;
-      min-width: 110px;
-    ">
-      <div style="font-size: 12px; font-weight: 900; color: #06b6d4;">${section.stats.totalResponses}</div>
-      <div style="font-size: 8px; font-weight: 700; color: #0891b2;">Total Responses</div>
-    </div>
-  </div>
-</div>
-
-      
-      <!-- Questions List (not image) -->
-      <div style="margin-bottom: 20px;">
-        <h3 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 12px;">Question Details</h3>
-        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; max-height: 300px; overflow-y: auto;">
-          ${section.stats.questionsDetail.map((q: any, idx: number) => `
-            <div style="margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #e2e8f0; ${idx === section.stats.questionsDetail.length - 1 ? 'border-bottom: none; margin-bottom: 0; padding-bottom: 0;' : ''}">
-              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div style="flex: 1;">
-                  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
-                    <span style="background: #3b82f6; color: white; width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold;">${idx + 1}</span>
-                    <span style="font-size: 12px; font-weight: 600; color: #1f2937;">${q.text}</span>
-                  </div>
-                  ${q.followUpCount > 0 ? `
-                    <div style="font-size: 10px; color: #6b7280; margin-left: 28px;">
-                      ${q.followUpCount} follow-up${q.followUpCount > 1 ? 's' : ''}
-                    </div>
-                  ` : ''}
-                </div>
-                <div style="text-align: right; min-width: 60px;">
-                  <div style="font-size: 14px; font-weight: 700; color: #1d4ed8;">${q.responses}</div>
-                  <div style="font-size: 10px; color: #6b7280;">responses</div>
-                </div>
-              </div>
-              
-              ${q.followUpDetails && q.followUpDetails.length > 0 ? `
-                <div style="margin-left: 28px; margin-top: 8px; padding-left: 12px; border-left: 2px solid #dbeafe;">
-                  ${q.followUpDetails.map((fq: any, fIdx: number) => `
-                    <div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #e5e7eb; ${fIdx === q.followUpDetails.length - 1 ? 'border-bottom: none; margin-bottom: 0; padding-bottom: 0;' : ''}">
-                      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div style="flex: 1;">
-                          <div style="display: flex; align-items: center; gap: 6px;">
-                            <span style="color: #6b7280; font-size: 10px;">•</span>
-                            <span style="font-size: 11px; color: #4b5563;">${fq.text}</span>
-                          </div>
-                        </div>
-                        <div style="text-align: right; min-width: 50px;">
-                          <div style="font-size: 12px; font-weight: 600; color: #3b82f6;">${fq.responses}</div>
-                          <div style="font-size: 9px; color: #9ca3af;">responses</div>
-                        </div>
-                      </div>
-                    </div>
-                  `).join('')}
-                </div>
-              ` : ''}
-            </div>
-          `).join('')}
-        </div>
-      </div>
-      
-      <!-- Quality and Visualization Charts -->
-${section.qualityBreakdown.length > 0 ? `
-  <div style="margin-bottom: 20px; page-break-before: always;">
-    <!-- Main Heading -->
-    <h2 style="font-size: 14px; font-weight: 700; color: #1e3a8a; margin-bottom: 15px; padding-bottom: 4px; border-bottom: 2px solid #1e3a8a;">
-      ${section.sectionTitle} - Visualizations
-    </h2>
-    
-    <!-- 2x2 Grid Layout -->
-    <div style="display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: auto auto; gap: 15px;">
-      
-      <!-- Top Left: Quality Distribution Chart -->
-      <div style="grid-column: 1; grid-row: 1;">
-        ${chartImages[`section-pie-chart-${section.sectionId}`] ? `
-          <div style="text-align: center;">
-            <div style="font-size: 11px; font-weight: 600; margin-bottom: 6px; color: #4b5563;">Quality Distribution</div>
-            <img src="${chartImages[`section-pie-chart-${section.sectionId}`]}" 
-                 style="width: 100%; max-height: 150px; object-fit: contain; border: 1px solid #e5e7eb; border-radius: 4px;" />
-          </div>
-        ` : ''}
-      </div>
-      
-      <!-- Top Right: Parameter Analysis Chart -->
-      <div style="grid-column: 2; grid-row: 1;">
-        ${chartImages[`section-visualization-${section.sectionId}`] ? `
-          <div style="text-align: center;">
-            <div style="font-size: 11px; font-weight: 600; margin-bottom: 6px; color: #4b5563;">Parameter Analysis</div>
-            <img src="${chartImages[`section-visualization-${section.sectionId}`]}" 
-                 style="width: 100%; max-height: 250px; object-fit: contain; border: 1px solid #e5e7eb; border-radius: 4px;" />
-          </div>
-        ` : ''}
-      </div>
-      
-      <!-- Bottom Left: Overall Quality Stats -->
-      <div style="grid-column: 1; grid-row: 2;">
-        <h3 style="font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px;">Overall Quality</h3>
-        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e5e7eb; text-align: center;">
-          <div style="display: flex; justify-content: space-around; margin-bottom: 8px;">
-            <div style="text-align: center;">
-              <div style="font-size: 16px; font-weight: 900; color: #22c55e;">${section.overallQuality.percentages.yes}%</div>
-              <div style="font-size: 9px; font-weight: 600; color: #16a34a; margin-top: 2px;">Yes</div>
-              <div style="font-size: 8px; color: #15803d; margin-top: 1px;">${section.overallQuality.totalYes} resp</div>
-            </div>
-            <div style="text-align: center;">
-              <div style="font-size: 16px; font-weight: 900; color: #ef4444;">${section.overallQuality.percentages.no}%</div>
-              <div style="font-size: 9px; font-weight: 600; color: #dc2626; margin-top: 2px;">No</div>
-              <div style="font-size: 8px; color: #b91c1c; margin-top: 1px;">${section.overallQuality.totalNo} resp</div>
-            </div>
-            <div style="text-align: center;">
-              <div style="font-size: 16px; font-weight: 900; color: #9ca3af;">${section.overallQuality.percentages.na}%</div>
-              <div style="font-size: 9px; font-weight: 600; color: #6b7280; margin-top: 2px;">N/A</div>
-              <div style="font-size: 8px; color: #4b5563; margin-top: 1px;">${section.overallQuality.totalNA} resp</div>
-            </div>
-          </div>
-          <div style="font-size: 9px; font-weight: 600; color: #374151; padding-top: 6px; border-top: 1px solid #e5e7eb;">
-            Total Responses: <span style="color: #2563eb;">${section.overallQuality.totalYes + section.overallQuality.totalNo + section.overallQuality.totalNA}</span>
-            | Parameters: <span style="color: #7c3aed;">${section.qualityBreakdown.length}</span>
-          </div>
-        </div>
-      </div>
-      
-      <!-- Bottom Right: Quality Breakdown Table -->
-      <div style="grid-column: 2; grid-row: 2;">
-        <h3 style="font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px;">Quality Breakdown</h3>
-        <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid #e5e7eb; max-height: 150px; overflow-y: auto;">
-          ${section.qualityBreakdown.slice(0, 5).map((param, idx) => {
-            const yesPercent = param.total > 0 ? ((param.yes / param.total) * 100).toFixed(1) : '0.0';
-            const noPercent = param.total > 0 ? ((param.no / param.total) * 100).toFixed(1) : '0.0';
-            const naPercent = param.total > 0 ? ((param.na / param.total) * 100).toFixed(1) : '0.0';
-            
-            return `
-              <div style="margin-bottom: ${idx < 4 ? '6px' : '0'}; padding-bottom: ${idx < 4 ? '6px' : '0'}; ${idx < 4 ? 'border-bottom: 1px dashed #e5e7eb;' : ''}">
-                <div style="font-size: 9px; font-weight: 600; color: #1f2937; margin-bottom: 2px;">
-                  ${param.parameterName.length > 25 ? param.parameterName.substring(0, 25) + '...' : param.parameterName}
-                </div>
-                <div style="display: flex; gap: 8px; font-size: 8px;">
-                  <span style="color: #16a34a; font-weight: 600;">Yes: ${yesPercent}%</span>
-                  <span style="color: #dc2626; font-weight: 600;">No: ${noPercent}%</span>
-                  <span style="color: #6b7280; font-weight: 600;">N/A: ${naPercent}%</span>
-                </div>
-              </div>`;
-          }).join('')}
+      backgroundColor: '#ffffff',
+      width: width,
+      height: height,
+      onclone: (clonedDoc) => {
+        const clonedElement = clonedDoc.getElementById(chartElementId);
+        if (clonedElement) {
+          clonedElement.style.visibility = 'visible';
+          clonedElement.style.display = 'block';
+          clonedElement.style.opacity = '1';
+          clonedElement.style.background = '#ffffff';
+          clonedElement.style.padding = '10px';
           
-          ${section.qualityBreakdown.length > 5 ? `
-            <div style="font-size: 8px; color: #6b7280; text-align: center; margin-top: 4px; padding-top: 4px; border-top: 1px dashed #e5e7eb;">
-              + ${section.qualityBreakdown.length - 5} more parameters
-            </div>
-          ` : ''}
-        </div>
-      </div>
-      
-    </div>
-  </div>
-` : ''}
-
-    </div>
-  `).join('');
-}
-// Get company logo
-async function getLogoAsBase64(): Promise<string> {
-  const possiblePaths = [
-    '/assets/logo.png',
-    './assets/logo.png',
-    'assets/logo.png',
-    '/Logo.png',
-    './Logo.png',
-    'Logo.png',
-    '/images/Logo.png',
-    './images/Logo.png',
-    'images/Logo.png',
-    '/img/Logo.png',
-    './img/Logo.png',
-    'img/Logo.png'
-  ];
-
-  for (const logoPath of possiblePaths) {
-    try {
-      const response = await fetch(logoPath);
-      if (response.ok) {
-        const blob = await response.blob();
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            resolve(reader.result as string);
-          };
-          reader.readAsDataURL(blob);
-        });
+          // Force layout refresh in clone
+          if (chartElementId === 'defect-distribution-chart') {
+            clonedElement.style.width = '1200px'; // Set a fixed wide width for Bar charts in PDF
+            clonedElement.style.height = 'auto';
+            clonedElement.style.minHeight = '500px';
+          }
+          
+          // Disable all transitions/animations in the clone
+          const style = clonedDoc.createElement('style');
+          style.innerHTML = `
+            * { 
+              transition: none !important; 
+              animation: none !important; 
+              -webkit-transition: none !important;
+              -webkit-animation: none !important;
+            }
+            .bg-gradient-to-r { background-image: none !important; }
+            .from-amber-400 { background-color: #fbbf24 !important; }
+            .to-amber-500 { background-color: #f59e0b !important; }
+            .from-red-400 { background-color: #f87171 !important; }
+            .to-red-500 { background-color: #ef4444 !important; }
+            .shadow-inner { box-shadow: none !important; }
+          `;
+          clonedDoc.head.appendChild(style);
+        }
       }
-    } catch (error) {
-      console.log(`Error loading from ${logoPath}:`, error);
-    }
-  }
+    });
 
-  console.warn('No custom logo found, falling back to default logo');
-  try {
-    const defaultLogoPath = '/logoimages/logo.jpeg';
-    const response = await fetch(defaultLogoPath);
-    
-    if (response.ok) {
-      const blob = await response.blob();
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          resolve(reader.result as string);
-        };
-        reader.readAsDataURL(blob);
-      });
-    }
+    const dataUrl = canvas.toDataURL('image/png', 0.8);
+    return dataUrl.length > 500 ? dataUrl : '';
   } catch (error) {
-    console.log('Error loading default logo:', error);
+    console.error(`Error capturing chart ${chartElementId}:`, error);
+    return '';
   }
-
-  return '';
-}
-
-// Generate pie chart SVG for overall quality
-function generatePieChartSVG(
-  yesPercent: number,
-  noPercent: number,
-  naPercent: number,
-  counts: { yes: number; no: number; na: number; total: number }
-): string {
-  const size = 140;
-  const radius = 55;
-  const strokeWidth = 25;
-  const centerX = size / 2;
-  const centerY = size / 2;
-
-  const circumference = 2 * Math.PI * radius;
-  const totalPercent = yesPercent + noPercent + naPercent;
-  const effectiveTotal = totalPercent > 0 ? totalPercent : 100;
-
-  const yesAngle = (yesPercent / effectiveTotal) * 360;
-  const noAngle = (noPercent / effectiveTotal) * 360;
-  const naAngle = (naPercent / effectiveTotal) * 360;
-
-  const yesDash = (yesAngle / 360) * circumference;
-  const noDash = (noAngle / 360) * circumference;
-  const naDash = (naAngle / 360) * circumference;
-
-  const yesColor = "rgba(34, 197, 94, 1)"; // Green
-  const noColor = "rgba(239, 68, 68, 1)"; // Red
-  const naColor = "rgba(156, 163, 175, 1)"; // Gray
-
-  // Base track
-  const baseTrack = `<circle
-        cx="${centerX}" cy="${centerY}" r="${radius}"
-        fill="none" stroke="#e0e7ff" stroke-width="${strokeWidth}"
-    />`;
-
-  let currentOffset = 0;
-  
-  const naSegment = naDash > 0 ? `<circle
-        cx="${centerX}" cy="${centerY}" r="${radius}"
-        fill="none" stroke="${naColor}" stroke-width="${strokeWidth}"
-        stroke-dasharray="${naDash} ${circumference - naDash}"
-        stroke-dashoffset="${currentOffset}"
-        transform="rotate(-90 ${centerX} ${centerY})"
-    />` : '';
-  currentOffset -= naDash;
-
-  const noSegment = noDash > 0 ? `<circle
-        cx="${centerX}" cy="${centerY}" r="${radius}"
-        fill="none" stroke="${noColor}" stroke-width="${strokeWidth}"
-        stroke-dasharray="${noDash} ${circumference - noDash}"
-        stroke-dashoffset="${currentOffset}"
-        transform="rotate(-90 ${centerX} ${centerY})"
-    />` : '';
-  currentOffset -= noDash;
-
-  const yesSegment = yesDash > 0 ? `<circle
-        cx="${centerX}" cy="${centerY}" r="${radius}"
-        fill="none" stroke="${yesColor}" stroke-width="${strokeWidth}"
-        stroke-dasharray="${yesDash} ${circumference - yesDash}"
-        stroke-dashoffset="${currentOffset}"
-        transform="rotate(-90 ${centerX} ${centerY})"
-    />` : '';
-
-  // Text positions
-  const scoreTextY = centerY - 5;
-  const labelTextY = centerY + 10;
-  const labelFontSize = 10;
-
-  return `
-        <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="display: block; margin: 0 auto;">
-            ${baseTrack}
-            ${naSegment}
-            ${noSegment}
-            ${yesSegment}
-            
-            <text x="${centerX}" y="${scoreTextY}" text-anchor="middle" font-family="Arial, sans-serif" 
-                font-size="22" font-weight="bold" fill="#1e3a8a">
-                ${((yesPercent / 100) * counts.total).toFixed(0)}
-            </text>
-            
-            <text x="${centerX}" y="${labelTextY}" text-anchor="middle" font-family="Arial, sans-serif" 
-                font-size="${labelFontSize}" fill="#3b82f6" font-weight="600">
-                Yes Responses
-            </text>
-        </svg>
-    `;
 }
 
 // Generate summary cards HTML
-function generateSummaryCardsHTML(total: number): string {
+function generateSummaryCardsHTML(total: number, pending: number, verified: number, rejected: number): string {
   return `
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px;">
-      <!-- Total Responses -->
-      <div style="padding: 16px; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1.5px solid #38bdf8; border-radius: 8px; text-align: center;">
-        <div style="font-size: 24px; font-weight: 900; color: #0ea5e9;">${total}</div>
-        <div style="font-size: 11px; font-weight: 700; color: #0284c7; margin-top: 4px;">Total Responses</div>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px;">
+      <div style="background: #f0f9ff; padding: 10px; border-radius: 10px; border: 1.5px solid #0ea5e9; text-align: center;">
+        <div style="font-size: 18px; font-weight: 900; color: #0ea5e9;">${total}</div>
+        <div style="font-size: 10px; font-weight: 700; color: #0284c7; margin-top: 2px;">Total Responses</div>
       </div>
-      
+      <div style="background: #faf5ff; padding: 10px; border-radius: 10px; border: 1.5px solid #a855f7; text-align: center;">
+        <div style="font-size: 18px; font-weight: 900; color: #a855f7;">${pending}</div>
+        <div style="font-size: 10px; font-weight: 700; color: #9333ea; margin-top: 2px;">Pending</div>
+      </div>
+      <div style="background: #f0fdf4; padding: 10px; border-radius: 10px; border: 1.5px solid #22c55e; text-align: center;">
+        <div style="font-size: 18px; font-weight: 900; color: #22c55e;">${verified}</div>
+        <div style="font-size: 10px; font-weight: 700; color: #16a34a; margin-top: 2px;">Verified</div>
+      </div>
+      <div style="background: #fef2f2; padding: 10px; border-radius: 10px; border: 1.5px solid #ef4444; text-align: center;">
+        <div style="font-size: 18px; font-weight: 900; color: #ef4444;">${rejected}</div>
+        <div style="font-size: 10px; font-weight: 700; color: #b91c1c; margin-top: 2px;">Rejected</div>
+      </div>
     </div>
   `;
 }
@@ -453,615 +100,364 @@ function generateSummaryCardsHTML(total: number): string {
 // Generate section performance table
 function generateSectionPerformanceTable(sectionSummaryRows: any[]): string {
   if (!sectionSummaryRows.length) {
-    return '<div style="text-align: center; padding: 20px; color: #6b7280; font-style: italic;">No section data available</div>';
+    return '<div style="text-align: center; padding: 15px; color: #6b7280; font-style: italic; font-size: 10px;">No section data available</div>';
   }
 
-  // Helper function to create bar chart
   const generateTableBarChart = (yesPercent: number, noPercent: number, naPercent: number): string => {
-    const totalWidth = 150;
+    const totalWidth = 140;
     const yesWidth = (yesPercent / 100) * totalWidth;
     const noWidth = (noPercent / 100) * totalWidth;
     const naWidth = (naPercent / 100) * totalWidth;
 
     return `
-      <div style="position: relative; width: ${totalWidth}px; height: 16px; background: #f1f5f9; border-radius: 2px; overflow: hidden; border: 1px solid #e2e8f0;">
-        ${yesPercent > 0 ? `
-          <div style="position: absolute; left: 0; width: ${yesWidth}px; height: 100%; background: #10b981; display: flex; align-items: center; justify-content: center;">
-            ${yesPercent >= 15 ? `<span style="color: white; font-size: 7px; font-weight: bold; text-shadow: 0 0 1px rgba(0,0,0,0.5);">${yesPercent.toFixed(0)}%</span>` : ''}
-          </div>
-        ` : ''}
-        ${noPercent > 0 ? `
-          <div style="position: absolute; left: ${yesWidth}px; width: ${noWidth}px; height: 100%; background: #ef4444; display: flex; align-items: center; justify-content: center;">
-            ${noPercent >= 15 ? `<span style="color: white; font-size: 7px; font-weight: bold; text-shadow: 0 0 1px rgba(0,0,0,0.5);">${noPercent.toFixed(0)}%</span>` : ''}
-          </div>
-        ` : ''}
-        ${naPercent > 0 ? `
-          <div style="position: absolute; left: ${yesWidth + noWidth}px; width: ${naWidth}px; height: 100%; background: #9ca3af; display: flex; align-items: center; justify-content: center;">
-            ${naPercent >= 15 ? `<span style="color: white; font-size: 7px; font-weight: bold; text-shadow: 0 0 1px rgba(0,0,0,0.5);">${naPercent.toFixed(0)}%</span>` : ''}
-          </div>
-        ` : ''}
+      <div style="position: relative; width: ${totalWidth}px; height: 14px; background: #f1f5f9; border-radius: 2px; overflow: hidden; border: 1px solid #e2e8f0;">
+        ${yesPercent > 0 ? `<div style="position: absolute; left: 0; width: ${yesWidth}px; height: 100%; background: #10b981;"></div>` : ''}
+        ${noPercent > 0 ? `<div style="position: absolute; left: ${yesWidth}px; width: ${noWidth}px; height: 100%; background: #ef4444;"></div>` : ''}
+        ${naPercent > 0 ? `<div style="position: absolute; left: ${yesWidth + noWidth}px; width: ${naWidth}px; height: 100%; background: #9ca3af;"></div>` : ''}
       </div>
     `;
   };
 
   return `
-    <table style="width: 100%; border-collapse: collapse; border: 1px solid #e5e7eb; font-size: 10px; margin-top: 15px;">
+    <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #e5e7eb; font-size: 9px;">
       <thead>
         <tr style="background: #1e3a8a;">
-          <th style="padding: 10px; text-align: left; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">Section</th>
-          <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">Total</th>
-          <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">Yes</th>
-          <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">No</th>
-          <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">N/A</th>
-          <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; border: 1px solid #374151;">Visualization</th>
+          <th style="padding: 8px; text-align: left; color: white; border: 1px solid #374151;">Section</th>
+          <th style="padding: 8px; text-align: center; color: white; border: 1px solid #374151;">Total</th>
+          <th style="padding: 8px; text-align: center; color: white; border: 1px solid #374151;">Yes (%)</th>
+          <th style="padding: 8px; text-align: center; color: white; border: 1px solid #374151;">No (%)</th>
+          <th style="padding: 8px; text-align: center; color: white; border: 1px solid #374151;">Visualization</th>
         </tr>
       </thead>
       <tbody>
-        ${sectionSummaryRows.map((row, index) => {
-          const rowBgColor = index % 2 === 0 ? '#ffffff' : '#f8fafc';
-          
-          return `
-            <tr style="background-color: ${rowBgColor};">
-              <!-- Section Column -->
-              <td style="padding: 8px; font-size: 10px; font-weight: 600; color: #1e293b; border: 1px solid #e5e7eb;">
-                <div style="font-weight: 700; margin-bottom: 2px;">${row.title}</div>
-              </td>
-              
-              <!-- Total Column -->
-              <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-                <div style="font-weight: 700; color: #1e40af;">${row.total}</div>
-                <div style="font-size: 9px; color: #6b7280; font-weight: 600;">Responses</div>
-              </td>
-              
-              <!-- Yes Column -->
-              <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-                <div style="font-weight: 700; color: #059669;">${row.yesCount}</div>
-                <div style="font-size: 9px; color: #059669; font-weight: 600;">${row.yesPercent.toFixed(1)}%</div>
-              </td>
-              
-              <!-- No Column -->
-              <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-                <div style="font-weight: 700; color: #dc2626;">${row.noCount}</div>
-                <div style="font-size: 9px; color: #dc2626; font-weight: 600;">${row.noPercent.toFixed(1)}%</div>
-              </td>
-              
-              <!-- N/A Column -->
-              <td style="padding: 8px; text-align: center; font-size: 10px; border: 1px solid #e5e7eb;">
-                <div style="font-weight: 700; color: #6b7280;">${row.naCount}</div>
-                <div style="font-size: 9px; color: #6b7280; font-weight: 600;">${row.naPercent.toFixed(1)}%</div>
-              </td>
-              
-              <!-- Visualization Column -->
-              <td style="padding: 8px; text-align: center; border: 1px solid #e5e7eb;">
-                ${generateTableBarChart(row.yesPercent, row.noPercent, row.naPercent)}
-              </td>
-            </tr>
-          `;
-        }).join('')}
+        ${sectionSummaryRows.map((row, index) => `
+          <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+            <td style="padding: 6px; font-weight: 700; color: #1e293b; border: 1px solid #e5e7eb;">${row.title}</td>
+            <td style="padding: 6px; text-align: center; border: 1px solid #e5e7eb;">${row.total}</td>
+            <td style="padding: 6px; text-align: center; color: #059669; font-weight: 700; border: 1px solid #e5e7eb;">${row.yesPercent.toFixed(1)}%</td>
+            <td style="padding: 6px; text-align: center; color: #dc2626; font-weight: 700; border: 1px solid #e5e7eb;">${row.noPercent.toFixed(1)}%</td>
+            <td style="padding: 6px; text-align: center; border: 1px solid #e5e7eb;">${generateTableBarChart(row.yesPercent, row.noPercent, row.naPercent)}</td>
+          </tr>
+        `).join('')}
       </tbody>
     </table>
   `;
 }
 
-// Generate Section Analytics HTML
-function generateSectionAnalyticsHTML(sectionAnalytics: any[]): string {
-  if (!sectionAnalytics.length) {
-    return '';
-  }
+// Generate Inspection Summary Table HTML
+function generateInspectionSummaryTable(summary: any[], statuses: string[]): string {
+  if (!summary || !summary.length) return '';
 
-  return sectionAnalytics.map((section, index) => `
-    <div class="page-break-before" style="${index > 0 ? 'page-break-before: always;' : ''}">
-      <h2 class="section-title" style="font-size: 18px; font-weight: 700; color: #1e3a8a; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid #e5e7eb;">
-        Section Analytics: ${section.sectionTitle}
-      </h2>
-      
-      <div style="margin-bottom: 20px;">
-        <h3 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 12px;">Metrics Overview</h3>
-        ${section.statsImage ? `
-          <div style="text-align: center;">
-            <img src="${section.statsImage}" style="max-width: 100%; height: auto; border: 1px solid #e5e7eb; border-radius: 8px;" />
-          </div>
-        ` : '<p style="color: #6b7280; text-align: center; font-style: italic;">No metrics data available</p>'}
-      </div>
-      
-      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 20px;">
-        <div>
-          <h3 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 12px;">Quality Distribution</h3>
-          ${section.qualityImage ? `
-            <div style="text-align: center; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb;">
-              <img src="${section.qualityImage}" style="max-width: 100%; height: auto;" />
-            </div>
-          ` : '<p style="color: #6b7280; text-align: center; font-style: italic;">No quality data available</p>'}
-        </div>
-        
-        <div>
-          <h3 style="font-size: 14px; font-weight: 600; color: #374151; margin-bottom: 12px;">Parameter Analysis</h3>
-          ${section.visualizationImage ? `
-            <div style="text-align: center; background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb;">
-              <img src="${section.visualizationImage}" style="max-width: 100%; height: auto;" />
-            </div>
-          ` : '<p style="color: #6b7280; text-align: center; font-style: italic;">No visualization data available</p>'}
-        </div>
-      </div>
-      
-      
-    </div>
-  `).join('');
+  return `
+    <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #e5e7eb; font-size: 8px; margin-top: 10px;">
+      <thead>
+        <tr style="background: #1e3a8a;">
+          <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">Tenant</th>
+          <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">Date</th>
+          <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">QC Inspector</th>
+          <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">Form Title</th>
+          <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">Chassis no</th>
+          <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Total</th>
+          ${statuses.map(status => `<th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">${status}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${summary.map((row, index) => `
+          <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+            <td style="padding: 5px; font-weight: 700; border: 1px solid #e5e7eb;">${row.tenantName || 'N/A'}</td>
+            <td style="padding: 5px; border: 1px solid #e5e7eb;">${row.date || 'N/A'}</td>
+            <td style="padding: 5px; border: 1px solid #e5e7eb;">${row.qcInspector || 'N/A'}</td>
+            <td style="padding: 5px; border: 1px solid #e5e7eb;">${row.formTitle || '-'}</td>
+            <td style="padding: 5px; border: 1px solid #e5e7eb;">${row.chassisNumber || row.chassisNo || '-'}</td>
+            <td style="padding: 5px; text-align: center; font-weight: 700; border: 1px solid #e5e7eb;">${row.totalInspection || 0}</td>
+            ${statuses.map(status => {
+              const count = row.statusCounts?.[status] || 0;
+              let color = '#3b82f6';
+              if (status === 'Direct Ok' || status === 'Rework Accepted') color = '#10b981';
+              else if (status.startsWith('Rework')) color = '#f59e0b';
+              else if (status === 'Rejected') color = '#ef4444';
+              return `<td style="padding: 5px; text-align: center; font-weight: 700; color: ${color}; border: 1px solid #e5e7eb;">${count}</td>`;
+            }).join('')}
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
-// Main export function
-export async function exportFormAnalyticsToPDF(
-  options: {
-    filename: string;
-    formTitle: string;
-    generatedDate: string;
-    totalResponses: number;
-    sectionSummaryRows: any[];
-    totalPieChartData: {
-      yes: number;
-      no: number;
-      na: number;
-      counts: { yes: number; no: number; na: number; total: number };
-    };
-    chartElementIds: string[];
-    includeSectionAnalytics?: boolean; 
-    sectionAnalyticsData?: any[];// New option
-  }
-): Promise<void> {
+// Generate pie chart SVG for overall quality
+function generatePieChartSVG(yesPercent: number, noPercent: number, naPercent: number, counts: any): string {
+  const size = 120;
+  const radius = 45;
+  const strokeWidth = 20;
+  const centerX = size / 2;
+  const centerY = size / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  let currentOffset = 0;
+  const createSegment = (percent: number, color: string) => {
+    if (percent <= 0) return '';
+    const dash = (percent / 100) * circumference;
+    const segment = `<circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-dasharray="${dash} ${circumference - dash}" stroke-dashoffset="${currentOffset}" transform="rotate(-90 ${centerX} ${centerY})" />`;
+    currentOffset -= dash;
+    return segment;
+  };
+
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="none" stroke="#f1f5f9" stroke-width="${strokeWidth}" />
+      ${createSegment(naPercent, "#f59e0b")}
+      ${createSegment(noPercent, "#ef4444")}
+      ${createSegment(yesPercent, "#10b981")}
+      <text x="50%" y="50%" text-anchor="middle" dy=".3em" font-size="12" font-weight="900" fill="#1e3a8a">${yesPercent}%</text>
+    </svg>
+  `;
+}
+
+// Get logo
+async function getLogoAsBase64(): Promise<string> {
+  try {
+    const response = await fetch('/logoimages/logo.jpeg');
+    if (response.ok) {
+      const blob = await response.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    }
+  } catch (e) {}
+  return '';
+}
+
+export async function exportFormAnalyticsToPDF(options: any): Promise<void> {
   const {
-    filename,
-    formTitle,
-    generatedDate,
-    totalResponses,
-    sectionSummaryRows,
-    totalPieChartData,
-    chartElementIds = [],
-    includeSectionAnalytics = true ,
-    sectionAnalyticsData = [] // Default to true
+    filename, formTitle, generatedDate, totalResponses, pending, verified, rejected,
+    sectionSummaryRows, totalPieChartData, chartElementIds,
+    inspectorSummary, summaryStatuses, inspectionStats, defectStartDate, defectEndDate
   } = options;
 
-  // Capture chart images
   const chartImages: Record<string, string> = {};
-  
-  for (const chartId of chartElementIds) {
-    const chartImage = await captureChartAsImage(chartId);
-    if (chartImage) {
-      chartImages[chartId] = chartImage;
+  const originalScrollPos = window.scrollY;
+
+  // Wake-up scroll: quickly scroll to bottom and back to trigger lazy rendering
+  // This helps ensure charts at the bottom are initialized by the browser
+  window.scrollTo(0, document.body.scrollHeight);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  window.scrollTo(0, originalScrollPos);
+  await new Promise(resolve => setTimeout(resolve, 200));
+
+  for (const id of chartElementIds) {
+    const el = document.getElementById(id);
+    if (el) {
+      // Bring into view briefly to ensure it's rendered but restore scroll immediately
+      el.scrollIntoView({ block: 'center', behavior: 'auto' });
+      chartImages[id] = await captureChartAsImage(id);
+      window.scrollTo(0, originalScrollPos);
+    } else {
+      chartImages[id] = await captureChartAsImage(id);
     }
   }
 
-  
+  // Restore scroll position final time
+  window.scrollTo(0, originalScrollPos);
 
-  // Get logo
   const logoBase64 = await getLogoAsBase64();
 
-  // Generate HTML content
+  // Ensure we have some counts even if inspectionStats is mostly zeros
+  const finalAccepted = (inspectionStats?.accepted || 0) || (totalPieChartData.counts?.yes || 0);
+  const finalRejected = (inspectionStats?.rejected || 0) || (totalPieChartData.counts?.no || 0);
+  const finalRework = (inspectionStats?.reworked || 0) || (totalPieChartData.counts?.na || 0);
+  
+  const totalStats = finalAccepted + finalRejected + finalRework;
+  const acceptedPercent = totalStats > 0 ? Math.round((finalAccepted / totalStats) * 100) : (totalPieChartData.yes || 0);
+  const rejectedPercent = totalStats > 0 ? Math.round((finalRejected / totalStats) * 100) : (totalPieChartData.no || 0);
+  const reworkedPercent = totalStats > 0 ? Math.round((finalRework / totalStats) * 100) : (totalPieChartData.na || 0);
+
+  // Format date range for Defect Distribution
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const dateRangeStr = defectStartDate && defectEndDate 
+    ? ` (${formatDate(defectStartDate)} - ${formatDate(defectEndDate)})`
+    : "";
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="utf-8">
-      <title>${filename}</title>
+      <meta charset="UTF-8">
       <style>
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
+        @page { size: A4; margin: 0; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; margin: 0; padding: 0; color: #1f2937; line-height: 1.4; background: #f3f4f6; }
+        .container { width: 100%; max-width: 800px; margin: 0 auto; padding: 20px; background: white; min-height: 100vh; box-sizing: border-box; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 3px solid #1e3a8a; }
+        .header h1 { font-size: 20px; font-weight: 900; color: #1e3a8a; margin: 0; letter-spacing: -0.5px; }
+        .header p { font-size: 10px; color: #64748b; margin: 4px 0 0 0; font-weight: 600; text-transform: uppercase; }
+        .logo-img { width: 140px; height: 40px; object-fit: contain; }
         
-        body {
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          background: #ffffff;
-          padding: 20px;
-          color: #1f2937;
-          line-height: 1.4;
-          font-size: 12px;
-        }
+        .section-header { margin: 25px 0 15px 0; padding: 8px 12px; background: #1e3a8a; color: white; border-radius: 4px; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
         
-        .container {
-          max-width: 100%;
-          margin: 0 auto;
-          background: white;
-        }
+        .chart-full { width: 100%; background: white; padding: 20px; border-radius: 8px; border: 1.5px solid #e5e7eb; margin-bottom: 25px; page-break-inside: avoid; box-sizing: border-box; }
+        .chart-main-title { font-size: 14px; font-weight: 900; color: #1e3a8a; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .chart-sub-title { font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 20px; text-transform: none; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; }
         
-        .header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          margin-bottom: 20px;
-          padding-bottom: 15px;
-          border-bottom: 3px solid #1e3a8a;
-        }
+        .stats-grid { display: flex; gap: 25px; align-items: center; justify-content: center; }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 18px; font-weight: 900; margin-bottom: 2px; }
+        .stat-label { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; }
         
-        .header-content {
-          flex: 1;
-        }
-        
-        .header h1 {
-          font-size: 20px;
-          font-weight: 700;
-          color: #1e3a8a;
-          margin-bottom: 4px;
-        }
-        
-        .header p {
-          font-size: 11px;
-          color: #64748b;
-          margin: 0;
-        }
-        
-        .logo-container {
-          flex-shrink: 0;
-          margin-left: 20px;
-          text-align: right;
-          min-width: 120px;
-        }
-
-        .logo-img {
-          width: 150px;
-          height: 50px;
-          object-fit: contain;
-        }
-        
-        .table-title {
-          font-size: 16px;
-          font-weight: 700;
-          color: #1e3a8a;
-          margin-bottom: 12px;
-          padding-bottom: 6px;
-          border-bottom: 2px solid #e5e7eb;
-        }
-        
-        .performance-table {
-          width: 100%;
-          border-collapse: collapse;
-          border: 1px solid #e5e7eb;
-          font-size: 10px;
-          page-break-inside: auto;
-        }
-        
-        .performance-table tr {
-          page-break-inside: avoid;
-          page-break-after: auto;
-        }
-        
-        .performance-table td,
-        .performance-table th {
-          page-break-inside: auto;
-          page-break-before: auto;
-        }
-        
-        .table-legend {
-          display: flex;
-          gap: 15px;
-          margin-top: 10px;
-          padding: 8px;
-          background: #f8fafc;
-          border-radius: 4px;
-          font-size: 10px;
-          justify-content: center;
-        }
-        
-        .legend-item {
-          display: flex;
-          align-items: center;
-          gap: 5px;
-        }
-        
-        .legend-color {
-          width: 12px;
-          height: 12px;
-          border-radius: 2px;
-        }
-        
-        .legend-yes { background: #10b981; }
-        .legend-no { background: #ef4444; }
-        .legend-na { background: #9ca3af; }
-        
-        .footer {
-          margin-top: 30px;
-          padding-top: 15px;
-          border-top: 1px solid #e5e7eb;
-          font-size: 10px;
-          color: #6b7280;
-          text-align: center;
-        }
-        
-        .pdf-section {
-          margin-bottom: 25px;
-          page-break-inside: auto;
-        }
-        
-        .page-break-before {
-          page-break-before: always;
-        }
-        
-        .section-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 11px;
-          border: 1px solid #e2e8f0;
-          page-break-inside: auto;
-        }
-        
-        .section-table tr {
-          page-break-inside: avoid;
-          page-break-after: auto;
-        }
-        
-        .section-table td,
-        .section-table th {
-          page-break-inside: auto;
-          page-break-before: auto;
-          word-wrap: break-word;
-          overflow-wrap: break-word;
-        }
-        
-        .chart-container {
-          background: #f8fafc;
-          padding: 10px; /* Reduced from 15px */
-          border-radius: 6px; /* Reduced from 8px */
-          border: 1px solid #e2e8f0;
-          margin: 10px 0; /* Reduced from 15px */
-        }
-        
-        .chart-title {
-          font-size: 14px;
-          font-weight: 600;
-          color: #1e3a8a;
-          margin-bottom: 6px;
-          text-align: center;
-        }
-        
-        .chart-image {
-          width: 100%;
-          height: auto;
-          max-height: 150px;
-          object-fit: contain;
-        }
-        
-        @media print {
-          body {
-            padding: 10px;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
-          }
-          
-          table {
-            page-break-inside: auto !important;
-          }
-          
-          tr {
-            page-break-inside: avoid !important;
-            page-break-after: auto !important;
-          }
-          
-          td, th {
-            page-break-inside: auto !important;
-            page-break-before: auto !important;
-          }
-          
-          .pdf-section {
-            page-break-inside: auto !important;
-          }
-          
-          .no-break {
-            page-break-inside: avoid;
-          }
-        }
+        .page-break-before { page-break-before: always; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 9px; }
+        th { background: #1e3a8a; color: white; padding: 8px; text-align: left; font-weight: 700; border: 1px solid #374151; }
+        td { padding: 7px; border: 1px solid #e5e7eb; }
+        .table-title { font-size: 14px; font-weight: 800; color: #1e3a8a; margin: 20px 0 10px 0; text-transform: uppercase; }
       </style>
     </head>
     <body>
       <div class="container">
-        <!-- PAGE 1: Header + Summary + Charts -->
-        <div class="first-page">
-          <!-- Header -->
-          <div class="header">
-            <div class="header-content">
-              <h1>Form Analytics Dashboard Report</h1>
-              <p>Form: ${formTitle}</p>
-              <p>Generated on: ${generatedDate}</p>
-            </div>
-            <div class="logo-container">
-              ${logoBase64 ? `
-                <img src="${logoBase64}" class="logo-img" alt="Company Logo" />
-              ` : `
-                <div style="width: 100px; height: 40px; background: #f1f5f9; border: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 9px; text-align: center; border-radius: 3px;">
-                  Logo
-                </div>
-              `}
-            </div>
+        <div class="header">
+          <div>
+            <h1>Analytics Report</h1>
+            <p>${formTitle} | ${generatedDate}</p>
           </div>
-          
-          <!-- Summary Cards -->
-          ${generateSummaryCardsHTML(totalResponses)}
-          
-          <!-- Overall Quality Section -->
-          <div class="pdf-section">
-            <div class="table-title">Overall Response Quality</div>
-            <div style="display: flex; align-items: center; gap: 40px;">
-              <div style="flex-shrink: 0; text-align: center; min-width: 140px;">
-                ${generatePieChartSVG(
-                  totalPieChartData.yes, 
-                  totalPieChartData.no, 
-                  totalPieChartData.na,
-                  totalPieChartData.counts
-                )}
-              </div>
-              <div style="flex: 1;">
-                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;">
-                  <!-- Yes Responses -->
-                  <div style="text-align: center; padding: 18px; background: #c7d2fe; border-radius: 10px; border: 1.5px solid rgba(34, 197, 94, 1);">
-                    <div style="font-size: 18px; font-weight: 900; color: rgba(34, 197, 94, 1)">${totalPieChartData.counts.yes}</div>
-                    <div style="font-size: 12px; color: rgba(34, 197, 94, 1); font-weight: 700;">Yes Responses</div>
-                    <div style="font-size: 15px; font-weight: 700; color: rgba(34, 197, 94, 1);">${totalPieChartData.yes}%</div>
-                  </div>
-                  <!-- No Responses -->
-                  <div style="text-align: center; padding: 18px; background: #bfdbfe; border-radius: 10px; border: 1.5px solid rgba(239, 68, 68, 1);">
-                    <div style="font-size: 18px; font-weight: 900; color: rgba(239, 68, 68, 1);">${totalPieChartData.counts.no}</div>
-                    <div style="font-size: 12px; color: rgba(239, 68, 68, 1); font-weight: 700;">No Responses</div>
-                    <div style="font-size: 15px; font-weight: 700; color: rgba(239, 68, 68, 1);">${totalPieChartData.no}%</div>
-                  </div>
-                  <!-- N/A Responses -->
-                  <div style="text-align: center; padding: 18px; background: #dbeafe; border-radius: 10px; border: 1.5px solid rgba(156, 163, 175, 1);">
-                    <div style="font-size: 18px; font-weight: 900; color: rgba(156, 163, 175, 1);">${totalPieChartData.counts.na}</div>
-                    <div style="font-size: 12px; color: rgba(156, 163, 175, 1); font-weight: 700;">N/A Responses</div>
-                    <div style="font-size: 15px; font-weight: 700; color: rgba(156, 163, 175, 1);">${totalPieChartData.na}%</div>
-                  </div>
-                </div>
-                <div style="margin-top: 22px; padding-top: 12px; border-top: 1.5px solid #e5e7eb; text-align: center; font-size: 14px; font-weight: 700; color: #374151; letter-spacing: 0.5px; text-transform: uppercase;">
-                  Total Questions Analyzed: <span style="color: #2563eb; font-weight: 900; margin-left: 6px;">${totalPieChartData.counts.total}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Captured Charts Section - Only 3 charts -->
-          <div class="page-break-before pdf-section">
-            <div class="table-title">Key Charts & Visualizations</div>
-            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
-              <!-- Response Trend Chart -->
-              ${chartImages['response-trend-chart'] ? `
-                <div class="chart-container" style="padding: 10px; margin: 0;">
-                  <div class="chart-title" style="font-size: 12px; margin-bottom: 8px;">Response Trend (Last 7 Days)</div>
-                  <img src="${chartImages['response-trend-chart']}" style="width: 100%; height: 200px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 6px;" />
-                </div>
-              ` : ''}
-              
-              <!-- Overall Quality Chart -->
-              ${chartImages['overall-quality-chart'] ? `
-                <div class="chart-container" style="padding: 10px; margin: 0;">
-                  <div class="chart-title" style="font-size: 12px; margin-bottom: 8px;">Overall Quality Distribution</div>
-                  <img src="${chartImages['overall-quality-chart']}" style="width: 100%; height: 180px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 6px;" />
-                </div>
-              ` : ''}
-              
-              <!-- Location Heatmap -->
-              ${chartImages['location-heatmap'] ? `
-                <div class="chart-container" style="padding: 10px; margin: 0;">
-                  <div class="chart-title" style="font-size: 12px; margin-bottom: 8px;">Response Locations Heatmap</div>
-                  <img src="${chartImages['location-heatmap']}" style="width: 100%; height: 200px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 6px;" />
-                </div>
-              ` : ''}
-            </div>
-          </div>
+          ${logoBase64 ? `<img src="${logoBase64}" class="logo-img" />` : ''}
+        </div>
         
-        <!-- PAGE 2: Section Performance Table -->
-        <div class="page-break-before">
-          <div class="table-title">Section Performance Analysis</div>
-          ${generateSectionPerformanceTable(sectionSummaryRows)}
-          <div class="table-legend">
-            <div class="legend-item">
-              <div class="legend-color legend-yes"></div>
-              <span>Yes (Y%) - Green</span>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color legend-no"></div>
-              <span>No (N%) - Red</span>
-            </div>
-            <div class="legend-item">
-              <div class="legend-color legend-na"></div>
-              <span>N/A (N/A%) - Gray</span>
+        <!-- Overall Quality Distribution -->
+        <div class="chart-full">
+          <div class="chart-main-title">Overall Response Quality</div>
+          <div class="chart-sub-title">Accepted/Rejected/Rework Distribution</div>
+          
+          <div style="display: flex; align-items: center; justify-content: center; gap: 40px; padding: 10px;">
+            ${generatePieChartSVG(acceptedPercent, rejectedPercent, reworkedPercent, {})}
+            <div class="stats-grid">
+              <div class="stat-item">
+                <div class="stat-value" style="color: #10b981;">${acceptedPercent}%</div>
+                <div class="stat-label">Accepted (${finalAccepted})</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value" style="color: #ef4444;">${rejectedPercent}%</div>
+                <div class="stat-label">Rejected (${finalRejected})</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value" style="color: #f59e0b;">${reworkedPercent}%</div>
+                <div class="stat-label">Rework (${finalRework})</div>
+              </div>
             </div>
           </div>
         </div>
-        
 
-         <!-- SECTION ANALYTICS PAGES (using data, not images) -->
-        ${sectionAnalyticsData.length > 0 ? generateSectionAnalyticsFromData(sectionAnalyticsData, chartImages) : ''}
-        
-        <!--<div class="footer">
-          <p>Report generated on ${generatedDate} • Form: ${formTitle} • Total Responses: ${totalResponses}</p>
-        </div>-->
+        <!-- Performance Trend -->
+        <div class="chart-full">
+          <div class="chart-main-title">Performance Trend</div>
+          <div class="chart-sub-title">Total responses received vs total rework received over time (Response-wise)</div>
+          ${chartImages['performance-trend-chart'] ? `
+            <img src="${chartImages['performance-trend-chart']}" style="width: 100%; max-height: 300px; object-fit: contain;" />
+          ` : '<p style="color: #9ca3af; font-size: 10px; padding: 40px; text-align: center;">Trend data not available</p>'}
+        </div>
+
+        <!-- Inspection Status Trend -->
+        <div class="chart-full">
+          <div class="chart-main-title">Inspection Status Trend</div>
+          <div class="chart-sub-title">Daily distribution of inspection outcomes (100% stacked)</div>
+          ${chartImages['inspection-status-distribution-chart'] ? `
+            <img src="${chartImages['inspection-status-distribution-chart']}" style="width: 100%; max-height: 300px; object-fit: contain;" />
+          ` : '<p style="color: #9ca3af; font-size: 10px; padding: 40px; text-align: center;">Status distribution data not available</p>'}
+        </div>
+
+        <div class="page-break-before">
+          <!-- Inspection Status Trends For REWORK -->
+          <div class="chart-full" style="margin-top: 20px;">
+            <div class="chart-main-title">Inspection Status Trends For REWORK</div>
+            <div class="chart-sub-title">Daily trends of inspection outcomes (line chart)</div>
+            ${chartImages['status-trends-rework-chart'] ? `
+              <img src="${chartImages['status-trends-rework-chart']}" style="width: 100%; max-height: 300px; object-fit: contain;" />
+            ` : '<p style="color: #9ca3af; font-size: 10px; padding: 40px; text-align: center;">Trend data not available</p>'}
+          </div>
+
+          <!-- Defect Distribution -->
+          <div class="chart-full">
+            <div class="chart-main-title">Defect Distribution</div>
+            <div class="chart-sub-title">Rejected & Rework volume${dateRangeStr}</div>
+            ${chartImages['defect-distribution-chart'] ? `
+              <img src="${chartImages['defect-distribution-chart']}" style="width: 100%; max-height: 800px; object-fit: contain;" />
+            ` : '<div style="padding: 60px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: center;">Defect distribution chart not available.</div>'}
+          </div>
+          
+          ${inspectorSummary && inspectorSummary.length > 0 ? `
+            <div class="table-title">Inspector Performance Summary</div>
+            ${generateInspectionSummaryTable(inspectorSummary, summaryStatuses)}
+          ` : ''}
+        </div>
       </div>
     </body>
     </html>
   `;
 
-  const element = document.createElement("div");
-  element.innerHTML = htmlContent;
-
-  const opt = {
-    margin: 10,
-    filename: filename,
-    image: {
-      type: "jpeg",
-      quality: 0.98
-    },
-    html2canvas: {
-      scale: 2,
-      logging: false,
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff'
-    },
-    jsPDF: {
-      orientation: "landscape",
-      unit: "mm",
-      format: [279.4, 157.1],
-      compress: true
-    },
-    pagebreak: {
-      mode: ['css', 'legacy'],
-      before: '.page-break-before'
-    },
-  };
-
-  return new Promise<void>((resolve, reject) => {
-    html2pdf()
-      .set(opt)
-      .from(element)
-      .save()
-      .then(() => {
-        resolve();
-      })
-      .catch((error: Error) => {
-        console.error("PDF generation error:", error);
-        reject(error);
-      });
-  });
-}
-
-// Export function to be called from FormAnalyticsDashboard
-export async function exportDashboardToPDF(
-  formTitle: string,
-  analyticsData: {
-    total: number;
-    pending: number;
-    verified: number;
-    rejected: number;
-    sectionSummaryRows: any[];
-    totalPieChartData: {
-      yes: number;
-      no: number;
-      na: number;
-      counts: { yes: number; no: number; na: number; total: number };
-    };
-  },
-  includeSectionAnalytics: boolean = true
-): Promise<boolean> {
   try {
-    // Define ONLY the 3 chart IDs to capture
-    const chartElementIds = [
-      'response-trend-chart',
-      'overall-quality-chart',
-      'location-heatmap'
-    ].filter(id => document.getElementById(id));
-
-    await exportFormAnalyticsToPDF({
-      filename: `${formTitle.replace(/\s+/g, '_')}_Analytics_${new Date().toISOString().split('T')[0]}.pdf`,
-      formTitle: formTitle,
-      generatedDate: new Date().toLocaleString(),
-      totalResponses: analyticsData.total,
-      sectionSummaryRows: analyticsData.sectionSummaryRows,
-      totalPieChartData: analyticsData.totalPieChartData,
-      chartElementIds: chartElementIds,
-      includeSectionAnalytics: includeSectionAnalytics
+    const response = await fetch(`${apiClient.getBaseUrl()}/pdf/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('auth_token') || localStorage.getItem('guest_auth_token')}`
+      },
+      body: JSON.stringify({ htmlContent, filename, format: 'a4-portrait' })
     });
 
+    if (!response.ok) throw new Error('PDF generation failed');
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  } catch (error) {
+    console.error("PDF Export Error:", error);
+    throw error;
+  }
+}
+
+const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+export async function exportDashboardToPDF(formTitle: string, analyticsData: any, includeSectionAnalytics: boolean = true): Promise<boolean> {
+  try {
+    const chartElementIds = [
+      'overall-quality-chart', 'direct-accepted-chart', 'performance-trend-chart',
+      'inspection-status-distribution-chart', 'status-trends-rework-chart',
+      'defect-distribution-chart', 'issue-percentage-chart'
+    ];
+
+    await exportFormAnalyticsToPDF({
+      filename: `${formTitle.replace(/\s+/g, '_')}_Analytics.pdf`,
+      formTitle, generatedDate: new Date().toLocaleString(),
+      totalResponses: analyticsData.total,
+      pending: analyticsData.pending,
+      verified: analyticsData.verified,
+      rejected: analyticsData.rejected,
+      sectionSummaryRows: analyticsData.sectionSummaryRows,
+      totalPieChartData: analyticsData.totalPieChartData,
+      chartElementIds,
+      sectionAnalyticsData: analyticsData.sectionAnalyticsData,
+      inspectorSummary: analyticsData.inspectorSummary,
+      summaryStatuses: analyticsData.summaryStatuses,
+      inspectionStats: analyticsData.inspectionStats,
+      defectStartDate: analyticsData.defectStartDate,
+      defectEndDate: analyticsData.defectEndDate
+    });
     return true;
   } catch (error) {
-    console.error('Error exporting dashboard to PDF:', error);
+    console.error('Export Error:', error);
     return false;
   }
 }

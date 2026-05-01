@@ -2020,7 +2020,7 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
-        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        const responseDate = new Date(timestamp).toLocaleDateString('en-CA');
 
         if (dateFilter.type === "single" && dateFilter.startDate) {
           return responseDate === dateFilter.startDate;
@@ -2176,7 +2176,7 @@ export default function FormAnalyticsDashboard() {
         if (timestamp) {
           const dateObj = new Date(timestamp);
           if (!isNaN(dateObj.getTime())) {
-            const date = dateObj.toISOString().split("T")[0];
+            const date = dateObj.toLocaleDateString('en-CA');
             acc[date] = (acc[date] || 0) + 1;
           }
         }
@@ -2188,7 +2188,7 @@ export default function FormAnalyticsDashboard() {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      return date.toISOString().split("T")[0];
+      return date.toLocaleDateString('en-CA');
     }).reverse();
 
     const maxCount = Math.max(
@@ -4100,7 +4100,7 @@ export default function FormAnalyticsDashboard() {
 
       // Generate PDF with section data
       await exportFormAnalyticsToPDF({
-        filename: `${form?.title?.replace(/\s+/g, "_") || "Form"}_Analytics_${new Date().toISOString().split("T")[0]}.pdf`,
+        filename: `${form?.title?.replace(/\s+/g, "_") || "Form"}_Analytics_${new Date().toLocaleDateString('en-CA')}.pdf`,
         formTitle: form?.title || "Form Analytics",
         generatedDate: new Date().toLocaleString(),
         totalResponses: analytics.total,
@@ -4377,7 +4377,7 @@ export default function FormAnalyticsDashboard() {
       XLSX.utils.book_append_sheet(wb, ws, "Responses");
       XLSX.writeFile(
         wb,
-        `${form?.title || "responses"}-${new Date().toISOString().split("T")[0]}.xlsx`,
+        `${form?.title || "responses"}-${new Date().toLocaleDateString('en-CA')}.xlsx`,
       );
     } catch (error) {
       console.error("Error exporting to Excel:", error);

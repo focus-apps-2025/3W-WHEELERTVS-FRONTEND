@@ -1014,6 +1014,8 @@ export default function DashboardNew() {
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Date</th>
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Shift</th>
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">QC Inspector</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Form Title</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Chassis no</th>
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Inspection</th>
               {/* Dynamic Status Columns */}
               {summaryStatuses.map((status) => (
@@ -1037,6 +1039,8 @@ export default function DashboardNew() {
                 <td className="px-4 py-4">{row.date}</td>
                 <td className="px-4 py-4">{row.shift}</td>
                 <td className="px-4 py-4">{row.qcInspector}</td>
+                <td className="px-4 py-4">{row.formTitle || '-'}</td>
+                <td className="px-4 py-4">{row.chassisNumber || row.chassisNo || '-'}</td>
                 <td className="px-4 py-4 font-bold">{row.totalInspection}</td>
                 {/* Dynamic Status Cells */}
                 {summaryStatuses.map((status) => (
