@@ -11,17 +11,20 @@ import {
   Loader2,
   Trash2,
   Download,
-  Plus
+  Plus,
+  FileDown
 } from "lucide-react";
 import { apiClient } from "../../api/client";
 import { useNotification } from "../../context/NotificationContext";
 import * as XLSX from "xlsx-js-style";
+import { captureAnalyticsCharts, generateAnalyticsHTML } from "../../utils/formanalyticsexport";
 
 interface ShareAnalyticsModalProps {
   isOpen: boolean;
   onClose: () => void;
   formId: string;
   formTitle: string;
+  analyticsData?: any;
 }
 
 interface PreviewRecord {
@@ -34,7 +37,8 @@ export default function ShareAnalyticsModal({
   isOpen, 
   onClose, 
   formId, 
-  formTitle 
+  formTitle,
+  analyticsData
 }: ShareAnalyticsModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -48,6 +52,7 @@ export default function ShareAnalyticsModal({
   const [isSending, setIsSending] = useState(false);
   const [step, setStep] = useState<1 | 2>(1); // 1: Upload/Entry, 2: Preview & Send
   const [entryMode, setEntryMode] = useState<"manual" | "bulk">("manual");
+  const [includePDF, setIncludePDF] = useState(true);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showSuccess, showError } = useNotification();
@@ -154,7 +159,50 @@ export default function ShareAnalyticsModal({
 
     setIsSending(true);
     try {
-      const response = await apiClient.sendAnalyticsInvites(formId, previewData, channels, customMessage);
+      let pdfHtml = undefined;
+      if (includePDF && analyticsData && channels.includes("email")) {
+        console.log("Preparing PDF report for email attachment...");
+        setIsSending(true); // Ensure state is correct
+        try {
+          const chartElementIds = [
+            'overall-quality-chart', 'direct-accepted-chart', 'performance-trend-chart',
+            'inspection-status-distribution-chart', 'status-trends-rework-chart',
+            'defect-distribution-chart', 'issue-percentage-chart'
+          ];
+          
+          // Add a small delay to ensure all charts are fully rendered before capture
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          const chartImages = await captureAnalyticsCharts(chartElementIds);
+          // Get logo base64 if possible, otherwise pass empty (generateAnalyticsHTML handles it)
+          let logoBase64 = "";
+          try {
+            const response = await fetch('/logoimages/logo.jpeg');
+            if (response.ok) {
+              const blob = await response.blob();
+              logoBase64 = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result as string);
+                reader.readAsDataURL(blob);
+              });
+            }
+          } catch (e) {}
+
+          pdfHtml = generateAnalyticsHTML({ 
+            ...analyticsData, 
+            formTitle, 
+            generatedDate: new Date().toLocaleString(),
+            chartImages 
+          }, logoBase64);
+          console.log("✅ PDF HTML generated, length:", pdfHtml?.length || 0);
+        } catch (pdfError) {
+          console.error("Error preparing PDF for email:", pdfError);
+          // We can choose to continue without PDF or fail
+          showError("Failed to generate PDF attachment, but sending invite link.");
+        }
+      }
+
+      const response = await apiClient.sendAnalyticsInvites(formId, previewData, channels, customMessage, pdfHtml);
       
       if (response.allSuccessful) {
         showSuccess(`Successfully sent analytics invites to ${response.sent} recipients`);
@@ -400,6 +448,40 @@ export default function ShareAnalyticsModal({
                 />
               </div>
 
+              {/* PDF Attachment Option */}
+              {channels.includes("email") && analyticsData && (
+                <div 
+                  onClick={() => setIncludePDF(!includePDF)}
+                  className={`
+                    p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4
+                    ${includePDF 
+                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
+                      : 'border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 hover:border-gray-200'}
+                  `}
+                >
+                  <div className={`
+                    p-3 rounded-full transition-colors
+                    ${includePDF ? 'bg-primary-100 text-primary-600' : 'bg-gray-200 text-gray-500'}
+                  `}>
+                    <FileDown className="w-6 h-6" />
+                  </div>
+                  <div className="flex-1">
+                    <p className={`font-bold ${includePDF ? 'text-primary-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
+                      Directly send PDF report
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Recipients will receive the full PDF analytics report as an email attachment
+                    </p>
+                  </div>
+                  <div className={`
+                    w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all
+                    ${includePDF ? 'border-primary-500 bg-primary-500' : 'border-gray-300'}
+                  `}>
+                    {includePDF && <CheckCircle className="w-4 h-4 text-white" />}
+                  </div>
+                </div>
+              )}
+
               {/* Preview Table */}
               <div className="space-y-3">
                 <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Preview (First 5 records)</p>
@@ -443,7 +525,7 @@ export default function ShareAnalyticsModal({
               {isSending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Sending...
+                  {includePDF ? "Preparing Report..." : "Sending..."}
                 </>
               ) : (
                 <>

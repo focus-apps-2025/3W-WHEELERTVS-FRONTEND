@@ -21,7 +21,7 @@ async function captureChartAsImage(chartElementId: string): Promise<string> {
     const height = rect.height || chartElement.offsetHeight || 800;
 
     const canvas = await html2canvas(chartElement, {
-      scale: 3, // Increased scale for better resolution
+      scale: 2, // Reduced scale to keep size manageable while maintaining quality
       logging: false,
       useCORS: true,
       allowTaint: true,
@@ -65,7 +65,7 @@ async function captureChartAsImage(chartElementId: string): Promise<string> {
       }
     });
 
-    const dataUrl = canvas.toDataURL('image/png', 0.8);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.6); // Using JPEG with 0.6 quality to significantly reduce payload size
     return dataUrl.length > 500 ? dataUrl : '';
   } catch (error) {
     console.error(`Error capturing chart ${chartElementId}:`, error);
@@ -230,39 +230,12 @@ async function getLogoAsBase64(): Promise<string> {
   return '';
 }
 
-export async function exportFormAnalyticsToPDF(options: any): Promise<void> {
+export function generateAnalyticsHTML(options: any, logoBase64: string): string {
   const {
-    filename, formTitle, generatedDate, totalResponses, pending, verified, rejected,
-    sectionSummaryRows, totalPieChartData, chartElementIds,
-    inspectorSummary, summaryStatuses, inspectionStats, defectStartDate, defectEndDate
+    formTitle, generatedDate, totalPieChartData,
+    inspectorSummary, summaryStatuses, inspectionStats, defectStartDate, defectEndDate,
+    sectionSummaryRows, sectionAnalyticsData, chartImages
   } = options;
-
-  const chartImages: Record<string, string> = {};
-  const originalScrollPos = window.scrollY;
-
-  // Wake-up scroll: quickly scroll to bottom and back to trigger lazy rendering
-  // This helps ensure charts at the bottom are initialized by the browser
-  window.scrollTo(0, document.body.scrollHeight);
-  await new Promise(resolve => setTimeout(resolve, 300));
-  window.scrollTo(0, originalScrollPos);
-  await new Promise(resolve => setTimeout(resolve, 200));
-
-  for (const id of chartElementIds) {
-    const el = document.getElementById(id);
-    if (el) {
-      // Bring into view briefly to ensure it's rendered but restore scroll immediately
-      el.scrollIntoView({ block: 'center', behavior: 'auto' });
-      chartImages[id] = await captureChartAsImage(id);
-      window.scrollTo(0, originalScrollPos);
-    } else {
-      chartImages[id] = await captureChartAsImage(id);
-    }
-  }
-
-  // Restore scroll position final time
-  window.scrollTo(0, originalScrollPos);
-
-  const logoBase64 = await getLogoAsBase64();
 
   // Ensure we have some counts even if inspectionStats is mostly zeros
   const finalAccepted = (inspectionStats?.accepted || 0) || (totalPieChartData.counts?.yes || 0);
@@ -289,7 +262,7 @@ export async function exportFormAnalyticsToPDF(options: any): Promise<void> {
     ? ` (${formatDate(defectStartDate)} - ${formatDate(defectEndDate)})`
     : "";
 
-  const htmlContent = `
+  return `
     <!DOCTYPE html>
     <html>
     <head>
@@ -397,10 +370,89 @@ export async function exportFormAnalyticsToPDF(options: any): Promise<void> {
             ${generateInspectionSummaryTable(inspectorSummary, summaryStatuses)}
           ` : ''}
         </div>
+
+        <div class="page-break-before"></div>
+
+        <div class="section-header">Section-wise Performance Analysis</div>
+        ${generateSectionPerformanceTable(sectionSummaryRows)}
+
+        <div class="section-header">Detailed Quality Breakdown</div>
+        ${sectionAnalyticsData.map((section: any) => `
+          <div class="table-title">${section.sectionTitle}</div>
+          <table style="margin-bottom: 20px;">
+            <thead>
+              <tr>
+                <th style="width: 50%;">Parameter</th>
+                <th style="text-align: center;">Yes</th>
+                <th style="text-align: center;">No</th>
+                <th style="text-align: center;">NA</th>
+                <th style="text-align: center;">Total</th>
+                <th style="text-align: center;">Quality %</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${section.qualityBreakdown.map((row: any) => `
+                <tr>
+                  <td style="font-weight: 700;">${row.parameterName}</td>
+                  <td style="text-align: center;">${row.yes}</td>
+                  <td style="text-align: center;">${row.no}</td>
+                  <td style="text-align: center;">${row.na}</td>
+                  <td style="text-align: center;">${row.total}</td>
+                  <td style="text-align: center; font-weight: 900; color: ${((row.yes / row.total) * 100) >= 90 ? '#059669' : '#dc2626'}">
+                    ${((row.yes / row.total) * 100).toFixed(1)}%
+                  </td>
+                </tr>
+              `).join('')}
+              <tr style="background: #f8fafc; font-weight: 900;">
+                <td>SECTION TOTAL</td>
+                <td style="text-align: center;">${section.overallQuality.totalYes}</td>
+                <td style="text-align: center;">${section.overallQuality.totalNo}</td>
+                <td style="text-align: center;">${section.overallQuality.totalNA}</td>
+                <td style="text-align: center;">${section.overallQuality.totalResponses}</td>
+                <td style="text-align: center; color: #1e3a8a;">${section.overallQuality.percentages.yes}%</td>
+              </tr>
+            </tbody>
+          </table>
+        `).join('')}
       </div>
     </body>
     </html>
   `;
+}
+
+export async function captureAnalyticsCharts(chartElementIds: string[]): Promise<Record<string, string>> {
+  const chartImages: Record<string, string> = {};
+  const originalScrollPos = window.scrollY;
+
+  // Wake-up scroll: quickly scroll to bottom and back to trigger lazy rendering
+  window.scrollTo(0, document.body.scrollHeight);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  window.scrollTo(0, originalScrollPos);
+  await new Promise(resolve => setTimeout(resolve, 200));
+
+  for (const id of chartElementIds) {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ block: 'center', behavior: 'auto' });
+      chartImages[id] = await captureChartAsImage(id);
+      window.scrollTo(0, originalScrollPos);
+    } else {
+      chartImages[id] = await captureChartAsImage(id);
+    }
+  }
+
+  window.scrollTo(0, originalScrollPos);
+  return chartImages;
+}
+
+export async function exportFormAnalyticsToPDF(options: any): Promise<void> {
+  const {
+    filename, chartElementIds
+  } = options;
+
+  const chartImages = await captureAnalyticsCharts(chartElementIds);
+  const logoBase64 = await getLogoAsBase64();
+  const htmlContent = generateAnalyticsHTML({ ...options, chartImages }, logoBase64);
 
   try {
     const response = await fetch(`${apiClient.getBaseUrl()}/pdf/generate`, {

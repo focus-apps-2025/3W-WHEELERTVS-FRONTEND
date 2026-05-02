@@ -1679,7 +1679,11 @@ export default function FormAnalyticsDashboard() {
 
   const handleShareAnalytics = () => {
     if (id) {
-      setShareAnalyticsModal({ open: true, formId: id });
+      setShareAnalyticsModal({ 
+        open: true, 
+        formId: id, 
+        formTitle: form?.title || "Form Analytics" 
+      });
     }
   };
 
@@ -1725,7 +1729,8 @@ export default function FormAnalyticsDashboard() {
   const [shareAnalyticsModal, setShareAnalyticsModal] = useState<{
     open: boolean;
     formId: string;
-  }>({ open: false, formId: "" });
+    formTitle: string;
+  }>({ open: false, formId: "", formTitle: "" });
   const [appliedFilters, setAppliedFilters] = useState<
     Array<{ id: string; label: string; value: string }>
   >([]);
@@ -4045,6 +4050,36 @@ export default function FormAnalyticsDashboard() {
       .filter((section) => section.stats.questionsDetail.length > 0); // Only include sections with questions
   };
 
+  const inspectionStats = useMemo(() => {
+    let accepted = 0;
+    let rejected = 0;
+    let reworked = 0;
+
+    filteredResponses.forEach((response) => {
+      const status = (response.status || "Accepted").toLowerCase();
+      if (status === "accepted") accepted++;
+      else if (status === "rejected") rejected++;
+      else if (status === "rework" || status === "reworked") reworked++;
+    });
+
+    return { accepted, rejected, reworked };
+  }, [filteredResponses]);
+
+  const fullAnalyticsData = useMemo(() => {
+    return {
+      total: analytics.total,
+      pending: analytics.pending,
+      verified: analytics.verified,
+      rejected: analytics.rejected,
+      inspectionStats: inspectionStats,
+      sectionSummaryRows: sectionSummaryRows,
+      totalPieChartData: totalPieChartData,
+      sectionAnalyticsData: getSectionAnalyticsData(),
+      defectStartDate,
+      defectEndDate
+    };
+  }, [analytics, inspectionStats, sectionSummaryRows, totalPieChartData, defectStartDate, defectEndDate, form, responses]);
+
   const handleDownloadPDF = async () => {
     try {
       // Show loading state
@@ -4130,21 +4165,6 @@ export default function FormAnalyticsDashboard() {
       }
     }
   };
-
-  const inspectionStats = useMemo(() => {
-    let accepted = 0;
-    let rejected = 0;
-    let reworked = 0;
-
-    filteredResponses.forEach((response) => {
-      const status = (response.status || "Accepted").toLowerCase();
-      if (status === "accepted") accepted++;
-      else if (status === "rejected") rejected++;
-      else if (status === "rework" || status === "reworked") reworked++;
-    });
-
-    return { accepted, rejected, reworked };
-  }, [filteredResponses]);
 
   const handleExportToExcel = () => {
     try {
@@ -7748,6 +7768,8 @@ export default function FormAnalyticsDashboard() {
           setShareAnalyticsModal((prev) => ({ ...prev, open: false }))
         }
         formId={shareAnalyticsModal.formId}
+        formTitle={shareAnalyticsModal.formTitle}
+        analyticsData={fullAnalyticsData}
       />
 
       {/* Toast Notification */}

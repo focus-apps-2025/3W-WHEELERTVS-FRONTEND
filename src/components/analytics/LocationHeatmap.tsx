@@ -342,6 +342,7 @@ export default function LocationHeatmap({
                 height: "300px", // Reduced from 500px
                 width: "100%",
                 borderRadius: "8px",
+                zIndex: 0,
               }}
               className="rounded-lg"
             >

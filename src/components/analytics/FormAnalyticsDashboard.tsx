@@ -1781,9 +1781,10 @@ const computeDirectAcceptedDailyStats = (
   directCount: number; 
   reworkCount: number; 
   rejectedCount: number; 
-  total: number 
+  total: number;
+  questionReworkCount: number;
 }[] => {
-  const dailyMap = new Map<string, { total: number; direct: number; rework: number; rejected: number }>();
+  const dailyMap = new Map<string, { total: number; direct: number; rework: number; rejected: number; questionRework: number }>();
 
   let start: Date | null = null;
   let end: Date | null = null;
@@ -1814,7 +1815,7 @@ const computeDirectAcceptedDailyStats = (
 
     while (curr <= last) {
       const dKey = curr.toLocaleDateString('en-CA');
-      dailyMap.set(dKey, { total: 0, direct: 0, rework: 0, rejected: 0 });
+      dailyMap.set(dKey, { total: 0, direct: 0, rework: 0, rejected: 0, questionRework: 0 });
       curr.setDate(curr.getDate() + 1);
     }
   }
@@ -1825,12 +1826,31 @@ const computeDirectAcceptedDailyStats = (
 
     const dateKey = new Date(timestamp).toLocaleDateString('en-CA');
     if (!dailyMap.has(dateKey)) {
-      dailyMap.set(dateKey, { total: 0, direct: 0, rework: 0, rejected: 0 });
+      dailyMap.set(dateKey, { total: 0, direct: 0, rework: 0, rejected: 0, questionRework: 0 });
     }
 
     const dayStats = dailyMap.get(dateKey)!;
     dayStats.total += 1;
     
+    // Calculate rework count based on individual questions
+    let formReworkQuestionsCount = 0;
+    if (response.answers) {
+      Object.values(response.answers).forEach((ans) => {
+        if (typeof ans === "object" && ans !== null && (ans as any).status) {
+          const s = String((ans as any).status).toLowerCase().trim();
+          if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
+            formReworkQuestionsCount++;
+          }
+        } else if (typeof ans === "string") {
+          const s = ans.toLowerCase().trim();
+          if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
+            formReworkQuestionsCount++;
+          }
+        }
+      });
+    }
+    dayStats.questionRework += formReworkQuestionsCount;
+
     const status = statuses[response.id];
     if (status === "Direct Ok" || status === "Accepted") {
       dayStats.direct += 1;
@@ -1856,6 +1876,7 @@ const computeDirectAcceptedDailyStats = (
         reworkCount: stats.rework,
         rejectedCount: stats.rejected,
         total: stats.total,
+        questionReworkCount: stats.questionRework,
       };
     })
     .sort((a, b) => (a.dateKey > b.dateKey ? 1 : -1));
@@ -3095,7 +3116,11 @@ export default function FormAnalyticsDashboard() {
 
   const handleShareAnalytics = () => {
     if (id) {
-      setShareAnalyticsModal({ open: true, formId: id });
+      setShareAnalyticsModal({ 
+        open: true, 
+        formId: id, 
+        formTitle: form?.title || "Form Analytics" 
+      });
     }
   };
 
@@ -3127,7 +3152,8 @@ export default function FormAnalyticsDashboard() {
   const [shareAnalyticsModal, setShareAnalyticsModal] = useState<{
     open: boolean;
     formId: string;
-  }>({ open: false, formId: "" });
+    formTitle: string;
+  }>({ open: false, formId: "", formTitle: "" });
   const [appliedFilters, setAppliedFilters] = useState<
     Array<{ id: string; label: string; value: string }>
   >([]);
@@ -5949,7 +5975,7 @@ export default function FormAnalyticsDashboard() {
       datasets: [
         {
           label: "Rework",
-          data: timeData.map((s) => s.reworkCount),
+          data: timeData.map((s) => s.questionReworkCount),
           borderColor: "rgb(234, 179, 8)", // Yellow-500
           backgroundColor: "rgba(234, 179, 8, 0.3)",
           borderWidth: 1,
@@ -6101,61 +6127,6 @@ export default function FormAnalyticsDashboard() {
       .filter((section) => section.stats.questionsDetail.length > 0); // Only include sections with questions
   };
 
-  const handleDownloadPDF = async () => {
-    try {
-      // Show loading state
-      const button = document.querySelector('button[title="Download as PDF"]');
-      const originalText = button?.textContent || "Download PDF";
-      if (button) {
-        button.innerHTML =
-          '<span class="animate-spin">⏳</span> Generating PDF...';
-        button.disabled = true;
-      }
-
-      // Get section analytics data
-      const sectionAnalyticsData = getSectionAnalyticsData();
-
-      // Prepare analytics data for PDF
-      const analyticsData = {
-        total: analytics.total,
-        pending: analytics.pending,
-        verified: analytics.verified,
-        rejected: analytics.rejected,
-        inspectionStats: inspectionStats, // Added for PDF export
-        sectionSummaryRows: sectionSummaryRows,
-        totalPieChartData: totalPieChartData,
-        sectionAnalyticsData: getSectionAnalyticsData(),
-        inspectorSummary: inspectorSummary,
-        summaryStatuses: summaryStatuses,
-        defectStartDate,
-        defectEndDate
-      };
-
-      // Generate PDF with enhanced data
-      const success = await exportDashboardToPDF(
-        form?.title || "Form Analytics",
-        analyticsData,
-        true
-      );
-
-      if (success) {
-        console.log("PDF generated successfully");
-      } else {
-        alert("Failed to generate PDF. Please check console for details.");
-      }
-    } catch (error) {
-      console.error("Error downloading PDF:", error);
-      alert("Failed to generate PDF. Please try again.");
-
-      // Restore button state on error
-      const button = document.querySelector('button[title="Download as PDF"]');
-      if (button) {
-        button.innerHTML = "Download PDF";
-        button.disabled = false;
-      }
-    }
-  };
-
   const inspectionStats = useMemo(() => {
     let accepted = 0;
     let rejected = 0;
@@ -6193,6 +6164,59 @@ export default function FormAnalyticsDashboard() {
 
     return { accepted, rejected, reworked };
   }, [filteredResponses]);
+
+  const fullAnalyticsData = useMemo(() => {
+    return {
+      total: analytics.total,
+      pending: analytics.pending,
+      verified: analytics.verified,
+      rejected: analytics.rejected,
+      inspectionStats: inspectionStats,
+      sectionSummaryRows: sectionSummaryRows,
+      totalPieChartData: totalPieChartData,
+      sectionAnalyticsData: getSectionAnalyticsData(),
+      inspectorSummary: inspectorSummary,
+      summaryStatuses: summaryStatuses,
+      defectStartDate,
+      defectEndDate
+    };
+  }, [analytics, inspectionStats, sectionSummaryRows, totalPieChartData, inspectorSummary, summaryStatuses, defectStartDate, defectEndDate, form, responses]);
+
+  const handleDownloadPDF = async () => {
+    try {
+      // Show loading state
+      const button = document.querySelector('button[title="Download as PDF"]');
+      const originalText = button?.textContent || "Download PDF";
+      if (button) {
+        button.innerHTML =
+          '<span class="animate-spin">⏳</span> Generating PDF...';
+        button.disabled = true;
+      }
+
+      // Generate PDF with enhanced data
+      const success = await exportDashboardToPDF(
+        form?.title || "Form Analytics",
+        fullAnalyticsData,
+        true
+      );
+
+      if (success) {
+        console.log("PDF generated successfully");
+      } else {
+        alert("Failed to generate PDF. Please check console for details.");
+      }
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      alert("Failed to generate PDF. Please try again.");
+
+      // Restore button state on error
+      const button = document.querySelector('button[title="Download as PDF"]');
+      if (button) {
+        button.innerHTML = "Download PDF";
+        button.disabled = false;
+      }
+    }
+  };
 
   const handleExportToExcel = () => {
     try {
@@ -9662,6 +9686,8 @@ export default function FormAnalyticsDashboard() {
           setShareAnalyticsModal((prev) => ({ ...prev, open: false }))
         }
         formId={shareAnalyticsModal.formId}
+        formTitle={shareAnalyticsModal.formTitle}
+        analyticsData={fullAnalyticsData}
       />
 
       {/* Toast Notification */}
