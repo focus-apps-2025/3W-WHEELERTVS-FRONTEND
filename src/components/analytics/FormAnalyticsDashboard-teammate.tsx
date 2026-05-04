@@ -57,6 +57,7 @@ import ImageLink from "../ImageLink";
 import FilePreview from "../FilePreview";
 import TableColumnFilter from "./TableColumnFilter";
 import ShareAnalyticsModal from "./ShareAnalyticsModal";
+import AutoSendModal from "../forms/AutoSendModal";
 
 import { useTheme } from "../../context/ThemeContext";
 
@@ -1687,6 +1688,16 @@ export default function FormAnalyticsDashboard() {
     }
   };
 
+  const handleAutoSendSetup = () => {
+    if (id) {
+      setAutoSendModal({ 
+        open: true, 
+        formId: id, 
+        formTitle: form?.title || "Form Analytics" 
+      });
+    }
+  };
+
   const [responses, setResponses] = useState<Response[]>([]);
   const [form, setForm] = useState<Form | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1727,6 +1738,11 @@ export default function FormAnalyticsDashboard() {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showSectionSelector, setShowSectionSelector] = useState(false);
   const [shareAnalyticsModal, setShareAnalyticsModal] = useState<{
+    open: boolean;
+    formId: string;
+    formTitle: string;
+  }>({ open: false, formId: "", formTitle: "" });
+  const [autoSendModal, setAutoSendModal] = useState<{
     open: boolean;
     formId: string;
     formTitle: string;
@@ -4686,13 +4702,22 @@ export default function FormAnalyticsDashboard() {
               )}
             </button>
             {!isGuest && (
-              <button
-                onClick={handleShareAnalytics}
-                className="flex items-center gap-2 px-2 py-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                title="Share Analytics"
-              >
-                <Share2 className="w-4 h-4" />
-              </button>
+              <>
+                <button
+                  onClick={handleShareAnalytics}
+                  className="flex items-center gap-2 px-2 py-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                  title="Share Analytics"
+                >
+                  <Share2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={handleAutoSendSetup}
+                  className="flex items-center gap-2 px-2 py-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
+                  title="Auto Send Setup"
+                >
+                  <Calendar className="w-4 h-4" />
+                </button>
+              </>
             )}
             <button
               onClick={handleDownloadPDF}
@@ -7770,6 +7795,15 @@ export default function FormAnalyticsDashboard() {
         formId={shareAnalyticsModal.formId}
         formTitle={shareAnalyticsModal.formTitle}
         analyticsData={fullAnalyticsData}
+      />
+
+      <AutoSendModal
+        isOpen={autoSendModal.open}
+        onClose={() =>
+          setAutoSendModal((prev) => ({ ...prev, open: false }))
+        }
+        formId={autoSendModal.formId}
+        formTitle={autoSendModal.formTitle}
       />
 
       {/* Toast Notification */}

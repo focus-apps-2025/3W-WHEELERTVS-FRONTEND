@@ -36,6 +36,7 @@ import {
 } from "../utils/exportUtils";
 import ImportPreviewModal from "./ImportPreviewModal";
 import ShareAnalyticsModal from "./analytics/ShareAnalyticsModal";
+import AutoSendModal from "./forms/AutoSendModal";
 import type {
   Question as FormSchema,
   Section as FormSection,
@@ -88,6 +89,8 @@ export default function FormsManagementNew() {
   const [isConfirmingImport, setIsConfirmingImport] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [selectedFormForShare, setSelectedFormForShare] = useState<Form | null>(null);
+  const [showAutoSendModal, setShowAutoSendModal] = useState(false);
+  const [selectedFormForAutoSend, setSelectedFormForAutoSend] = useState<Form | null>(null);
 
   const deleteMutation = useMutation((id: string) => apiClient.deleteForm(id), {
     onSuccess: () => {
@@ -347,6 +350,17 @@ export default function FormsManagementNew() {
               >
                 <Send className="w-4 h-4 mr-2" />
                 Share Analytics
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedFormForAutoSend(form);
+                  setShowAutoSendModal(true);
+                  setOpenDropdownId(null);
+                }}
+                className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
+              >
+                <Calendar className="w-4 h-4 mr-2" />
+                Auto Send Setup
               </button>
             </div>
           )}
@@ -1104,6 +1118,18 @@ export default function FormsManagementNew() {
             }}
             formId={selectedFormForShare.id || selectedFormForShare._id}
             formTitle={selectedFormForShare.title}
+          />
+        )}
+
+        {showAutoSendModal && selectedFormForAutoSend && (
+          <AutoSendModal
+            isOpen={showAutoSendModal}
+            onClose={() => {
+              setShowAutoSendModal(false);
+              setSelectedFormForAutoSend(null);
+            }}
+            formId={selectedFormForAutoSend.id || selectedFormForAutoSend._id}
+            formTitle={selectedFormForAutoSend.title}
           />
         )}
       </div>

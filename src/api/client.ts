@@ -2256,6 +2256,7 @@ class ApiClient {
     channels: string[] = ["email"],
     customMessage?: string,
     pdfHtml?: string,
+    shareMode: "link" | "pdf" | "both" = "both",
   ) {
     return this.request<{
       sent: number;
@@ -2264,7 +2265,7 @@ class ApiClient {
       details: any[];
     }>(`/analytics-invites/${formId}/send`, {
       method: "POST",
-      body: JSON.stringify({ invites, channels, customMessage, pdfHtml }),
+      body: JSON.stringify({ invites, channels, customMessage, pdfHtml, shareMode }),
       timeout: 300000, // 5 minutes timeout for PDF generation
     });
   }
@@ -2306,6 +2307,33 @@ class ApiClient {
     return this.request<{ success: boolean }>("/hr/notifications", {
       method: "DELETE",
     });
+  }
+
+  // --- AUTO SEND ---
+  async updateAutoSendConfig(formId: string, autoSendConfig: any) {
+    return this.request<{ success: boolean; data: any }>(
+      `/forms/${formId}/autosend/config`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ autoSendConfig }),
+      },
+    );
+  }
+
+  async getAutoSendConfig(formId: string) {
+    return this.request<{ success: boolean; data: any }>(
+      `/forms/${formId}/autosend/config`,
+    );
+  }
+
+  async getAutoSendHistory(formId: string, page: number = 1, limit: number = 20) {
+    return this.request<{
+      success: boolean;
+      data: {
+        history: any[];
+        pagination: any;
+      };
+    }>(`/forms/${formId}/autosend/history?page=${page}&limit=${limit}`);
   }
 }
 

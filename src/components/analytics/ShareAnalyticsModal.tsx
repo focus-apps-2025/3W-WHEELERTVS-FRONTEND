@@ -12,7 +12,8 @@ import {
   Trash2,
   Download,
   Plus,
-  FileDown
+  FileDown,
+  Link as LinkIcon
 } from "lucide-react";
 import { apiClient } from "../../api/client";
 import { useNotification } from "../../context/NotificationContext";
@@ -52,7 +53,7 @@ export default function ShareAnalyticsModal({
   const [isSending, setIsSending] = useState(false);
   const [step, setStep] = useState<1 | 2>(1); // 1: Upload/Entry, 2: Preview & Send
   const [entryMode, setEntryMode] = useState<"manual" | "bulk">("manual");
-  const [includePDF, setIncludePDF] = useState(true);
+  const [shareMode, setShareMode] = useState<"link" | "pdf" | "both">("both");
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { showSuccess, showError } = useNotification();
@@ -160,7 +161,9 @@ export default function ShareAnalyticsModal({
     setIsSending(true);
     try {
       let pdfHtml = undefined;
-      if (includePDF && analyticsData && channels.includes("email")) {
+      const needsPDF = (shareMode === "pdf" || shareMode === "both");
+      
+      if (needsPDF && analyticsData && channels.includes("email")) {
         console.log("Preparing PDF report for email attachment...");
         setIsSending(true); // Ensure state is correct
         try {
@@ -202,7 +205,7 @@ export default function ShareAnalyticsModal({
         }
       }
 
-      const response = await apiClient.sendAnalyticsInvites(formId, previewData, channels, customMessage, pdfHtml);
+      const response = await apiClient.sendAnalyticsInvites(formId, previewData, channels, customMessage, pdfHtml, shareMode);
       
       if (response.allSuccessful) {
         showSuccess(`Successfully sent analytics invites to ${response.sent} recipients`);
@@ -448,39 +451,56 @@ export default function ShareAnalyticsModal({
                 />
               </div>
 
-              {/* PDF Attachment Option */}
-              {channels.includes("email") && analyticsData && (
-                <div 
-                  onClick={() => setIncludePDF(!includePDF)}
-                  className={`
-                    p-4 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-4
-                    ${includePDF 
-                      ? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20' 
-                      : 'border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 hover:border-gray-200'}
-                  `}
-                >
-                  <div className={`
-                    p-3 rounded-full transition-colors
-                    ${includePDF ? 'bg-primary-100 text-primary-600' : 'bg-gray-200 text-gray-500'}
-                  `}>
-                    <FileDown className="w-6 h-6" />
-                  </div>
-                  <div className="flex-1">
-                    <p className={`font-bold ${includePDF ? 'text-primary-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}`}>
-                      Directly send PDF report
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Recipients will receive the full PDF analytics report as an email attachment
-                    </p>
-                  </div>
-                  <div className={`
-                    w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all
-                    ${includePDF ? 'border-primary-500 bg-primary-500' : 'border-gray-300'}
-                  `}>
-                    {includePDF && <CheckCircle className="w-4 h-4 text-white" />}
-                  </div>
+              {/* Sharing Mode Selection */}
+              <div className="space-y-3">
+                <p className="text-sm font-bold text-gray-700 dark:text-gray-300">Share Content Options</p>
+                <div className="grid grid-cols-3 gap-3">
+                  <button
+                    onClick={() => setShareMode("link")}
+                    className={`
+                      flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all
+                      ${shareMode === "link" 
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' 
+                        : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'}
+                    `}
+                  >
+                    <LinkIcon className="w-5 h-5" />
+                    <span className="text-xs font-bold">Link Only</span>
+                  </button>
+                  <button
+                    onClick={() => setShareMode("pdf")}
+                    className={`
+                      flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all
+                      ${shareMode === "pdf" 
+                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400' 
+                        : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'}
+                    `}
+                  >
+                    <FileText className="w-5 h-5" />
+                    <span className="text-xs font-bold">PDF Only</span>
+                  </button>
+                  <button
+                    onClick={() => setShareMode("both")}
+                    className={`
+                      flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all
+                      ${shareMode === "both" 
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400' 
+                        : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'}
+                    `}
+                  >
+                    <div className="flex gap-1">
+                      <LinkIcon className="w-4 h-4" />
+                      <FileText className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-bold">Both</span>
+                  </button>
                 </div>
-              )}
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+                  {shareMode === "link" && "Recipients will receive a secure link to view the live analytics dashboard."}
+                  {shareMode === "pdf" && "Recipients will receive the analytics report as a PDF attachment (Email only)."}
+                  {shareMode === "both" && "Recipients will receive both the live dashboard link and the PDF report attachment."}
+                </p>
+              </div>
 
               {/* Preview Table */}
               <div className="space-y-3">
@@ -525,7 +545,7 @@ export default function ShareAnalyticsModal({
               {isSending ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  {includePDF ? "Preparing Report..." : "Sending..."}
+                  {(shareMode === 'pdf' || shareMode === 'both') ? "Preparing Report..." : "Sending..."}
                 </>
               ) : (
                 <>

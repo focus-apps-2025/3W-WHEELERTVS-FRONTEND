@@ -49,6 +49,7 @@ import EmailInviteModal from "../EmailInviteModal";
 import WhatsAppInviteModal from "../WhatsAppInviteModal";
 import SMSInviteModal from "../SMSInviteModal";
 import ShareAnalyticsModal from "./ShareAnalyticsModal";
+import AutoSendModal from "../forms/AutoSendModal";
 
 import { useAuth } from "../../context/AuthContext";
 
@@ -251,6 +252,12 @@ export default function FormsAnalytics() {
     formTitle: string;
   }>({ open: false, formId: null, formTitle: "" });
 
+  const [autoSendModal, setAutoSendModal] = useState<{
+    open: boolean;
+    formId: string | null;
+    formTitle: string;
+  }>({ open: false, formId: null, formTitle: "" });
+
   const [inviteCounts, setInviteCounts] = useState<Record<string, number>>({});
 
   // Add these functions with your other handlers
@@ -291,6 +298,17 @@ export default function FormsAnalytics() {
     const form = forms.find((f) => f.id === formId || f._id === formId);
     if (form) {
       setShareAnalyticsModal({
+        open: true,
+        formId,
+        formTitle: form.title,
+      });
+    }
+  };
+
+  const openAutoSendModal = (formId: string) => {
+    const form = forms.find((f) => f.id === formId || f._id === formId);
+    if (form) {
+      setAutoSendModal({
         open: true,
         formId,
         formTitle: form.title,
@@ -1148,6 +1166,21 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
                               </div>
                             </div>
                           </button>
+
+                          <button
+                            onClick={() => openAutoSendModal(formId)}
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+                          >
+                            <div className="p-1.5 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg">
+                              <Calendar className="w-4 h-4 text-purple-600" />
+                            </div>
+                            <div className="text-left">
+                              <div className="font-medium text-purple-700">Auto Send Setup</div>
+                              <div className="text-xs text-primary-500">
+                                Automated daily reports
+                              </div>
+                            </div>
+                          </button>
                         </div>
                       )}
                     </div>
@@ -1750,6 +1783,14 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
         }
         formId={shareAnalyticsModal.formId || ""}
         formTitle={shareAnalyticsModal.formTitle}
+      />
+      <AutoSendModal
+        isOpen={autoSendModal.open}
+        onClose={() =>
+          setAutoSendModal((prev) => ({ ...prev, open: false }))
+        }
+        formId={autoSendModal.formId || ""}
+        formTitle={autoSendModal.formTitle}
       />
     </div>
   );
