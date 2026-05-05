@@ -731,10 +731,13 @@ class ApiClient {
   }
 
   async updateResponse(id: string, responseData: any) {
-    return this.request<{ response: any }>(`/responses/${id}`, {
+    console.log("API Client: Updating response", id, responseData);
+    const result = await this.request<{ response: any }>(`/responses/${id}`, {
       method: "PUT",
       body: JSON.stringify(responseData),
     });
+    console.log("API Client: Update response result", result);
+    return result;
   }
 
   async deleteResponse(id: string) {
@@ -781,7 +784,14 @@ class ApiClient {
   }
 
   async getMyReviewStats() {
-    return this.get<any>("/analytics/my-review-stats");
+    return this.get<{
+      totalResponses: number;
+      reviewed: number;
+      accepted: number;
+      rejected: number;
+      rework: number;
+      performanceScore: number;
+    }>("/analytics/my-review-stats");
   }
 
   async getPerformanceTable(params?: { startDate?: string; endDate?: string }) {
@@ -1295,23 +1305,47 @@ class ApiClient {
   }
 
   resolveUploadedFileUrl(uploadResult: any) {
+    console.log("[resolveUploadedFileUrl] Input:", uploadResult);
+
     if (!uploadResult) {
+      console.warn("[resolveUploadedFileUrl] No upload result provided");
       return "";
     }
 
     if (typeof uploadResult === "string") {
+      console.log(
+        "[resolveUploadedFileUrl] Returning string URL:",
+        uploadResult,
+      );
       return this.ensureAbsoluteFileUrl(uploadResult);
     }
 
+    if (uploadResult.publicUrl) {
+      console.log(
+        "[resolveUploadedFileUrl] Using publicUrl:",
+        uploadResult.publicUrl,
+      );
+      return this.ensureAbsoluteFileUrl(uploadResult.publicUrl);
+    }
+
     if (uploadResult.url) {
+      console.log("[resolveUploadedFileUrl] Using url:", uploadResult.url);
       return this.ensureAbsoluteFileUrl(uploadResult.url);
     }
 
     if (uploadResult.secureUrl) {
+      console.log(
+        "[resolveUploadedFileUrl] Using secureUrl:",
+        uploadResult.secureUrl,
+      );
       return this.ensureAbsoluteFileUrl(uploadResult.secureUrl);
     }
 
     if (uploadResult.location) {
+      console.log(
+        "[resolveUploadedFileUrl] Using location:",
+        uploadResult.location,
+      );
       return this.ensureAbsoluteFileUrl(uploadResult.location);
     }
 
@@ -1451,8 +1485,8 @@ class ApiClient {
     radius: number;
   }) {
     return this.request<{ success: boolean }>("/tenants/office-location", {
-      method: "PUT",
-      body: JSON.stringify(data),
+        method: "PUT",
+        body: JSON.stringify(data),
     });
   }
 
@@ -2271,8 +2305,6 @@ class ApiClient {
     invites: any[],
     channels: string[] = ["email"],
     customMessage?: string,
-    pdfHtml?: string,
-    shareMode: "link" | "pdf" | "both" = "both",
   ) {
     return this.request<{
       sent: number;
@@ -2281,8 +2313,7 @@ class ApiClient {
       details: any[];
     }>(`/analytics-invites/${formId}/send`, {
       method: "POST",
-      body: JSON.stringify({ invites, channels, customMessage, pdfHtml, shareMode }),
-      timeout: 300000, // 5 minutes timeout for PDF generation
+      body: JSON.stringify({ invites, channels, customMessage }),
     });
   }
 
@@ -2325,17 +2356,78 @@ class ApiClient {
     });
   }
 
-  // --- AUTO SEND ---
-  async updateAutoSendConfig(formId: string, autoSendConfig: any) {
-    return this.request<{ success: boolean; data: any }>(
-      `/forms/${formId}/autosend/config`,
-      {
-        method: "PUT",
-        body: JSON.stringify({ autoSendConfig }),
-      },
-    );
+  async getPerformanceScores() {
+    return this.request<Record<string, number>>("/users/performance-scores");
   }
 
+  async submitReview(reviewData: {
+    responseId: string;
+    reviewerId: string;
+    submitterId: string;
+    reviewOption: string;
+    tenantId: string;
+  }) {
+    console.log("Calling submitReview API with:", reviewData);
+
+    // Use fetch directly to avoid the request() wrapper issues
+    const url = `${this.baseUrl}/users/reviews`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-App-Type": "website",
+    };
+
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(reviewData),
+    });
+
+    const data = await response.json();
+    console.log("submitReview raw response:", {
+      status: response.status,
+      data,
+    });
+
+    if (!response.ok) {
+      throw new Error(data.message || "Failed to submit review");
+    }
+
+    // Return in the format your component expects
+    return {
+      success: data.success,
+      message: data.message,
+      data: data.data,
+    };
+  }
+
+  async getReviewsForResponse(responseId: string) {
+    // Backend returns { success, reviews } without a 'data' key so use raw fetch
+    // Now a public endpoint, no authentication required
+    const url = `${this.baseUrl}/responses/reviews/${responseId}`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-App-Type": "website",
+    };
+    // Reviews are now public, so no Authorization header needed
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error(`Failed to fetch reviews: ${res.status}`);
+    return res.json() as Promise<{
+      success: boolean;
+      reviews: Array<{
+        id: string;
+        reviewer: { id: string; name: string; email: string };
+        option: string;
+        scoreChange: number;
+        createdAt: string;
+      }>;
+    }>;
+  }
+
+  
   async getAutoSendConfig(formId: string) {
     return this.request<{ success: boolean; data: any }>(
       `/forms/${formId}/autosend/config`,
@@ -2351,6 +2443,10 @@ class ApiClient {
       };
     }>(`/forms/${formId}/autosend/history?page=${page}&limit=${limit}`);
   }
+
+
+  
+
 }
 
 // Create and export a singleton instance
