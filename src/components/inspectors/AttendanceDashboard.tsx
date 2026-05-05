@@ -73,7 +73,7 @@ export default function AttendanceDashboard({
       ? { lat: officeLocation.lat, lng: officeLocation.lng }
       : { lat: 12.94556, lng: 78.8754 };
 
-  const ALLOWED_RADIUS_METERS = officeLocation?.radius || 5;
+  const ALLOWED_RADIUS_METERS = officeLocation?.radius || 5000;
 
   // Calculate distance between two coordinates (Haversine formula)
   const getDistance = (
