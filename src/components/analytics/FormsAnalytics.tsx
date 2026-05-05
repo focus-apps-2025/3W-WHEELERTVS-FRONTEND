@@ -321,13 +321,28 @@ export default function FormsAnalytics() {
       try {
         const counts: Record<string, number> = {};
 
-        // Loop through forms and get invite stats
+        // Loop through forms and get invite stats only for owned forms
         for (const form of forms) {
           const formId = form.id || form._id;
           if (formId) {
-            const response = await apiClient.getInviteStats(formId);
-            if (response.success) {
-              counts[formId] = response.data.invites?.total || 0;
+            // Check if user can access this form's invite stats
+            const ownerTenantId = typeof form.tenantId === 'object' ? form.tenantId?._id : form.tenantId;
+            const isOwner = user?.role === "superadmin" || !form.tenantId || ownerTenantId === user?.tenantId;
+
+            if (isOwner) {
+              try {
+                const response = await apiClient.getInviteStats(formId);
+                if (response.success) {
+                  counts[formId] = response.data.invites?.total || 0;
+                }
+              } catch (error) {
+                // If access denied or other error, skip this form
+                console.warn(`Failed to fetch invite stats for form ${formId}:`, error);
+                counts[formId] = 0;
+              }
+            } else {
+              // User doesn't own this form, set count to 0
+              counts[formId] = 0;
             }
           }
         }
@@ -341,7 +356,7 @@ export default function FormsAnalytics() {
     if (forms.length > 0) {
       fetchInviteCounts();
     }
-  }, [forms]);
+  }, [forms, user]);
 
   console.log("DEBUG: Total forms from API:", forms.length);
   console.log("DEBUG: Parent forms (no parentFormId):", parentForms.length);
@@ -1166,21 +1181,6 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
                               </div>
                             </div>
                           </button>
-
-                          <button
-                            onClick={() => openAutoSendModal(formId)}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
-                          >
-                            <div className="p-1.5 bg-gradient-to-br from-purple-100 to-pink-100 rounded-lg">
-                              <Calendar className="w-4 h-4 text-purple-600" />
-                            </div>
-                            <div className="text-left">
-                              <div className="font-medium text-purple-700">Auto Send Setup</div>
-                              <div className="text-xs text-primary-500">
-                                Automated daily reports
-                              </div>
-                            </div>
-                          </button>
                         </div>
                       )}
                     </div>
@@ -1783,14 +1783,6 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
         }
         formId={shareAnalyticsModal.formId || ""}
         formTitle={shareAnalyticsModal.formTitle}
-      />
-      <AutoSendModal
-        isOpen={autoSendModal.open}
-        onClose={() =>
-          setAutoSendModal((prev) => ({ ...prev, open: false }))
-        }
-        formId={autoSendModal.formId || ""}
-        formTitle={autoSendModal.formTitle}
       />
     </div>
   );

@@ -34,12 +34,13 @@ interface Tenant {
 interface TenantStats {
   totalForms: number;
   totalResponses: number;
-  promoterPercentage: number;
+  performanceScore: number;
 }
 
 export default function DashboardNew() {
   const navigate = useNavigate();
   const { user, tenant: currentTenant } = useAuth();
+  const [userPerformanceScore, setUserPerformanceScore] = useState(100);
   const {
     data: formsData,
     loading: formsLoading,
@@ -67,6 +68,10 @@ export default function DashboardNew() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryStartDate, setSummaryStartDate] = useState("");
   const [summaryEndDate, setSummaryEndDate] = useState("");
+  const [myReviewStats, setMyReviewStats] = useState<any>(null);
+  const [myReviewStatsLoading, setMyReviewStatsLoading] = useState(false);
+  const [performanceTableData, setPerformanceTableData] = useState<any[]>([]);
+  const [performanceTableLoading, setPerformanceTableLoading] = useState(false);
 
   // Check user role
   const isSuperAdmin = user?.role === "superadmin";
@@ -206,7 +211,7 @@ export default function DashboardNew() {
         const params = new URLSearchParams();
         if (summaryStartDate) params.append("startDate", summaryStartDate);
         if (summaryEndDate) params.append("endDate", summaryEndDate);
-        
+
         const queryString = params.toString();
         if (queryString) url += `?${queryString}`;
 
@@ -227,10 +232,57 @@ export default function DashboardNew() {
     }
   }, [user, summaryStartDate, summaryEndDate]);
 
+  // Fetch my review stats
+  useEffect(() => {
+    const fetchMyStats = async () => {
+      setMyReviewStatsLoading(true);
+      try {
+        const response = await apiClient.getMyReviewStats();
+        if (response.success) {
+          setMyReviewStats(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching my review stats:", error);
+      } finally {
+        setMyReviewStatsLoading(false);
+      }
+    };
+
+    if (user) {
+      fetchMyStats();
+    }
+  }, [user]);
+
+  // Fetch performance table data
+  useEffect(() => {
+    const fetchPerformanceTable = async () => {
+      if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) return;
+      
+      setPerformanceTableLoading(true);
+      try {
+        const response = await apiClient.getPerformanceTable({
+          startDate: summaryStartDate,
+          endDate: summaryEndDate
+        });
+        if (response.success) {
+          setPerformanceTableData(response.data);
+        }
+      } catch (error) {
+        console.error("Error fetching performance table:", error);
+      } finally {
+        setPerformanceTableLoading(false);
+      }
+    };
+
+    fetchPerformanceTable();
+  }, [user, summaryStartDate, summaryEndDate]);
+
   // Calculate tenant statistics
   useEffect(() => {
     if (formsData?.forms && responsesData?.responses && tenants.length > 0) {
       console.log("Calculating tenant stats...");
+      // Use the loaded user performance score
+      const currentUserScore = userPerformanceScore;
       const stats: Record<string, TenantStats> = {};
 
       tenants.forEach((tenant) => {
@@ -286,15 +338,10 @@ export default function DashboardNew() {
           }
         });
 
-        const promoterPercentage =
-          totalResponses > 0
-            ? parseFloat(((yesCount / totalResponses) * 100).toFixed(1))
-            : 0;
-
         stats[tenant._id] = {
           totalForms: tenantForms.length,
           totalResponses: tenantResponses.length,
-          promoterPercentage,
+          performanceScore: currentUserScore,
         };
 
         console.log(`Stats for ${tenant.companyName}:`, stats[tenant._id]);
@@ -303,6 +350,31 @@ export default function DashboardNew() {
       setTenantStats(stats);
     }
   }, [formsData, responsesData, tenants]);
+
+  // Load user performance score
+  useEffect(() => {
+    const loadScore = async () => {
+      if (user?._id) {
+        try {
+          const response = await apiClient.getPerformanceScores();
+          if (response && response.data?.[user._id]) {
+            setUserPerformanceScore(response.data[user._id]);
+          }
+        } catch (error) {
+          console.error('Failed to load user performance score:', error);
+          // Fallback to localStorage if API fails
+          try {
+            const scores = JSON.parse(localStorage.getItem('performanceScores') || '{}');
+            setUserPerformanceScore(scores[user._id] || 100);
+          } catch (localError) {
+            console.error('Failed to load from localStorage:', localError);
+            setUserPerformanceScore(100);
+          }
+        }
+      }
+    };
+    loadScore();
+  }, [user?._id]);
 
   // Filter forms by selected tenant
   const filteredForms = React.useMemo(() => {
@@ -477,6 +549,7 @@ export default function DashboardNew() {
       tenantList: Tenant[],
       accentColor: string,
     ) => (
+
       <div className="mb-12">
         <div className="flex items-center gap-3 mb-6">
           <div className={`w-1.5 h-8 rounded-full ${accentColor}`}></div>
@@ -507,7 +580,7 @@ export default function DashboardNew() {
                 const stats = tenantStats[tenant._id] || {
                   totalForms: 0,
                   totalResponses: 0,
-                  promoterPercentage: 0,
+                  performanceScore: 0,
                 };
                 const isFree = (tenant as any).subscription?.plan === "free";
 
@@ -532,11 +605,10 @@ export default function DashboardNew() {
                         />
                       </div>
                       <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                          tenant.isActive
+                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${tenant.isActive
                             ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                             : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                        }`}
+                          }`}
                       >
                         {tenant.isActive ? "Active" : "Inactive"}
                       </span>
@@ -573,16 +645,16 @@ export default function DashboardNew() {
                     <div className="mt-auto pt-6 border-t border-gray-100 dark:border-gray-700">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                          Promoter Score
+                          Performance Score
                         </span>
                         <span className="text-sm font-black text-primary-600">
-                          {stats.promoterPercentage}%
+                          {stats.performanceScore}%
                         </span>
                       </div>
                       <div className="w-full h-2 bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden">
                         <div
                           className={`h-full rounded-full transition-all duration-1000 ${isFree ? "bg-blue-600" : "bg-primary-600"}`}
-                          style={{ width: `${stats.promoterPercentage}%` }}
+                          style={{ width: `${stats.performanceScore}%` }}
                         />
                       </div>
                     </div>
@@ -742,11 +814,10 @@ export default function DashboardNew() {
                     <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
                   </div>
                   <span
-                    className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                      form.isVisible
+                    className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${form.isVisible
                         ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
                         : "bg-gray-200 dark:bg-gray-500 text-gray-700 dark:text-gray-300"
-                    }`}
+                      }`}
                   >
                     {form.isVisible ? "Published" : "Draft"}
                   </span>
@@ -851,8 +922,8 @@ export default function DashboardNew() {
                           >
                             {stats.total > 0
                               ? ((stats.yesCount / stats.total) * 100).toFixed(
-                                  1,
-                                )
+                                1,
+                              )
                               : "0"}
                             %
                           </p>
@@ -975,13 +1046,13 @@ export default function DashboardNew() {
               Inspection Summary Table
             </h3>
           </div>
-          
+
           {/* Date Filters */}
           <div className="flex items-center gap-2">
             <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-1.5 border border-gray-200 dark:border-gray-700">
               <span className="text-xs font-semibold text-gray-500 mr-2 uppercase">From</span>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={summaryStartDate}
                 onChange={(e) => setSummaryStartDate(e.target.value)}
                 className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none"
@@ -989,15 +1060,15 @@ export default function DashboardNew() {
             </div>
             <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-1.5 border border-gray-200 dark:border-gray-700">
               <span className="text-xs font-semibold text-gray-500 mr-2 uppercase">To</span>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={summaryEndDate}
                 onChange={(e) => setSummaryEndDate(e.target.value)}
                 className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none"
               />
             </div>
             {(summaryStartDate || summaryEndDate) && (
-              <button 
+              <button
                 onClick={() => { setSummaryStartDate(""); setSummaryEndDate(""); }}
                 className="text-xs text-red-600 hover:text-red-800 font-medium underline px-2"
               >
@@ -1014,18 +1085,15 @@ export default function DashboardNew() {
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Date</th>
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Shift</th>
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">QC Inspector</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Form Title</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Chassis no</th>
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Inspection</th>
               {/* Dynamic Status Columns */}
               {summaryStatuses.map((status) => (
-                <th 
-                  key={status} 
-                  className={`px-4 py-4 border-b border-gray-200 dark:border-gray-700 ${
-                    status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-green-600' : 
-                    status.startsWith('Rework') ? 'text-orange-600' : 
-                    status === 'Rejected' ? 'text-red-600' : 'text-blue-600'
-                  }`}
+                <th
+                  key={status}
+                  className={`px-4 py-4 border-b border-gray-200 dark:border-gray-700 ${status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-green-600' :
+                      status.startsWith('Rework') ? 'text-orange-600' :
+                        status === 'Rejected' ? 'text-red-600' : 'text-blue-600'
+                    }`}
                 >
                   {status}
                 </th>
@@ -1039,22 +1107,82 @@ export default function DashboardNew() {
                 <td className="px-4 py-4">{row.date}</td>
                 <td className="px-4 py-4">{row.shift}</td>
                 <td className="px-4 py-4">{row.qcInspector}</td>
-                <td className="px-4 py-4">{row.formTitle || '-'}</td>
-                <td className="px-4 py-4">{row.chassisNumber || row.chassisNo || '-'}</td>
                 <td className="px-4 py-4 font-bold">{row.totalInspection}</td>
                 {/* Dynamic Status Cells */}
                 {summaryStatuses.map((status) => (
-                  <td 
-                    key={status} 
-                    className={`px-4 py-4 font-bold ${
-                      status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-green-600' : 
-                      status.startsWith('Rework') ? 'text-orange-600' : 
-                      status === 'Rejected' ? 'text-red-600' : 'text-blue-600'
-                    }`}
+                  <td
+                    key={status}
+                    className={`px-4 py-4 font-bold ${status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-green-600' :
+                        status.startsWith('Rework') ? 'text-orange-600' :
+                          status === 'Rejected' ? 'text-red-600' : 'text-blue-600'
+                      }`}
                   >
                     {row.statusCounts?.[status] || 0}
                   </td>
                 ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  const renderPerformanceTable = () => {
+    if (user?.role !== 'admin' && user?.role !== 'superadmin') return null;
+    
+    if (performanceTableLoading) {
+      return (
+        <div className="mt-12 text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-500 text-sm">Loading performance data...</p>
+        </div>
+      );
+    }
+
+    if (performanceTableData.length === 0) return null;
+
+    return (
+      <div className="mt-12 overflow-x-auto border-t border-gray-100 dark:border-gray-600 pt-8">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-1.5 h-6 bg-purple-600 rounded-full"></div>
+          <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+            Performance Table
+          </h3>
+        </div>
+
+        <table className="w-full text-sm text-left border-collapse bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 uppercase text-[10px] font-black tracking-widest">
+            <tr>
+              {isSuperAdmin && <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Tenant</th>}
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">User Name</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Submitted</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Reviewed</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-green-600">Accepted</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-red-600">Rejected</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-orange-600">Reworked</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Performance Score</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+            {performanceTableData.map((row, idx) => (
+              <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                {isSuperAdmin && <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.tenantName}</td>}
+                <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.name}</td>
+                <td className="px-4 py-4 font-bold">{row.totalSubmitted}</td>
+                <td className="px-4 py-4 font-bold">{row.totalReviewed}</td>
+                <td className="px-4 py-4 font-bold text-green-600">{row.accepted}</td>
+                <td className="px-4 py-4 font-bold text-red-600">{row.rejected}</td>
+                <td className="px-4 py-4 font-bold text-orange-600">{row.rework}</td>
+                <td className="px-4 py-4">
+                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                    row.performanceScore >= 80 ? 'bg-green-100 text-green-700' :
+                    row.performanceScore >= 50 ? 'bg-orange-100 text-orange-700' :
+                    'bg-red-100 text-red-700'
+                  }`}>
+                    {row.performanceScore}%
+                  </span>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -1083,6 +1211,145 @@ export default function DashboardNew() {
   // Determine if we should show search bar
   const showSearchBar = () => {
     return viewMode === "forms";
+  };
+
+  const MyReviewBreakdownChart = () => {
+    if (!myReviewStats) return null;
+
+    const data = {
+      labels: ["Accepted", "Rejected", "Rework"],
+      datasets: [
+        {
+          data: [
+            myReviewStats.accepted,
+            myReviewStats.rejected,
+            myReviewStats.rework,
+          ],
+          backgroundColor: ["#22c55e", "#ef4444", "#f59e0b"],
+          hoverBackgroundColor: ["#16a34a", "#dc2626", "#d97706"],
+          borderWidth: 0,
+        },
+      ],
+    };
+
+    const options = {
+      cutout: "70%",
+      plugins: {
+        legend: {
+          display: true,
+          position: "bottom" as const,
+          labels: {
+            boxWidth: 12,
+            padding: 15,
+            font: {
+              size: 11,
+              weight: "bold" as const,
+            },
+            color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151',
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: (context: any) => {
+              const value = context.raw;
+              const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+              const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+              return `${context.label}: ${value} (${percentage}%)`;
+            },
+          },
+        },
+        datalabels:{
+          display:false,
+        }
+      },
+      maintainAspectRatio: false,
+    };
+
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm mb-8">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+          <Smile className="w-5 h-5 text-indigo-500" />
+          My Review Performance Breakdown
+        </h3>
+
+        <div className="flex flex-col lg:flex-row items-center gap-8">
+          <div className="relative w-72 h-72 flex-shrink-0">
+
+            <Doughnut data={data} options={options} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span className="text-3xl font-black text-gray-900 dark:text-white mt-[-50px] mb-[-1px]">
+                {myReviewStats.reviewed}
+              </span>
+              <span className="text-[15px] font-bold text-gray-400 uppercase tracking-widest blend-in">
+                Total Reviews
+              </span>
+            </div>
+          </div>
+
+          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800/30">
+              <p className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-wider mb-1">Accepted</p>
+              <p className="text-2xl font-black text-green-700 dark:text-green-300">{myReviewStats.accepted}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <div className="flex-1 h-1 bg-green-200 dark:bg-green-900 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500"
+                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.accepted / myReviewStats.reviewed) * 100 : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-[20px] font-bold text-green-600/70 dark:text-green-400/70">
+                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.accepted / myReviewStats.reviewed) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/30">
+              <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Rejected</p>
+              <p className="text-2xl font-black text-red-700 dark:text-red-300">{myReviewStats.rejected}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <div className="flex-1 h-1 bg-red-200 dark:bg-red-900 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-red-500"
+                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.rejected / myReviewStats.reviewed) * 100 : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-[20px] font-bold text-red-600/70 dark:text-red-400/70">
+                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.rejected / myReviewStats.reviewed) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/30">
+              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">Rework</p>
+              <p className="text-2xl font-black text-amber-700 dark:text-amber-300">{myReviewStats.rework}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <div className="flex-1 h-1 bg-amber-200 dark:bg-amber-900 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500"
+                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.rework / myReviewStats.reviewed) * 100 : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-[20px] font-bold text-amber-600/70 dark:text-amber-400/70">
+                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.rework / myReviewStats.reviewed) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Current Performance Score</p>
+            <div className="flex items-center gap-2">
+              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{myReviewStats.performanceScore}%</p>
+              <div className={`w-2 h-2 rounded-full ${myReviewStats.performanceScore >= 80 ? 'bg-green-500' : myReviewStats.performanceScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}></div>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Submissions</p>
+            <p className="text-2xl font-black text-gray-900 dark:text-white">{myReviewStats.totalResponses}</p>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -1213,15 +1480,18 @@ export default function DashboardNew() {
                   <div className="flex items-center">
                     <Smile className="w-5 h-5 text-purple-600 dark:text-purple-400 mr-2" />
                     <span className="text-sm text-gray-600 dark:text-gray-400">
-                      Promoter Score
+                      Performance Score
                     </span>
                   </div>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-                    {tenantStats[selectedTenant._id].promoterPercentage}%
+                    {tenantStats[selectedTenant._id].performanceScore}%
                   </p>
                 </div>
               </div>
             )}
+
+          {/* New Review Breakdown Chart - Show for all users when data is available */}
+          <MyReviewBreakdownChart />
         </div>
 
         {/* Debug Info - Remove in production 
@@ -1245,6 +1515,9 @@ export default function DashboardNew() {
 
         {/* Inspection Summary Table - Visible for all but specially important for inspectors */}
         {renderSummaryTable()}
+
+        {/* Performance Table - Visible for admins and superadmins */}
+        {renderPerformanceTable()}
       </div>
     </div>
   );

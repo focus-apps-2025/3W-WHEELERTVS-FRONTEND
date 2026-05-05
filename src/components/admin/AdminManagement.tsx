@@ -1,4 +1,5 @@
-import React, {
+import * as React from "react";
+import {
   ChangeEvent,
   FormEvent,
   useCallback,
@@ -112,6 +113,7 @@ export default function AdminManagement() {
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
   const [activeTab, setActiveTab] = useState<"admins" | "responses">("admins");
+  const [performanceScores, setPerformanceScores] = useState<Record<string, number>>({});
   const TabNavigation = () => (
     <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
       <nav className="flex space-x-8" aria-label="Tabs">
@@ -231,6 +233,28 @@ export default function AdminManagement() {
   useEffect(() => {
     loadSubAdmins();
   }, [loadSubAdmins]);
+
+  useEffect(() => {
+    const loadScores = async () => {
+      try {
+        const response = await apiClient.getPerformanceScores();
+        if (response && response.data) {
+          setPerformanceScores(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to load performance scores:', error);
+        // Fallback to localStorage if API fails
+        try {
+          const scores = JSON.parse(localStorage.getItem('performanceScores') || '{}');
+          setPerformanceScores(scores);
+        } catch (localError) {
+          console.error('Failed to load from localStorage:', localError);
+          setPerformanceScores({});
+        }
+      }
+    };
+    loadScores();
+  }, []);
 
   const handleBrandingFileChange = async (
     event: ChangeEvent<HTMLInputElement>,
@@ -1236,12 +1260,15 @@ export default function AdminManagement() {
                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                               Status
                             </th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                              Role
-                            </th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                              Contact
-                            </th>
+                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                               Role
+                             </th>
+                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                               Performance Score
+                             </th>
+                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                               Contact
+                             </th>
                             {/* Permission Headers */}
                             <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider min-w-[100px]">
                               Dashboard
@@ -1339,13 +1366,18 @@ export default function AdminManagement() {
                                       : admin.role === "inspector"
                                         ? "Inspector"
                                         : admin.role}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <div className="text-sm text-gray-900 dark:text-gray-100">
-                                    {admin.email}
-                                  </div>
-                                </td>
+                                   </span>
+                                 </td>
+                                 <td className="px-6 py-4">
+                                   <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                     {(performanceScores[admin._id] || 0)}%
+                                   </span>
+                                 </td>
+                                 <td className="px-6 py-4">
+                                   <div className="text-sm text-gray-900 dark:text-gray-100">
+                                     {admin.email}
+                                   </div>
+                                 </td>
 
                                 {/* Permission Checkboxes */}
                                 {MODULE_OPTIONS.map((option) => {

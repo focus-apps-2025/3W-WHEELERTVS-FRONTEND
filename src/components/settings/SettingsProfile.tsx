@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Camera, MapPin, Navigation, Save } from 'lucide-react';
+import { Camera, MapPin, Navigation, Save, Loader2 } from 'lucide-react';
 import type { Profile } from '../../types';
 import { apiClient } from '../../api/client';
 import { useNotification } from '../../context/NotificationContext';
@@ -21,26 +21,30 @@ export default function SettingsProfile({ onClose }: SettingsProfileProps) {
   const [officeLocation, setOfficeLocation] = useState({
     lat: '',
     lng: '',
-    radius: 500,
+    radius: 5,
   });
+  const [currentOfficeLocation, setCurrentOfficeLocation] = useState<{lat: number, lng: number, radius: number} | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
+  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [isTenantAdmin, setIsTenantAdmin] = useState(false);
   const { showSuccess, showError } = useNotification();
 
   useEffect(() => {
     const userData = JSON.parse(localStorage.getItem('user') || '{}');
     const role = (userData as any)?.role || (userData as any)?.roles?.[0];
-    setIsTenantAdmin(role === 'admin' || role === 'tenant_admin');
+    setIsTenantAdmin(['admin', 'superadmin', 'subadmin'].includes(role));
     
     const fetchLocation = async () => {
       try {
         const response = await apiClient.getOfficeLocation();
         if (response.success && response.data) {
+          const data = response.data;
           setOfficeLocation({
-            lat: response.data.lat?.toString() || '',
-            lng: response.data.lng?.toString() || '',
-            radius: response.data.radius || 500,
+            lat: data.lat?.toString() || '',
+            lng: data.lng?.toString() || '',
+            radius: data.radius || 5,
           });
+          setCurrentOfficeLocation(data);
         }
       } catch (error) {
         console.error('Error fetching office location:', error);
@@ -50,35 +54,57 @@ export default function SettingsProfile({ onClose }: SettingsProfileProps) {
   }, []);
 
   const handleGetLocation = () => {
+    console.log("📍 Requesting current location...");
+    setIsDetectingLocation(true);
+    
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          console.log("✅ Location received:", position.coords);
           setOfficeLocation(prev => ({
             ...prev,
             lat: position.coords.latitude.toFixed(6),
             lng: position.coords.longitude.toFixed(6),
           }));
           showSuccess('Location captured!');
+          setIsDetectingLocation(false);
         },
         (error) => {
-          showError('Failed to get location: ' + error.message);
-        }
+          console.error("❌ Geolocation error:", error);
+          let msg = "Failed to get location";
+          if (error.code === 1) msg = "Location permission denied. Please enable GPS.";
+          else if (error.code === 2) msg = "Location unavailable. Please check your network.";
+          else if (error.code === 3) msg = "Location request timed out.";
+          
+          showError(msg + " (" + error.message + ")");
+          setIsDetectingLocation(false);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
-      showError('Geolocation not supported');
+      showError('Geolocation not supported by this browser');
+      setIsDetectingLocation(false);
     }
   };
 
   const handleSaveLocation = async () => {
     setLoadingLocation(true);
     try {
-      await apiClient.updateOfficeLocation({
+      const updateData = {
         lat: parseFloat(officeLocation.lat),
         lng: parseFloat(officeLocation.lng),
         radius: parseInt(officeLocation.radius.toString()),
-      });
+      };
+      console.log('Updating office location:', updateData);
+      const response = await apiClient.updateOfficeLocation(updateData);
+      console.log('Update response:', response);
+
+      // Update local state to reflect the change
+      setCurrentOfficeLocation(updateData);
+
       showSuccess('Office location updated!');
     } catch (error: any) {
+      console.error('Failed to update office location:', error);
       showError(error.response?.message || 'Failed to update location');
     } finally {
       setLoadingLocation(false);
@@ -188,7 +214,16 @@ export default function SettingsProfile({ onClose }: SettingsProfileProps) {
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             Set your office location for inspector attendance check-in verification
           </p>
-          
+
+          {currentOfficeLocation && (
+            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-1">Current Office Location:</p>
+              <p className="text-xs text-blue-600 dark:text-blue-300">
+                Lat: {currentOfficeLocation.lat}, Lng: {currentOfficeLocation.lng}, Radius: {currentOfficeLocation.radius}m
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -232,10 +267,20 @@ export default function SettingsProfile({ onClose }: SettingsProfileProps) {
             <button
               type="button"
               onClick={handleGetLocation}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center"
+              disabled={isDetectingLocation}
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 flex items-center disabled:opacity-50"
             >
-              <Navigation className="w-4 h-4 mr-2" />
-              Get Current Location
+              {isDetectingLocation ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Detecting...
+                </>
+              ) : (
+                <>
+                  <Navigation className="w-4 h-4 mr-2" />
+                  Get Current Location
+                </>
+              )}
             </button>
             <button
               type="button"

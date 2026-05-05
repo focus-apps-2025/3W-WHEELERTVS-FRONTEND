@@ -163,12 +163,12 @@ export default function StaffManagement() {
                     <div className="text-sm text-gray-900 dark:text-gray-100">{member.email}</div>
                     <div className="text-sm text-gray-500 dark:text-gray-500">{member.mobile}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-                      {member.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                   <td className="px-6 py-4 whitespace-nowrap">
+                     <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                       {member.role}
+                     </span>
+                   </td>
+                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex items-center justify-end space-x-2">
                       <button
                         onClick={() => handleEditStaff(member)}

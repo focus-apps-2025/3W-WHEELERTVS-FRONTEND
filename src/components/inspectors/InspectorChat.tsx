@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { apiClient } from '../../api/client';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -16,6 +16,320 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
+// Function to render message with images
+const renderMessageWithImages = (message: string) => {
+  if (!message) return null;
+
+  console.log('🖼️ renderMessageWithImages called with:', message);
+
+  // Split message by image markdown syntax
+  const parts = message.split(/(!\[.*?\]\(.*?\))/g);
+  console.log('🖼️ Message parts:', parts);
+
+  return (
+    <div className="space-y-2">
+      {parts.map((part, index) => {
+        // Check if this part is an image markdown
+        const imageMatch = part.match(/!\[.*?\]\((.*?)\)/);
+        if (imageMatch) {
+          const imageUrl = imageMatch[1];
+          return (
+            <div key={index} className="inline-block">
+              <img
+                src={imageUrl}
+                alt="Evidence"
+                className="max-w-32 max-h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={() => window.open(imageUrl, '_blank')}
+                onError={(e) => {
+                  console.error('Image failed to load:', imageUrl);
+                  e.currentTarget.style.display = 'none';
+                  // Show fallback text
+                  const fallback = document.createElement('div');
+                  fallback.className = 'text-xs text-red-500 mt-1';
+                  fallback.textContent = 'Image failed to load';
+                  e.currentTarget.parentNode?.appendChild(fallback);
+                }}
+                onLoad={() => console.log('Image loaded successfully:', imageUrl)}
+              />
+            </div>
+          );
+        }
+        // Regular text part
+        return part.trim() ? (
+          <span key={index} className="whitespace-pre-wrap">{part}</span>
+        ) : null;
+      })}
+    </div>
+  );
+};
+
+// Advanced Question Display Component for InspectorChat
+const QuestionDisplayRenderer = ({ question, suggestion, onSuggestionChange, user, responseId, submitterId }: any) => {
+  const [selectedOption, setSelectedOption] = useState(suggestion?.selected || '');
+  const [selectedZones, setSelectedZones] = useState<string[]>(suggestion?.zones || []);
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Sync state with suggestion prop changes
+  useEffect(() => {
+    setSelectedOption(suggestion?.selected || '');
+  }, [suggestion?.selected]);
+
+  useEffect(() => {
+    setSelectedZones(suggestion?.zones || []);
+  }, [suggestion?.zones]);
+
+  // Determine question type (Zone In vs Zone Out)
+  const isZoneIn = question?.text?.toLowerCase().includes('zone') &&
+                   (question?.text?.toLowerCase().includes('in') ||
+                    question?.type?.toLowerCase().includes('zone'));
+
+  const isZoneOut = question?.text?.toLowerCase().includes('zone') &&
+                    (question?.text?.toLowerCase().includes('out') ||
+                     question?.type?.toLowerCase().includes('zone-out'));
+
+  // Get selectable options (filter out follow-up related options)
+  const options = question?.options || suggestion?.options || [];
+  const selectableOptions = options.filter((opt: string) => {
+    const lowerOpt = opt.toLowerCase();
+    return !(
+      lowerOpt.includes('remark') ||
+      lowerOpt.includes('enter response') ||
+      lowerOpt.includes('file update') ||
+      lowerOpt.includes('manual upload') ||
+      lowerOpt.includes('#1') ||
+      lowerOpt.includes('historical record')
+    );
+  });
+
+  // Determine what follow-ups to show based on question type and selected option
+  const showFollowUps = () => {
+    // Always show follow-ups if an option is selected, regardless of question type
+    return !!selectedOption;
+  };
+
+  const needsZoneSelection = isZoneIn && (selectedOption?.toLowerCase().includes('reject') || selectedOption?.toLowerCase().includes('rework'));
+  const shouldShowFollowUps = showFollowUps();
+
+  // Debug: Uncomment to troubleshoot
+  // console.log('InspectorChat QuestionDisplayRenderer:', {
+  //   isZoneIn,
+  //   isZoneOut,
+  //   selectedOption,
+  //   needsZoneSelection,
+  //   shouldShowFollowUps,
+  //   question: question?.text,
+  //   questionType: question?.type
+  // });
+
+  // Debug logging for troubleshooting
+  console.log('QuestionDisplayRenderer:', {
+    question: question?.text,
+    options: question?.options,
+    suggestionOptions: suggestion?.options,
+    selectableOptions,
+    selectedOption,
+    shouldShowFollowUps
+  });
+
+  if (selectableOptions.length > 0) {
+    return (
+      <div className="space-y-3 mt-2" onClick={e => e.stopPropagation()}>
+        {/* Question Type Indicator */}
+        {(isZoneIn || isZoneOut) && (
+          <div className="text-xs font-bold text-center py-1 px-2 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded">
+            {isZoneIn ? '🔍 ZONE IN INSPECTION' : '📤 ZONE OUT INSPECTION'}
+          </div>
+        )}
+
+        {/* Main Options */}
+        <div className="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800">
+          <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest block mb-2">
+            Select Option
+          </label>
+          <div className="flex flex-wrap gap-2">
+            {selectableOptions.map((opt: string) => {
+              const isSelected = selectedOption === opt;
+              return (
+                <button
+                  key={opt}
+                  onClick={() => {
+                     setSelectedOption(opt);
+                     const status = `${opt} by ${user?.name || user?.email || 'Unknown'}`;
+                     onSuggestionChange({ ...(suggestion || {}), selected: opt, status });
+                   }}
+                  className={`px-3 py-1.5 text-[10px] font-black rounded-lg border-2 transition-all
+                    ${isSelected
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-indigo-300'
+                    }`}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Zone Selection (for Zone In + Reject/Rework) */}
+        {needsZoneSelection && (
+          <div className="p-3 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-100 dark:border-orange-800">
+            <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest block mb-2">
+              Select Zones
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {['Zone A+', 'Zone A', 'Zone B', 'Zone C'].map((zone) => (
+                <button
+                  key={zone}
+                  onClick={() => {
+                    const newZones = selectedZones.includes(zone)
+                      ? selectedZones.filter(z => z !== zone)
+                      : [...selectedZones, zone];
+                    setSelectedZones(newZones);
+                    onSuggestionChange({ ...(suggestion || {}), zones: newZones });
+                  }}
+                  className={`px-3 py-1.5 text-[9px] font-bold rounded-lg border-2 transition-all
+                    ${selectedZones.includes(zone)
+                      ? 'bg-orange-600 border-orange-600 text-white shadow-md'
+                      : 'bg-white dark:bg-gray-800 border-orange-200 dark:border-orange-700 text-orange-600 dark:text-orange-400 hover:border-orange-300'
+                    }`}
+                >
+                  {zone}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Follow-ups (Remarks + File Upload) */}
+        {shouldShowFollowUps && (
+          <>
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border-2 border-amber-300 dark:border-amber-600">
+              <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest block mb-1">
+                📝 Remarks {selectedOption ? `for ${selectedOption}` : ''}
+              </label>
+              <textarea
+                rows={2}
+                value={suggestion?.remark || ''}
+                onChange={(e) => onSuggestionChange({ ...(suggestion || {}), remark: e.target.value })}
+                placeholder="Enter remarks..."
+                className="w-full p-2 text-xs bg-white dark:bg-gray-900 border border-amber-200 dark:border-amber-700 rounded-lg focus:ring-2 focus:ring-amber-400 outline-none resize-none"
+              />
+            </div>
+
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border-2 border-blue-300 dark:border-blue-600">
+              <label className="text-[10px] font-black text-blue-500 uppercase tracking-widest block mb-1.5">
+                📎 File Upload {selectedOption ? `for ${selectedOption}` : ''}
+              </label>
+              <input
+                ref={fileInputRef}
+                key={`file-input-${selectedOption}`} // Key changes when selectedOption changes
+                type="file"
+                accept="image/*"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    console.log('File input changed, selected file:', file.name);
+                    try {
+                      console.log('Uploading file for', selectedOption, ':', file.name);
+                      const result = await apiClient.uploadFile(file, "form");
+                      console.log('Upload result:', result);
+                      const uploadedUrl = apiClient.resolveUploadedFileUrl(result);
+                      console.log('Resolved uploaded URL:', uploadedUrl);
+
+                      if (uploadedUrl) {
+                        // Add the image URL to the suggestion
+                        const imageMarkdown = `![${selectedOption} Evidence](${uploadedUrl})`;
+                        const newSuggestion = {
+                          ...(suggestion || {}),
+                          images: [...(suggestion?.images || []), uploadedUrl],
+                          imageMarkdown: (suggestion?.imageMarkdown || '') + '\n' + imageMarkdown
+                        };
+                        console.log('New suggestion object:', newSuggestion);
+                        onSuggestionChange(newSuggestion);
+                        console.log('File uploaded successfully:', uploadedUrl);
+
+                        // Reset the file input after successful upload
+                        if (fileInputRef.current) {
+                          fileInputRef.current.value = '';
+                          console.log('File input reset');
+                        }
+                      } else {
+                        console.error('No uploaded URL received');
+                        alert('File upload failed: No URL received');
+                      }
+                    } catch (error) {
+                      console.error('File upload failed:', error);
+                      alert('File upload failed. Please try again.');
+
+                      // Reset the file input on error too
+                      if (fileInputRef.current) {
+                        fileInputRef.current.value = '';
+                      }
+                    }
+                  } else {
+                    console.log('No file selected');
+                  }
+                }}
+                className="w-full p-2 text-xs bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+
+            {selectedOption && responseId && activeThread?.submittedBy && (
+              <button
+                onClick={async () => {
+                  setSubmitting(true);
+                  try {
+                    const reviewData = {
+                      responseId,
+                      reviewerId: user._id,
+                      submitterId,
+                      reviewOption: selectedOption,
+                      tenantId: user.tenantId || user.tenant?._id
+                    };
+                    console.log('Submitting review:', reviewData);
+                    await apiClient.submitReview(reviewData);
+                    alert('Review submitted successfully');
+                    // Refresh messages to update review status
+                    fetchMessages();
+                    // Perhaps disable further changes
+                    onSuggestionChange({ ...(suggestion || {}), submitted: true });
+                  } catch (error) {
+                    console.error('Failed to submit review:', error);
+                    alert('Failed to submit review: ' + (error as Error).message);
+                  } finally {
+                    setSubmitting(false);
+                  }
+                }}
+                disabled={submitting || suggestion?.submitted}
+                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+              >
+                {submitting ? 'Submitting...' : 'Submit Review'}
+              </button>
+            )}
+          </>
+        )}
+
+        {/* Instruction Text */}
+        {selectedOption && !shouldShowFollowUps && (
+          <div className="text-xs text-center py-2 px-3 bg-gray-100 dark:bg-gray-800 rounded-lg text-gray-600 dark:text-gray-400">
+            Select an option above to see follow-up requirements
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Fallback for simple text
+  return (
+    <div className="mt-1 p-2 bg-indigo-50 dark:bg-indigo-900/40 rounded-xl border border-indigo-100 dark:border-indigo-800 shadow-sm">
+      <p className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 italic">
+        {typeof suggestion === 'string' ? `"${suggestion}"` : 'Response data available'}
+      </p>
+    </div>
+  );
+};
+
 export default function InspectorChat() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -26,6 +340,7 @@ export default function InspectorChat() {
   const [isSending, setIsSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [reviews, setReviews] = useState<Record<string, any>>({});
   const prevMessagesRef = useRef<any[]>([]);
 
   const fetchMessages = async () => {
@@ -84,15 +399,64 @@ const response = await apiClient.getTenantMessages();
           }
         });
         
+        // Load reviews for all unique response IDs
+        const responseIds = [...new Set(newMessages.map((msg: any) => {
+          const resId = (typeof msg.responseId === 'object' && msg.responseId?._id)
+            ? msg.responseId._id
+            : (msg.responseId || 'unknown');
+          return resId;
+        }).filter(id => id !== 'unknown'))];
+
+        // Load cached reviews first
+        const cachedReviews = JSON.parse(localStorage.getItem('chatReviews') || '{}');
+        const reviewsData: Record<string, any> = { ...cachedReviews };
+
+        console.log('Cached reviews:', cachedReviews);
+
+        // Fetch fresh reviews from API
+        for (const responseId of responseIds) {
+          try {
+            const reviewsResponse = await apiClient.getReviewsForResponse(responseId);
+            if (reviewsResponse && reviewsResponse.success && reviewsResponse.reviews && reviewsResponse.reviews.length > 0) {
+              reviewsData[responseId] = reviewsResponse.reviews[0]; // Get latest review
+            } else if (reviewsData[responseId]) {
+              // Keep cached review if API doesn't return data but we have cached data
+              console.log(`Keeping cached review for response ${responseId}`);
+            }
+          } catch (reviewError) {
+            console.warn(`Failed to load reviews for response ${responseId}, using cached data if available:`, reviewError);
+            // Keep cached review on API failure
+            if (!reviewsData[responseId]) {
+              console.log(`No cached review available for response ${responseId}`);
+            }
+          }
+        }
+
+        // Cache the reviews data
+        localStorage.setItem('chatReviews', JSON.stringify(reviewsData));
+
         prevMessagesRef.current = newMessages;
         setMessages(newMessages);
         setUnreadCounts(unread);
-        console.log("[CHAT] After setMessages, messages length:", newMessages.length);
+        setReviews(reviewsData);
       }
+      setLoading(false);
     } catch (err) {
       setLoading(false);
     }
   };
+
+  // Load cached reviews on mount
+  useEffect(() => {
+    const cachedReviews = localStorage.getItem('chatReviews');
+    if (cachedReviews) {
+      try {
+        setReviews(JSON.parse(cachedReviews));
+      } catch (error) {
+        console.warn('Failed to parse cached reviews:', error);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     fetchMessages();
@@ -104,7 +468,8 @@ const response = await apiClient.getTenantMessages();
   const totalUnread = Object.values(unreadCounts).reduce((a, b) => a + b, 0);
 
   // Group messages by responseId and specific question ID to make them separate threads
-  const threads = messages.reduce((acc: any, msg) => {
+  const threads = useMemo(() => messages.reduce((acc: any, msg) => {
+    const currentReviews = reviews; // Use current reviews state
     console.log("[THREAD] Processing message:", msg._id, "responseId:", msg.responseId);
     
     // Handle both populated (object) and non-populated (string) responseId
@@ -114,11 +479,7 @@ const response = await apiClient.getTenantMessages();
     
     console.log("[THREAD] resId:", resId);
     
-    // Get formId from message or from populated responseId object
-    const formId = msg.formId || 
-                   (typeof msg.responseId === 'object' ? msg.responseId.questionId : null) || 
-                   resId || 
-                   'general';
+    const formId = msg.formId || resId || 'general';
     const threadId = resId;
     
     if (!acc[threadId]) {
@@ -145,12 +506,13 @@ const response = await apiClient.getTenantMessages();
         formTitle: formTitle,
         questionTitle: questionTitle,
         submittedBy: submittedBy,
+        review: currentReviews[resId] || null,
         messages: []
       };
     }
     acc[threadId].messages.push(msg);
     return acc;
-  }, {});
+  }, {}), [messages, reviews]);
 
   const threadList = Object.values(threads).sort((a: any, b: any) => {
     const lastA = new Date(a.messages[0].createdAt).getTime();
@@ -345,42 +707,56 @@ const response = await apiClient.getTenantMessages();
     return <span className="text-sm font-black text-gray-800 dark:text-gray-100">{String(answer)}</span>;
   };
 
-  const renderSuggestion = (suggestion: any) => {
-    if (!suggestion) return null;
+  const renderReviewStatus = (review: any) => {
+    if (!review) return null;
 
-    // Handle string suggestion
-    if (typeof suggestion === 'string') {
-      return (
-        <div className="mt-1 p-2 bg-indigo-50 dark:bg-indigo-900/40 rounded-xl border border-indigo-100 dark:border-indigo-800 shadow-sm">
-          <p className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300 italic">"{suggestion}"</p>
+    console.log('renderReviewStatus called with review:', review);
+    const reviewerName = review.reviewer?.name || review.reviewer?.email || 'Unknown';
+    const reviewOption = review.option || review.reviewOption;
+    const emoji = reviewOption === 'Accepted' ? '✅' : reviewOption === 'Rejected' ? '❌' : '🔄';
+
+    console.log('Review details:', { reviewerName, reviewOption, emoji });
+    return (
+      <div className="mt-2 p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
+          Status: {emoji} {reviewOption} by {reviewerName}
+        </span>
+      </div>
+    );
+  };
+
+  const renderSuggestion = (suggestion: any, user?: any) => {
+    if (!suggestion || Object.keys(suggestion).length === 0) return null;
+
+    // Ensure status is set if selected exists but status doesn't
+    if (suggestion.selected && !suggestion.status) {
+      suggestion.status = `${suggestion.selected} by ${user?.name || user?.email || 'Unknown'}`;
+    }
+
+    // Status display element
+    let statusElement = null;
+    if (suggestion.status) {
+      const emoji = suggestion.status.toLowerCase().includes('accepted') ? '✅' :
+                   suggestion.status.toLowerCase().includes('rejected') ? '❌' : '🔄';
+      const statusColor = suggestion.status.toLowerCase().includes('accepted') ? 'text-green-600 bg-green-50 border-green-100' :
+                         suggestion.status.toLowerCase().includes('rejected') ? 'text-red-600 bg-red-50 border-red-100' :
+                         'text-amber-600 bg-amber-50 border-amber-100';
+      statusElement = (
+        <div className="p-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+          <span className={`px-2 py-1 rounded-md text-[11px] font-black uppercase ${statusColor} border shadow-sm`}>
+            Status: {emoji} {suggestion.status}
+          </span>
         </div>
       );
     }
 
-    if (Object.keys(suggestion).length === 0) return null;
-
-    const isChassisStructure = suggestion.status !== undefined || 
-                              suggestion.chassisNumber !== undefined || 
-                              suggestion.zonesData !== undefined ||
-                              suggestion.zone !== undefined;
+    const isChassisStructure = suggestion.status !== undefined ||
+                               suggestion.chassisNumber !== undefined ||
+                               suggestion.zonesData !== undefined ||
+                               suggestion.zone !== undefined;
 
     if (isChassisStructure) {
       const sections: JSX.Element[] = [];
-
-      if (suggestion.status && suggestion.status.trim()) {
-        const statusColor = 
-          suggestion.status.toLowerCase() === 'accepted' ? 'text-green-600 bg-green-50 border-green-200' :
-          suggestion.status.toLowerCase() === 'rejected' ? 'text-red-600 bg-red-50 border-red-200' :
-          'text-amber-600 bg-amber-50 border-amber-200';
-        
-        sections.push(
-          <div key="status" className="flex items-center gap-2 p-2 rounded-lg border" style={{ backgroundColor: 'rgba(var(--status-bg), 0.1)' }}>
-            <span className={`px-2 py-1 rounded-md text-[11px] font-black uppercase ${statusColor} border shadow-sm`}>
-              Status: {suggestion.status}
-            </span>
-          </div>
-        );
-      }
 
       if (suggestion.chassisNumber && suggestion.chassisNumber.trim()) {
         sections.push(
@@ -540,10 +916,11 @@ const response = await apiClient.getTenantMessages();
         );
       }
 
-      if (sections.length === 0) return null;
+      if (sections.length === 0 && !statusElement) return null;
 
       return (
         <div className="mt-1 p-2 bg-indigo-50 dark:bg-indigo-900/40 rounded-xl border border-indigo-100 dark:border-indigo-800 shadow-sm">
+          {statusElement}
           <div className="space-y-2">
             {sections}
           </div>
@@ -553,6 +930,9 @@ const response = await apiClient.getTenantMessages();
 
     const renderNested = (data: any, depth = 0) => {
       return Object.entries(data).map(([key, val]: [string, any], idx) => {
+        if (key === 'selected' && suggestion.status) {
+          return null; // Skip selected if status is shown separately
+        }
         if (key === 'selected') {
           return (
             <div key={idx} className="flex items-center gap-1.5 mb-1">
@@ -598,6 +978,7 @@ const response = await apiClient.getTenantMessages();
           <Edit className="w-2.5 h-2.5" />
           Admin Instructions
         </p>
+        {statusElement}
         {renderNested(suggestion)}
       </div>
     );
@@ -677,9 +1058,21 @@ const response = await apiClient.getTenantMessages();
                       <span className="text-sm font-bold text-gray-900 dark:text-white truncate">
                         ID: {String(thread.responseIdStr || thread.id).substring(0, 16)}
                       </span>
-                      <span className="text-[10px] text-gray-400">
-                        {new Date(thread.messages[0].createdAt).toLocaleDateString()}
-                      </span>
+                      <div className="flex items-center gap-1">
+                        {thread.review && (
+                          <span className={`text-[8px] px-1 py-0.5 rounded font-bold ${
+                            (thread.review.option || thread.review.reviewOption) === 'Accepted' ? 'bg-green-100 text-green-700' :
+                            (thread.review.option || thread.review.reviewOption) === 'Rejected' ? 'bg-red-100 text-red-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {(thread.review.option || thread.review.reviewOption) === 'Accepted' ? '✓' :
+                             (thread.review.option || thread.review.reviewOption) === 'Rejected' ? '✗' : '↻'}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-gray-400">
+                          {new Date(thread.messages[0].createdAt).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </button>
@@ -699,17 +1092,23 @@ const response = await apiClient.getTenantMessages();
                 <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center">
                   <User className="w-6 h-6 text-white" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <p className="text-sm font-bold text-gray-900 dark:text-white">
                     {activeThread.questionTitle}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     Form: {activeThread.formTitle} • Ref: {String(activeThread.id).substring(0, 10)}...
                   </p>
+                  {/* Review Status in Header */}
+                  {activeThread?.review && (
+                    <div className="mt-2">
+                      {renderReviewStatus(activeThread.review)}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex gap-2">
-                <button 
+                <button
                   onClick={() => {
                     const formId = activeThread.formId;
                     console.log("[OpenDashboard] formId:", formId);
@@ -729,6 +1128,53 @@ const response = await apiClient.getTenantMessages();
 
             {/* Message History */}
             <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 dark:bg-gray-900/50">
+
+              {/* Sample Zone In Question */}
+              <div className="flex justify-start">
+                <div className="max-w-[75%] bg-white dark:bg-gray-100 rounded-2xl shadow-sm p-4">
+                  <p className="text-sm mb-2">Here's a Zone In inspection question:</p>
+                  <QuestionDisplayRenderer
+                    question={{
+                      text: "Zone In Paint Quality Inspection",
+                      type: "zone",
+                      options: ["Paint uncover", "No bare / ED coating visible after painting", "Painting", "Accepted", "Rework", "Rejected", "Remark", "File update"]
+                    }}
+                    suggestion={{}}
+                    onSuggestionChange={(newValue) => console.log('Zone In changed:', newValue)}
+                    user={user}
+                    responseId={activeThread?.responseIdStr}
+                    submitterId={activeThread?.submittedBy?._id || activeThread?.submittedBy}
+                  />
+                </div>
+              </div>
+
+              {/* Sample Zone Out Question */}
+              <div className="flex justify-start">
+                <div className="max-w-[75%] bg-white dark:bg-gray-100 rounded-2xl shadow-sm p-4">
+                  <p className="text-sm mb-2">Here's a Zone Out inspection question:</p>
+                  <QuestionDisplayRenderer
+                    question={{
+                      text: "Zone Out Paint Quality Inspection",
+                      type: "zone-out",
+                      options: ["Paint uncover", "No bare / ED coating visible after painting", "Painting", "Accepted", "Rework", "Rejected", "Remark", "File update"]
+                    }}
+                    suggestion={{}}
+                    onSuggestionChange={(newValue) => console.log('Zone Out changed:', newValue)}
+                    user={user}
+                    responseId={activeThread?.resId}
+                    submitterId={activeThread?.from?._id}
+                  />
+                </div>
+              </div>
+
+              <div className="text-center text-gray-500 py-4">
+                <p className="text-sm">💡 Try selecting different options above to see the zone-based follow-up logic</p>
+                <p className="text-xs mt-1">
+                  <strong>Zone In:</strong> Accept=remark+upload, Reject/Rework=zones+remark+upload<br/>
+                  <strong>Zone Out:</strong> All options=remark+upload
+                </p>
+              </div>
+
               {[...activeThread.messages].reverse().map((msg, i) => {
                 const isMe = String(msg.from?._id || msg.from) === String(user?._id || (user as any)?.id);
                 console.log("[CHAT] Message:", i, "from:", msg.from, "isMe:", isMe, "userId:", user?._id, "userIdAlt:", (user as any)?.id);
@@ -754,38 +1200,67 @@ const response = await apiClient.getTenantMessages();
                               }`}>
                                 {ctx.title}
                               </p>
-                              {renderSuggestion(ctx.suggestion)}
+                                <div className="mb-2">
+                                  <QuestionDisplayRenderer
+                                    question={ctx.question}
+                                    suggestion={ctx.suggestion}
+                                    onSuggestionChange={(newValue) => {
+                                      // Handle question response changes in chat
+                                      console.log('Question suggestion changed:', newValue);
+                                    }}
+                                    user={user}
+                                    responseId={activeThread?.resId}
+                                    submitterId={activeThread?.from?._id}
+                                  />
+                                </div>
+                                {renderSuggestion(ctx.suggestion, user)}
                             </div>
                           ))}
                         </div>
-                      ) : msg.questionTitles && msg.questionTitles.length > 0 && (
-                        <div className={`mb-2 p-2 rounded-xl border ${
-                          isMe 
-                            ? 'bg-[#c5e5c5] border-[#a8d6a8]' 
-                            : 'bg-indigo-50/50 dark:bg-indigo-900/20 border-indigo-100/50 dark:border-indigo-800/30'
-                        }`}>
-                          <p className={`text-[10px] uppercase font-black mb-1.5 flex items-center gap-1 ${
-                            isMe ? 'text-green-700' : 'text-indigo-500'
-                          }`}>
-                            <Filter className="w-2.5 h-2.5" />
-                            Linked Questions
-                          </p>
-                          <div className="flex flex-wrap gap-1">
-                            {msg.questionTitles.map((title: string, idx: number) => (
-                              <span key={idx} className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md border ${
-                                isMe 
-                                  ? 'bg-green-100 text-green-800 border-green-200' 
-                                  : 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 border-indigo-100 dark:border-indigo-800'
-                              }`}>
-                                {title}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {msg.message}
-                    </div>
-                    <div className={`flex items-center gap-1 mt-1.5 px-1 opacity-60`}>
+                       ) : msg.questionTitles && msg.questionTitles.length > 0 && (
+                         <div className={`mb-2 p-2 rounded-xl border ${
+                           isMe
+                             ? 'bg-[#c5e5c5] border-[#a8d6a8]'
+                             : 'bg-indigo-50/50 dark:bg-indigo-900/20 border-indigo-100/50 dark:border-indigo-800/30'
+                         }`}>
+                           <p className={`text-[10px] uppercase font-black mb-1.5 flex items-center gap-1 ${
+                             isMe ? 'text-green-700' : 'text-indigo-500'
+                           }`}>
+                             <Filter className="w-2.5 h-2.5" />
+                             Linked Questions
+                           </p>
+                           <div className="flex flex-wrap gap-1">
+                             {msg.questionTitles.map((title: string, idx: number) => (
+                               <span key={idx} className={`px-1.5 py-0.5 text-[9px] font-bold rounded-md border ${
+                                 isMe
+                                   ? 'bg-green-100 text-green-800 border-green-200'
+                                   : 'bg-white dark:bg-gray-700 text-indigo-600 dark:text-indigo-300 border-indigo-100 dark:border-indigo-800'
+                               }`}>
+                                 {title}
+                               </span>
+                             ))}
+                           </div>
+                           {/* Show QuestionDisplayRenderer for messages with suggestions */}
+                            {msg.suggestion && (
+                              <div className="mt-2">
+                                <QuestionDisplayRenderer
+                                  question={{ text: msg.questionTitles[0], options: ['Accepted', 'Rework', 'Rejected'] }}
+                                  suggestion={msg.suggestion}
+                                  onSuggestionChange={(newValue) => {
+                                    console.log('Question suggestion changed:', newValue);
+                                  }}
+                                  user={user}
+                                  responseId={activeThread?.resId}
+                                  submitterId={activeThread?.from?._id}
+                                />
+                                {renderSuggestion(msg.suggestion, user)}
+                              </div>
+                            )}
+                         </div>
+                       )}
+                       {renderMessageWithImages(msg.message)}
+                     </div>
+                     <div className={`flex items-center gap-1 mt-1.5 px-1 opacity-60`}>
                       <span className="text-[9px] font-medium text-gray-500 dark:text-gray-400">
                         {isMe ? 'You' : (msg.from?.name || msg.from?.firstName || msg.from?.email || msg.from?.first_name || 'User')} • {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </span>
@@ -849,8 +1324,11 @@ const response = await apiClient.getTenantMessages();
               <MessageCircle className="w-16 h-16 text-indigo-100 dark:text-indigo-900" />
             </div>
             <div className="text-center">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Your Workspace Chat</h2>
-              <p className="text-sm">Select a conversation from the list to start messaging.</p>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Zone-Based Inspection Chat</h2>
+              <p className="text-sm mb-2">Select a conversation from the list to start messaging.</p>
+              <p className="text-xs text-gray-500 dark:text-gray-500">
+                This demo shows zone-based follow-up logic for inspection questions.
+              </p>
             </div>
           </div>
         )}

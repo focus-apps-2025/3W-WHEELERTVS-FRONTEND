@@ -43,18 +43,22 @@ export default function AttendanceDashboard({
   const [otpSending, setOtpSending] = useState(false);
 
   // Geofence config - from tenant settings
-  const [officeLocation, setOfficeLocation] = useState<{lat: number, lng: number, radius?: number} | null>(null);
+  const [officeLocation, setOfficeLocation] = useState<{
+    lat: number;
+    lng: number;
+    radius?: number;
+  } | null>(null);
 
   // Fetch office location from tenant settings
   useEffect(() => {
     const fetchOfficeLocation = async () => {
       try {
-        const response = await apiClient.get<any>('/settings/office-location');
+        const response = await apiClient.getOfficeLocation();
         if (response.success && response.data) {
           setOfficeLocation({
             lat: response.data.lat,
             lng: response.data.lng,
-            radius: response.data.radius || 500,
+            radius: response.data.radius || 5,
           });
         }
       } catch (error) {
@@ -64,8 +68,12 @@ export default function AttendanceDashboard({
     fetchOfficeLocation();
   }, []);
 
-  const OFFICE_LOCATION = officeLocation || { lat: 12.9455, lng: 78.8754 };
-  const ALLOWED_RADIUS_METERS = officeLocation?.radius || 500;
+  const OFFICE_LOCATION =
+    officeLocation && officeLocation.lat && officeLocation.lng
+      ? { lat: officeLocation.lat, lng: officeLocation.lng }
+      : { lat: 12.94556, lng: 78.8754 };
+
+  const ALLOWED_RADIUS_METERS = officeLocation?.radius || 5;
 
   // Calculate distance between two coordinates (Haversine formula)
   const getDistance = (
@@ -357,7 +365,9 @@ export default function AttendanceDashboard({
           ) : (
             <div className="bg-white/10 p-4 rounded-2xl border border-white/10 text-center">
               <AlertCircle className="mx-auto mb-2 opacity-80" />
-              <p className="font-bold">No active shift found for current time.</p>
+              <p className="font-bold">
+                No active shift found for current time.
+              </p>
               <p className="text-xs text-blue-200 mt-1">
                 Check-in is only available during defined shift hours.
               </p>
@@ -430,6 +440,7 @@ export default function AttendanceDashboard({
 
             {!attendance?.checkInTime ? (
               <button
+                //disabled={!shift || !location || !isWithinRadius || punching}
                 disabled={!shift || !location || !isWithinRadius || punching}
                 onClick={handlePunchIn}
                 className="w-full h-20 bg-green-600 hover:bg-green-700 disabled:bg-gray-200 text-white rounded-3xl font-black text-xl shadow-lg shadow-green-100 transition-all flex items-center justify-center gap-3 active:scale-95"

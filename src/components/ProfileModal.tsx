@@ -41,10 +41,10 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       
       // Check if user is tenant admin
       const role = (user as any).role || (user as any).roles?.[0];
-      setIsTenantAdmin(role === 'admin' || role === 'tenant_admin');
+      setIsTenantAdmin(['admin', 'superadmin', 'subadmin'].includes(role));
       
       // Fetch office location if tenant admin
-      if (role === 'admin' || role === 'tenant_admin') {
+      if (['admin', 'superadmin', 'subadmin'].includes(role)) {
         const fetchLocation = async () => {
           try {
             const response = await apiClient.getOfficeLocation();

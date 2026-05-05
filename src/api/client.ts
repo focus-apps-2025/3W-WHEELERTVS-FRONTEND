@@ -780,6 +780,22 @@ class ApiClient {
     return this.request<any>(`/analytics/form/${formId}`);
   }
 
+  async getMyReviewStats() {
+    return this.get<any>("/analytics/my-review-stats");
+  }
+
+  async getPerformanceTable(params?: { startDate?: string; endDate?: string }) {
+    const query = new URLSearchParams();
+    if (params?.startDate) query.set("startDate", params.startDate);
+    if (params?.endDate) query.set("endDate", params.endDate);
+    const endpoint = `/analytics/performance-table${query.toString() ? `?${query.toString()}` : ""}`;
+    return this.get<any>(endpoint);
+  }
+
+  async getPerformanceScores() {
+    return this.get<any>("/users/performance-scores");
+  }
+
   // ── Form Session Tracking ─────────────────────────────────────────────────
   // Start a time-tracking session when a user opens a form
   // NOTE: Uses raw fetch because the backend returns { success, sessionId, startedAt }
@@ -1421,7 +1437,7 @@ class ApiClient {
 
   async getOfficeLocation() {
     return this.request<{ lat: number; lng: number; radius: number }>(
-      "/settings/office-location",
+      "/tenants/office-location",
     );
   }
 
@@ -1434,7 +1450,7 @@ class ApiClient {
     lng: number;
     radius: number;
   }) {
-    return this.request<{ success: boolean }>("/settings/office-location", {
+    return this.request<{ success: boolean }>("/tenants/office-location", {
       method: "PUT",
       body: JSON.stringify(data),
     });
