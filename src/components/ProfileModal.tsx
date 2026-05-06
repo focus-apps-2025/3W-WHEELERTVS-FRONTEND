@@ -329,6 +329,19 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 </div>
               )}
 
+              {/* Tenant Location - For admins */}
+              {isTenantAdmin && officeLocation.lat && officeLocation.lng && (
+                <div className="flex items-center space-x-3">
+                  <MapPin className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Tenant Location</p>
+                    <p className="text-sm text-gray-900 dark:text-white">
+                      Lat: {officeLocation.lat}, Lng: {officeLocation.lng}, Radius: {officeLocation.radius}m
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Mobile - Only show if available */}
               {user?.mobile && (
                 <div className="flex items-center space-x-3">

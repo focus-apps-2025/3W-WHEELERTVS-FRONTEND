@@ -136,6 +136,8 @@ export interface Response {
     questionId: string;
     timeSpent: number;
   }>;
+  isDispatched?: boolean;
+  dispatchedAt?: string;
 }
 
 export interface Profile {

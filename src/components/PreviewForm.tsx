@@ -629,6 +629,13 @@ export default function PreviewForm({
   };
 
   const performSubmission = async () => {
+     if (formSessionId && chassisNumbers.length > 0) {
+    if (!answers['chassis_number']) {
+      showNotifyError("Please select a Chassis Number before submitting");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+  }
     setSubmitting(true);
     try {
       console.log("[PREVIEW FORM] User object full:", JSON.stringify(user));
@@ -1327,6 +1334,13 @@ export default function PreviewForm({
     }
 
     setSectionStartTime(new Date());
+    if (currentSectionIndex === 0 && formSessionId && chassisNumbers.length > 0) {
+  if (!answers['chassis_number']) {
+    showNotifyError("Please select a Chassis Number to continue");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+}
 
     if (!validateSections([currentMainSection])) return;
 

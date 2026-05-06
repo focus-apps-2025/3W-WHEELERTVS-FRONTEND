@@ -112,6 +112,8 @@ interface Response {
   totalTimeSpent?: number;
   responseRanks?: Record<string, number>;
   createdBy?: string;
+  isDispatched?: boolean;
+  dispatchedAt?: string;
 }
 
 // Helper function to get the timestamp from response (handles both timestamp and createdAt)
@@ -3675,15 +3677,6 @@ export default function FormAnalyticsDashboard() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedResponseIds, setSelectedResponseIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [dispatchEnabled, setDispatchEnabled] = useState<Record<string, boolean>>(() => {
-    // Load from localStorage on initialization
-    try {
-      const saved = localStorage.getItem('dispatchEnabled');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
 
   // Performance scoring system
   const [performanceScores, setPerformanceScores] = useState<Record<string, number>>({});
@@ -3716,14 +3709,6 @@ export default function FormAnalyticsDashboard() {
   }, [user?._id, performanceScores]);
 
 
-  // Save dispatch state to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      localStorage.setItem('dispatchEnabled', JSON.stringify(dispatchEnabled));
-    } catch (error) {
-      console.error('Failed to save dispatch state:', error);
-    }
-  }, [dispatchEnabled]);
 
   // Review system for peer evaluation
   const [selectedReviewOptions, setSelectedReviewOptions] = useState<Record<string, string>>(() => {
@@ -7016,7 +7001,7 @@ const fetchChatHistory = async (responseId: string) => {
 
   const handleExportToExcel = () => {
     try {
-      const headerRow: any[] = ["Timestamp", "Status"];
+      const headerRow: any[] = ["Timestamp", "Status", "Chassis Number"];
       const columnInfo: Array<{
         questionId: string;
         isFollowUp: boolean;
@@ -7045,6 +7030,7 @@ const fetchChatHistory = async (responseId: string) => {
             ? new Date(getResponseTimestamp(response)!).toLocaleString()
             : "-",
           responseStatuses[response.id] || "-",
+          response.answers?.chassis_number || "-",
         ];
 
         columnInfo.forEach(({ questionId }) => {
@@ -7179,9 +7165,23 @@ const fetchChatHistory = async (responseId: string) => {
           },
         };
 
+        // Style Chassis Number column
+        const chassisCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 2 });
+        ws[chassisCellRef].s = {
+          fill: { fgColor: { rgb: "FFF9FAFB" } },
+          font: { bold: false },
+          alignment: { horizontal: "left", vertical: "center" },
+          border: {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          },
+        };
+
         // Style Question columns
         for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 2 });
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 3 });
           const info = columnInfo[colIdx];
           const answer = response.answers?.[info.questionId];
 
@@ -7235,6 +7235,7 @@ const fetchChatHistory = async (responseId: string) => {
       ws["!cols"] = [
         { wch: 22 }, // Timestamp
         { wch: 15 }, // Status
+        { wch: 18 }, // Chassis Number
         ...columnInfo.map(() => ({ wch: 35 })),
       ];
 
@@ -9207,6 +9208,9 @@ const fetchChatHistory = async (responseId: string) => {
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
                               Status
                             </th>
+                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
+                              Selected Chassis
+                            </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
                               Review
                             </th>
@@ -9376,7 +9380,7 @@ const fetchChatHistory = async (responseId: string) => {
                                       }
 
                                       // Show enabled state for all users once dispatch is enabled
-                                      if (dispatchEnabled[response.id]) {
+                                      if (response.isDispatched) {
                                         return (
                                           <div className="flex items-center justify-center">
                                             <input
@@ -9392,20 +9396,22 @@ const fetchChatHistory = async (responseId: string) => {
                                       }
 
                                       // Only show interactive checkbox for the submitter
-                                      if (!isSubmitter) {
-                                        return <span className="text-gray-400 text-xs">Not available</span>;
-                                      }
-
                                       return (
                                         <input
                                           type="checkbox"
                                           checked={false}
-                                          onChange={(e) => {
-                                            if (e.target.checked && !dispatchEnabled[response.id]) {
-                                              setDispatchEnabled(prev => ({
-                                                ...prev,
-                                                [response.id]: true
-                                              }));
+                                          onChange={async (e) => {
+                                            if (e.target.checked && !response.isDispatched) {
+                                              try {
+                                                await apiClient.updateResponse(response.id, { isDispatched: true });
+                                                // Update local state to reflect change immediately
+                                                setResponses(prev => prev.map(r => 
+                                                  r.id === response.id ? { ...r, isDispatched: true, dispatchedAt: new Date().toISOString() } : r
+                                                ));
+                                              } catch (error) {
+                                                console.error('Failed to enable dispatch:', error);
+                                                alert('Failed to enable dispatch. Please try again.');
+                                              }
                                             }
                                           }}
                                           className="w-4 h-4 text-green-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-green-600"
@@ -9483,7 +9489,7 @@ const fetchChatHistory = async (responseId: string) => {
                                               >
                                                 <Eye className="w-4 h-4" />
                                               </button>
-                                              {dispatchEnabled[response.id] && (
+                                              {response.isDispatched && (
                                                 <button
                                                   type="button"
                                                   onClick={(e) => {
@@ -9532,6 +9538,9 @@ const fetchChatHistory = async (responseId: string) => {
                                     >
                                       {responseStatuses[response.id] || "-"}
                                     </span>
+                                  </td>
+                                  <td className="px-6 py-3 text-sm text-gray-900 dark:text-white font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
+                                    {response.answers?.chassis_number || "-"}
                                   </td>
                                   <td className="px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
                                     {(response as any).review ? (
@@ -10813,7 +10822,9 @@ const fetchChatHistory = async (responseId: string) => {
                             Select Questions to Flag
                           </label>
                           <div className="max-h-[400px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl shadow-inner scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 bg-white dark:bg-gray-800">
-                            {form?.sections?.flatMap(s => s.questions || []).map(q => (
+                            {form?.sections?.flatMap(s => 
+  (s.questions || []).filter((q: any) => !q.parentId && !q.showWhen?.questionId)
+).map(q => (
                               <div key={q.id} className="border-b border-gray-100 dark:border-gray-700 last:border-0">
                                 <div className="flex items-start gap-3 p-3 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 cursor-default transition-colors group">
                                   <label className="mt-1 cursor-pointer">

@@ -1084,6 +1084,7 @@ export default function DashboardNew() {
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Tenant Name</th>
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Date</th>
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Shift</th>
+              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Form Title</th>
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">QC Inspector</th>
               <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Inspection</th>
               {/* Dynamic Status Columns */}
@@ -1105,7 +1106,50 @@ export default function DashboardNew() {
               <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                 <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.tenantName}</td>
                 <td className="px-4 py-4">{row.date}</td>
-                <td className="px-4 py-4">{row.shift}</td>
+                <td className="px-4 py-4">
+                  {(() => {
+                    // Calculate shift based on the date/time if available
+                    // For now, using the existing shift data, but could be enhanced to calculate from timestamp
+                    if (row.shift) {
+                      return row.shift;
+                    }
+                    // If no shift data, try to calculate from date if it has time component
+                    if (row.date && row.date.includes('T')) {
+                      const dateTime = new Date(row.date);
+                      const hour = dateTime.getHours();
+                      const minute = dateTime.getMinutes();
+                      const timeInMinutes = hour * 60 + minute;
+
+                      // Define shifts
+                      const shifts = [
+                        { name: "Morning Shift", start: 9 * 60, end: 17 * 60 }, // 09:00 - 17:00
+                        { name: "Evening Shift", start: 17 * 60, end: 25 * 60 }, // 17:00 - 01:00
+                        { name: "Night Shift", start: 1 * 60, end: 9 * 60 }, // 01:00 - 09:00
+                      ];
+
+                      const matchingShift = shifts.find(shift => {
+                        if (shift.start < shift.end) {
+                          // Same day shift
+                          return timeInMinutes >= shift.start && timeInMinutes < shift.end;
+                        } else {
+                          // Overnight shift
+                          return timeInMinutes >= shift.start || timeInMinutes < shift.end;
+                        }
+                      });
+
+                      if (matchingShift) {
+                        const startHour = Math.floor(matchingShift.start / 60);
+                        const startMin = matchingShift.start % 60;
+                        const endHour = Math.floor(matchingShift.end / 60) % 24;
+                        const endMin = matchingShift.end % 60;
+                        return `${matchingShift.name} (${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')} - ${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')})`;
+                      }
+                    }
+
+                    return "No Shift Assigned";
+                  })()}
+                </td>
+                <td className="px-4 py-4">{row.formTitle || "N/A"}</td>
                 <td className="px-4 py-4">{row.qcInspector}</td>
                 <td className="px-4 py-4 font-bold">{row.totalInspection}</td>
                 {/* Dynamic Status Cells */}

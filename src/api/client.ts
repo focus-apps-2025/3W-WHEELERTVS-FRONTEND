@@ -52,10 +52,6 @@ class ApiClient {
     this.token = localStorage.getItem("auth_token");
   }
 
-  public getBaseUrl() {
-    return this.baseUrl;
-  }
-
   setToken(token: string) {
     this.token = token;
     localStorage.setItem("auth_token", token);
@@ -68,7 +64,7 @@ class ApiClient {
 
   public async request<T>(
     endpoint: string,
-    options: RequestInit & { timeout?: number } = {},
+    options: RequestInit = {},
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
@@ -88,7 +84,7 @@ class ApiClient {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), options.timeout || 30000);
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
     const config: RequestInit = {
       ...options,
@@ -229,21 +225,6 @@ class ApiClient {
 
     this.setToken(data.token);
     return data;
-  }
-
-  async signup(signupData: {
-    name: string;
-    slug: string;
-    companyName: string;
-    adminEmail: string;
-    adminPassword: string;
-    adminFirstName: string;
-    adminLastName: string;
-  }) {
-    return this.request<{ tenant: any }>("/auth/signup", {
-      method: "POST",
-      body: JSON.stringify(signupData),
-    });
   }
 
   async logout(sessionLogId?: string) {
@@ -795,15 +776,15 @@ class ApiClient {
   }
 
   async getPerformanceTable(params?: { startDate?: string; endDate?: string }) {
-    const query = new URLSearchParams();
-    if (params?.startDate) query.set("startDate", params.startDate);
-    if (params?.endDate) query.set("endDate", params.endDate);
-    const endpoint = `/analytics/performance-table${query.toString() ? `?${query.toString()}` : ""}`;
-    return this.get<any>(endpoint);
-  }
-
-  async getPerformanceScores() {
-    return this.get<any>("/users/performance-scores");
+    let url = "/analytics/performance-table";
+    if (params) {
+      const searchParams = new URLSearchParams();
+      if (params.startDate) searchParams.append("startDate", params.startDate);
+      if (params.endDate) searchParams.append("endDate", params.endDate);
+      const query = searchParams.toString();
+      if (query) url += `?${query}`;
+    }
+    return this.get<any[]>(url);
   }
 
   // ── Form Session Tracking ─────────────────────────────────────────────────
@@ -1349,26 +1330,18 @@ class ApiClient {
       return this.ensureAbsoluteFileUrl(uploadResult.location);
     }
 
-    if (uploadResult.path) {
-      return this.getFileUrl(uploadResult.path);
-    }
-
-    if (uploadResult.filename) {
-      return this.getFileUrl(uploadResult.filename);
-    }
-
-    if (uploadResult.file?.url) {
+    if (uploadResult.file && uploadResult.file.url) {
+      console.log(
+        "[resolveUploadedFileUrl] Using file.url:",
+        uploadResult.file.url,
+      );
       return this.ensureAbsoluteFileUrl(uploadResult.file.url);
     }
 
-    if (uploadResult.file?.filename) {
-      return this.getFileUrl(uploadResult.file.filename);
-    }
-
-    if (uploadResult.key) {
-      return this.getFileUrl(uploadResult.key);
-    }
-
+    console.warn(
+      "[resolveUploadedFileUrl] No URL found in result:",
+      uploadResult,
+    );
     return "";
   }
 
@@ -1470,7 +1443,7 @@ class ApiClient {
   }
 
   async getOfficeLocation() {
-    return this.request<{ lat: number; lng: number; radius: number }>(
+    return this.get<{ lat: number; lng: number; radius: number }>(
       "/tenants/office-location",
     );
   }
@@ -1484,10 +1457,16 @@ class ApiClient {
     lng: number;
     radius: number;
   }) {
-    return this.request<{ success: boolean }>("/tenants/office-location", {
+    console.log("API Client: Updating office location", data);
+    const result = await this.request<{ success: boolean }>(
+      "/tenants/office-location",
+      {
         method: "PUT",
         body: JSON.stringify(data),
-    });
+      },
+    );
+    console.log("API Client: Update office location result", result);
+    return { success: true, data: result };
   }
 
   async toggleTenantStatus(tenantId: string) {
@@ -2426,27 +2405,6 @@ class ApiClient {
       }>;
     }>;
   }
-
-  
-  async getAutoSendConfig(formId: string) {
-    return this.request<{ success: boolean; data: any }>(
-      `/forms/${formId}/autosend/config`,
-    );
-  }
-
-  async getAutoSendHistory(formId: string, page: number = 1, limit: number = 20) {
-    return this.request<{
-      success: boolean;
-      data: {
-        history: any[];
-        pagination: any;
-      };
-    }>(`/forms/${formId}/autosend/history?page=${page}&limit=${limit}`);
-  }
-
-
-  
-
 }
 
 // Create and export a singleton instance

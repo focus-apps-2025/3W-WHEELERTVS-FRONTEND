@@ -42,7 +42,7 @@ export default function SettingsProfile({ onClose }: SettingsProfileProps) {
           setOfficeLocation({
             lat: data.lat?.toString() || '',
             lng: data.lng?.toString() || '',
-            radius: data.radius || 5,
+            radius: data.radius || 500,
           });
           setCurrentOfficeLocation(data);
         }
