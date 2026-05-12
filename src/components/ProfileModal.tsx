@@ -19,6 +19,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [officeLocation, setOfficeLocation] = useState({ lat: '', lng: '', radius: 500 });
   const [isTenantAdmin, setIsTenantAdmin] = useState(false);
+  const [hasFetchedLocation, setHasFetchedLocation] = useState(false);
   const [formData, setFormData] = useState({
     firstName: user?.firstName || "",
     lastName: user?.lastName || "",
@@ -44,7 +45,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
       setIsTenantAdmin(['admin', 'superadmin', 'subadmin'].includes(role));
       
       // Fetch office location if tenant admin
-      if (['admin', 'superadmin', 'subadmin'].includes(role)) {
+      if (['admin', 'superadmin', 'subadmin'].includes(role) && isOpen && !hasFetchedLocation) {
         const fetchLocation = async () => {
           try {
             const response = await apiClient.getOfficeLocation();
@@ -54,6 +55,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 lng: response.data.lng?.toString() || '',
                 radius: response.data.radius || 500,
               });
+              setHasFetchedLocation(true);
             }
           } catch (error) {
             console.error('Error fetching office location:', error);
@@ -62,7 +64,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         fetchLocation();
       }
     }
-  }, [user, isOpen]);
+  }, [user, isOpen, hasFetchedLocation]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;

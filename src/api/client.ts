@@ -62,6 +62,10 @@ class ApiClient {
     localStorage.removeItem("auth_token");
   }
 
+  public getBaseUrl() {
+    return this.baseUrl;
+  }
+
   public async request<T>(
     endpoint: string,
     options: RequestInit = {},
@@ -227,6 +231,21 @@ class ApiClient {
     return data;
   }
 
+  async signup(signupData: {
+    name: string;
+    slug: string;
+    companyName: string;
+    adminEmail: string;
+    adminPassword: string;
+    adminFirstName: string;
+    adminLastName: string;
+  }) {
+    return this.request<{ tenant: any; admin: any }>("/auth/signup", {
+      method: "POST",
+      body: JSON.stringify(signupData),
+    });
+  }
+
   async logout(sessionLogId?: string) {
     try {
       await this.request("/auth/logout", {
@@ -251,6 +270,54 @@ class ApiClient {
     return this.request("/auth/change-password", {
       method: "PUT",
       body: JSON.stringify(passwords),
+    });
+  }
+
+  // Forgot Password - Step 1: Request OTP via email (triggers SMS to registered mobile)
+  async forgotPassword(email: string) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      data?: any;
+    }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email: email.toLowerCase().trim() }),
+    });
+  }
+
+  // Forgot Password - Resend OTP
+  async resendForgotOtp(email: string) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      data?: any;
+    }>("/auth/resend-otp", {
+      method: "POST",
+      body: JSON.stringify({ email: email.toLowerCase().trim() }),
+    });
+  }
+
+  // Forgot Password - Step 2: Verify OTP
+  async verifyForgotOtp(email: string, otp: string) {
+    return this.request<{
+      success: boolean;
+      message: string;
+      verificationId?: string;
+      data?: { verificationId?: string };
+    }>("/auth/verify-forgot-otp", {
+      method: "POST",
+      body: JSON.stringify({ email: email.toLowerCase().trim(), otp }),
+    });
+  }
+
+  // Forgot Password - Step 3: Reset password
+  async resetPassword(email: string, verificationId: string, newPassword: string) {
+    return this.request<{
+      success: boolean;
+      message: string;
+    }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email: email.toLowerCase().trim(), verificationId, newPassword }),
     });
   }
 
@@ -571,6 +638,20 @@ class ApiClient {
     return this.request<{ form: any }>(`/forms/${id}/duplicate`, {
       method: "POST",
     });
+  }
+
+  async getAutoSendConfig(formId: string) {
+    return this.get<any>(`/forms/${formId}/autosend/config`);
+  }
+
+  async updateAutoSendConfig(formId: string, config: any) {
+    return this.put<any>(`/forms/${formId}/autosend/config`, {
+      autoSendConfig: config,
+    });
+  }
+
+  async getAutoSendHistory(formId: string, page: number = 1) {
+    return this.get<any>(`/forms/${formId}/autosend/history?page=${page}`);
   }
 
   // Child Form Management (Parent-Child Relationships)
@@ -1574,7 +1655,7 @@ class ApiClient {
   async generatePDF(options: {
     htmlContent: string;
     filename?: string;
-    format?: "custom" | "a4";
+    format?: "custom" | "a4" | "a4-portrait";
     compressed?: boolean;
   }): Promise<Blob> {
     const url = `${this.baseUrl}/pdf/generate`;
@@ -2311,15 +2392,16 @@ class ApiClient {
     });
   }
 
-  async verifyAnalyticsOTP(formId: string, email: string, otp: string) {
+  async verifyAnalyticsOTP(formId: string, email: string | null, phone: string | null, otp: string) {
     return this.request<{
       token: string;
-      email: string;
+      email?: string;
+      phone?: string;
       formId: string;
       expiresAt: string;
     }>("/analytics-invites/verify-otp", {
       method: "POST",
-      body: JSON.stringify({ formId, email, otp }),
+      body: JSON.stringify({ formId, email, phone, otp }),
     });
   }
 

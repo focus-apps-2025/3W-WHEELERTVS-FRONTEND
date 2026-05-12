@@ -20,7 +20,16 @@ export default function GuestAnalyticsLogin() {
 
   const handleRequestOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id || !email) return;
+    if (!id) return;
+    if (!email && !phone) {
+      setError("Please enter either an email address or a phone number");
+      return;
+    }
+
+    if (channel === 'sms' && !phone) {
+      setError("Phone number is required for SMS verification");
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -32,7 +41,7 @@ export default function GuestAnalyticsLogin() {
       const successMsg = response?.message || `Verification code sent to your ${channel === 'sms' ? 'phone' : 'email'}`;
       setSuccess(successMsg);
     } catch (err: any) {
-      setError(err.message || "Email not found or access denied");
+      setError(err.message || "Access denied. Please check your credentials.");
     } finally {
       setIsLoading(false);
     }
@@ -40,13 +49,14 @@ export default function GuestAnalyticsLogin() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id || !email || !otp) return;
+    if (!id || !otp) return;
+    if (!email && !phone) return;
 
     setIsLoading(true);
     setError(null);
     
     try {
-      const response = await apiClient.verifyAnalyticsOTP(id, email, otp);
+      const response = await apiClient.verifyAnalyticsOTP(id, email || null, phone || null, otp);
       
       // Clear any existing regular user session from state and storage
       logout();
@@ -119,11 +129,10 @@ export default function GuestAnalyticsLogin() {
                 </div>
                 <input
                   type="email"
-                  required
                   disabled={step === "otp" || isLoading}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@company.com"
+                  placeholder="name@company.com (Required if no phone)"
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800 border-none rounded-2xl focus:ring-2 focus:ring-primary-600 dark:text-white transition-all font-medium disabled:opacity-70"
                 />
               </div>
@@ -139,11 +148,10 @@ export default function GuestAnalyticsLogin() {
                 </div>
                 <input
                   type="tel"
-                  required
                   disabled={step === "otp" || isLoading}
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 9876543210"
+                  placeholder="e.g. 9876543210 (Required if no email)"
                   className="w-full pl-12 pr-4 py-4 bg-gray-50 dark:bg-gray-800 border-none rounded-2xl focus:ring-2 focus:ring-primary-600 dark:text-white transition-all font-medium disabled:opacity-70"
                 />
               </div>

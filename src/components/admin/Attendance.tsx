@@ -153,35 +153,56 @@ export default function Attendance() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [userAttendance, setUserAttendance] = useState<UserAttendance[]>([]);
-  const [currentDate, setCurrentDate] = useState(new Date());
-  const [exporting, setExporting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-
-  const year = currentDate.getFullYear();
-  const month = currentDate.getMonth() + 1;
-  const monthDetails = getMonthDetails(year, month);
-  const datesInMonth = useMemo(
-    () => getDatesInMonth(year, month),
-    [year, month],
-  );
-
   const [hideSuperadmin, setHideSuperadmin] = useState(true);
-
-  // Show all dates of the selected month for the UI
-  const visibleDates = useMemo(() => {
-    return datesInMonth;
-  }, [datesInMonth]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const currentMonth = currentDate.getMonth();
+  const currentYear = currentDate.getFullYear();
+  const year = currentYear;
+  const month = currentMonth + 1;
 
   const startDate = useMemo(() => {
-    return new Date(year, month - 1, 1).toISOString().split("T")[0];
-  }, [year, month]);
+    return `${year}-${String(month).padStart(2, '0')}-01`;
+  }, [currentMonth, currentYear]);
 
   const endDate = useMemo(() => {
-    return new Date(year, month, 0).toISOString().split("T")[0];
-  }, [year, month]);
+    const lastDay = new Date(year, month, 0).getDate();
+    return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+  }, [currentMonth, currentYear]);
+
+  // Generate month details for headings and export filename
+  const monthDetails = useMemo(() => {
+    const firstDay = new Date(year, currentMonth, 1);
+    return {
+      monthName: firstDay.toLocaleString("default", { month: "long" }),
+      year: year,
+    };
+  }, [currentMonth, year]);
+
+  // Compute dates to display for current month
+  const visibleDates = useMemo(() => {
+    const dates = [];
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let d = 1; d <= daysInMonth; d++) {
+      const date = new Date(year, currentMonth, d);
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      dates.push({
+        date,
+        dateString: dateStr,
+        day: d,
+        dayOfWeek: date.toLocaleDateString("en-US", { weekday: "short" }),
+        isWeekend: date.getDay() === 0 || date.getDay() === 6,
+        isToday: date.toDateString() === today.toDateString(),
+        isFuture: date > today,
+      });
+    }
+    return dates;
+  }, [year, currentMonth, month]);
 
   // Fetch attendance data using HR report endpoint
   useEffect(() => {

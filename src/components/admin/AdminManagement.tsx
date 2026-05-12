@@ -40,10 +40,11 @@ interface SubAdmin {
   lastName: string;
   email: string;
   username: string;
+  mobile?: string; // Add mobile field
   role: string;
   permissions: string[];
   isActive: boolean;
-  createdBy?: string; // Add this to track who created the admin
+  createdBy?: string;
   createdByRole?: string;
 }
 
@@ -504,6 +505,7 @@ export default function AdminManagement() {
       email: admin.email,
       username: admin.username,
       password: "",
+      mobile: admin.mobile || "",
       role: admin.role === "inspector" ? "inspector" : "subadmin",
       permissions: new Set(admin.permissions || []),
       accessType: (admin as any).accessType || "both",
@@ -552,6 +554,7 @@ export default function AdminManagement() {
         lastName: string;
         email: string;
         username: string;
+        mobile: string;
         role: string;
         permissions: string[];
         password?: string;
@@ -560,6 +563,7 @@ export default function AdminManagement() {
         lastName: editingForm.lastName.trim(),
         email: editingForm.email.trim(),
         username: editingForm.username.trim(),
+        mobile: editingForm.mobile.trim(),
         role: editingForm.role,
         permissions: Array.from(editingForm.permissions),
         accessType:
@@ -581,6 +585,7 @@ export default function AdminManagement() {
                 lastName: editingForm.lastName,
                 email: editingForm.email,
                 username: editingForm.username,
+                mobile: editingForm.mobile,
                 role: editingForm.role,
                 permissions: Array.from(editingForm.permissions),
               }
@@ -888,10 +893,10 @@ export default function AdminManagement() {
                 {/* Add Admin Modal */}
                 {showAddAdminModal && (
                   <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-0.5 z-50 overflow-y-auto">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-8">
-                      <div className="sticky top-0 bg-primary-600 px-6 py-4 flex items-center justify-between ">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-8 ">
+                      <div className="sticky top-0 bg-primary-600 px-6 py-4 flex items-center justify-between rounded-2xl ">
                         <h2 className="text-2xl font-bold text-white">
-                          Add New Administrator
+                          Add New User
                         </h2>
                         <button
                           onClick={() => {
@@ -1466,7 +1471,7 @@ export default function AdminManagement() {
                     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-8">
                       <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6 flex items-center justify-between rounded-t-2xl">
                         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-                          Edit Administrator
+                          Edit User
                         </h2>
                         <button
                           onClick={handleCancelEdit}
@@ -1528,6 +1533,23 @@ export default function AdminManagement() {
                               required
                               placeholder="Username"
                               className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                            Mobile Number
+                          </label>
+                          <div className="relative">
+                            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              name="mobile"
+                              type="tel"
+                              value={editingForm.mobile}
+                              onChange={handleEditInputChange}
+                              placeholder="Enter mobile number"
+                              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-sm"
                             />
                           </div>
                         </div>

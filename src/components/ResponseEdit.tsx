@@ -42,7 +42,7 @@ export default function ResponseEdit({
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4">
         <div className="sticky top-0 bg-white dark:bg-gray-800 border-b dark:border-gray-700 px-6 py-4 flex justify-between items-center">
           <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Edit Response
+            Edit Response 
           </h3>
           <div className="flex items-center space-x-3">
             <button

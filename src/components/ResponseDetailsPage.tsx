@@ -273,7 +273,7 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
   }, [form]);
 
   const complianceLabels = useMemo(() => {
-    const defaultLabels = { yes: "Yes", no: "No", na: "N/A" };
+    const defaultLabels = { yes: "Yes", no: "No", na: "N/A", correct: "Correct", wrong: "Wrong" };
     let labels = { ...defaultLabels };
 
     // Check if any question in the form is a zone/chassis type
@@ -290,7 +290,18 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
     );
 
     if (hasSpecialTypes) {
-      return { yes: "Accepted", no: "Rejected", na: "Rework" };
+      return { yes: "Accepted", no: "Rejected", na: "Rework", correct: "Accepted", wrong: "Rejected" };
+    }
+
+    // Check if form is a quiz/accuracy type
+    const hasAccuracyQuestions = form?.sections?.some((s: any) =>
+      s.questions?.some((q: any) =>
+        !["yesNoNA", "chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"].includes(q.type)
+      )
+    );
+
+    if (hasAccuracyQuestions && !form?.sections?.some((s: any) => s.questions?.some((q: any) => q.type === "yesNoNA"))) {
+      return { yes: "Correct", no: "Wrong", na: "N/A", correct: "Correct", wrong: "Wrong" };
     }
 
     if (form?.sections) {
@@ -309,7 +320,9 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
                 return {
                   yes: q.options[0] || "Yes",
                   no: q.options[1] || "No",
-                  na: q.options[2] || "N/A"
+                  na: q.options[2] || "N/A",
+                  correct: q.options[0] || "Correct",
+                  wrong: q.options[1] || "Wrong"
                 };
               }
               
@@ -318,6 +331,8 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
                 labels.yes = q.options[0] || "Yes";
                 labels.no = q.options[1] || "No";
                 labels.na = q.options[2] || "N/A";
+                labels.correct = q.options[0] || "Correct";
+                labels.wrong = q.options[1] || "Wrong";
               }
             }
           }
@@ -1577,7 +1592,7 @@ const handleBulkDownloadZip = async () => {
 
     const datasets = [
       {
-        label: "Correct",
+        label: complianceLabels.correct,
         data: filteredSectionStats.map((stat) =>
           calculatePercentage(stat.correct, stat.total)
         ),
@@ -1592,7 +1607,7 @@ const handleBulkDownloadZip = async () => {
         tension: 0.4,
       },
       {
-        label: "Wrong",
+        label: complianceLabels.wrong,
         data: filteredSectionStats.map((stat) =>
           calculatePercentage(stat.wrong, stat.total)
         ),
@@ -2055,7 +2070,7 @@ const handleBulkDownloadZip = async () => {
     <div className="absolute top-full mt-2 right-0 w-56 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
       <div className="py-1">
         <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-          Response Types
+          {complianceLabels.yes === "Accepted" ? "Compliance Status" : "Response Types"}
         </div>
                 <button
           onClick={(e) => {
@@ -2066,7 +2081,7 @@ const handleBulkDownloadZip = async () => {
           className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors duration-150"
                 >
           <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
-          <span>Yes Responses (Type 1)</span>
+          <span>{complianceLabels.yes} Responses (Type 1)</span>
                 </button>
                 <button
           onClick={(e) => {
@@ -2077,7 +2092,7 @@ const handleBulkDownloadZip = async () => {
           className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
                 >
           <XCircle className="w-4 h-4 text-red-600 dark:text-red-400 mr-2 flex-shrink-0" />
-          <span>No Responses (Type 2)</span>
+          <span>{complianceLabels.no} Responses (Type 2)</span>
                 </button>
                 <button
           onClick={(e) => {
@@ -2088,7 +2103,7 @@ const handleBulkDownloadZip = async () => {
           className="flex items-center w-full px-3 py-2 text-left text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors duration-150"
         >
           <AlertTriangle className="w-4 h-4 text-yellow-600 dark:text-yellow-400 mr-2 flex-shrink-0" />
-          <span>N/A Responses (Type 3)</span>
+          <span>{complianceLabels.na} Responses (Type 3)</span>
                 </button>
         <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
             <button
@@ -2271,14 +2286,14 @@ const handleBulkDownloadZip = async () => {
                                   </p>
                                   <div className="grid grid-cols-2 gap-2">
                                     <div className="flex items-center justify-between p-1.5 bg-emerald-100/50 dark:bg-emerald-900/20 rounded border border-emerald-200 dark:border-emerald-800/40">
-                                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">{complianceLabels.yes === "Accepted" ? "Accepted" : "Correct"}</span>
+                                      <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">{complianceLabels.correct}</span>
                                       <div className="text-right">
                                         <p className="text-xs font-bold text-emerald-800 dark:text-emerald-200 leading-none">{totalCorrect}</p>
                                         <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold">{correctPercent}%</p>
                                       </div>
                                     </div>
                                     <div className="flex items-center justify-between p-1.5 bg-rose-100/50 dark:bg-rose-900/20 rounded border border-rose-200 dark:border-rose-800/40">
-                                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase">{complianceLabels.yes === "Accepted" ? "Rejected" : "Wrong"}</span>
+                                      <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase">{complianceLabels.wrong}</span>
                                       <div className="text-right">
                                         <p className="text-xs font-bold text-rose-800 dark:text-rose-200 leading-none">{totalWrong}</p>
                                         <p className="text-[9px] text-rose-600 dark:text-rose-400 font-bold">{wrongPercent}%</p>
@@ -2484,10 +2499,10 @@ const handleBulkDownloadZip = async () => {
                         {summaryTotals.hasAnyQuiz && (
                           <>
                             <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24 text-green-600 dark:text-green-400">
-                              Correct
+                              {complianceLabels.correct}
                             </th>
                             <th className="px-6 py-5 text-left font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wider min-w-24 text-red-600 dark:text-red-400">
-                              Wrong
+                              {complianceLabels.wrong}
                             </th>
                           </>
                         )}
@@ -2599,13 +2614,13 @@ const handleBulkDownloadZip = async () => {
                         {summaryTotals.correct > 0 && (
                           <div className="flex items-center space-x-0.5">
                             <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                            <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">Correct</span>
+                            <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">{complianceLabels.correct}</span>
                           </div>
                         )}
                         {summaryTotals.wrong > 0 && summaryTotals.correct > 0 && (
                           <div className="flex items-center space-x-0.5">
                             <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                            <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">Wrong</span>
+                            <span className="text-[8px] font-medium text-gray-700 dark:text-gray-300">{complianceLabels.wrong}</span>
                           </div>
                         )}
                         <div className="flex items-center space-x-0.5">
@@ -2694,7 +2709,7 @@ const handleBulkDownloadZip = async () => {
                 const colors: string[] = [];
 
                 if (hasYesNo && hasQuiz && sectionTotals.correct > 0) {
-                  labels.push("Correct", "Wrong", complianceLabels.yes, complianceLabels.no);
+                  labels.push(complianceLabels.correct, complianceLabels.wrong, complianceLabels.yes, complianceLabels.no);
                   data.push(sectionTotals.correct, sectionTotals.wrong, sectionTotals.yes, sectionTotals.no);
                   colors.push("#10b981", "#ef4444", "#1e40af", "#3b82f6");
                   if (sectionTotals.na > 0) {
@@ -2712,7 +2727,7 @@ const handleBulkDownloadZip = async () => {
                     colors.push("#93c5fd");
                   }
                 } else {
-                  labels.push("Correct", "Wrong");
+                  labels.push(complianceLabels.correct, complianceLabels.wrong);
                   data.push(sectionTotals.correct, sectionTotals.wrong);
                   colors.push("#16a34a", "#dc2626");
                   if (sectionTotals.na > 0) {
@@ -2812,7 +2827,7 @@ const handleBulkDownloadZip = async () => {
                                 ),
                                 datasets: [
                                   {
-                                    label: "Correct",
+                                    label: complianceLabels.correct,
                                     data: questionStats.map((stat) => stat.correct),
                                     backgroundColor: "#10b981",
                                     borderColor: "#10b981",
@@ -2820,7 +2835,7 @@ const handleBulkDownloadZip = async () => {
                                     hidden: !hasQuiz,
                                   },
                                   {
-                                    label: "Wrong",
+                                    label: complianceLabels.wrong,
                                     data: questionStats.map((stat) => stat.wrong),
                                     backgroundColor: "#ef4444",
                                     borderColor: "#ef4444",
@@ -2958,10 +2973,10 @@ const handleBulkDownloadZip = async () => {
                                     Parameter
                                   </th>
                                   <th className="px-3 py-2 text-center font-semibold text-green-700 dark:text-green-400 uppercase tracking-wider w-[30%]">
-                                    {complianceLabels.yes === "Accepted" ? "Accepted" : "Correct"}
+                                    {complianceLabels.correct}
                                   </th>
                                   <th className="px-3 py-2 text-center font-semibold text-red-600 dark:text-red-400 uppercase tracking-wider w-[30%]">
-                                    {complianceLabels.yes === "Accepted" ? "Rejected" : "Wrong"}
+                                    {complianceLabels.wrong}
                                   </th>
                                 </tr>
                               </thead>
@@ -4145,7 +4160,7 @@ const handleBulkDownloadZip = async () => {
                 };
 
                 const chartData = {
-                  labels: ["Correct", "Wrong", complianceLabels.yes, complianceLabels.no, complianceLabels.na],
+                  labels: [complianceLabels.correct, complianceLabels.wrong, complianceLabels.yes, complianceLabels.no, complianceLabels.na],
                   datasets: [
                     {
                       data: [sectionTotals.correct, sectionTotals.wrong, sectionTotals.yes, sectionTotals.no, sectionTotals.na],
@@ -4185,14 +4200,14 @@ const handleBulkDownloadZip = async () => {
                             ),
                             datasets: [
                               {
-                                label: "Correct",
+                                label: complianceLabels.correct,
                                 data: questionStats.map((stat) => stat.correct),
                                 backgroundColor: "#059669",
                                 borderColor: "#059669",
                                 borderWidth: 1,
                               },
                               {
-                                label: "Wrong",
+                                label: complianceLabels.wrong,
                                 data: questionStats.map((stat) => stat.wrong),
                                 backgroundColor: "#dc2626",
                                 borderColor: "#dc2626",

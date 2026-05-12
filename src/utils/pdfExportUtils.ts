@@ -72,6 +72,106 @@ function extractYesNoValues(value: any): string[] {
   return [];
 }
 
+function getComplianceLabels(form: any) {
+  const defaultLabels = {
+    yes: "Yes",
+    no: "No",
+    na: "N/A",
+    correct: "Correct",
+    wrong: "Wrong",
+  };
+  let labels = { ...defaultLabels };
+
+  if (!form) return labels;
+
+  // Check if any question in the form is a zone/chassis type
+  const hasSpecialTypes = form.sections?.some((s: any) =>
+    s.questions?.some((q: any) =>
+      [
+        "chassis-with-zone",
+        "zone-in",
+        "zone-out",
+        "chassis-without-zone",
+        "chassisNumber",
+      ].includes(q.type),
+    ),
+  );
+
+  if (hasSpecialTypes) {
+    return {
+      yes: "Accepted",
+      no: "Rejected",
+      na: "Rework",
+      correct: "Accepted",
+      wrong: "Rejected",
+    };
+  }
+
+  // Check if form is a quiz/accuracy type
+  const hasAccuracyQuestions = form.sections?.some((s: any) =>
+    s.questions?.some(
+      (q: any) =>
+        ![
+          "yesNoNA",
+          "chassisNumber",
+          "chassis-with-zone",
+          "chassis-without-zone",
+          "zone-in",
+          "zone-out",
+        ].includes(q.type),
+    ),
+  );
+
+  if (
+    hasAccuracyQuestions &&
+    !form.sections?.some((s: any) =>
+      s.questions?.some((q: any) => q.type === "yesNoNA"),
+    )
+  ) {
+    return {
+      yes: "Correct",
+      no: "Wrong",
+      na: "N/A",
+      correct: "Correct",
+      wrong: "Wrong",
+    };
+  }
+
+  if (form.sections) {
+    for (const section of form.sections) {
+      if (section.questions) {
+        for (const q of section.questions) {
+          if (q.type === "yesNoNA" && q.options && q.options.length >= 2) {
+            const hasCustomLabels =
+              q.options[0] !== "Yes" ||
+              q.options[1] !== "No" ||
+              (q.options[2] && q.options[2] !== "N/A");
+
+            if (hasCustomLabels) {
+              return {
+                yes: q.options[0] || "Yes",
+                no: q.options[1] || "No",
+                na: q.options[2] || "N/A",
+                correct: q.options[0] || "Correct",
+                wrong: q.options[1] || "Wrong",
+              };
+            }
+
+            if (labels.yes === "Yes") {
+              labels.yes = q.options[0] || "Yes";
+              labels.no = q.options[1] || "No";
+              labels.na = q.options[2] || "N/A";
+              labels.correct = q.options[0] || "Correct";
+              labels.wrong = q.options[1] || "Wrong";
+            }
+          }
+        }
+      }
+    }
+  }
+  return labels;
+}
+
 const isImageUrl = (urlString: string): boolean => {
   if (!urlString || typeof urlString !== "string") return false;
   const url = urlString.toLowerCase().trim();
@@ -1940,6 +2040,8 @@ function generateResponseAnalysis(
     return "";
   }
 
+  const labels = getComplianceLabels(form);
+
   // Build nested structure from flat data
   const nestedForm = buildNestedFormForAnalysis(availableSections);
   const sectionsToUse = nestedForm.sections || [];
@@ -2088,13 +2190,18 @@ function generateResponseAnalysis(
         question.instruction ||
         "";
 
+      let responseLabel = "";
+      if (responseType === "yes") responseLabel = labels.yes;
+      else if (responseType === "no") responseLabel = labels.no;
+      else if (responseType === "na") responseLabel = labels.na;
+
       responses.push({
         sectionId: section.id,
         sectionTitle: section.title || section.name || "Unknown Section",
         questionId: question.id,
         questionNumber: questionNumber,
         questionText: question.text,
-        response: responseType.toUpperCase(),
+        response: responseLabel.toUpperCase(),
         followUpQuestions: followUps,
         suggestion: suggestion,
         recommendation: question.recommendation || question.actionItem,
@@ -2921,6 +3028,76 @@ function generatePieChartSVG(
     `;
 }
 
+function generateGaugeSVG(score: number): string {
+  const size = 180;
+  const radius = 70;
+  const strokeWidth = 20;
+  const centerX = size / 2;
+  const centerY = size / 2 + 20;
+  const circumference = Math.PI * radius; // Half circle
+
+  // Gauge sections (Red, Orange, Green)
+  const redEnd = 70; // 0-70%
+  const orangeEnd = 90; // 70-90%
+  const greenEnd = 100; // 90-100%
+
+  const redDash = (redEnd / 100) * circumference;
+  const orangeDash = ((orangeEnd - redEnd) / 100) * circumference;
+  const greenDash = ((greenEnd - orangeEnd) / 100) * circumference;
+
+  // Needle angle: 0 to 180 degrees
+  const needleAngle = (score / 100) * 180;
+
+  // Use the same path for all segments to ensure consistent layout
+  const fullPath = `M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`;
+
+  return `
+    <svg width="${size}" height="${size - 40}" viewBox="0 0 ${size} ${size - 40}" style="display: block; margin: 0 auto;">
+      <defs>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="2" />
+          <feOffset dx="1" dy="1" />
+          <feComponentTransfer><feFuncA type="linear" slope="0.3"/></feComponentTransfer>
+          <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- Background Track -->
+      <path d="${fullPath}" 
+            fill="none" stroke="#f1f5f9" stroke-width="${strokeWidth}" stroke-linecap="round" />
+      
+      <!-- Red Zone (0-70%) -->
+      <path d="${fullPath}" 
+            fill="none" stroke="#ef4444" stroke-width="${strokeWidth}" 
+            stroke-dasharray="${redDash} ${circumference}" />
+
+      <!-- Orange Zone (70-90%) -->
+      <path d="${fullPath}" 
+            fill="none" stroke="#f97316" stroke-width="${strokeWidth}" 
+            stroke-dasharray="${orangeDash} ${circumference}" stroke-dashoffset="-${redDash}" />
+
+      <!-- Green Zone (90-100%) -->
+      <path d="${fullPath}" 
+            fill="none" stroke="#22c55e" stroke-width="${strokeWidth}" 
+            stroke-dasharray="${greenDash} ${circumference}" stroke-dashoffset="-${redDash + orangeDash}" />
+
+      <!-- Needle -->
+      <g transform="rotate(${needleAngle} ${centerX} ${centerY})">
+        <line x1="${centerX}" y1="${centerY}" x2="${centerX - radius + 5}" y2="${centerY}" 
+              stroke="#334155" stroke-width="4" stroke-linecap="round" filter="url(#shadow)" />
+        <circle cx="${centerX}" cy="${centerY}" r="6" fill="#334155" />
+      </g>
+
+      <!-- Score Text inside Gauge -->
+      <text x="${centerX}" y="${centerY - 10}" text-anchor="middle" font-size="20" font-weight="800" fill="#1e293b">${score.toFixed(1)}%</text>
+
+      <!-- Labels -->
+      <text x="${centerX - radius}" y="${centerY + 15}" text-anchor="middle" font-size="10" fill="#64748b" font-weight="bold">0%</text>
+      <text x="${centerX + radius}" y="${centerY + 15}" text-anchor="middle" font-size="10" fill="#64748b" font-weight="bold">100%</text>
+    </svg>
+  `;
+}
+
 function generateFirstSectionContent(form: any, response: any): string {
   if (!form?.sections?.[0]) return "";
 
@@ -2938,17 +3115,15 @@ function generateFirstSectionContent(form: any, response: any): string {
   };
 
   let html = `
-    <div style="margin: -2px 0; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-      <!-- Table Header -->
-      <div style="padding: 8px 12px; background: #1e3a8a; text-align: center;">
-        <h2 style="font-size: 16px; font-weight: 700; color: white; margin: 0;">
+    <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #fff; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="padding: 10px; background: #334155; text-align: center; border-bottom: 2px solid #1e293b;">
+        <h2 style="font-size: 15px; font-weight: 700; color: #f8fafc; margin: 0; text-transform: uppercase; letter-spacing: 1px;">
           Basic Information
         </h2>
       </div>
 
-      <!-- Table Content -->
       <div style="padding: 0;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
   `;
 
   // Split questions into two columns
@@ -2956,96 +3131,43 @@ function generateFirstSectionContent(form: any, response: any): string {
   const leftColumnQuestions = questions.slice(0, midPoint);
   const rightColumnQuestions = questions.slice(midPoint);
 
-  // Determine the maximum number of rows needed
-  const maxRows = Math.max(
-    leftColumnQuestions.length,
-    rightColumnQuestions.length,
-  );
+  const maxRows = Math.max(leftColumnQuestions.length, rightColumnQuestions.length);
 
   for (let i = 0; i < maxRows; i++) {
     const leftQuestion = leftColumnQuestions[i];
     const rightQuestion = rightColumnQuestions[i];
 
-    html += `<tr style="border-bottom: ${
-      i < maxRows - 1 ? "1px solid #e5e7eb" : "none"
-    };">`;
+    html += `<tr style="border-bottom: 1px solid #f1f5f9;">`;
 
     // Left Column Cell
-    html += `<td style="padding: 8px 12px; border-right: 1px solid #e5e7eb; vertical-align: top; width: 50%;">`;
+    html += `<td style="padding: 10px 15px; border-right: 1px solid #f1f5f9; vertical-align: middle; width: 50%; background: ${i % 2 === 0 ? "#fff" : "#fcfcfc"};">`;
     if (leftQuestion) {
       const answer = response?.answers?.[leftQuestion.id];
       html += `
-        <div style="margin-bottom: 4px;">
-          <span style="font-weight: 600; color: #111827;">${
-            leftQuestion.text || leftQuestion.id
-          }</span>
-          <span style="color: #374151; margin-left: 4px;">${renderAnswerHTML(
-            answer,
-          )}</span>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">${leftQuestion.text || leftQuestion.id}</span>
+          <span style="color: #1e293b; font-weight: 600; text-align: right; margin-left: 10px;">${renderAnswerHTML(answer)}</span>
         </div>
       `;
-
-      // Follow-up questions for left column
-      if (leftQuestion.followUpQuestions) {
-        leftQuestion.followUpQuestions.forEach((followUp: any) => {
-          const followAnswer = response?.answers?.[followUp.id];
-          if (hasAnswerValue(followAnswer)) {
-            html += `
-              <div style="margin-top: 4px; padding-left: 8px; border-left: 2px solid #d1d5db;">
-                <span style="font-weight: 500; color: #475569; font-size: 11px;">${
-                  followUp.text || followUp.id
-                }</span>
-                <span style="color: #6b7280; font-size: 11px; margin-left: 4px;">${renderAnswerHTML(
-                  followAnswer,
-                )}</span>
-              </div>
-            `;
-          }
-        });
-      }
     }
     html += `</td>`;
 
     // Right Column Cell
-    html += `<td style="padding: 8px 12px; vertical-align: top; width: 50%;">`;
+    html += `<td style="padding: 10px 15px; vertical-align: middle; width: 50%; background: ${i % 2 === 0 ? "#fff" : "#fcfcfc"};">`;
     if (rightQuestion) {
       const answer = response?.answers?.[rightQuestion.id];
       html += `
-        <div style="margin-bottom: 4px;">
-          <span style="font-weight: 600; color: #111827;">${
-            rightQuestion.text || rightQuestion.id
-          }</span>
-          <span style="color: #374151; margin-left: 4px;">${renderAnswerHTML(
-            answer,
-          )}</span>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">${rightQuestion.text || rightQuestion.id}</span>
+          <span style="color: #1e293b; font-weight: 600; text-align: right; margin-left: 10px;">${renderAnswerHTML(answer)}</span>
         </div>
       `;
-
-      // Follow-up questions for right column
-      if (rightQuestion.followUpQuestions) {
-        rightQuestion.followUpQuestions.forEach((followUp: any) => {
-          const followAnswer = response?.answers?.[followUp.id];
-          if (hasAnswerValue(followAnswer)) {
-            html += `
-              <div style="margin-top: 4px; padding-left: 8px; border-left: 2px solid #d1d5db;">
-                <span style="font-weight: 500; color: #475569; font-size: 11px;">${
-                  followUp.text || followUp.id
-                }</span>
-                <span style="color: #6b7280; font-size: 11px; margin-left: 4px;">${renderAnswerHTML(
-                  followAnswer,
-                )}</span>
-              </div>
-            `;
-          }
-        });
-      }
     }
     html += `</td>`;
 
     html += `</tr>`;
   }
 
-  // Close table and container
   html += `
         </table>
       </div>
@@ -3055,7 +3177,8 @@ function generateFirstSectionContent(form: any, response: any): string {
   return html;
 }
 
-function generateScoreSection(sectionStats: any[]): string {
+function generateScoreSection(sectionStats: any[], form?: any): string {
+  const labels = getComplianceLabels(form);
   const totalYes = sectionStats.reduce((sum, stat) => sum + (stat.yes || 0), 0);
   const totalNo = sectionStats.reduce((sum, stat) => sum + (stat.no || 0), 0);
   const totalNA = sectionStats.reduce((sum, stat) => sum + (stat.na || 0), 0);
@@ -3072,10 +3195,13 @@ function generateScoreSection(sectionStats: any[]): string {
   const totalAccuracy = totalCorrect + totalWrong;
   const grandTotal = totalCompliance + totalAccuracy;
 
+  // Calculate score excluding N/A from denominator for better accuracy
+  const scoringTotal = totalYes + totalNo + totalAccuracy;
+  
   const yesPercentage =
-    totalCompliance > 0 ? (totalYes / totalCompliance) * 100 : 0;
+    (totalYes + totalNo) > 0 ? (totalYes / (totalYes + totalNo)) * 100 : 0;
   const noPercentage =
-    totalCompliance > 0 ? (totalNo / totalCompliance) * 100 : 0;
+    (totalYes + totalNo) > 0 ? (totalNo / (totalYes + totalNo)) * 100 : 0;
   const naPercentage =
     totalCompliance > 0 ? (totalNA / totalCompliance) * 100 : 0;
 
@@ -3084,86 +3210,167 @@ function generateScoreSection(sectionStats: any[]): string {
   const wrongPercentage =
     totalAccuracy > 0 ? (totalWrong / totalAccuracy) * 100 : 0;
 
-  const hasAccuracy = totalAccuracy > 0;
-  const hasCompliance = totalCompliance > 0;
+  const overallScore = scoringTotal > 0 ? ((totalYes + totalCorrect) / scoringTotal) * 100 : 0;
+
+  // Dynamic color for Overall Score text
+  let scoreColor = "#f59e0b"; // Default Orange
+  if (overallScore >= 90) {
+    scoreColor = "#16a34a"; // Green
+  } else if (overallScore < 70) {
+    scoreColor = "#dc2626"; // Red
+  }
 
   return `
-    <div style="border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden; font-family: 'Segoe UI', sans-serif;">
-      <div style="padding: 8px 12px; background: #1e3a8a; text-align: center;">
-        <h2 style="font-size: 16px; font-weight: 700; color: white; margin: 0;">
+    <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #fff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="padding: 10px; background: #334155; text-align: center; border-bottom: 2px solid #1e293b;">
+        <h2 style="font-size: 15px; font-weight: 700; color: #f8fafc; margin: 0; text-transform: uppercase; letter-spacing: 1px;">
           Performance Summary
         </h2>
       </div>
-      <div style="padding: 20px;">
-        <div style="display: flex; flex-direction: column; gap: 20px;">
+      
+      <div style="padding: 15px;">
+        <!-- Gauge Chart and Score -->
+        <div style="display: flex; align-items: center; justify-content: center; gap: 40px; margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
+          <div style="flex: 1; text-align: center;">
+            <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 8px; text-transform: uppercase;">SURVEY SCORE</div>
+            ${generateGaugeSVG(yesPercentage)}
+          </div>
+          <div style="flex: 1; text-align: center;">
+            <div style="font-size: 58px; font-weight: 800; color: ${scoreColor}; line-height: 1;">${overallScore.toFixed(1)}%</div>
+            <div style="font-size: 12px; font-weight: 700; color: #64748b; margin-top: 5px; text-transform: uppercase;">Overall Score</div>
+          </div>
+        </div>
+
+        <!-- Summary Stats Section -->
+        <div style="background: #f8fafc; border-radius: 6px; padding: 12px; border: 1px solid #e2e8f0;">
+          <div style="font-size: 11px; font-weight: 800; color: #334155; margin-bottom: 10px; text-align: center; text-transform: uppercase; letter-spacing: 0.5px;">Detailed Breakdown</div>
           
-          ${
-            hasCompliance
-              ? `
-          <div style="display: flex; align-items: center; gap: 30px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
-            <div style="flex-shrink: 0; text-align: center; min-width: 120px;">
-              <div style="font-size: 11px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">COMPLIANCE</div>
-              ${generatePieChartSVG(yesPercentage, noPercentage, naPercentage, yesPercentage)}
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+            <!-- Accepted Card -->
+            <div style="background: #fff; padding: 10px; border-radius: 6px; border-left: 4px solid #22c55e; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+              <div style="font-size: 18px; font-weight: 800; color: #166534;">${totalYes + totalCorrect}</div>
+              <div style="font-size: 10px; color: #475569; font-weight: 700; text-transform: uppercase;">Accepted</div>
+              <div style="font-size: 11px; font-weight: 700; color: #16a34a; margin-top: 2px;">${(( (totalYes + totalCorrect) / (grandTotal || 1) ) * 100).toFixed(1)}%</div>
             </div>
-            <div style="flex: 1;">
-              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                <div style="text-align: center; padding: 10px; background: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0;">
-                  <div style="font-size: 14px; font-weight: 800; color: #166534;">${totalYes}</div>
-                  <div style="font-size: 10px; color: #166534; font-weight: 700;">Positive</div>
-                  <div style="font-size: 12px; font-weight: 700; color: #166534;">${yesPercentage.toFixed(1)}%</div>
-                </div>
-                <div style="text-align: center; padding: 10px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
-                  <div style="font-size: 14px; font-weight: 800; color: #991b1b;">${totalNo}</div>
-                  <div style="font-size: 10px; color: #991b1b; font-weight: 700;">Issues</div>
-                  <div style="font-size: 12px; font-weight: 700; color: #991b1b;">${noPercentage.toFixed(1)}%</div>
-                </div>
-                <div style="text-align: center; padding: 10px; background: #f8fafc; border-radius: 6px; border: 1px solid #e2e8f0;">
-                  <div style="font-size: 14px; font-weight: 800; color: #475569;">${totalNA}</div>
-                  <div style="font-size: 10px; color: #475569; font-weight: 700;">N/A</div>
-                  <div style="font-size: 12px; font-weight: 700; color: #475569;">${naPercentage.toFixed(1)}%</div>
-                </div>
-              </div>
+
+            <!-- Rejected Card -->
+            <div style="background: #fff; padding: 10px; border-radius: 6px; border-left: 4px solid #ef4444; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+              <div style="font-size: 18px; font-weight: 800; color: #991b1b;">${totalNo + totalWrong}</div>
+              <div style="font-size: 10px; color: #475569; font-weight: 700; text-transform: uppercase;">Rejected</div>
+              <div style="font-size: 11px; font-weight: 700; color: #dc2626; margin-top: 2px;">${(( (totalNo + totalWrong) / (grandTotal || 1) ) * 100).toFixed(1)}%</div>
+            </div>
+
+            <!-- Rework Card -->
+            <div style="background: #fff; padding: 10px; border-radius: 6px; border-left: 4px solid #94a3b8; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
+              <div style="font-size: 18px; font-weight: 800; color: #334155;">${totalNA}</div>
+              <div style="font-size: 10px; color: #475569; font-weight: 700; text-transform: uppercase;">Rework</div>
+              <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 2px;">${(( totalNA / (grandTotal || 1) ) * 100).toFixed(1)}%</div>
             </div>
           </div>
-          `
-              : ""
-          }
 
-          ${
-            hasAccuracy
-              ? `
-          <div style="display: flex; align-items: center; gap: 30px;">
-            <div style="flex-shrink: 0; text-align: center; min-width: 120px;">
-              <div style="font-size: 11px; font-weight: 700; color: #1e3a8a; margin-bottom: 5px;">ACCURACY</div>
-              ${generatePieChartSVG(correctPercentage, wrongPercentage, 0, correctPercentage)}
-            </div>
-            <div style="flex: 1;">
-              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-                <div style="text-align: center; padding: 10px; background: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0;">
-                  <div style="font-size: 14px; font-weight: 800; color: #166534;">${totalCorrect}</div>
-                  <div style="font-size: 10px; color: #166534; font-weight: 700;">Correct</div>
-                  <div style="font-size: 12px; font-weight: 700; color: #166534;">${correctPercentage.toFixed(1)}%</div>
-                </div>
-                <div style="text-align: center; padding: 10px; background: #fef2f2; border-radius: 6px; border: 1px solid #fecaca;">
-                  <div style="font-size: 14px; font-weight: 800; color: #991b1b;">${totalWrong}</div>
-                  <div style="font-size: 10px; color: #991b1b; font-weight: 700;">Wrong</div>
-                  <div style="font-size: 12px; font-weight: 700; color: #991b1b;">${wrongPercentage.toFixed(1)}%</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          `
-              : ""
-          }
-
-          <div style="margin-top: 1px; padding-top: 10px; border-top: 1.5px solid #e5e7eb; text-align: center; font-size: 13px; font-weight: 700; color: #374151;">
-            Total Parameters Evaluated: <span style="color: #1e3a8a; font-weight: 900; margin-left: 6px;">${grandTotal}</span>
+          <div style="margin-top: 12px; text-align: center; font-size: 11px; color: #64748b; font-weight: 600;">
+            TOTAL PARAMETERS EVALUATED: <span style="color: #1e293b; font-weight: 800;">${grandTotal}</span>
           </div>
         </div>
       </div>
     </div>
   `;
 }
+
+function generateSectionSummaryBarSVG(scored: number, missing: number): string {
+  const width = 300;
+  const height = 18;
+  const scoredWidth = (scored / (scored + missing || 1)) * width;
+  const missingWidth = width - scoredWidth;
+
+  return `
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="display: block; border-radius: 2px; overflow: hidden;">
+      ${scored > 0 ? `<rect x="0" y="0" width="${scoredWidth}" height="${height}" fill="#bef264" />` : ""}
+      ${missing > 0 ? `<rect x="${scoredWidth}" y="0" width="${missingWidth}" height="${height}" fill="#f87171" />` : ""}
+      ${scored > 0 ? `<text x="${scoredWidth / 2}" y="${height / 2 + 5}" text-anchor="middle" font-size="10" font-weight="bold" fill="#3f6212">${scored.toFixed(1)}%</text>` : ""}
+      ${missing > 0 ? `<text x="${scoredWidth + missingWidth / 2}" y="${height / 2 + 5}" text-anchor="middle" font-size="10" font-weight="bold" fill="#7f1d1d">${missing.toFixed(1)}%</text>` : ""}
+    </svg>
+  `;
+}
+
+function generateSectionSummary(sectionStats: any[]): string {
+  const totalYes = sectionStats.reduce((sum, stat) => sum + (stat.yes || 0), 0);
+  const totalNo = sectionStats.reduce((sum, stat) => sum + (stat.no || 0), 0);
+  const totalCorrect = sectionStats.reduce((sum, stat) => sum + (stat.correct || 0), 0);
+  const totalWrong = sectionStats.reduce((sum, stat) => sum + (stat.wrong || 0), 0);
+  
+  const totalScored = totalYes + totalCorrect;
+  const totalMissing = totalNo + totalWrong;
+  const totalTotal = totalScored + totalMissing;
+  const overallPct = totalTotal > 0 ? (totalScored / totalTotal) * 100 : 0;
+  const overallMissingPct = 100 - overallPct;
+
+  return `
+    <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #fff; margin-top: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="padding: 10px; background: #334155; text-align: center; border-bottom: 2px solid #1e293b;">
+        <h2 style="font-size: 15px; font-weight: 700; color: #f8fafc; margin: 0; text-transform: uppercase; letter-spacing: 1px;">
+          Section Summary
+        </h2>
+      </div>
+      
+      <div style="padding: 0;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+          <thead>
+            <tr style="background: #f1f5f9; border-bottom: 1px solid #e2e8f0;">
+              <th style="padding: 10px 15px; text-align: left; width: 25%; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 9px;">Category</th>
+              <th style="padding: 10px 15px; text-align: center; width: 45%; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 9px;">Distribution</th>
+              <th style="padding: 10px 15px; text-align: center; width: 10%; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 9px;">Current</th>
+              <th style="padding: 10px 15px; text-align: center; width: 10%; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 9px;">Previous</th>
+              <th style="padding: 10px 15px; text-align: center; width: 10%; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 9px;">Diff.</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sectionStats.map((stat, i) => {
+              const scored = (stat.yes || 0) + (stat.correct || 0);
+              const missing = (stat.no || 0) + (stat.wrong || 0);
+              const total = scored + missing;
+              const pct = total > 0 ? (scored / total) * 100 : 0;
+              const missingPct = 100 - pct;
+              
+              return `
+                <tr style="border-bottom: 1px solid #f1f5f9; background: ${i % 2 === 0 ? "#fff" : "#fcfcfc"};">
+                  <td style="padding: 8px 15px; font-weight: 700; color: #334155; font-size: 10px; text-transform: uppercase;">${stat.title}</td>
+                  <td style="padding: 8px 15px;">
+                    ${generateSectionSummaryBarSVG(pct, missingPct)}
+                  </td>
+                  <td style="padding: 8px 15px; text-align: center; font-weight: 700; color: #334155;">${pct.toFixed(1)}%</td>
+                  <td style="padding: 8px 15px; text-align: center; color: #94a3b8;">-</td>
+                  <td style="padding: 8px 15px; text-align: center; color: #94a3b8;">-</td>
+                </tr>
+              `;
+            }).join("")}
+            <tr style="background: #f8fafc; border-top: 2px solid #e2e8f0; font-weight: 800;">
+              <td style="padding: 10px 15px; color: #1e293b; text-transform: uppercase;">TOTAL</td>
+              <td style="padding: 10px 15px;">
+                ${generateSectionSummaryBarSVG(overallPct, overallMissingPct)}
+              </td>
+              <td style="padding: 10px 15px; text-align: center; color: #1e293b;">${overallPct.toFixed(1)}%</td>
+              <td style="padding: 10px 15px; text-align: center; color: #94a3b8;">-</td>
+              <td style="padding: 10px 15px; text-align: center; color: #94a3b8;">-</td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div style="padding: 10px; display: flex; justify-content: center; gap: 20px; background: #f1f5f9; border-top: 1px solid #e2e8f0;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="width: 12px; height: 12px; background: #bef264; border-radius: 2px;"></div>
+            <span style="font-size: 9px; font-weight: 700; color: #475569; text-transform: uppercase;">Scored</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="width: 12px; height: 12px; background: #f87171; border-radius: 2px;"></div>
+            <span style="font-size: 9px; font-weight: 700; color: #475569; text-transform: uppercase;">Missing</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function generateSectionTables(
   availableSections: any[],
   sectionQuestionStats: Record<string, any[]>,
@@ -3192,6 +3399,8 @@ function generateSectionTables(
         mainParamsCount: mainParams.length,
         hasChartImage: !!chartImage,
       });
+
+      const labels = getComplianceLabels(form);
 
       // FIX: Check if we have any data to show
       const hasQuestionStats = questionStats.length > 0;
@@ -3356,15 +3565,15 @@ function generateSectionTables(
           html += `
             <div style="margin-bottom: 25px;">
               <div style="background: #eff6ff; padding: 8px 12px; border-radius: 6px 6px 0 0; border: 1px solid #bfdbfe; border-bottom: none;">
-                <h4 style="font-size: 13px; font-weight: 700; color: #1e40af; margin: 0;">Compliance Analysis (Yes/No/NA)</h4>
+                <h4 style="font-size: 13px; font-weight: 700; color: #1e40af; margin: 0;">Compliance Analysis (${labels.yes}/${labels.no}/${labels.na})</h4>
               </div>
               <table class="section-table" style="width: 100%; border-collapse: collapse; border: 1px solid #bfdbfe; font-size: 10px;">
                 <thead>
                   <tr style="background: #1e40af;">
                     <th style="padding: 8px; text-align: left; color: white; border: 1px solid #bfdbfe; width: 40%;">Parameter</th>
-                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bfdbfe; width: 20%;">Yes</th>
-                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bfdbfe; width: 20%;">No</th>
-                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bfdbfe; width: 20%;">N/A</th>
+                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bfdbfe; width: 20%;">${labels.yes}</th>
+                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bfdbfe; width: 20%;">${labels.no}</th>
+                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bfdbfe; width: 20%;">${labels.na}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3415,14 +3624,14 @@ function generateSectionTables(
           html += `
             <div style="margin-bottom: 25px;">
               <div style="background: #f0fdf4; padding: 8px 12px; border-radius: 6px 6px 0 0; border: 1px solid #bbf7d0; border-bottom: none;">
-                <h4 style="font-size: 13px; font-weight: 700; color: #166534; margin: 0;">Accuracy Analysis (Correct/Wrong)</h4>
+                <h4 style="font-size: 13px; font-weight: 700; color: #166534; margin: 0;">Accuracy Analysis (${labels.correct}/${labels.wrong})</h4>
               </div>
               <table class="section-table" style="width: 100%; border-collapse: collapse; border: 1px solid #bbf7d0; font-size: 10px;">
                 <thead>
                   <tr style="background: #166534;">
                     <th style="padding: 8px; text-align: left; color: white; border: 1px solid #bbf7d0; width: 40%;">Parameter</th>
-                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bbf7d0; width: 30%;">Correct</th>
-                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bbf7d0; width: 30%;">Wrong</th>
+                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bbf7d0; width: 30%;">${labels.correct}</th>
+                    <th style="padding: 8px; text-align: center; color: white; border: 1px solid #bbf7d0; width: 30%;">${labels.wrong}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -3722,7 +3931,7 @@ async function getLogoAsBase64(): Promise<string> {
   try {
     const defaultLogoPath = "/logoimages/logo.jpeg";
     const response = await fetch(defaultLogoPath);
-    
+
     if (response.ok) {
       const blob = await response.blob();
       return new Promise((resolve) => {
@@ -4220,7 +4429,7 @@ export async function generatePDFOnServer(
     const blob = await apiClient.generatePDF({
       htmlContent: htmlContent,
       filename: `${options.filename}_${getPDFTypeSuffix(type)}.pdf`,
-      format: "custom",
+      format: "a4-portrait",
       compressed: true,
     });
 
@@ -4388,6 +4597,138 @@ async function convertImageAnswersToBase64(
   );
   return processedAnswers;
 }
+
+function generateFirstPageHTML(
+  options: PDFOptions,
+  score: number,
+  logoBase64: string | null,
+): string {
+  const { response, submittedDate, formTitle, form } = options;
+
+  // Metadata for top left
+  const formName = formTitle || "Form Report";
+  const formDescription = form?.description || "";
+  const id = response?.id || response?._id || "";
+  const dateStr = submittedDate || "";
+
+  // Performance logic
+  let performance = "AVERAGE";
+  let perfColor = "#f97316"; // Orange
+  if (score >= 95) {
+    performance = "EXCELLENT";
+    perfColor = "#16a34a"; // Green
+  } else if (score >= 90) {
+    performance = "VERY GOOD";
+    perfColor = "#22c55e"; // Light Green
+  } else if (score >= 85) {
+    performance = "AVERAGE";
+    perfColor = "#f97316"; // Orange
+  } else {
+    performance = "NEEDS IMPROVEMENT";
+    perfColor = "#dc2626"; // Red
+  }
+
+  // Smiley SVG based on score
+  let smileySVG = "";
+
+  if (score >= 90) {
+    // Happy
+    smileySVG = `
+      <svg width="200" height="200" viewBox="0 0 200 200">
+        <defs>
+          <radialGradient id="grad1" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+            <stop offset="0%" style="stop-color:#fff500;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#ffcc00;stop-opacity:1" />
+          </radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="90" fill="url(#grad1)" stroke="#d4af37" stroke-width="2" />
+        <circle cx="70" cy="80" r="12" fill="#000"/>
+        <circle cx="130" cy="80" r="12" fill="#000"/>
+        <path d="M 60 130 Q 100 180 140 130" stroke="#000" stroke-width="8" fill="none" stroke-linecap="round"/>
+      </svg>
+    `;
+  } else if (score >= 80) {
+    // Neutral (as in image)
+    smileySVG = `
+      <svg width="200" height="200" viewBox="0 0 200 200">
+        <defs>
+          <radialGradient id="grad1" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+            <stop offset="0%" style="stop-color:#fff500;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#ffcc00;stop-opacity:1" />
+          </radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="90" fill="url(#grad1)" stroke="#d4af37" stroke-width="2" />
+        <circle cx="70" cy="80" r="12" fill="#000"/>
+        <circle cx="130" cy="80" r="12" fill="#000"/>
+        <line x1="60" y1="140" x2="140" y2="140" stroke="#000" stroke-width="10" stroke-linecap="round"/>
+        <line x1="60" y1="130" x2="60" y2="150" stroke="#000" stroke-width="8" stroke-linecap="round"/>
+        <line x1="140" y1="130" x2="140" y2="150" stroke="#000" stroke-width="8" stroke-linecap="round"/>
+      </svg>
+    `;
+  } else {
+    // Sad
+    smileySVG = `
+      <svg width="200" height="200" viewBox="0 0 200 200">
+        <defs>
+          <radialGradient id="grad1" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+            <stop offset="0%" style="stop-color:#fff500;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#ffcc00;stop-opacity:1" />
+          </radialGradient>
+        </defs>
+        <circle cx="100" cy="100" r="90" fill="url(#grad1)" stroke="#d4af37" stroke-width="2" />
+        <circle cx="70" cy="80" r="12" fill="#000"/>
+        <circle cx="130" cy="80" r="12" fill="#000"/>
+        <path d="M 60 160 Q 100 110 140 160" stroke="#000" stroke-width="8" fill="none" stroke-linecap="round"/>
+      </svg>
+    `;
+  }
+
+  return `<div class="report-cover-page" style="width: 100%; min-height: 250mm; display: flex; flex-direction: column; background: white; font-family: Arial, sans-serif; position: relative; page-break-after: always; padding: 4%; box-sizing: border-box;">
+      <!-- Top Header -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-start; height: 55px; border-bottom: 6px solid #eee; background: white; z-index: 10;">
+        <div style="font-size: 12px; color: #333; line-height: 1.3; font-weight: bold; flex: 1;">
+          <div style="text-transform: uppercase; margin-bottom: 2px; font-size: 15px; color: #1e3a8a;">${formName}</div>
+          <div style="color: #444; font-size: 12px; font-weight: normal; margin-bottom: 2px;">${formDescription}</div>
+          <div style="color: #666; font-size: 10px; font-weight: normal;">${id} | ${dateStr}</div>
+        </div>
+        <div style="height: 45px; min-width: 130px; text-align: right; margin-left: 20px;">
+          ${logoBase64 ? `<img src="${logoBase64}" style="height: 45px; max-width: 170px; object-fit: contain;" />` : `<div style="font-weight: bold; font-size: 18px; color: #1e3a8a;">LOGO</div>`}
+        </div>
+      </div>
+
+      <!-- Main Content Grid - Seamless 2x2 -->
+      <div style="flex: 1; width: 100%; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; margin: 15px 0;">
+        <!-- Top Left: Title (Gray) -->
+        <div style="background: #9ca3af; color: white; display: flex; align-items: center; justify-content: center; padding: 25px; text-transform: uppercase;">
+          <h1 style="font-size: 40px; font-weight: bold; line-height: 1.1; margin: 0; letter-spacing: 1px; text-align: center;">SERVICE<br/>EXCELLENCE<br/>REPORT</h1>
+        </div>
+        
+        <!-- Top Right: Percentage (White) -->
+        <div style="background: white; display: flex; align-items: center; justify-content: center; padding: 25px;">
+          <div style="font-size: 70px; font-weight: bold; color: ${perfColor}; white-space: nowrap;">${score.toFixed(1)}%</div>
+        </div>
+        
+        <!-- Bottom Left: Icon (White) -->
+        <div style="background: white; display: flex; align-items: center; justify-content: center; padding: 25px; border-top: 1px solid #f3f4f6;">
+          <div style="transform: scale(1.1);">${smileySVG}</div>
+        </div>
+        
+        <!-- Bottom Right: Performance Label (Green/Dynamic) -->
+        <div style="background: ${perfColor}; color: white; display: flex; flex-direction: column; justify-content: center; padding: 25px; text-transform: uppercase;">
+          <div style="font-size: 20px; margin-bottom: 8px; font-weight: normal; opacity: 0.9;">YOUR PERFORMANCE:</div>
+          <div style="font-size: 44px; font-weight: bold; line-height: 1;">${performance}</div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; height: 35px; border-top: 6px solid #eee; background: white; padding-top: 8px;">
+        <div style="font-weight: bold; letter-spacing: 1px; font-size: 9px; color: #666;">© COPYRIGHT 2026</div>
+        <div style="font-weight: bold; font-size: 9px; color: #666;">REPORT GENERATED: ${new Date().toISOString().replace("T", " ").substring(0, 16)}</div>
+      </div>
+    </div>
+  `;
+}
+
 // Helper function to generate complete HTML for server
 async function generateCompleteHTMLForServer(
   options: PDFOptions,
@@ -4419,6 +4760,8 @@ async function generateCompleteHTMLForServer(
   };
 
   console.log("✅ Image pre-processing complete");
+
+  const labels = getComplianceLabels(form);
 
   // 1. Capture chart images
   const sectionChartImages: Record<string, string> = {};
@@ -4453,26 +4796,26 @@ async function generateCompleteHTMLForServer(
   console.log(`📸 Logo loaded: ${logoBase64 ? "Yes" : "No"}`);
 
   // 3. Calculate totals
-  const totalYes = sectionStats.reduce((sum, stat) => sum + stat.yes, 0);
-  const totalNo = sectionStats.reduce((sum, stat) => sum + stat.no, 0);
-  const totalNA = sectionStats.reduce((sum, stat) => sum + stat.na, 0);
-  const totalQuestions = sectionStats.reduce(
-    (sum, stat) => sum + stat.total,
+  const totalYes = sectionStats.reduce((sum, stat) => sum + (stat.yes || 0), 0);
+  const totalNo = sectionStats.reduce((sum, stat) => sum + (stat.no || 0), 0);
+  const totalNA = sectionStats.reduce((sum, stat) => sum + (stat.na || 0), 0);
+  const totalCorrect = sectionStats.reduce(
+    (sum, stat) => sum + (stat.correct || 0),
+    0,
+  );
+  const totalWrong = sectionStats.reduce(
+    (sum, stat) => sum + (stat.wrong || 0),
     0,
   );
 
-  const yesPercentage =
-    totalQuestions > 0 ? (totalYes / totalQuestions) * 100 : 0;
-  const noPercentage =
-    totalQuestions > 0 ? (totalNo / totalQuestions) * 100 : 0;
-  const naPercentage =
-    totalQuestions > 0 ? (totalNA / totalQuestions) * 100 : 0;
-  const overallScore = yesPercentage;
+  const scoringTotal = totalYes + totalNo + totalCorrect + totalWrong;
+  const totalSuccess = totalYes + totalCorrect;
+
+  const overallScore =
+    scoringTotal > 0 ? (totalSuccess / scoringTotal) * 100 : 0;
 
   console.log(
-    `📊 Calculated scores: Yes ${yesPercentage.toFixed(
-      1,
-    )}%, No ${noPercentage.toFixed(1)}%, NA ${naPercentage.toFixed(1)}%`,
+    `📊 Calculated score: ${overallScore.toFixed(1)}% based on Success: ${totalSuccess}, Total: ${scoringTotal}`,
   );
 
   // 4. Generate response analysis based on type
@@ -4534,7 +4877,8 @@ async function generateCompleteHTMLForServer(
 
   // 5. Generate other sections
   const firstSectionHTML = generateFirstSectionContent(form, response);
-  const scoreSectionHTML = generateScoreSection(sectionStats);
+  const scoreSectionHTML = generateScoreSection(sectionStats, form);
+  const sectionSummaryHTML = generateSectionSummary(sectionStats);
 
   let sectionTablesHTML = "";
   if (type === "default" || type === "section") {
@@ -4550,6 +4894,12 @@ async function generateCompleteHTMLForServer(
 
   console.log(`📋 Section tables generated: ${sectionTablesHTML.length} chars`);
 
+  const coverPageHTML = generateFirstPageHTML(
+    options,
+    overallScore,
+    logoBase64,
+  );
+
   // 6. Generate section table for overview
   let tableHeaders = "";
   let tableRows = "";
@@ -4562,14 +4912,14 @@ async function generateCompleteHTMLForServer(
     tableHeaders = `
       <th style="padding: 10px; text-align: left; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Section</th>
       <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Total</th>
-      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Yes</th>
-      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">No</th>
-      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">N/A</th>
+      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">${labels.yes}</th>
+      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">${labels.no}</th>
+      <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">${labels.na}</th>
       ${
         hasAccuracyOverall
           ? `
-        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Correct</th>
-        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">Wrong</th>
+        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">${labels.correct}</th>
+        <th style="padding: 10px; text-align: center; font-size: 10px; font-weight: 700; color: white; background: #1e3a8a; border: 1px solid #374151;">${labels.wrong}</th>
       `
           : ""
       }
@@ -4647,6 +4997,11 @@ async function generateCompleteHTMLForServer(
   <meta charset="utf-8">
   <title>${filename}</title>
   <style>
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+  
   * {
     margin: 0;
     padding: 0;
@@ -4656,7 +5011,8 @@ async function generateCompleteHTMLForServer(
   body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background: #ffffff;
-    padding: 20px;
+    padding: 0;
+    margin: 0;
     color: #1f2937;
     line-height: 1.4;
     font-size: 12px;
@@ -4882,10 +5238,7 @@ async function generateCompleteHTMLForServer(
   }
 </style>
 </head>
-<body>
-  <div class="container">
-    <!-- PAGE 1: Header + Basic Information + Performance Summary -->
-    <div class="first-page">
+<body><div class="container">${coverPageHTML}<div class="first-page" style="width: 100%; page-break-after: always; padding: 4%; box-sizing: border-box;">
       <!-- Header -->
       <div class="header">
         <div class="header-content">
@@ -4925,6 +5278,11 @@ async function generateCompleteHTMLForServer(
       <div class="compact-section">
         ${scoreSectionHTML}
       </div>
+
+      <!-- Section Summary Section -->
+      <div class="compact-section">
+        ${sectionSummaryHTML}
+      </div>
     </div>
   `;
 
@@ -4938,9 +5296,7 @@ async function generateCompleteHTMLForServer(
     type === "na";
 
   if (showOverallTable) {
-    completeHTML += `
-    <!-- PAGE 2: Overall Section Performance -->
-    <div class="page-break-before">
+    completeHTML += `<div class="page-break-before">
       <div class="table-container">
         <div class="table-title">Overall Section Performance</div>
         <table class="performance-table">
@@ -4970,9 +5326,7 @@ async function generateCompleteHTMLForServer(
 
   // Add Response Analysis Section (if not section type)
   if (responseAnalysisHTML && type !== "section") {
-    completeHTML += `
-    <!-- Response Analysis Section -->
-    <div class="${showOverallTable ? "page-break-before" : ""}">
+    completeHTML += `<div class="${showOverallTable ? "page-break-before" : ""}">
       <div class="table-container">
         ${responseAnalysisHTML}
       </div>

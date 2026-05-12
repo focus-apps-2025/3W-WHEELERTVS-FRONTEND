@@ -1654,25 +1654,100 @@ const getRankStyle = (answer: any, darkMode: boolean = false) => {
       );
     }
 
-    if (typeof value === "object") {
-      const fileData = resolveFileData(value);
-      if (fileData?.data) {
-        return (
-          <FilePreview data={fileData.data} fileName={fileData.fileName} />
-        );
-      }
-      if (fileData?.url) {
-        return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
-      }
-      if (!Object.keys(value).length) {
-        return <span className="text-primary-400">No response</span>;
-      }
-      return (
-        <pre className="whitespace-pre-wrap text-primary-600 text-sm">
-          {JSON.stringify(value, null, 2)}
-        </pre>
-      );
-    }
+if (typeof value === "object") {
+       // Handle complex Chassis/Inspection object (Standard structure for defects)
+       if (typeof value === 'object' && !Array.isArray(value) && (value.chassisNumber || value.status || value.categories)) {
+         const status = value.status || 'Unknown';
+         const statusColor = 
+           status.toLowerCase() === 'accepted' || status.toLowerCase() === 'verified' ? 'text-green-600 bg-green-50 border-green-100' :
+           status.toLowerCase() === 'rejected' ? 'text-red-600 bg-red-50 border-red-100' :
+           'text-amber-600 bg-amber-50 border-amber-100';
+
+         return (
+           <div className="space-y-3 mt-2">
+             <div className="flex items-center gap-2">
+               <span className={`px-2 py-1 rounded-md text-[10px] font-black uppercase border-2 ${statusColor} shadow-sm`}>
+                 {status}
+               </span>
+               {value.chassisNumber && (
+                 <span className="text-[11px] font-extrabold text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md">
+                   VIN: {value.chassisNumber}
+                 </span>
+               )}
+             </div>
+             
+             {value.remark && (
+               <div className="flex items-start gap-1.5 text-[10px] text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-1.5 rounded-lg border-l-2 border-indigo-400">
+                 <MessageCircle className="w-3 h-3 mt-0.5 shrink-0" />
+                 <span className="italic leading-relaxed">"{value.remark}"</span>
+               </div>
+             )}
+             
+             {value.evidenceUrl && (
+               <div className="mt-1">
+                 <a 
+                   href={value.evidenceUrl} 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   className="block"
+                 >
+                   <img 
+                     src={value.evidenceUrl} 
+                     alt="Evidence" 
+                     className="w-24 h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                   />
+                 </a>
+               </div>
+             )}
+           </div>
+         );
+       }
+
+       const fileData = resolveFileData(value);
+       if (fileData?.data) {
+         return (
+           <FilePreview data={fileData.data} fileName={fileData.fileName} />
+         );
+       }
+       if (fileData?.url) {
+         return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
+       }
+       if (!Object.keys(value).length) {
+         return <span className="text-primary-400">No response</span>;
+       }
+       
+       // Handle generic objects with better display
+       const headerNames: Record<string, string> = {
+         chassisNumber: 'Chassis Number',
+         status: 'Status',
+         zones: 'Zone',
+         zonesData: 'Zones Data',
+         evidenceUrl: 'Evidence',
+         remark: 'Remark'
+       };
+       
+       const entries = Object.entries(value).filter(([key, val]) => {
+         if (val === null || val === undefined || val === '') return false;
+         if (key === 'zonesData' || key === '__v') return false;
+         return true;
+       });
+       
+       if (entries.length === 0) return <span className="text-gray-400 italic">No details</span>;
+       
+       return (
+         <div className="space-y-2 mt-2">
+           {entries.map(([key, val], idx) => {
+             const displayKey = headerNames[key] || key;
+             return (
+               <div key={idx} className="text-[10px] text-gray-600 dark:text-gray-400">
+                 <span className="font-semibold">{displayKey}:</span>{' '}
+                 {typeof val === 'object' ? JSON.stringify(val) : String(val)}
+               </div>
+             );
+           })}
+         </div>
+       );
+     }
 
     return renderHighlightedAnswer(value);
   };

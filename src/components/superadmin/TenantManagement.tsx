@@ -108,6 +108,8 @@ export default function TenantManagement() {
     firstName: "",
     lastName: "",
     email: "",
+    newPassword: "",        
+    confirmNewPassword: "", 
   });
   const [deletingAdmin, setDeletingAdmin] = useState<string | null>(null);
   const [updatingAdmin, setUpdatingAdmin] = useState<string | null>(null);
@@ -362,6 +364,8 @@ export default function TenantManagement() {
       firstName: admin.firstName,
       lastName: admin.lastName,
       email: admin.email,
+       newPassword: "",
+       confirmNewPassword: "",
     });
   };
 
@@ -392,6 +396,18 @@ export default function TenantManagement() {
       showError("All fields are required");
       return;
     }
+      // Validate password if provided
+  if (editAdminData.newPassword) {
+    if (editAdminData.newPassword.length < 6) {
+      showError("Password must be at least 6 characters long");
+      return;
+    }
+    if (editAdminData.newPassword !== editAdminData.confirmNewPassword) {
+      showError("Passwords don't match");
+      return;
+    }
+  }
+  
 
     setUpdatingAdmin(editingAdmin.admin._id);
     try {
@@ -401,12 +417,23 @@ export default function TenantManagement() {
         email: editAdminData.email,
       });
 
+       // If password was provided, reset it separately
+    if (editAdminData.newPassword) {
+      await apiClient.resetUserPassword(editingAdmin.admin._id, editAdminData.newPassword);
+      showSuccess("Admin updated and password reset successfully");
+    } else {
+      showSuccess("Admin updated successfully");
+    }
+
       showSuccess("Admin updated successfully");
       setEditingAdmin(null);
       setEditAdminData({
         firstName: "",
         lastName: "",
         email: "",
+        newPassword: "",
+      confirmNewPassword: "",
+
       });
       fetchTenants(); // Refresh the data
     } catch (error: any) {
@@ -480,6 +507,11 @@ export default function TenantManagement() {
       setIsDeleting(false);
     }
   };
+
+
+
+
+
 
   return (
     <div className="space-y-6">
@@ -1098,224 +1130,218 @@ export default function TenantManagement() {
                               className="bg-white rounded-lg p-3 border border-primary-200 shadow-sm"
                             >
                               {/* Edit Admin Form */}
-                              {editingAdmin &&
-                              editingAdmin.admin._id === admin._id ? (
-                                <div className="space-y-3">
-                                  <div className="flex items-center justify-between">
-                                    <h5 className="text-sm font-semibold text-primary-900">
-                                      Edit Administrator
-                                    </h5>
-                                    <button
-                                      onClick={handleCancelEdit}
-                                      className="text-neutral-500 hover:text-neutral-700 transition-colors"
-                                    >
-                                      <X className="w-4 h-4" />
-                                    </button>
-                                  </div>
+                              {editingAdmin && editingAdmin.admin._id === admin._id ? (
+  <div className="space-y-3">
+    <div className="flex items-center justify-between">
+      <h5 className="text-sm font-semibold text-primary-900">
+        Edit Administrator
+      </h5>
+      <button
+        onClick={handleCancelEdit}
+        className="text-neutral-500 hover:text-neutral-700 transition-colors"
+      >
+        <X className="w-4 h-4" />
+      </button>
+    </div>
 
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="block text-xs font-medium text-primary-700 mb-1">
-                                        First Name *
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={editAdminData.firstName}
-                                        onChange={(e) =>
-                                          handleEditAdminChange(
-                                            "firstName",
-                                            e.target.value,
-                                          )
-                                        }
-                                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                        placeholder="Enter first name"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-medium text-primary-700 mb-1">
-                                        Last Name *
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={editAdminData.lastName}
-                                        onChange={(e) =>
-                                          handleEditAdminChange(
-                                            "lastName",
-                                            e.target.value,
-                                          )
-                                        }
-                                        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                        placeholder="Enter last name"
-                                      />
-                                    </div>
-                                  </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label className="block text-xs font-medium text-primary-700 mb-1">
+          First Name *
+        </label>
+        <input
+          type="text"
+          value={editAdminData.firstName}
+          onChange={(e) =>
+            handleEditAdminChange("firstName", e.target.value)
+          }
+          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+          placeholder="Enter first name"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-primary-700 mb-1">
+          Last Name *
+        </label>
+        <input
+          type="text"
+          value={editAdminData.lastName}
+          onChange={(e) =>
+            handleEditAdminChange("lastName", e.target.value)
+          }
+          className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+          placeholder="Enter last name"
+        />
+      </div>
+    </div>
 
-                                  <div className="mb-3">
-                                    <label className="block text-xs font-medium text-primary-700 mb-1">
-                                      Email Address *
-                                    </label>
-                                    <input
-                                      type="email"
-                                      value={editAdminData.email}
-                                      onChange={(e) =>
-                                        handleEditAdminChange(
-                                          "email",
-                                          e.target.value,
-                                        )
-                                      }
-                                      className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
-                                      placeholder="Enter email address"
-                                    />
-                                  </div>
+    <div className="mb-3">
+      <label className="block text-xs font-medium text-primary-700 mb-1">
+        Email Address *
+      </label>
+      <input
+        type="email"
+        value={editAdminData.email}
+        onChange={(e) =>
+          handleEditAdminChange("email", e.target.value)
+        }
+        className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+        placeholder="Enter email address"
+      />
+    </div>
 
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={handleEditAdminSubmit}
-                                      disabled={updatingAdmin === admin._id}
-                                      className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-                                    >
-                                      {updatingAdmin === admin._id ? (
-                                        <>
-                                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                          Updating...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <svg
-                                            className="w-4 h-4"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth={2}
-                                              d="M5 13l4 4L19 7"
-                                            />
-                                          </svg>
-                                          Update Admin
-                                        </>
-                                      )}
-                                    </button>
-                                    <button
-                                      onClick={handleCancelEdit}
-                                      className="px-4 py-2 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 text-sm font-medium rounded-lg transition-all"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
+    {/* NEW PASSWORD FIELDS */}
+    <div className="border-t border-primary-200 pt-3 mt-2">
+      <p className="text-xs font-semibold text-amber-600 mb-2 flex items-center gap-1">
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+        </svg>
+        Change Password (Optional)
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-medium text-primary-700 mb-1">
+            New Password
+          </label>
+          <input
+            type="password"
+            value={editAdminData.newPassword || ""}
+            onChange={(e) =>
+              handleEditAdminChange("newPassword", e.target.value)
+            }
+            className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+            placeholder="Enter new password (min 6 chars)"
+            autoComplete="new-password"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-primary-700 mb-1">
+            Confirm Password
+          </label>
+          <input
+            type="password"
+            value={editAdminData.confirmNewPassword || ""}
+            onChange={(e) =>
+              handleEditAdminChange("confirmNewPassword", e.target.value)
+            }
+            className="w-full px-3 py-2 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+            placeholder="Confirm new password"
+            autoComplete="new-password"
+          />
+        </div>
+      </div>
+      {editAdminData.newPassword && editAdminData.newPassword !== editAdminData.confirmNewPassword && (
+        <p className="text-red-500 text-xs mt-1">Passwords do not match</p>
+      )}
+      {editAdminData.newPassword && editAdminData.newPassword.length < 6 && (
+        <p className="text-red-500 text-xs mt-1">Password must be at least 6 characters</p>
+      )}
+    </div>
+
+    <div className="flex gap-2">
+      <button
+        onClick={handleEditAdminSubmit}
+        disabled={updatingAdmin === admin._id}
+        className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold py-2 px-4 rounded-lg transition-all flex items-center justify-center gap-2 disabled:opacity-60"
+      >
+        {updatingAdmin === admin._id ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+            Updating...
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Update Admin
+          </>
+        )}
+      </button>
+      <button
+        onClick={handleCancelEdit}
+        className="px-4 py-2 border border-neutral-300 text-neutral-700 hover:bg-neutral-50 text-sm font-medium rounded-lg transition-all"
+      >
+        Cancel
+      </button>
+    </div>
+  </div>
+) : (
                                 /* Admin Display */
                                 <div className="flex items-start justify-between">
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <p className="text-sm font-semibold text-primary-900">
-                                        {admin.firstName} {admin.lastName}
-                                      </p>
-                                      <span
-                                        className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                          admin.role === "superadmin"
-                                            ? "bg-purple-100 text-purple-700 border border-purple-200"
-                                            : "bg-blue-100 text-blue-700 border border-blue-200"
-                                        }`}
-                                      >
-                                        {admin.role}
-                                      </span>
-                                    </div>
-                                    <p className="text-sm text-primary-600 font-medium mb-1">
-                                      {admin.email}
-                                    </p>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <button
-                                        onClick={() =>
-                                          handleToggleAdminStatus(
-                                            tenant._id,
-                                            admin,
-                                          )
-                                        }
-                                        disabled={updatingAdmin === admin._id}
-                                        className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer disabled:opacity-60 ${
-                                          admin.isActive
-                                            ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
-                                            : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
-                                        }`}
-                                      >
-                                        {updatingAdmin === admin._id ? (
-                                          <span className="inline-block animate-spin">
-                                            ⟳
-                                          </span>
-                                        ) : admin.isActive ? (
-                                          "Active"
-                                        ) : (
-                                          "Inactive"
-                                        )}
-                                      </button>
-                                      {admin.lastLogin && (
-                                        <>
-                                          <span className="text-xs text-primary-400">
-                                            •
-                                          </span>
-                                          <span className="text-xs text-primary-600">
-                                            Last login:{" "}
-                                            {new Date(
-                                              admin.lastLogin,
-                                            ).toLocaleDateString()}
-                                          </span>
-                                        </>
-                                      )}
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center gap-1 ml-2">
-                                    <button
-                                      onClick={() =>
-                                        handleEditAdminClick(tenant._id, admin)
-                                      }
-                                      className="p-1 text-primary-600 hover:text-primary-800 transition-colors"
-                                      title="Edit Admin"
-                                      disabled={!!editingAdmin}
-                                    >
-                                      <svg
-                                        className="w-4 h-4"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2}
-                                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                        />
-                                      </svg>
-                                    </button>
-                                    {tenant.adminId &&
-                                      tenant.adminId.length > 1 && (
-                                        <button
-                                          onClick={() =>
-                                            handleDeleteAdmin(
-                                              tenant._id,
-                                              admin._id,
-                                              `${admin.firstName} ${admin.lastName}`,
-                                            )
-                                          }
-                                          disabled={
-                                            deletingAdmin === admin._id ||
-                                            !!editingAdmin
-                                          }
-                                          className="p-1 text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
-                                          title="Remove Admin"
-                                        >
-                                          {deletingAdmin === admin._id ? (
-                                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-600 border-t-transparent"></div>
-                                          ) : (
-                                            <Trash2 className="w-4 h-4" />
-                                          )}
-                                        </button>
-                                      )}
-                                  </div>
-                                </div>
+                                 
+  <div className="flex-1">
+    <div className="flex items-center gap-2 mb-1 flex-wrap">
+      <p className="text-sm font-semibold text-primary-900">
+        {admin.firstName} {admin.lastName}
+      </p>
+      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+        admin.role === "superadmin"
+          ? "bg-purple-100 text-purple-700 border border-purple-200"
+          : "bg-blue-100 text-blue-700 border border-blue-200"
+      }`}>
+        {admin.role}
+      </span>
+    </div>
+    <p className="text-sm text-primary-600 font-medium mb-1">
+      {admin.email}
+    </p>
+    <div className="flex items-center gap-2 flex-wrap">
+      <button
+        onClick={() => handleToggleAdminStatus(tenant._id, admin)}
+        disabled={updatingAdmin === admin._id}
+        className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer disabled:opacity-60 ${
+          admin.isActive
+            ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50"
+            : "bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-500"
+        }`}
+      >
+        {updatingAdmin === admin._id ? (
+          <span className="inline-block animate-spin">⟳</span>
+        ) : admin.isActive ? (
+          "Active"
+        ) : (
+          "Inactive"
+        )}
+      </button>
+    
+      {admin.lastLogin && (
+        <>
+          <span className="text-xs text-primary-400">•</span>
+          <span className="text-xs text-primary-600">
+            Last login: {new Date(admin.lastLogin).toLocaleDateString()}
+          </span>
+        </>
+      )}
+    </div>
+  </div>
+  <div className="flex items-center gap-1 ml-2">
+    <button
+      onClick={() => handleEditAdminClick(tenant._id, admin)}
+      className="p-1 text-primary-600 hover:text-primary-800 transition-colors"
+      title="Edit Admin"
+      disabled={!!editingAdmin}
+    >
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      </svg>
+    </button>
+    {tenant.adminId && tenant.adminId.length > 1 && (
+      <button
+        onClick={() => handleDeleteAdmin(tenant._id, admin._id, `${admin.firstName} ${admin.lastName}`)}
+        disabled={deletingAdmin === admin._id || !!editingAdmin}
+        className="p-1 text-red-600 hover:text-red-800 transition-colors disabled:opacity-50"
+        title="Remove Admin"
+      >
+        {deletingAdmin === admin._id ? (
+          <div className="animate-spin rounded-full h-4 w-4 border-2 border-red-600 border-t-transparent"></div>
+        ) : (
+          <Trash2 className="w-4 h-4" />
+        )}
+      </button>
+    )}
+  </div>
+</div>
                               )}
                             </div>
                           ))
@@ -1410,6 +1436,8 @@ export default function TenantManagement() {
               onUpdate={fetchTenants}
             />
           )}
+          {/* Password Reset Modal */}
+
 
           {/* Delete Confirmation Modal */}
           {showDeleteModal && tenantToDelete && (

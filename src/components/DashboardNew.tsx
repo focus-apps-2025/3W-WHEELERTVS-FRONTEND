@@ -68,10 +68,16 @@ export default function DashboardNew() {
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryStartDate, setSummaryStartDate] = useState("");
   const [summaryEndDate, setSummaryEndDate] = useState("");
-  const [myReviewStats, setMyReviewStats] = useState<any>(null);
-  const [myReviewStatsLoading, setMyReviewStatsLoading] = useState(false);
-  const [performanceTableData, setPerformanceTableData] = useState<any[]>([]);
-  const [performanceTableLoading, setPerformanceTableLoading] = useState(false);
+   const [myReviewStats, setMyReviewStats] = useState<any>(null);
+   const [myReviewStatsLoading, setMyReviewStatsLoading] = useState(false);
+   const [performanceTableData, setPerformanceTableData] = useState<any[]>([]);
+   const [performanceTableLoading, setPerformanceTableLoading] = useState(false);
+
+   // Pagination states
+   const [summaryPage, setSummaryPage] = useState(1);
+   const [summaryPageSize, setSummaryPageSize] = useState(10);
+   const [performancePage, setPerformancePage] = useState(1);
+   const [performancePageSize, setPerformancePageSize] = useState(10);
 
   // Check user role
   const isSuperAdmin = user?.role === "superadmin";
@@ -254,29 +260,64 @@ export default function DashboardNew() {
   }, [user]);
 
   // Fetch performance table data
-  useEffect(() => {
-    const fetchPerformanceTable = async () => {
-      if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) return;
-      
-      setPerformanceTableLoading(true);
-      try {
-        const response = await apiClient.getPerformanceTable({
-          startDate: summaryStartDate,
-          endDate: summaryEndDate
-        });
-        if (response.success) {
-          setPerformanceTableData(response.data);
+// Update the fetchPerformanceTable function to include dispatch values
+useEffect(() => {
+  const fetchPerformanceTable = async () => {
+    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) return;
+    
+    setPerformanceTableLoading(true);
+    try {
+      const response = await apiClient.getPerformanceTable({
+        startDate: summaryStartDate,
+        endDate: summaryEndDate
+      });
+      if (response.success) {
+        // Get the inspection summary data to map dispatch values
+        let inspectionData: any[] = [];
+        try {
+          let url = "/analytics/inspector-summary";
+          const params = new URLSearchParams();
+          if (summaryStartDate) params.append("startDate", summaryStartDate);
+          if (summaryEndDate) params.append("endDate", summaryEndDate);
+          const queryString = params.toString();
+          if (queryString) url += `?${queryString}`;
+          
+          const inspectionResponse = await apiClient.get<any>(url);
+          if (inspectionResponse.data) {
+            inspectionData = inspectionResponse.data.summary || [];
+          }
+        } catch (error) {
+          console.error("Error fetching inspection summary for dispatch mapping:", error);
         }
-      } catch (error) {
-        console.error("Error fetching performance table:", error);
-      } finally {
-        setPerformanceTableLoading(false);
+
+        // Create a map of user to dispatch count from inspection summary
+        const dispatchMap = new Map<string, number>();
+        
+        inspectionData.forEach((item: any) => {
+          const userName = item.qcInspector;
+          if (userName && item.statusCounts?.Dispatched) {
+            const currentCount = dispatchMap.get(userName) || 0;
+            dispatchMap.set(userName, currentCount + (item.statusCounts.Dispatched || 0));
+          }
+        });
+
+        // Merge the dispatch counts into performance table data
+        const mergedData = response.data.map((row: any) => ({
+          ...row,
+          dispatched: dispatchMap.get(row.name) || row.dispatched || 0
+        }));
+        
+        setPerformanceTableData(mergedData);
       }
-    };
+    } catch (error) {
+      console.error("Error fetching performance table:", error);
+    } finally {
+      setPerformanceTableLoading(false);
+    }
+  };
 
-    fetchPerformanceTable();
-  }, [user, summaryStartDate, summaryEndDate]);
-
+  fetchPerformanceTable();
+}, [user, summaryStartDate, summaryEndDate]);
   // Calculate tenant statistics
   useEffect(() => {
     if (formsData?.forms && responsesData?.responses && tenants.length > 0) {
@@ -1037,6 +1078,13 @@ export default function DashboardNew() {
       );
     }
 
+    // Pagination logic
+    const totalSummaryItems = inspectorSummary.length;
+    const totalSummaryPages = Math.ceil(totalSummaryItems / summaryPageSize);
+    const startIndex = (summaryPage - 1) * summaryPageSize;
+    const endIndex = startIndex + summaryPageSize;
+    const paginatedSummary = inspectorSummary.slice(startIndex, endIndex);
+
     return (
       <div className="mt-12 overflow-x-auto border-t border-gray-100 dark:border-gray-600 pt-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -1054,7 +1102,7 @@ export default function DashboardNew() {
               <input
                 type="date"
                 value={summaryStartDate}
-                onChange={(e) => setSummaryStartDate(e.target.value)}
+                onChange={(e) => { setSummaryStartDate(e.target.value); setSummaryPage(1); }}
                 className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none"
               />
             </div>
@@ -1063,13 +1111,13 @@ export default function DashboardNew() {
               <input
                 type="date"
                 value={summaryEndDate}
-                onChange={(e) => setSummaryEndDate(e.target.value)}
+                onChange={(e) => { setSummaryEndDate(e.target.value); setSummaryPage(1); }}
                 className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none"
               />
             </div>
             {(summaryStartDate || summaryEndDate) && (
               <button
-                onClick={() => { setSummaryStartDate(""); setSummaryEndDate(""); }}
+                onClick={() => { setSummaryStartDate(""); setSummaryEndDate(""); setSummaryPage(1); }}
                 className="text-xs text-red-600 hover:text-red-800 font-medium underline px-2"
               >
                 Clear
@@ -1102,37 +1150,31 @@ export default function DashboardNew() {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {inspectorSummary.map((row, idx) => (
+            {paginatedSummary.map((row, idx) => (
               <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                 <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.tenantName}</td>
                 <td className="px-4 py-4">{row.date}</td>
                 <td className="px-4 py-4">
                   {(() => {
-                    // Calculate shift based on the date/time if available
-                    // For now, using the existing shift data, but could be enhanced to calculate from timestamp
                     if (row.shift) {
                       return row.shift;
                     }
-                    // If no shift data, try to calculate from date if it has time component
                     if (row.date && row.date.includes('T')) {
                       const dateTime = new Date(row.date);
                       const hour = dateTime.getHours();
                       const minute = dateTime.getMinutes();
                       const timeInMinutes = hour * 60 + minute;
 
-                      // Define shifts
                       const shifts = [
-                        { name: "Morning Shift", start: 9 * 60, end: 17 * 60 }, // 09:00 - 17:00
-                        { name: "Evening Shift", start: 17 * 60, end: 25 * 60 }, // 17:00 - 01:00
-                        { name: "Night Shift", start: 1 * 60, end: 9 * 60 }, // 01:00 - 09:00
+                        { name: "Morning Shift", start: 9 * 60, end: 17 * 60 },
+                        { name: "Evening Shift", start: 17 * 60, end: 25 * 60 },
+                        { name: "Night Shift", start: 1 * 60, end: 9 * 60 },
                       ];
 
                       const matchingShift = shifts.find(shift => {
                         if (shift.start < shift.end) {
-                          // Same day shift
                           return timeInMinutes >= shift.start && timeInMinutes < shift.end;
                         } else {
-                          // Overnight shift
                           return timeInMinutes >= shift.start || timeInMinutes < shift.end;
                         }
                       });
@@ -1145,7 +1187,6 @@ export default function DashboardNew() {
                         return `${matchingShift.name} (${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')} - ${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')})`;
                       }
                     }
-
                     return "No Shift Assigned";
                   })()}
                 </td>
@@ -1168,72 +1209,211 @@ export default function DashboardNew() {
             ))}
           </tbody>
         </table>
+
+        {/* Pagination Controls */}
+        {totalSummaryPages > 1 && (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-gray-600 dark:text-gray-400">Rows per page:</label>
+              <select
+                value={summaryPageSize}
+                onChange={(e) => { setSummaryPageSize(Number(e.target.value)); setSummaryPage(1); }}
+                className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Showing {startIndex + 1} to {Math.min(endIndex, totalSummaryItems)} of {totalSummaryItems} entries
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSummaryPage(prev => Math.max(1, prev - 1))}
+                disabled={summaryPage === 1}
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
+              >
+                Previous
+              </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalSummaryPages) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalSummaryPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (summaryPage <= 3) {
+                    pageNum = i + 1;
+                  } else if (summaryPage >= totalSummaryPages - 2) {
+                    pageNum = totalSummaryPages - 4 + i;
+                  } else {
+                    pageNum = summaryPage - 2 + i;
+                  }
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setSummaryPage(pageNum)}
+                      className={`w-8 h-8 text-sm rounded-md transition-colors ${
+                        summaryPage === pageNum
+                          ? 'bg-blue-600 text-white'
+                          : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              <button
+                onClick={() => setSummaryPage(prev => Math.min(totalSummaryPages, prev + 1))}
+                disabled={summaryPage === totalSummaryPages}
+                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
   const renderPerformanceTable = () => {
-    if (user?.role !== 'admin' && user?.role !== 'superadmin') return null;
-    
-    if (performanceTableLoading) {
-      return (
-        <div className="mt-12 text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-gray-500 text-sm">Loading performance data...</p>
-        </div>
-      );
-    }
+  if (user?.role !== 'admin' && user?.role !== 'superadmin') return null;
 
-    if (performanceTableData.length === 0) return null;
-
+  if (performanceTableLoading) {
     return (
-      <div className="mt-12 overflow-x-auto border-t border-gray-100 dark:border-gray-600 pt-8">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-1.5 h-6 bg-purple-600 rounded-full"></div>
-          <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-            Performance Table
-          </h3>
-        </div>
-
-        <table className="w-full text-sm text-left border-collapse bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 uppercase text-[10px] font-black tracking-widest">
-            <tr>
-              {isSuperAdmin && <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Tenant</th>}
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">User Name</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Submitted</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Reviewed</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-green-600">Accepted</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-red-600">Rejected</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-orange-600">Reworked</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Performance Score</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {performanceTableData.map((row, idx) => (
-              <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                {isSuperAdmin && <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.tenantName}</td>}
-                <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.name}</td>
-                <td className="px-4 py-4 font-bold">{row.totalSubmitted}</td>
-                <td className="px-4 py-4 font-bold">{row.totalReviewed}</td>
-                <td className="px-4 py-4 font-bold text-green-600">{row.accepted}</td>
-                <td className="px-4 py-4 font-bold text-red-600">{row.rejected}</td>
-                <td className="px-4 py-4 font-bold text-orange-600">{row.rework}</td>
-                <td className="px-4 py-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                    row.performanceScore >= 80 ? 'bg-green-100 text-green-700' :
-                    row.performanceScore >= 50 ? 'bg-orange-100 text-orange-700' :
-                    'bg-red-100 text-red-700'
-                  }`}>
-                    {row.performanceScore}%
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="mt-12 text-center py-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+        <p className="text-gray-500 text-sm">Loading performance data...</p>
       </div>
     );
-  };
+  }
+
+  if (performanceTableData.length === 0) return null;
+
+  // Pagination logic
+  const totalPerformanceItems = performanceTableData.length;
+  const totalPerformancePages = Math.ceil(totalPerformanceItems / performancePageSize);
+  const startIndex = (performancePage - 1) * performancePageSize;
+  const endIndex = startIndex + performancePageSize;
+  const paginatedPerformance = performanceTableData.slice(startIndex, endIndex);
+
+  return (
+    <div className="mt-12 overflow-x-auto border-t border-gray-100 dark:border-gray-600 pt-8">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="w-1.5 h-6 bg-purple-600 rounded-full"></div>
+        <h3 className="text-lg font-bold text-gray-800 dark:text-white">
+          Performance Table
+        </h3>
+      </div>
+
+      <table className="w-full text-sm text-left border-collapse bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
+        <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 uppercase text-[10px] font-black tracking-widest">
+          <tr>
+            {isSuperAdmin && <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Tenant</th>}
+            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">User Name</th>
+            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Submitted</th>
+            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-blue-600">Dispatched</th>
+            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Reviewed</th>
+            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-green-600">Accepted</th>
+            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-red-600">Rejected</th>
+            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-orange-600">Reworked</th>
+            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Performance Score</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+          {paginatedPerformance.map((row, idx) => (
+            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+              {isSuperAdmin && <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.tenantName}</td>}
+              <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.name}</td>
+              <td className="px-4 py-4 font-bold">{row.totalSubmitted}</td>
+              <td className="px-4 py-4 font-bold text-blue-600 dark:text-blue-400">{row.dispatched || 0}</td>
+              <td className="px-4 py-4 font-bold">{row.totalReviewed}</td>
+              <td className="px-4 py-4 font-bold text-green-600">{row.accepted}</td>
+              <td className="px-4 py-4 font-bold text-red-600">{row.rejected}</td>
+              <td className="px-4 py-4 font-bold text-orange-600">{row.rework}</td>
+              <td className="px-4 py-4">
+                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                  row.performanceScore >= 80 ? 'bg-green-100 text-green-700' :
+                  row.performanceScore >= 50 ? 'bg-orange-100 text-orange-700' :
+                  'bg-red-100 text-red-700'
+                }`}>
+                  {row.performanceScore}%
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* Pagination Controls */}
+      {totalPerformancePages > 1 && (
+        <div className="flex items-center justify-between mt-4 px-2">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-gray-600 dark:text-gray-400">Rows per page:</label>
+            <select
+              value={performancePageSize}
+              onChange={(e) => { setPerformancePageSize(Number(e.target.value)); setPerformancePage(1); }}
+              className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Showing {startIndex + 1} to {Math.min(endIndex, totalPerformanceItems)} of {totalPerformanceItems} entries
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPerformancePage(prev => Math.max(1, prev - 1))}
+              disabled={performancePage === 1}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
+            >
+              Previous 
+            </button>
+            <div className="flex items-center gap-1">
+              {Array.from({ length: Math.min(5, totalPerformancePages) }, (_, i) => {
+                let pageNum: number;
+                if (totalPerformancePages <= 5) {
+                  pageNum = i + 1;
+                } else if (performancePage <= 3) {
+                  pageNum = i + 1;
+                } else if (performancePage >= totalPerformancePages - 2) {
+                  pageNum = totalPerformancePages - 4 + i;
+                } else {
+                  pageNum = performancePage - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPerformancePage(pageNum)}
+                    className={`w-8 h-8 text-sm rounded-md transition-colors ${
+                      performancePage === pageNum
+                        ? 'bg-purple-600 text-white'
+                        : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setPerformancePage(prev => Math.min(totalPerformancePages, prev + 1))}
+              disabled={performancePage === totalPerformancePages}
+              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
   // Determine page title based on user role
   const getPageTitle = () => {
@@ -1279,19 +1459,9 @@ export default function DashboardNew() {
     const options = {
       cutout: "70%",
       plugins: {
-        legend: {
-          display: true,
-          position: "bottom" as const,
-          labels: {
-            boxWidth: 12,
-            padding: 15,
-            font: {
-              size: 11,
-              weight: "bold" as const,
-            },
-            color: document.documentElement.classList.contains('dark') ? '#e5e7eb' : '#374151',
-          },
-        },
+      legend: {
+        display: false,
+      },
         tooltip: {
           callbacks: {
             label: (context: any) => {
@@ -1321,7 +1491,7 @@ export default function DashboardNew() {
 
             <Doughnut data={data} options={options} />
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-3xl font-black text-gray-900 dark:text-white mt-[-50px] mb-[-1px]">
+              <span className="text-3xl font-black text-gray-900 dark:text-white">
                 {myReviewStats.reviewed}
               </span>
               <span className="text-[15px] font-bold text-gray-400 uppercase tracking-widest blend-in">
@@ -1330,7 +1500,23 @@ export default function DashboardNew() {
             </div>
           </div>
 
-          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+          <div className="flex flex-col flex-1 gap-8">
+            <div className="flex justify-center lg:justify-start gap-6">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#22c55e]"></div>
+                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Accepted</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
+                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Rejected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#f59e0b]"></div>
+                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Rework</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
             <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800/30">
               <p className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-wider mb-1">Accepted</p>
               <p className="text-2xl font-black text-green-700 dark:text-green-300">{myReviewStats.accepted}</p>
@@ -1378,8 +1564,9 @@ export default function DashboardNew() {
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+      <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Current Performance Score</p>
             <div className="flex items-center gap-2">
@@ -1387,9 +1574,15 @@ export default function DashboardNew() {
               <div className={`w-2 h-2 rounded-full ${myReviewStats.performanceScore >= 80 ? 'bg-green-500' : myReviewStats.performanceScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}></div>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Submissions</p>
-            <p className="text-2xl font-black text-gray-900 dark:text-white">{myReviewStats.totalResponses}</p>
+          <div className="flex gap-8">
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Reviews</p>
+              <p className="text-2xl font-black text-gray-900 dark:text-white">{myReviewStats.reviewed}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Submissions</p>
+              <p className="text-2xl font-black text-gray-900 dark:text-white">{myReviewStats.totalResponses}</p>
+            </div>
           </div>
         </div>
       </div>
@@ -1534,8 +1727,8 @@ export default function DashboardNew() {
               </div>
             )}
 
-          {/* New Review Breakdown Chart - Show for all users when data is available */}
-          <MyReviewBreakdownChart />
+           {/* New Review Breakdown Chart - Show for all users when data is available */}
+           {!isSuperAdmin && <MyReviewBreakdownChart />}
         </div>
 
         {/* Debug Info - Remove in production 
