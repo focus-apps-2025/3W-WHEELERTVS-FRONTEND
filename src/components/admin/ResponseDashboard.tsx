@@ -176,7 +176,6 @@ function FollowUpQuestionsTable({
         const mainOptions = formData.mainQuestion.options;
         const triggerOptions = mainOptions.filter((_, i) => i > 0);
 
-        // Collect all unique follow-up nodes
         const allFollowUpNodes: FollowUpNode[] = [];
         const seenIds = new Set<string>();
         formData.followUpTree.forEach(branch => {
@@ -193,7 +192,6 @@ function FollowUpQuestionsTable({
         const form = formBreakdown.find(f => f.formId === formData.formId);
         const formResponses = followUpAnswers?.[formData.formId] || [];
 
-        // Group responses by mainAnswer
         const responsesByOption: Record<string, typeof formResponses> = {};
         formResponses.forEach(r => {
           if (!responsesByOption[r.mainAnswer]) responsesByOption[r.mainAnswer] = [];
@@ -206,26 +204,24 @@ function FollowUpQuestionsTable({
             <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-4">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <BarChart2 className="w-4 h-4" />
-                {formData.formTitle} — Follow-up Answers
+                <span className="truncate">{formData.formTitle} — Follow-up</span>
               </h3>
-              <p className="text-indigo-200 text-xs mt-1">
-                Showing actual answers for:{' '}
+              <div className="flex flex-wrap gap-1 mt-2">
                 {triggerOptions.map(o => (
-                  <span key={o} className="inline-block bg-white/20 px-2 py-0.5 rounded-full mx-1 font-semibold">{o}</span>
+                  <span key={o} className="inline-block bg-white/20 px-2 py-0.5 rounded-full text-[10px] text-indigo-50 font-semibold whitespace-nowrap">{o}</span>
                 ))}
-              </p>
+              </div>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr>
-                    {/* Column 1: Main Question answer + submitter */}
                     <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider bg-gray-50 dark:bg-gray-900/50 border-b border-r border-gray-200 dark:border-gray-700 min-w-[160px] sticky left-0 z-10">
                       {formData.mainQuestion.text}
                     </th>
 
-                    {/* One column per follow-up question */}
                     {allFollowUpNodes.map(node => (
                       <th
                         key={node.id}
@@ -261,16 +257,12 @@ function FollowUpQuestionsTable({
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                   {triggerOptions.map(option => {
                     const optionResponses = responsesByOption[option] || [];
-                    const optionCount = form?.answerDistribution?.[option] ?? 0;
-
-                    // Get which nodes belong to this trigger option
                     const branch = formData.followUpTree.find(b => b.triggerOption === option);
                     const branchNodeIds = new Set(
                       branch ? collectAllNodes(branch.questions).map(n => n.id) : []
                     );
 
                     if (optionResponses.length === 0) {
-                      // No responses for this option — show empty row
                       return (
                         <tr key={option} className="bg-white dark:bg-gray-900">
                           <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-700 sticky left-0 bg-white dark:bg-gray-900 z-10">
@@ -294,7 +286,6 @@ function FollowUpQuestionsTable({
                       );
                     }
 
-                    // One row per actual response
                     return optionResponses.map((resp, respIdx) => (
                       <tr
                         key={`${option}-${resp.responseId}`}
@@ -304,7 +295,6 @@ function FollowUpQuestionsTable({
                             : 'bg-gray-50/40 dark:bg-gray-800/20'
                         } hover:bg-indigo-50/30 dark:hover:bg-indigo-900/10 transition-colors`}
                       >
-                        {/* Main answer cell */}
                         <td className="px-4 py-3 border-r border-gray-200 dark:border-gray-700 sticky left-0 bg-inherit z-10">
                           <div className="flex flex-col gap-1">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border w-fit ${
@@ -316,16 +306,15 @@ function FollowUpQuestionsTable({
                             }`}>
                               {option}
                             </span>
-                            <span className="text-xs text-gray-400 dark:text-gray-500">
+                            <span className="text-[10px] text-gray-500 dark:text-gray-400 font-medium truncate max-w-[140px]" title={resp.submittedBy}>
                               {resp.submittedBy}
                             </span>
-                            <span className="text-[10px] text-gray-300 dark:text-gray-600">
+                            <span className="text-[9px] text-gray-400 dark:text-gray-500 uppercase tracking-tighter">
                               {new Date(resp.createdAt).toLocaleDateString()}
                             </span>
                           </div>
                         </td>
 
-                        {/* Follow-up answer cells */}
                         {allFollowUpNodes.map(node => {
                           const isRelevant = branchNodeIds.has(node.id);
                           const answerValue = resp.followUpData[node.id];
@@ -353,6 +342,58 @@ function FollowUpQuestionsTable({
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="lg:hidden p-4 space-y-4 bg-gray-50 dark:bg-gray-900/50">
+              {triggerOptions.map(option => {
+                const optionResponses = responsesByOption[option] || [];
+                const branch = formData.followUpTree.find(b => b.triggerOption === option);
+                const branchNodes = branch ? collectAllNodes(branch.questions) : [];
+
+                if (optionResponses.length === 0) return null;
+
+                return optionResponses.map((resp) => (
+                  <div key={`${option}-${resp.responseId}`} className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-100 dark:border-gray-700">
+                    <div className="flex justify-between items-start mb-4 pb-3 border-b border-gray-50 dark:border-gray-700">
+                      <div>
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          option.toLowerCase().includes('reject')
+                            ? 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400'
+                            : option.toLowerCase().includes('rework')
+                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/20 dark:text-yellow-400'
+                            : 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400'
+                        }`}>
+                          {option}
+                        </span>
+                        <p className="text-xs font-semibold text-gray-900 dark:text-gray-100 mt-1">{resp.submittedBy}</p>
+                      </div>
+                      <span className="text-[10px] text-gray-400 uppercase font-medium">
+                        {new Date(resp.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {branchNodes.map(node => {
+                        const answerValue = resp.followUpData[node.id];
+                        return (
+                          <div key={node.id} className={`p-2.5 rounded-lg ${
+                            node.level === 1 ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'bg-purple-50/50 dark:bg-purple-900/10 ml-4'
+                          }`}>
+                            <div className="flex items-center gap-1.5 mb-1">
+                              {node.level > 1 && <span className="text-gray-400 text-xs">↳</span>}
+                              <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-tight">{node.text}</p>
+                            </div>
+                            <div className="pl-1">
+                              {renderAnswerValue(answerValue)}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ));
+              })}
             </div>
 
             {/* Legend */}
@@ -908,48 +949,48 @@ export default function ResponseDashboard() {
         )}
 
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 mb-8 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div>
-                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Date Range</label>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-8 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 w-full lg:w-auto">
+              <div className="w-full sm:w-auto">
+                <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1 font-bold uppercase tracking-wider">Date Range</label>
                 <div className="flex items-center gap-2">
                   <input
                     type="date"
                     value={dateRange.start}
                     onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                    className="rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    className="flex-1 sm:w-36 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                   <span className="text-gray-400 text-sm">to</span>
                   <input
                     type="date"
                     value={dateRange.end}
                     onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                    className="rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                    className="flex-1 sm:w-36 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
               </div>
               <button
                 onClick={loadAdminPerformances}
-                className="mt-5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition"
+                className="w-full sm:w-auto px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition shadow-md hover:shadow-lg"
               >
                 Apply Filter
               </button>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+              <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search users…"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm w-56"
+                  className="w-full pl-9 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
               <button
                 onClick={exportToCSV}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-semibold transition shadow-md hover:shadow-lg"
               >
                 <Download className="w-4 h-4" />
                 Export CSV
@@ -960,14 +1001,15 @@ export default function ResponseDashboard() {
 
         {/* Admin Table - Enhanced with Active Hours Column */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 dark:bg-gray-900/50">
                 <tr>
-                  {['User', 'Role', 'Forms Submitted', /* 'Approved / Rejected'*/, /* 'Pending'*/, /* 'Avg Response',*/ 'Active Hours', 'Last Active', 'Actions'].map((h, i) => (
+                  {['User', 'Role', 'Forms Submitted', 'Active Hours', 'Last Active', 'Actions'].map((h, i) => (
                     <th
                       key={h}
-                      className={`px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${i === 8 ? 'text-right' : 'text-left'}`}
+                      className={`px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider ${i === 5 ? 'text-right' : 'text-left'}`}
                     >
                       {h}
                     </th>
@@ -977,14 +1019,14 @@ export default function ResponseDashboard() {
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {loading ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto" />
                       <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Loading user data…</p>
                     </td>
                   </tr>
                 ) : paginatedPerformances.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center">
+                    <td colSpan={6} className="px-6 py-12 text-center">
                       <Users className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
                       <p className="text-gray-500 dark:text-gray-400 text-sm">No user data found</p>
                     </td>
@@ -1002,9 +1044,9 @@ export default function ResponseDashboard() {
                           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
                             {admin.firstName[0]}{admin.lastName[0]}
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{admin.firstName} {admin.lastName}</p>
+                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{admin.firstName} {admin.lastName}</p>
                               {(() => {
                                 if (!admin.metrics.lastActive) return null;
                                 const lastActiveDate = new Date(admin.metrics.lastActive);
@@ -1017,7 +1059,7 @@ export default function ResponseDashboard() {
                                 ) : null;
                               })()}
                             </div>
-                            <p className="text-xs text-gray-400">{admin.email}</p>
+                            <p className="text-xs text-gray-400 truncate">{admin.email}</p>
                           </div>
                         </div>
                       </td>
@@ -1036,25 +1078,7 @@ export default function ResponseDashboard() {
                       <td className="px-6 py-4 text-sm font-semibold text-blue-600 dark:text-blue-400">
                         {admin.metrics.personallySubmitted}
                       </td>
-                      {/* Approved / Rejected 
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <span className="text-green-600 dark:text-green-400 font-medium">{admin.metrics.formsApproved}</span>
-                          <span className="text-gray-300 dark:text-gray-600">/</span>
-                          <span className="text-red-600 dark:text-red-400 font-medium">{admin.metrics.formsRejected}</span>
-                        </div>
-                      </td>
-                      */}
-                      {/* Pending 
-                      <td className="px-6 py-4">
-                        <span className="text-sm font-medium text-yellow-600 dark:text-yellow-400">{admin.metrics.pendingForms}</span>
-                      </td>
-                      */}
-                      {/* Avg Response 
-                      <td className="px-6 py-4 text-sm text-gray-700 dark:text-gray-300">
-                        {formatResponseTime(admin.metrics.averageResponseTime)}
-                      </td>
-                      {/* Active Hours - New Column */}
+                      {/* Active Hours */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-1.5">
                           <Activity className="w-4 h-4 text-orange-500" />
@@ -1063,7 +1087,7 @@ export default function ResponseDashboard() {
                           </span>
                         </div>
                       </td>
-                      {/* Last Active - Enhanced with time */}
+                      {/* Last Active */}
                       <td className="px-6 py-4">
                         {admin.metrics.lastActive ? (
                           <div className="flex flex-col">
@@ -1071,30 +1095,22 @@ export default function ResponseDashboard() {
                               {admin.metrics.lastActiveDate}
                             </span>
                             {admin.metrics.lastActiveTime && (
-                              <div className="flex flex-col">
-                                <span className="text-xs text-gray-400">
-                                  {admin.metrics.lastActiveTime}
-                                </span>
-                                {admin.metrics.activeDurationMinutes !== undefined && admin.metrics.activeDurationMinutes > 0 && (
-                                  <span className="text-[10px] text-blue-500 font-medium">
-                                    Time spent: {admin.metrics.activeDurationMinutes} mins
-                                  </span>
-                                )}
-                              </div>
+                              <span className="text-xs text-gray-400">
+                                {admin.metrics.lastActiveTime}
+                              </span>
                             )}
                           </div>
                         ) : (
-                          <span className="text-sm text-gray-400">Never</span>
+                          <span className="text-sm text-gray-400 italic">Never</span>
                         )}
                       </td>
                       {/* Actions */}
                       <td className="px-6 py-4 text-right">
-                        <button
+                        <button 
                           onClick={(e) => { e.stopPropagation(); openDetails(admin); }}
-                          className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition"
                         >
-                          <BarChart2 className="w-4 h-4" />
-                          View Details
+                          <ChevronRight className="w-4 h-4 text-gray-400" />
                         </button>
                       </td>
                     </tr>
@@ -1103,6 +1119,83 @@ export default function ResponseDashboard() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Card View */}
+          <div className="lg:hidden divide-y divide-gray-200 dark:divide-gray-700">
+            {loading ? (
+              <div className="px-6 py-12 text-center">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto" />
+                <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Loading user data…</p>
+              </div>
+            ) : paginatedPerformances.length === 0 ? (
+              <div className="px-6 py-12 text-center">
+                <Users className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                <p className="text-gray-500 dark:text-gray-400 text-sm">No user data found</p>
+              </div>
+            ) : (
+              paginatedPerformances.map((admin) => (
+                <div
+                  key={admin.adminId}
+                  className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors cursor-pointer"
+                  onClick={() => openDetails(admin)}
+                >
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold shadow-sm">
+                        {admin.firstName[0]}{admin.lastName[0]}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">{admin.firstName} {admin.lastName}</p>
+                          {(() => {
+                            if (!admin.metrics.lastActive) return null;
+                            const lastActiveDate = new Date(admin.metrics.lastActive);
+                            const isLive = (Date.now() - lastActiveDate.getTime()) < 5 * 60 * 1000;
+                            return isLive ? (
+                              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                            ) : null;
+                          })()}
+                        </div>
+                        <p className="text-xs text-gray-500 truncate">{admin.email}</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-xs">
+                    <div>
+                      <p className="text-gray-500 mb-0.5 font-bold uppercase tracking-wider text-[10px]">Role</p>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full font-medium ${
+                        admin.role === 'admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' 
+                        : admin.role === 'subadmin' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                      }`}>
+                        {admin.role}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 mb-0.5 font-bold uppercase tracking-wider text-[10px]">Submissions</p>
+                      <p className="font-bold text-blue-600 dark:text-blue-400">{admin.metrics.personallySubmitted}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 mb-0.5 font-bold uppercase tracking-wider text-[10px]">Active Time</p>
+                      <div className="flex items-center gap-1 font-medium text-gray-900 dark:text-gray-100">
+                        <Activity className="w-3 h-3 text-orange-500" />
+                        {formatActiveHours(admin.metrics.activeHours || 0)}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 mb-0.5 font-bold uppercase tracking-wider text-[10px]">Last Active</p>
+                      <p className="text-gray-900 dark:text-gray-100">
+                        {admin.metrics.lastActiveDate || 'Never'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
 
           {/* Pagination */}
           {!loading && filteredPerformances.length > 0 && (
@@ -1122,8 +1215,6 @@ export default function ResponseDashboard() {
             </div>
           )}
         </div>
-
-      </div>
 
       {/* ── Enhanced View Details Modal ─────────────────────────────────────── */}
       {selectedAdmin && (
@@ -1314,87 +1405,148 @@ export default function ResponseDashboard() {
 )} 
 
                   {/* Per-Form Breakdown */}
-                 {responseDetails.formBreakdown.length > 0 && (
-  <div>
-    <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Per-Form Breakdown</h3>
-    <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50 dark:bg-gray-900/50">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Form</th>
-            {responseDetails.formBreakdown[0]?.answerDistribution && 
-              Object.keys(responseDetails.formBreakdown[0].answerDistribution).map(option => (
-                <th key={option} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{option}</th>
-              ))
-            }
-            {/* Fallback for backward compatibility */}
-            {!responseDetails.formBreakdown[0]?.answerDistribution && (
-              <>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Yes</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">No</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">N/A</th>
-              </>
-            )}
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Responses</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total time</th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Detail</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-          {responseDetails.formBreakdown.map((row) => (
-            <tr key={row.formId} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-              <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 max-w-xs truncate" title={row.formTitle}>
-                {row.formTitle}
-              </td>
-              
-              {/* Dynamic answer columns */}
-              {responseDetails.formBreakdown[0]?.answerDistribution ? (
-  Object.keys(responseDetails.formBreakdown[0].answerDistribution).map((option) => (
-    <td key={option} className="px-4 py-3 font-semibold">
-      <span className={`${
-        option === 'Approved' ? 'text-green-600 dark:text-green-400' :
-        option === 'Rejected' ? 'text-red-600 dark:text-red-400' :
-        option === 'Reworked' ? 'text-yellow-600 dark:text-yellow-400' :
-        'text-gray-600 dark:text-gray-400'
-      }`}>
-        {row.answerDistribution?.[option] ?? 0}
-      </span>
-    </td>
-  ))
-) : (
-                // Fallback for backward compatibility
-                <>
-                  <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold">{row.yes || 0}</td>
-                  <td className="px-4 py-3 text-red-600 dark:text-red-400 font-semibold">{row.no || 0}</td>
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-semibold">{row.na || 0}</td>
-                </>
-              )}
-              
-              <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-bold">{row.responseCount}</td>
-              <td className="px-4 py-3 text-blue-600 dark:text-blue-400 font-medium">
-                {row.totalTimeSpent ? 
-                  (row.totalTimeSpent > 60 ? 
-                    `${Math.floor(row.totalTimeSpent / 60)}m ${row.totalTimeSpent % 60}s` : 
-                    `${row.totalTimeSpent}s`) : 
-                  '-'
-                }
-              </td>
-              <td className="px-4 py-3 text-right">
-                <button
-                  onClick={() => navigate(`/forms/${row.formId}/analytics?view=responses`)}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md transition-colors"
-                >
-                  <BarChart2 className="w-3.5 h-3.5" />
-                  View
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  </div>
-)}
+                  {responseDetails.formBreakdown.length > 0 && (
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Per-Form Breakdown</h3>
+                      
+                      {/* Desktop Table View */}
+                      <div className="hidden md:block overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                        <table className="w-full text-sm">
+                          <thead className="bg-gray-50 dark:bg-gray-900/50">
+                            <tr>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Form</th>
+                              {responseDetails.formBreakdown[0]?.answerDistribution && 
+                                Object.keys(responseDetails.formBreakdown[0].answerDistribution).map(option => (
+                                  <th key={option} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{option}</th>
+                                ))
+                              }
+                              {!responseDetails.formBreakdown[0]?.answerDistribution && (
+                                <>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Yes</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">No</th>
+                                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">N/A</th>
+                                </>
+                              )}
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Responses</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total time</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Detail</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                            {responseDetails.formBreakdown.map((row) => (
+                              <tr key={row.formId} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                <td className="px-4 py-3 font-medium text-gray-900 dark:text-gray-100 max-w-xs truncate" title={row.formTitle}>
+                                  {row.formTitle}
+                                </td>
+                                {responseDetails.formBreakdown[0]?.answerDistribution ? (
+                                  Object.keys(responseDetails.formBreakdown[0].answerDistribution).map((option) => (
+                                    <td key={option} className="px-4 py-3 font-semibold">
+                                      <span className={`${
+                                        option === 'Approved' ? 'text-green-600 dark:text-green-400' :
+                                        option === 'Rejected' ? 'text-red-600 dark:text-red-400' :
+                                        option === 'Reworked' ? 'text-yellow-600 dark:text-yellow-400' :
+                                        'text-gray-600 dark:text-gray-400'
+                                      }`}>
+                                        {row.answerDistribution?.[option] ?? 0}
+                                      </span>
+                                    </td>
+                                  ))
+                                ) : (
+                                  <>
+                                    <td className="px-4 py-3 text-green-600 dark:text-green-400 font-semibold">{row.yes || 0}</td>
+                                    <td className="px-4 py-3 text-red-600 dark:text-red-400 font-semibold">{row.no || 0}</td>
+                                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400 font-semibold">{row.na || 0}</td>
+                                  </>
+                                )}
+                                <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-bold">{row.responseCount}</td>
+                                <td className="px-4 py-3 text-blue-600 dark:text-blue-400 font-medium">
+                                  {row.totalTimeSpent ? 
+                                    (row.totalTimeSpent > 60 ? 
+                                      `${Math.floor(row.totalTimeSpent / 60)}m ${row.totalTimeSpent % 60}s` : 
+                                      `${row.totalTimeSpent}s`) : 
+                                    '-'
+                                  }
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <button
+                                    onClick={() => navigate(`/forms/${row.formId}/analytics?view=responses`)}
+                                    className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md transition-colors"
+                                  >
+                                    <BarChart2 className="w-3.5 h-3.5" />
+                                    View
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Mobile Card View */}
+                      <div className="md:hidden space-y-4">
+                        {responseDetails.formBreakdown.map((row) => (
+                          <div key={row.formId} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 border border-gray-100 dark:border-gray-600">
+                            <div className="flex justify-between items-start mb-3">
+                              <h4 className="text-sm font-bold text-gray-900 dark:text-gray-100 leading-tight pr-4">
+                                {row.formTitle}
+                              </h4>
+                              <button
+                                onClick={() => navigate(`/forms/${row.formId}/analytics?view=responses`)}
+                                className="flex-shrink-0 p-1.5 bg-blue-600 text-white rounded-lg"
+                              >
+                                <BarChart2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3 mb-3">
+                              {row.answerDistribution ? (
+                                Object.entries(row.answerDistribution).map(([label, value]) => (
+                                  <div key={label} className="bg-white dark:bg-gray-800 p-2 rounded-lg border border-gray-100 dark:border-gray-700">
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-0.5">{label}</p>
+                                    <p className={`text-sm font-bold ${
+                                      label === 'Approved' ? 'text-green-600' :
+                                      label === 'Rejected' ? 'text-red-600' :
+                                      label === 'Reworked' ? 'text-yellow-600' :
+                                      'text-gray-900 dark:text-gray-100'
+                                    }`}>{value}</p>
+                                  </div>
+                                ))
+                              ) : (
+                                <>
+                                  <div className="bg-white dark:bg-gray-800 p-2 rounded-lg border border-gray-100 dark:border-gray-700">
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-0.5">Yes</p>
+                                    <p className="text-sm font-bold text-green-600">{row.yes || 0}</p>
+                                  </div>
+                                  <div className="bg-white dark:bg-gray-800 p-2 rounded-lg border border-gray-100 dark:border-gray-700">
+                                    <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-0.5">No</p>
+                                    <p className="text-sm font-bold text-red-600">{row.no || 0}</p>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-600">
+                              <div className="text-xs">
+                                <span className="text-gray-500 font-medium">Responses: </span>
+                                <span className="text-gray-900 dark:text-gray-100 font-bold">{row.responseCount}</span>
+                              </div>
+                              <div className="text-xs">
+                                <span className="text-gray-500 font-medium">Total Time: </span>
+                                <span className="text-blue-600 dark:text-blue-400 font-bold">
+                                  {row.totalTimeSpent ? 
+                                    (row.totalTimeSpent > 60 ? 
+                                      `${Math.floor(row.totalTimeSpent / 60)}m ${row.totalTimeSpent % 60}s` : 
+                                      `${row.totalTimeSpent}s`) : 
+                                    '-'
+                                  }
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
 {/*  Follow-up Questions Table - add after Per-Form Breakdown */}
 {responseDetails.followUpTree &&

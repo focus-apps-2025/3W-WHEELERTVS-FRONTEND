@@ -1938,55 +1938,57 @@ const handleBulkDownloadZip = async () => {
       <div className="px-6 md:px-8 py-6">
 
         {/* View Mode Tabs & Back Button */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex gap-1 bg-white dark:bg-gray-700 rounded-lg p-1 w-fit border border-gray-200 dark:border-gray-600">
-            <button
-              onClick={() => setViewMode("dashboard")}
-              className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                viewMode === "dashboard"
-                    ? "text-white"
-                    : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
-              }`}
-              style={{ backgroundColor: viewMode === "dashboard" ? "#1e3a8a" : "transparent" }}
-            >
-              <BarChart3 className="w-4 h-4" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => setViewMode("responses")}
-              className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                viewMode === "responses"
-                    ? "text-white"
-                    : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
-              }`}
-              style={{ backgroundColor: viewMode === "responses" ? "#1e3a8a" : "transparent" }}
-            >
-              <FileText className="w-4 h-4" />
-              Responses
-            </button>
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            <div className="flex gap-1 bg-white dark:bg-gray-700 rounded-lg p-1 w-fit border border-gray-200 dark:border-gray-600">
+              <button
+                onClick={() => setViewMode("dashboard")}
+                className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                  viewMode === "dashboard"
+                      ? "text-white"
+                      : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
+                }`}
+                style={{ backgroundColor: viewMode === "dashboard" ? "#1e3a8a" : "transparent" }}
+              >
+                <BarChart3 className="w-4 h-4" />
+                Dashboard
+              </button>
+              <button
+                onClick={() => setViewMode("responses")}
+                className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
+                  viewMode === "responses"
+                      ? "text-white"
+                      : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
+                }`}
+                style={{ backgroundColor: viewMode === "responses" ? "#1e3a8a" : "transparent" }}
+              >
+                <FileText className="w-4 h-4" />
+                Responses
+              </button>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <div className="text-left">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+                  {form.title}
+                </h2>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Comprehensive analysis and insights
+                </p>
+              </div>
+              <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 hidden sm:block"></div>
+              <div className="text-left hidden sm:block">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Submitted
+                </p>
+                <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                  {formatTimestamp(response.createdAt)}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-6 mx-4">
-            <div className="text-center">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
-                {form.title}
-              </h2>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                Comprehensive analysis and insights
-              </p>
-            </div>
-            <div className="h-8 w-px bg-gray-300 dark:bg-gray-600 hidden sm:block"></div>
-            <div className="text-center hidden sm:block">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Submitted
-              </p>
-              <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                {formatTimestamp(response.createdAt)}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleEditResponse}
               className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white rounded-lg transition-all duration-200 hover:opacity-90"
@@ -2177,9 +2179,9 @@ const handleBulkDownloadZip = async () => {
           filteredSectionStats.length > 0 ? (
             <div className="space-y-5 flex flex-col" style={{ gap: "1.25rem" }}>
               {/* Two-Column Layout: Stats (25%) and Basic Information (75%) */}
-              <div className="flex gap-5 items-stretch">
+              <div className="flex flex-col lg:flex-row gap-5 items-stretch">
                 {/* Stats Cards - 25% */}
-                <div className="w-1/4 flex flex-col gap-2">
+                <div className="w-full lg:w-1/4 flex flex-col gap-2">
                   <div className="bg-blue-50 dark:bg-blue-900/20 p-2.5 rounded-lg border border-blue-200 dark:border-blue-700 transition-shadow duration-300">
                     <div className="flex items-start justify-between gap-2">
                       <div>
@@ -2337,7 +2339,7 @@ const handleBulkDownloadZip = async () => {
                 </div>
 
                 {/* Basic Information - 75% */}
-                <div className="w-3/4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
+                <div className="w-full lg:w-3/4 bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-5">
                 {form?.sections && form.sections.length > 0 ? (
                   (() => {
                     const section = form.sections[0];
@@ -3440,10 +3442,36 @@ const handleBulkDownloadZip = async () => {
       sectionTitle: string;
     }> = [];
 
+    const answeredKeys = new Set<string>();
+
+    // 1. Add Submission Metadata first
+    if (response?.submissionMetadata) {
+      const meta = response.submissionMetadata;
+      if (meta.ipAddress) allRows.push({ id: 'meta-ip', questionText: 'IP Address', answer: meta.ipAddress, sectionTitle: 'Submission Metadata' });
+      if (meta.submittedAt || response.createdAt) allRows.push({ id: 'meta-time', questionText: 'Submission Time', answer: formatTimestamp(meta.submittedAt || response.createdAt), sectionTitle: 'Submission Metadata' });
+      if (meta.browser) allRows.push({ id: 'meta-browser', questionText: 'Browser', answer: meta.browser, sectionTitle: 'Submission Metadata' });
+      if (meta.os) allRows.push({ id: 'meta-os', questionText: 'Operating System', answer: meta.os, sectionTitle: 'Submission Metadata' });
+      if (meta.device) allRows.push({ id: 'meta-device', questionText: 'Device', answer: meta.device, sectionTitle: 'Submission Metadata' });
+      if (meta.location) {
+        const loc = meta.location;
+        const locStr = [loc.city, loc.region, loc.country].filter(Boolean).join(', ');
+        if (locStr) allRows.push({ id: 'meta-location', questionText: 'IP Location', answer: locStr, sectionTitle: 'Submission Metadata' });
+      }
+    }
+
+    // 2. Add specific metadata fields
+    if (response?.dealerName) allRows.push({ id: 'meta-dealer', questionText: 'Dealer Name', answer: response.dealerName, sectionTitle: 'Submission Metadata' });
+    if (response?.answers?.auditorName) {
+      allRows.push({ id: 'meta-auditor', questionText: 'Auditor Name', answer: response.answers.auditorName, sectionTitle: 'Submission Metadata' });
+      answeredKeys.add('auditorName');
+    }
+
+    // 3. Add form questions
     form?.sections?.forEach((section: any) => {
       section.questions?.forEach((question: any) => {
         const answer = response?.answers?.[question.id];
         if (answer !== undefined && answer !== null && answer !== '') {
+          answeredKeys.add(question.id);
           allRows.push({
             id: question.id,
             questionText: question.text || question.label || question.id,
@@ -3456,6 +3484,7 @@ const handleBulkDownloadZip = async () => {
         question.followUpQuestions?.forEach((followUp: any) => {
           const followUpAnswer = response?.answers?.[followUp.id];
           if (followUpAnswer !== undefined && followUpAnswer !== null && followUpAnswer !== '') {
+            answeredKeys.add(followUp.id);
             allRows.push({
               id: followUp.id,
               questionText: followUp.text || followUp.label || followUp.id,
@@ -3472,6 +3501,7 @@ const handleBulkDownloadZip = async () => {
     form?.followUpQuestions?.forEach((followUp: any) => {
       const followUpAnswer = response?.answers?.[followUp.id];
       if (followUpAnswer !== undefined && followUpAnswer !== null && followUpAnswer !== '') {
+        answeredKeys.add(followUp.id);
         allRows.push({
           id: followUp.id,
           questionText: followUp.text || followUp.label || followUp.id,
@@ -3479,6 +3509,18 @@ const handleBulkDownloadZip = async () => {
           subParam2: followUp.subParam2,
           answer: followUpAnswer,
           sectionTitle: "Follow-up Questions"
+        });
+      }
+    });
+
+    // 4. Add any other unmapped answers
+    Object.entries(response?.answers || {}).forEach(([key, value]) => {
+      if (!answeredKeys.has(key) && !key.startsWith('synthetic_') && value !== undefined && value !== null && value !== '') {
+        allRows.push({
+          id: key,
+          questionText: key,
+          answer: value,
+          sectionTitle: "Additional Data"
         });
       }
     });
@@ -3576,7 +3618,7 @@ const handleBulkDownloadZip = async () => {
       return (val.defects && val.defects.length > 0) || val.defect || val.defects;
     });
 
-    const columnCount = 1 + (hasAnyZoneData ? (3 + (showCategoryCol ? 1 : 0) + (showDefectsCol ? 1 : 0) + 2) : 1);
+    const columnCount = 4 + (hasAnyZoneData ? (5 + (showCategoryCol ? 1 : 0) + (showDefectsCol ? 1 : 0)) : 1) + 1;
 
     const rows: JSX.Element[] = [];
     let currentSection = '';
@@ -3589,9 +3631,9 @@ const handleBulkDownloadZip = async () => {
           <tr key={`section-${currentSection}`} className="bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/40 dark:to-indigo-900/40">
             <td
               colSpan={columnCount}
-              className="px-4 py-2 text-sm font-bold text-blue-900 dark:text-blue-200 border border-gray-200 dark:border-gray-600"
+              className="px-4 py-2 text-[10px] font-bold text-blue-900 dark:text-blue-200 border border-gray-200 dark:border-gray-600 uppercase tracking-widest"
             >
-              {currentSection}
+              Section: {currentSection}
             </td>
           </tr>
         );
@@ -3601,237 +3643,210 @@ const handleBulkDownloadZip = async () => {
       rowIndex++;
 
       if (isZoneStructured(row.answer)) {
-  const val = row.answer;
-  const status = val?.status || '-';
-  const zones = val?.zone || val?.zones;
-  const zonesData = val?.zonesData || {};
+        const val = row.answer;
+        const status = val?.status || '-';
+        const zones = val?.zone || val?.zones;
+        const zonesData = val?.zonesData || {};
 
-  // Build structured entries grouped by zone and category
-  type ZoneEntry = {
-    zone: string;
-    category: string;
-    defects: string;
-    remark: string;
-    file: string;
-    zoneRowSpan?: number;
-    categoryRowSpan?: number;
-    showZone?: boolean;
-    showCategory?: boolean;
-  };
+        type ZoneEntry = {
+          zone: string;
+          category: string;
+          defects: string;
+          remark: string;
+          file: string;
+          zoneRowSpan?: number;
+          categoryRowSpan?: number;
+          showZone?: boolean;
+          showCategory?: boolean;
+        };
 
-  const zoneEntries: ZoneEntry[] = [];
+        const zoneEntries: ZoneEntry[] = [];
 
-  if (zonesData && typeof zonesData === 'object') {
-    Object.entries(zonesData).forEach(([zoneName, zoneVal]: [string, any]) => {
-      const categories = zoneVal?.categories;
-      const zoneStartIndex = zoneEntries.length;
+        if (zonesData && typeof zonesData === 'object') {
+          Object.entries(zonesData).forEach(([zoneName, zoneVal]: [string, any]) => {
+            const categories = zoneVal?.categories;
+            const zoneStartIndex = zoneEntries.length;
 
-      if (Array.isArray(categories) && categories.length > 0) {
-        categories.forEach((cat: any) => {
-          const catName = typeof cat === 'string' ? cat : (cat?.name || cat?.category || '-');
-          const defects = cat?.defects;
-          const catStartIndex = zoneEntries.length;
+            if (Array.isArray(categories) && categories.length > 0) {
+              categories.forEach((cat: any) => {
+                const catName = typeof cat === 'string' ? cat : (cat?.name || cat?.category || '-');
+                const defects = cat?.defects;
+                const catStartIndex = zoneEntries.length;
 
-          if (Array.isArray(defects) && defects.length > 0) {
-            defects.forEach((defect: any) => {
-              const defectName = typeof defect === 'string'
-                ? defect
-                : (defect?.name || defect?.defect || defect?.title || '-');
-              const details = typeof defect === 'object' ? (defect?.details || {}) : {};
-              const remark = typeof defect === 'object'
-                ? (details?.remark || details?.remarks || defect?.remark || defect?.remarks || defect?.comment || '-')
-                : '-';
-              const file = typeof defect === 'object'
-                ? (details?.fileUrl || details?.file || defect?.fileUrl || defect?.file || defect?.imageUrl || defect?.photo || defect?.image || defect?.url || '')
-                : '';
+                if (Array.isArray(defects) && defects.length > 0) {
+                  defects.forEach((defect: any) => {
+                    const defectName = typeof defect === 'string'
+                      ? defect
+                      : (defect?.name || defect?.defect || defect?.title || '-');
+                    const details = typeof defect === 'object' ? (defect?.details || {}) : {};
+                    const remark = typeof defect === 'object'
+                      ? (details?.remark || details?.remarks || defect?.remark || defect?.remarks || defect?.comment || '-')
+                      : '-';
+                    const file = typeof defect === 'object'
+                      ? (details?.fileUrl || details?.file || defect?.fileUrl || defect?.file || defect?.imageUrl || defect?.photo || defect?.image || defect?.url || '')
+                      : '';
+                    zoneEntries.push({
+                      zone: zoneName,
+                      category: catName,
+                      defects: defectName,
+                      remark: remark || '-',
+                      file: file || '',
+                      showZone: false,
+                      showCategory: false,
+                    });
+                  });
+                } else {
+                  const details = typeof cat === 'object' ? (cat?.details || {}) : {};
+                  const remark = typeof cat === 'object' ? (details?.remark || cat?.remark || '-') : '-';
+                  const file = typeof cat === 'object' ? (details?.fileUrl || details?.file || cat?.fileUrl || cat?.file || '') : '';
+                  zoneEntries.push({
+                    zone: zoneName,
+                    category: catName,
+                    defects: '-',
+                    remark: remark || '-',
+                    file: file || '',
+                    showZone: false,
+                    showCategory: false,
+                  });
+                }
+
+                const catCount = zoneEntries.length - catStartIndex;
+                if (catCount > 0) {
+                  zoneEntries[catStartIndex].showCategory = true;
+                  zoneEntries[catStartIndex].categoryRowSpan = catCount;
+                }
+              });
+            } else {
               zoneEntries.push({
                 zone: zoneName,
-                category: catName,
-                defects: defectName,
-                remark: remark || '-',
-                file: file || '',
+                category: '-',
+                defects: '-',
+                remark: '-',
+                file: '',
                 showZone: false,
-                showCategory: false,
+                showCategory: true,
+                categoryRowSpan: 1,
               });
-            });
-          } else {
-            const details = typeof cat === 'object' ? (cat?.details || {}) : {};
-            const remark = typeof cat === 'object' ? (details?.remark || cat?.remark || '-') : '-';
-            const file = typeof cat === 'object' ? (details?.fileUrl || details?.file || cat?.fileUrl || cat?.file || '') : '';
-            zoneEntries.push({
-              zone: zoneName,
-              category: catName,
-              defects: '-',
-              remark: remark || '-',
-              file: file || '',
-              showZone: false,
-              showCategory: false,
-            });
-          }
+            }
 
-          // Mark first entry of this category
-          const catCount = zoneEntries.length - catStartIndex;
-          if (catCount > 0) {
-            zoneEntries[catStartIndex].showCategory = true;
-            zoneEntries[catStartIndex].categoryRowSpan = catCount;
-          }
+            const zoneCount = zoneEntries.length - zoneStartIndex;
+            if (zoneCount > 0) {
+              zoneEntries[zoneStartIndex].showZone = true;
+              zoneEntries[zoneStartIndex].zoneRowSpan = zoneCount;
+            }
+          });
+        }
+
+        if (zoneEntries.length === 0) {
+          const zonesStr = Array.isArray(zones) ? zones.join(', ') : (zones || '-');
+          const defectsStr = Array.isArray(val?.defects) 
+            ? val.defects.map((d: any) => typeof d === 'string' ? d : (d?.name || d?.defect || '-')).join(', ') 
+            : (val?.defect || val?.defects || '-');
+          
+          zoneEntries.push({
+            zone: zonesStr,
+            category: val?.category || val?.categoryName || '-',
+            defects: defectsStr,
+            remark: val?.remark || val?.remarks || val?.comment || val?.comments || '-',
+            file: val?.evidenceUrl || val?.fileUrl || val?.file || val?.imageUrl || '',
+            showZone: true,
+            showCategory: true,
+            zoneRowSpan: 1,
+            categoryRowSpan: 1,
+          });
+        }
+
+        const totalRowSpan = zoneEntries.length;
+        const entry0 = zoneEntries[0];
+
+        rows.push(
+          <tr key={`${row.id}-0`} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
+            <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-400 align-top">
+              {row.sectionTitle}
+            </td>
+            <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-800 dark:text-gray-200 align-top max-w-[200px]">
+              {row.questionText}
+            </td>
+            <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-[10px] text-blue-700 dark:text-blue-300 align-top">
+              {row.subParam1 || '-'}
+            </td>
+            <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-[10px] text-emerald-700 dark:text-emerald-300 align-top">
+              {row.subParam2 || '-'}
+            </td>
+            <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-middle text-center w-[90px]">
+              <span className="inline-block bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 px-2 py-1 rounded-full text-[10px] font-bold border border-orange-200 dark:border-orange-700 whitespace-nowrap">
+                {status}
+              </span>
+            </td>
+            <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-middle w-[100px]">
+              <div className="flex flex-col gap-1">
+                {(Array.isArray(zones) ? zones : [zones]).filter(Boolean).map((z: string, i: number) => (
+                  <span key={i} className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-blue-200 dark:border-blue-700 whitespace-nowrap">
+                    {z}
+                  </span>
+                ))}
+              </div>
+            </td>
+            <td rowSpan={entry0.zoneRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-800 dark:text-gray-200 align-middle bg-blue-50/30 dark:bg-blue-900/10">
+              {entry0.zone}
+            </td>
+            {entry0.showCategory && showCategoryCol && (
+              <td rowSpan={entry0.categoryRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 align-middle">
+                {entry0.category}
+              </td>
+            )}
+            {showDefectsCol && (
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
+                {entry0.defects}
+              </td>
+            )}
+            <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 italic">
+              {entry0.remark !== '-' ? <span className="flex items-center gap-1">📝 {entry0.remark}</span> : '-'}
+            </td>
+            <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs">
+              {entry0.file ? (
+                isImageUrl(entry0.file)
+                  ? <ImageLink text={entry0.file} />
+                  : <a href={entry0.file} target={"_blank"} rel={"noopener noreferrer"} className="text-blue-600 dark:text-blue-400 underline text-[10px] font-bold">View</a>
+              ) : '-'}
+            </td>
+            <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-bold text-center align-middle">
+              {response?.responseRanks?.[row.id] ? `#${response.responseRanks[row.id]}` : '-'}
+            </td>
+          </tr>
+        );
+
+        zoneEntries.slice(1).forEach((entry, idx) => {
+          rows.push(
+            <tr key={`${row.id}-${idx + 1}`} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
+              {entry.showZone && (
+                <td rowSpan={entry.zoneRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-800 dark:text-gray-200 align-middle bg-blue-50/30 dark:bg-blue-900/10">
+                  {entry.zone}
+                </td>
+              )}
+              {entry.showCategory && showCategoryCol && (
+                <td rowSpan={entry.categoryRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 align-middle">
+                  {entry.category}
+                </td>
+              )}
+              {showDefectsCol && (
+                <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
+                  {entry.defects}
+                </td>
+              )}
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 italic">
+                {entry.remark !== '-' ? <span className="flex items-center gap-1">📝 {entry.remark}</span> : '-'}
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs">
+                {entry.file ? (
+                  isImageUrl(entry.file)
+                    ? <ImageLink text={entry.file} />
+                    : <a href={entry.file} target={"_blank"} rel={"noopener noreferrer"} className="text-blue-600 dark:text-blue-400 underline text-[10px] font-bold">View</a>
+                ) : '-'}
+              </td>
+            </tr>
+          );
         });
-      } else {
-        zoneEntries.push({
-          zone: zoneName,
-          category: '-',
-          defects: '-',
-          remark: '-',
-          file: '',
-          showZone: false,
-          showCategory: true,
-          categoryRowSpan: 1,
-        });
-      }
-
-      // Mark first entry of this zone
-      const zoneCount = zoneEntries.length - zoneStartIndex;
-      if (zoneCount > 0) {
-        zoneEntries[zoneStartIndex].showZone = true;
-        zoneEntries[zoneStartIndex].zoneRowSpan = zoneCount;
-      }
-    });
-  }
-
-  if (zoneEntries.length === 0) {
-    const zonesStr = Array.isArray(zones) ? zones.join(', ') : (zones || '-');
-    const defectsStr = Array.isArray(val?.defects) 
-      ? val.defects.map((d: any) => typeof d === 'string' ? d : (d?.name || d?.defect || '-')).join(', ') 
-      : (val?.defect || val?.defects || '-');
-    
-    zoneEntries.push({
-      zone: zonesStr,
-      category: val?.category || val?.categoryName || '-',
-      defects: defectsStr,
-      remark: val?.remark || val?.remarks || val?.comment || val?.comments || '-',
-      file: val?.evidenceUrl || val?.fileUrl || val?.file || val?.imageUrl || '',
-      showZone: true,
-      showCategory: true,
-      zoneRowSpan: 1,
-      categoryRowSpan: 1,
-    });
-  }
-
-  const totalRowSpan = zoneEntries.length;
-
-  // First row — includes Question, Status, Zones cells (all rowspanned)
-  rows.push(
-    <tr key={`${row.id}-0`} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
-      {/* Question — rowspan all */}
-      <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top w-[120px] min-w-[100px] max-w-[140px]">
-        <div className="flex flex-col gap-1">
-          {row.subParam1 && (
-            <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
-              {row.subParam1}
-            </span>
-          )}
-          {row.subParam2 && (
-            <span className="inline-block bg-emerald-100/60 dark:bg-emerald-900/30 text-emerald-900 dark:text-emerald-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
-              {row.subParam2}
-            </span>
-          )}
-          <div className="font-medium text-gray-800 dark:text-gray-200 text-xs leading-tight">
-            {row.questionText}
-          </div>
-        </div>
-      </td>
-      {/* Status — rowspan all */}
-      <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-middle text-center w-[90px]">
-        <span className="inline-block bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 px-2 py-1 rounded-full text-xs font-bold border border-orange-200 dark:border-orange-700 whitespace-nowrap">
-          {status}
-        </span>
-      </td>
-      {/* Zones — rowspan all */}
-      <td rowSpan={totalRowSpan} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-middle w-[100px]">
-        <div className="flex flex-col gap-1">
-          {(Array.isArray(zones) ? zones : [zones]).filter(Boolean).map((z: string, i: number) => (
-            <span key={i} className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded text-xs font-semibold border border-blue-200 dark:border-blue-700 whitespace-nowrap">
-              {z}
-            </span>
-          ))}
-        </div>
-      </td>
-      {/* First entry: Zone (rowspanned per zone group) */}
-      {zoneEntries[0].showZone && (
-        <td
-          rowSpan={zoneEntries[0].zoneRowSpan}
-          className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-800 dark:text-gray-200 align-middle bg-blue-50/30 dark:bg-blue-900/10"
-        >
-          {zoneEntries[0].zone}
-        </td>
-      )}
-      {/* First entry: Category (rowspanned per category group) */}
-      {entry.showCategory && showCategoryCol && (
-        <td
-          rowSpan={entry.categoryRowSpan}
-          className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 align-middle"
-        >
-          {entry.category}
-        </td>
-      )}
-      {showDefectsCol && (
-        <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
-          {entry.defects}
-        </td>
-      )}
-      <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 italic">
-        {zoneEntries[0].remark !== '-' ? <span className="flex items-center gap-1">📝 {zoneEntries[0].remark}</span> : '-'}
-      </td>
-      <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs">
-        {zoneEntries[0].file ? (
-          isImageUrl(zoneEntries[0].file)
-            ? <ImageLink text={zoneEntries[0].file} />
-            : <a href={zoneEntries[0].file} target={"_blank"} rel={"noopener noreferrer"} className="text-blue-600 dark:text-blue-400 underline">View</a>
-        ) : '-'}
-      </td>
-    </tr>
-  );
-
-  // Remaining rows
-  zoneEntries.slice(1).forEach((entry, idx) => {
-    rows.push(
-      <tr key={`${row.id}-${idx + 1}`} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
-        {/* Zone cell — only render if this is the first row of a new zone group */}
-        {entry.showZone && (
-          <td
-            rowSpan={entry.zoneRowSpan}
-            className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-800 dark:text-gray-200 align-middle bg-blue-50/30 dark:bg-blue-900/10"
-          >
-            {entry.zone}
-          </td>
-        )}
-        {/* Category cell — only render if this is the first row of a new category group */}
-        {entry.showCategory && showCategoryCol && (
-          <td
-            rowSpan={entry.categoryRowSpan}
-            className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300 align-middle"
-          >
-            {entry.category}
-          </td>
-        )}
-        {showDefectsCol && (
-          <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-700 dark:text-gray-300">
-            {entry.defects}
-          </td>
-        )}
-        <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-400 italic">
-          {entry.remark !== '-' ? <span className="flex items-center gap-1">📝 {entry.remark}</span> : '-'}
-        </td>
-        <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs">
-          {entry.file ? (
-            isImageUrl(entry.file)
-              ? <ImageLink text={entry.file} />
-              : <a href={entry.file} target={"_blank"} rel={"noopener noreferrer"} className="text-blue-600 dark:text-blue-400 underline">View</a>
-          ) : '-'}
-        </td>
-      </tr>
-    );
-  });
       } else {
         const val = row.answer;
         const isChassisRow = isChassisType(val);
@@ -3839,34 +3854,33 @@ const handleBulkDownloadZip = async () => {
         if (hasAnyZoneData && isChassisRow) {
           const status = val.status || '-';
           const zones = val.zone || val.zones;
-          const zonesStr = Array.isArray(zones) ? zones.join(', ') : (zones || '-');
           const chassis = val.chassisNumber || '-';
           const remark = val.remark || '-';
           const file = val.evidenceUrl || '';
 
           rows.push(
             <tr key={row.id} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
-              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top w-[120px] min-w-[100px] max-w-[140px]">
-                <div className="flex flex-col gap-1">
-                  {row.subParam1 && (
-                    <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
-                      {row.subParam1}
-                    </span>
-                  )}
-                  <div className="font-medium text-gray-800 dark:text-gray-200 text-xs leading-tight">
-                    {row.questionText}
-                  </div>
-                </div>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-400 align-top">
+                {row.sectionTitle}
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-800 dark:text-gray-200 align-top max-w-[200px]">
+                {row.questionText}
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-[10px] text-blue-700 dark:text-blue-300 align-top">
+                {row.subParam1 || '-'}
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-[10px] text-emerald-700 dark:text-emerald-300 align-top">
+                {row.subParam2 || '-'}
               </td>
               <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-middle text-center w-[90px]">
-                <span className="inline-block bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 px-2 py-1 rounded-full text-xs font-bold border border-orange-200 dark:border-orange-700 whitespace-nowrap">
+                <span className="inline-block bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 px-2 py-1 rounded-full text-[10px] font-bold border border-orange-200 dark:border-orange-700 whitespace-nowrap">
                   {status}
                 </span>
               </td>
               <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-middle w-[100px]">
                 <div className="flex flex-wrap gap-1">
                   {(Array.isArray(zones) ? zones : [zones]).filter(Boolean).map((z: string, i: number) => (
-                    <span key={i} className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-0.5 rounded text-xs font-semibold border border-blue-200 dark:border-blue-700 whitespace-nowrap">
+                    <span key={i} className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-1.5 py-0.5 rounded text-[10px] font-semibold border border-blue-200 dark:border-blue-700 whitespace-nowrap">
                       {z}
                     </span>
                   ))}
@@ -3895,26 +3909,32 @@ const handleBulkDownloadZip = async () => {
                     : <a href={file} target={"_blank"} rel={"noopener noreferrer"} className="text-blue-600 dark:text-blue-400 underline font-bold uppercase tracking-tighter text-[10px]">View</a>
                 ) : '-'}
               </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-bold text-center align-top">
+                {response?.responseRanks?.[row.id] ? `#${response.responseRanks[row.id]}` : '-'}
+              </td>
             </tr>
           );
         } else {
           // Normal non-zone row
           rows.push(
             <tr key={row.id} className={`${isEven ? 'bg-white dark:bg-gray-900' : 'bg-gray-50/50 dark:bg-gray-800/30'} hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors`}>
-              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top w-[120px] min-w-[100px] max-w-[140px]">
-                <div className="flex flex-col gap-1">
-                  {row.subParam1 && (
-                    <span className="inline-block bg-blue-100/60 dark:bg-blue-900/30 text-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded font-semibold text-[9px] w-fit uppercase tracking-wider">
-                      {row.subParam1}
-                    </span>
-                  )}
-                  <div className="font-medium text-gray-800 dark:text-gray-200 text-xs leading-tight">
-                    {row.questionText}
-                  </div>
-                </div>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-semibold text-gray-600 dark:text-gray-400 align-top">
+                {row.sectionTitle}
               </td>
-              <td colSpan={columnCount - 1} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top">
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-medium text-gray-800 dark:text-gray-200 align-top max-w-[200px]">
+                {row.questionText}
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-[10px] text-blue-700 dark:text-blue-300 align-top">
+                {row.subParam1 || '-'}
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-[10px] text-emerald-700 dark:text-emerald-300 align-top">
+                {row.subParam2 || '-'}
+              </td>
+              <td colSpan={hasAnyZoneData ? (5 + (showCategoryCol ? 1 : 0) + (showDefectsCol ? 1 : 0)) : 1} className="px-3 py-2 border border-gray-200 dark:border-gray-700 align-top">
                 {renderSimpleAnswer(row.answer)}
+              </td>
+              <td className="px-3 py-2 border border-gray-200 dark:border-gray-700 text-xs font-bold text-center align-top">
+                {response?.responseRanks?.[row.id] ? `#${response.responseRanks[row.id]}` : '-'}
               </td>
             </tr>
           );
@@ -3940,43 +3960,55 @@ const handleBulkDownloadZip = async () => {
       <table className="w-full border-collapse text-sm">
         <thead className="sticky top-0 z-10">
           <tr className="bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700">
-            <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600 w-[120px]">
+            <th className="px-3 py-3 text-left text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+              Section
+            </th>
+            <th className="px-3 py-3 text-left text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600 min-w-[150px]">
               Question
             </th>
-            {hasAnyZoneData && (
+            <th className="px-3 py-3 text-left text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+              Main Parameter
+            </th>
+            <th className="px-3 py-3 text-left text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+              Sub Parameter
+            </th>
+            
+            {hasAnyZoneData ? (
               <>
-                <th className="px-3 py-3 text-left text-xs font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600 w-[90px]">
+                <th className="px-3 py-3 text-left text-[10px] font-bold text-orange-700 dark:text-orange-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
                   Status
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600 w-[100px]">
+                <th className="px-3 py-3 text-left text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
                   Zones
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
-                  Zone
+                <th className="px-3 py-3 text-left text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                  Zone / Chassis
                 </th>
                 {showCategoryCol && (
-                  <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                  <th className="px-3 py-3 text-left text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
                     Category
                   </th>
                 )}
                 {showDefectsCol && (
-                  <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                  <th className="px-3 py-3 text-left text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
                     Defects
                   </th>
                 )}
-                <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                <th className="px-3 py-3 text-left text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
                   Remark
                 </th>
-                <th className="px-3 py-3 text-left text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+                <th className="px-3 py-3 text-left text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
                   File
                 </th>
               </>
-            )}
-            {!hasAnyZoneData && (
-              <th className="px-3 py-3 text-left text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+            ) : (
+              <th className="px-3 py-3 text-left text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
                 Answer / Response
               </th>
             )}
+            <th className="px-3 py-3 text-left text-[10px] font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-600">
+              Rank
+            </th>
           </tr>
         </thead>
         <tbody>

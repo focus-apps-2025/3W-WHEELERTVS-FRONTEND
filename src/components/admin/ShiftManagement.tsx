@@ -183,16 +183,16 @@ export default function ShiftManagement() {
   };
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex justify-between items-center mb-6">
+    <div className="p-4 md:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Shift Management</h1>
-            <p className="text-gray-600">Define office hours. System automatically assigns shifts to inspectors based on check-in time.</p>
+            <h1 className="text-2xl font-black text-gray-900 dark:text-white">Shift Management</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Define office hours and automatic shift assignment.</p>
           </div>
           <button
             onClick={() => { resetForm(); setEditingShift(null); setShowModal(true); }}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+            className="flex items-center justify-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-sm hover:bg-blue-700 transition shadow-lg shadow-blue-100 dark:shadow-none active:scale-95"
           >
             <Plus size={20} />
             Create Shift
@@ -210,79 +210,82 @@ export default function ShiftManagement() {
             <p className="text-gray-500 text-sm mt-1">Create your first shift to get started</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {shifts?.map(shift => (
-              <div key={shift._id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-5 border-b border-gray-100 bg-gray-50/50">
+              <div key={shift._id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+                <div className="p-4 md:p-5 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
                   <div className="flex justify-between items-start">
-                    <div>
-                      <h3 className="font-bold text-gray-900 text-lg">{shift.displayName}</h3>
-                      <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">{shift.name}</span>
+                    <div className="min-w-0">
+                      <h3 className="font-black text-gray-900 dark:text-white text-base md:text-lg truncate">{shift.displayName}</h3>
+                      <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">{shift.name}</span>
                     </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => openEditModal(shift)} className="p-1.5 text-gray-400 hover:text-blue-600 transition">
+                    <div className="flex gap-1">
+                      <button onClick={() => openEditModal(shift)} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all">
                         <Edit2 size={16} />
                       </button>
-                      <button onClick={() => handleDelete(shift._id)} className="p-1.5 text-gray-400 hover:text-red-600 transition">
+                      <button onClick={() => handleDelete(shift._id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all">
                         <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
                 </div>
 
-                <div className="p-5 space-y-4">
-                  <div className="flex items-center gap-4 text-gray-700">
-                    <div className="flex items-center gap-2">
+                <div className="p-4 md:p-5 space-y-5 flex-1">
+                  <div className="flex flex-wrap items-center gap-3 text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-xl border border-blue-100 dark:border-blue-900/30">
                       <Clock size={16} className="text-blue-500" />
-                      <span className="font-semibold">{shift.startTime} - {shift.endTime}</span>
+                      <span className="font-black text-sm">{shift.startTime} - {shift.endTime}</span>
                     </div>
                     {shift.isNightShift && (
-                      <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded text-xs font-bold">Night</span>
+                      <span className="px-3 py-1.5 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-xl text-[10px] font-black uppercase tracking-wider border border-indigo-200 dark:border-indigo-800">Night</span>
                     )}
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="bg-green-50 p-2 rounded">
-                      <div className="text-green-600 font-bold">{shift.gracePeriod}m</div>
-                      <div className="text-gray-500">Grace</div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-green-50/50 dark:bg-green-900/10 p-2.5 rounded-xl border border-green-100 dark:border-green-900/20">
+                      <div className="text-green-600 dark:text-green-400 font-black text-sm">{shift.gracePeriod}m</div>
+                      <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Grace</div>
                     </div>
-                    <div className="bg-yellow-50 p-2 rounded">
-                      <div className="text-yellow-600 font-bold">{shift.lateMarkingAfter}m</div>
-                      <div className="text-gray-500">Late</div>
+                    <div className="bg-yellow-50/50 dark:bg-yellow-900/10 p-2.5 rounded-xl border border-yellow-100 dark:border-yellow-900/20">
+                      <div className="text-yellow-600 dark:text-yellow-400 font-black text-sm">{shift.lateMarkingAfter}m</div>
+                      <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Late</div>
                     </div>
-                    <div className="bg-orange-50 p-2 rounded">
-                      <div className="text-orange-600 font-bold">{shift.halfDayMarkingAfter}m</div>
-                      <div className="text-gray-500">Half-Day</div>
+                    <div className="bg-orange-50/50 dark:bg-orange-900/10 p-2.5 rounded-xl border border-orange-100 dark:border-orange-900/20">
+                      <div className="text-orange-600 dark:text-orange-400 font-black text-sm">{shift.halfDayMarkingAfter}m</div>
+                      <div className="text-[9px] text-gray-400 font-bold uppercase tracking-tighter">Half-Day</div>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t border-gray-100">
+                  <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
                     <div className="flex justify-between items-center mb-3">
-                      <span className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                      <span className="text-xs md:text-sm font-black text-gray-900 dark:text-white flex items-center gap-2">
                         <Users size={16} className="text-gray-400" />
-                        Inspectors ({shift.assignedInspectors.length})
+                        Inspectors ({shift.assignedInspectors?.length || 0})
                       </span>
                       <button 
                         onClick={() => openAssignModal(shift)}
-                        className="text-blue-600 hover:text-blue-700 text-xs font-bold flex items-center gap-1"
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 text-[10px] font-black uppercase flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/30 px-3 py-1.5 rounded-xl border border-blue-100 dark:border-blue-900/30 transition-all active:scale-95"
                       >
                         <UserPlus size={14} />
                         Assign
                       </button>
                     </div>
                     
-                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-2">
+                    <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1 no-scrollbar">
                       {shift?.assignedInspectors?.map((ins: any) => (
-                        <div key={ins._id} className="flex items-center bg-gray-100 px-2 py-1 rounded text-xs text-gray-700 group">
-                          {ins.firstName} {ins.lastName}
+                        <div key={ins._id} className="flex items-center bg-gray-50 dark:bg-gray-800/80 border border-gray-100 dark:border-gray-700 px-2.5 py-1.5 rounded-xl text-[11px] text-gray-700 dark:text-gray-300 font-bold group">
+                          <span className="truncate max-w-[80px]">{ins.firstName} {ins.lastName}</span>
                           <button 
                             onClick={() => handleRemoveInspector(shift._id, ins._id)}
-                            className="ml-1.5 text-gray-400 hover:text-red-500 hidden group-hover:block"
+                            className="ml-2 text-gray-400 hover:text-red-500 transition-colors"
                           >
                             <X size={12} />
                           </button>
                         </div>
                       ))}
+                      {(!shift.assignedInspectors || shift.assignedInspectors.length === 0) && (
+                         <span className="text-xs text-gray-400 italic">No inspectors assigned</span>
+                      )}
                     </div>
                   </div>
                 </div>

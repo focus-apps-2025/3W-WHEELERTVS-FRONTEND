@@ -602,17 +602,10 @@ useEffect(() => {
           </span>
         </div>
 
-        <div className="relative -mx-6 px-6">
-          <div
-            className="flex gap-6 overflow-x-auto pb-6 scroll-smooth"
-            style={{
-              scrollBehavior: "smooth",
-              scrollPaddingLeft: "2rem",
-              scrollPaddingRight: "2rem",
-            }}
-          >
+        <div className="relative">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {tenantList.length === 0 ? (
-              <div className="w-full py-12 text-center text-gray-400 bg-gray-50/50 dark:bg-gray-800/30 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+              <div className="col-span-full py-12 text-center text-gray-400 bg-gray-50/50 dark:bg-gray-800/30 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
                 <Building className="w-8 h-8 mx-auto mb-2 opacity-20" />
                 <p className="text-sm">No tenants in this category</p>
               </div>
@@ -628,27 +621,27 @@ useEffect(() => {
                 return (
                   <div
                     key={tenant._id}
-                    className="flex-shrink-0 w-80 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col relative overflow-hidden"
+                    className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 p-6 hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col relative overflow-hidden shadow-sm"
                     onClick={() => handleTenantClick(tenant)}
                   >
                     {isFree && (
-                      <div className="absolute top-0 right-0 px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-bl-xl shadow-sm">
+                      <div className="absolute top-0 right-0 px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest rounded-bl-2xl shadow-sm z-10">
                         Free Trial
                       </div>
                     )}
 
                     <div className="flex items-start justify-between mb-6">
                       <div
-                        className={`p-4 rounded-2xl ${isFree ? "bg-blue-50 dark:bg-blue-900/20" : "bg-primary-50 dark:bg-primary-900/20"} group-hover:scale-110 transition-transform duration-300`}
+                        className={`p-4 rounded-2xl ${isFree ? "bg-blue-50 dark:bg-blue-900/30" : "bg-primary-50 dark:bg-primary-900/30"} group-hover:scale-110 transition-transform duration-500`}
                       >
                         <Building
                           className={`w-8 h-8 ${isFree ? "text-blue-600" : "text-primary-600"}`}
                         />
                       </div>
                       <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${tenant.isActive
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${tenant.isActive
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                            : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400"
                           }`}
                       >
                         {tenant.isActive ? "Active" : "Inactive"}
@@ -656,43 +649,43 @@ useEffect(() => {
                     </div>
 
                     <div className="mb-8">
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1 group-hover:text-primary-600 transition-colors line-clamp-1">
+                      <h3 className="text-lg font-black text-gray-900 dark:text-white mb-1 group-hover:text-primary-600 transition-colors line-clamp-2">
                         {tenant.companyName || tenant.name}
                       </h3>
-                      <p className="text-gray-400 dark:text-gray-500 text-[10px] font-bold uppercase tracking-widest">
+                      <p className="text-gray-400 dark:text-gray-500 text-[10px] font-black uppercase tracking-widest">
                         {tenant.slug}
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-8">
-                      <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                    <div className="grid grid-cols-2 gap-3 mb-8">
+                      <div className="p-4 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
                           Forms
                         </p>
-                        <p className="text-xl font-black text-gray-900 dark:text-white">
+                        <p className="text-2xl font-black text-gray-900 dark:text-white">
                           {stats.totalForms}
                         </p>
                       </div>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-900/50 rounded-xl">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">
+                      <div className="p-4 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
                           Responses
                         </p>
-                        <p className="text-xl font-black text-gray-900 dark:text-white">
+                        <p className="text-2xl font-black text-gray-900 dark:text-white">
                           {stats.totalResponses}
                         </p>
                       </div>
                     </div>
 
-                    <div className="mt-auto pt-6 border-t border-gray-100 dark:border-gray-700">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                          Performance Score
+                    <div className="mt-auto pt-6 border-t border-gray-50 dark:border-gray-700">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                          Quality Score
                         </span>
-                        <span className="text-sm font-black text-primary-600">
+                        <span className="text-sm font-black text-primary-600 dark:text-primary-400">
                           {stats.performanceScore}%
                         </span>
                       </div>
-                      <div className="w-full h-2 bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden">
+                      <div className="w-full h-2 bg-gray-100 dark:bg-gray-900 rounded-full overflow-hidden shadow-inner">
                         <div
                           className={`h-full rounded-full transition-all duration-1000 ${isFree ? "bg-blue-600" : "bg-primary-600"}`}
                           style={{ width: `${stats.performanceScore}%` }}
@@ -829,16 +822,8 @@ useEffect(() => {
     }
 
     return (
-      <div className="relative -mx-6 px-6">
-        <div
-          ref={scrollContainerRef}
-          className="flex gap-6 overflow-x-auto pb-4 scroll-smooth"
-          style={{
-            scrollBehavior: "smooth",
-            scrollPaddingLeft: "2rem",
-            scrollPaddingRight: "2rem",
-          }}
-        >
+      <div className="relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 lg:gap-8">
           {filteredForms.map((form: any) => {
             const stats = getFormResponseStats(form.id);
             const promoterPercentage =
@@ -848,214 +833,91 @@ useEffect(() => {
             return (
               <div
                 key={form._id}
-                className="flex-shrink-0 w-72 h-[36rem] bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-600 dark:to-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 p-6 hover:shadow-lg transition-all duration-300 cursor-pointer group flex flex-col overflow-hidden"
+                className="bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 p-6 lg:p-8 hover:shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 group flex flex-col shadow-sm"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg group-hover:scale-110 transition-transform">
-                    <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                <div className="flex items-start justify-between mb-8">
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-2xl group-hover:scale-110 transition-transform duration-500">
+                    <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400" />
                   </div>
                   <span
-                    className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${form.isVisible
-                        ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                        : "bg-gray-200 dark:bg-gray-500 text-gray-700 dark:text-gray-300"
+                    className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${form.isVisible
+                        ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400"
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
                       }`}
                   >
                     {form.isVisible ? "Published" : "Draft"}
                   </span>
                 </div>
 
-                <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-1 line-clamp-1 truncate">
-                  {form.title}
-                </h3>
+                <div className="mb-8">
+                  <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 transition-colors line-clamp-2 leading-tight">
+                    {form.title}
+                  </h3>
+                  {form.description && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
+                      {form.description}
+                    </p>
+                  )}
+                </div>
 
-                <p className="text-gray-600 dark:text-gray-400 text-xs mb-2 line-clamp-1">
-                  {form.description || "No description provided"}
-                </p>
-
-                <div className="flex items-center justify-between py-2 border-b border-gray-300 dark:border-gray-500">
+                <div className="grid grid-cols-2 gap-4 mb-8 pt-6 border-t border-gray-50 dark:border-gray-700">
                   <div>
-                    <p className="text-gray-600 dark:text-gray-400 text-xs">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
                       Total Responses
                     </p>
-                    <p className="text-lg font-bold text-blue-600 dark:text-blue-400 truncate">
+                    <p className="text-2xl font-black text-blue-600 dark:text-blue-400">
                       {form.responseCount || 0}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-gray-600 dark:text-gray-400 text-xs">
-                      YES
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">
+                      Success Rate
                     </p>
-                    <p
-                      className="text-lg font-bold"
-                      style={{ color: "#1e3a8a" }}
-                    >
+                    <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
                       {promoterPercentage}%
                     </p>
                   </div>
                 </div>
 
-                <div className="mt-2 flex-1 flex flex-col items-center justify-center min-h-0">
+                <div className="mt-auto space-y-6">
                   {stats.total > 0 ? (
                     <>
-                      <div
-                        className="w-full h-full flex items-center justify-center py-2"
-                        style={{ maxHeight: "160px" }}
-                      >
-                        <Doughnut
-                          data={{
-                            labels: ["YES", "NO", "N/A"],
-                            datasets: [
-                              {
-                                data: [
-                                  stats.yesCount,
-                                  stats.noCount,
-                                  stats.naCount,
-                                ],
-                                backgroundColor: [
-                                  "rgba(30, 58, 138, 1)",
-                                  "rgba(147, 197, 253, 1)",
-                                  "rgba(37, 99, 235, 1)",
-                                ],
-                                borderColor: [
-                                  "rgba(30, 58, 138, 1)",
-                                  "rgba(147, 197, 253, 1)",
-                                  "rgba(37, 99, 235, 1)",
-                                ],
-                                borderWidth: 2,
-                              },
-                            ],
-                          }}
-                          options={
-                            {
-                              responsive: true,
-                              maintainAspectRatio: true,
-                              cutout: "75%",
-                              plugins: {
-                                legend: {
-                                  display: false,
-                                },
-                                tooltip: {
-                                  enabled: false,
-                                },
-                                datalabels: {
-                                  display: false,
-                                },
-                              },
-                            } as any
-                          }
-                        />
-                      </div>
-                      <div className="mt-2 flex justify-center gap-4">
-                        <div className="flex flex-col items-center">
-                          <p className="text-xs font-bold text-gray-900 dark:text-white">
-                            {stats.yesCount}
-                          </p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                            YES
-                          </p>
-                          <Smile
-                            className="w-4 h-4 mt-0.5"
-                            style={{ color: "#1e3a8a" }}
-                          />
-                          <p
-                            className="text-xs font-semibold mt-0.5"
-                            style={{ color: "#1e3a8a" }}
-                          >
-                            {stats.total > 0
-                              ? ((stats.yesCount / stats.total) * 100).toFixed(
-                                1,
-                              )
-                              : "0"}
-                            %
-                          </p>
+                      <div className="grid grid-cols-3 gap-4 py-4 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                        <div className="text-center">
+                          <Smile className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Yes</p>
+                          <p className="text-sm font-black text-gray-900 dark:text-white">{stats.yesCount}</p>
                         </div>
-                        <div className="flex flex-col items-center">
-                          <p className="text-xs font-bold text-gray-900 dark:text-white">
-                            {stats.noCount}
-                          </p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                            NO
-                          </p>
-                          <Frown
-                            className="w-4 h-4 mt-0.5"
-                            style={{ color: "#93c5fd" }}
-                          />
-                          <p
-                            className="text-xs font-semibold mt-0.5"
-                            style={{ color: "#93c5fd" }}
-                          >
-                            {stats.total > 0
-                              ? ((stats.noCount / stats.total) * 100).toFixed(1)
-                              : "0"}
-                            %
-                          </p>
+                        <div className="text-center border-x border-gray-100 dark:border-gray-700">
+                          <Frown className="w-5 h-5 text-rose-500 mx-auto mb-1" />
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No</p>
+                          <p className="text-sm font-black text-gray-900 dark:text-white">{stats.noCount}</p>
                         </div>
-                        <div className="flex flex-col items-center">
-                          <p className="text-xs font-bold text-gray-900 dark:text-white">
-                            {stats.naCount}
-                          </p>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
-                            N/A
-                          </p>
-                          <Meh
-                            className="w-4 h-4 mt-0.5"
-                            style={{ color: "#2563eb" }}
-                          />
-                          <p
-                            className="text-xs font-semibold mt-0.5"
-                            style={{ color: "#2563eb" }}
-                          >
-                            {stats.total > 0
-                              ? ((stats.naCount / stats.total) * 100).toFixed(1)
-                              : "0"}
-                            %
-                          </p>
+                        <div className="text-center">
+                          <Meh className="w-5 h-5 text-amber-500 mx-auto mb-1" />
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">N/A</p>
+                          <p className="text-sm font-black text-gray-900 dark:text-white">{stats.naCount}</p>
                         </div>
                       </div>
                     </>
                   ) : (
-                    <div className="text-center py-2">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        No responses
-                      </p>
+                    <div className="py-8 text-center bg-gray-50/50 dark:bg-gray-900/30 rounded-2xl border-2 border-dashed border-gray-100 dark:border-gray-700">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">No response data yet</p>
                     </div>
                   )}
-                </div>
 
-                <button
-                  onClick={() => navigate(`/forms/${form.id}/analytics`)}
-                  className="mt-4 w-full bg-blue-800 hover:bg-white hover:text-blue-800  text-white py-2 px-3 rounded-lg font-medium text-sm transition-colors flex items-center justify-center border border-transparent hover:border-blue-800"
-                  style={{ backgroundColor: "#1e3a8a" }}
-                  onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#ffffffff")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#1e3a8a")
-                  }
-                >
-                  View More Analytics
-                </button>
+                  <button
+                    onClick={() => navigate(`/forms/${form.id}/analytics`)}
+                    className="w-full bg-[#1e3a8a] hover:bg-blue-800 text-white py-4 px-6 rounded-2xl font-bold text-sm transition-all shadow-lg shadow-blue-900/10 hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center group/btn"
+                  >
+                    View Full Analytics
+                    <ChevronRight className="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" />
+                  </button>
+                </div>
               </div>
             );
           })}
         </div>
-
-        {filteredForms.length > 3 && (
-          <>
-            <button
-              onClick={() => scroll("left")}
-              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 shadow-lg transition-all z-10"
-            >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-            <button
-              onClick={() => scroll("right")}
-              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-2 shadow-lg transition-all z-10"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          </>
-        )}
       </div>
     );
   };
@@ -1086,39 +948,42 @@ useEffect(() => {
     const paginatedSummary = inspectorSummary.slice(startIndex, endIndex);
 
     return (
-      <div className="mt-12 overflow-x-auto border-t border-gray-100 dark:border-gray-600 pt-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-1.5 h-6 bg-blue-600 rounded-full"></div>
-            <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-              Inspection Summary Table
-            </h3>
+      <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-700">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
+          <div className="flex items-center gap-4">
+            <div className="w-2 h-8 bg-blue-600 rounded-full shadow-sm shadow-blue-500/20"></div>
+            <div>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white leading-none mb-1">
+                Inspection Summary
+              </h3>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Real-time inspection data</p>
+            </div>
           </div>
 
-          {/* Date Filters */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-1.5 border border-gray-200 dark:border-gray-700">
-              <span className="text-xs font-semibold text-gray-500 mr-2 uppercase">From</span>
+          {/* Date Filters - Responsive */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex items-center bg-white dark:bg-gray-800 rounded-2xl px-4 py-2 border border-gray-200 dark:border-gray-700 shadow-sm focus-within:ring-4 focus-within:ring-blue-500/10 transition-all">
+              <span className="text-[10px] font-black text-gray-400 mr-3 uppercase tracking-wider">From</span>
               <input
                 type="date"
                 value={summaryStartDate}
                 onChange={(e) => { setSummaryStartDate(e.target.value); setSummaryPage(1); }}
-                className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none"
+                className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-200 focus:outline-none w-full"
               />
             </div>
-            <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg px-3 py-1.5 border border-gray-200 dark:border-gray-700">
-              <span className="text-xs font-semibold text-gray-500 mr-2 uppercase">To</span>
+            <div className="flex items-center bg-white dark:bg-gray-800 rounded-2xl px-4 py-2 border border-gray-200 dark:border-gray-700 shadow-sm focus-within:ring-4 focus-within:ring-blue-500/10 transition-all">
+              <span className="text-[10px] font-black text-gray-400 mr-3 uppercase tracking-wider">To</span>
               <input
                 type="date"
                 value={summaryEndDate}
                 onChange={(e) => { setSummaryEndDate(e.target.value); setSummaryPage(1); }}
-                className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none"
+                className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-200 focus:outline-none w-full"
               />
             </div>
             {(summaryStartDate || summaryEndDate) && (
               <button
                 onClick={() => { setSummaryStartDate(""); setSummaryEndDate(""); setSummaryPage(1); }}
-                className="text-xs text-red-600 hover:text-red-800 font-medium underline px-2"
+                className="px-4 py-2 text-xs font-black text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-900/20 rounded-xl transition-colors uppercase tracking-widest"
               >
                 Clear
               </button>
@@ -1126,154 +991,151 @@ useEffect(() => {
           </div>
         </div>
 
-        <table className="w-full text-sm text-left border-collapse bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
-          <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 uppercase text-[10px] font-black tracking-widest">
-            <tr>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Tenant Name</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Date</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Shift</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Form Title</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">QC Inspector</th>
-              <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Inspection</th>
-              {/* Dynamic Status Columns */}
-              {summaryStatuses.map((status) => (
-                <th
-                  key={status}
-                  className={`px-4 py-4 border-b border-gray-200 dark:border-gray-700 ${status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-green-600' :
-                      status.startsWith('Rework') ? 'text-orange-600' :
-                        status === 'Rejected' ? 'text-red-600' : 'text-blue-600'
-                    }`}
-                >
-                  {status}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-            {paginatedSummary.map((row, idx) => (
-              <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.tenantName}</td>
-                <td className="px-4 py-4">{row.date}</td>
-                <td className="px-4 py-4">
-                  {(() => {
-                    if (row.shift) {
-                      return row.shift;
-                    }
-                    if (row.date && row.date.includes('T')) {
-                      const dateTime = new Date(row.date);
-                      const hour = dateTime.getHours();
-                      const minute = dateTime.getMinutes();
-                      const timeInMinutes = hour * 60 + minute;
-
-                      const shifts = [
-                        { name: "Morning Shift", start: 9 * 60, end: 17 * 60 },
-                        { name: "Evening Shift", start: 17 * 60, end: 25 * 60 },
-                        { name: "Night Shift", start: 1 * 60, end: 9 * 60 },
-                      ];
-
-                      const matchingShift = shifts.find(shift => {
-                        if (shift.start < shift.end) {
-                          return timeInMinutes >= shift.start && timeInMinutes < shift.end;
-                        } else {
-                          return timeInMinutes >= shift.start || timeInMinutes < shift.end;
-                        }
-                      });
-
-                      if (matchingShift) {
-                        const startHour = Math.floor(matchingShift.start / 60);
-                        const startMin = matchingShift.start % 60;
-                        const endHour = Math.floor(matchingShift.end / 60) % 24;
-                        const endMin = matchingShift.end % 60;
-                        return `${matchingShift.name} (${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')} - ${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')})`;
-                      }
-                    }
-                    return "No Shift Assigned";
-                  })()}
-                </td>
-                <td className="px-4 py-4">{row.formTitle || "N/A"}</td>
-                <td className="px-4 py-4">{row.qcInspector}</td>
-                <td className="px-4 py-4 font-bold">{row.totalInspection}</td>
-                {/* Dynamic Status Cells */}
-                {summaryStatuses.map((status) => (
-                  <td
-                    key={status}
-                    className={`px-4 py-4 font-bold ${status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-green-600' :
-                        status.startsWith('Rework') ? 'text-orange-600' :
-                          status === 'Rejected' ? 'text-red-600' : 'text-blue-600'
-                      }`}
-                  >
-                    {row.statusCounts?.[status] || 0}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        {/* Pagination Controls */}
-        {totalSummaryPages > 1 && (
-          <div className="flex items-center justify-between mt-4 px-2">
-            <div className="flex items-center gap-2">
-              <label className="text-sm text-gray-600 dark:text-gray-400">Rows per page:</label>
-              <select
-                value={summaryPageSize}
-                onChange={(e) => { setSummaryPageSize(Number(e.target.value)); setSummaryPage(1); }}
-                className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-              >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={20}>20</option>
-                <option value={50}>50</option>
-              </select>
-            </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">
-              Showing {startIndex + 1} to {Math.min(endIndex, totalSummaryItems)} of {totalSummaryItems} entries
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSummaryPage(prev => Math.max(1, prev - 1))}
-                disabled={summaryPage === 1}
-                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
-              >
-                Previous
-              </button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalSummaryPages) }, (_, i) => {
-                  let pageNum: number;
-                  if (totalSummaryPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (summaryPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (summaryPage >= totalSummaryPages - 2) {
-                    pageNum = totalSummaryPages - 4 + i;
-                  } else {
-                    pageNum = summaryPage - 2 + i;
-                  }
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setSummaryPage(pageNum)}
-                      className={`w-8 h-8 text-sm rounded-md transition-colors ${
-                        summaryPage === pageNum
-                          ? 'bg-blue-600 text-white'
-                          : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-                      }`}
+        <div className="relative bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-md sticky top-0 z-10 text-gray-500 dark:text-gray-400 uppercase text-[10px] font-black tracking-[0.15em]">
+                <tr>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">Tenant Name</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">Date</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">Shift</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">Form Title</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">QC Inspector</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">Total</th>
+                  {/* Dynamic Status Columns */}
+                  {summaryStatuses.map((status) => (
+                    <th
+                      key={status}
+                      className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center"
                     >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              <button
-                onClick={() => setSummaryPage(prev => Math.min(totalSummaryPages, prev + 1))}
-                disabled={summaryPage === totalSummaryPages}
-                className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
-              >
-                Next
-              </button>
-            </div>
+                      {status}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                {paginatedSummary.map((row, idx) => (
+                  <tr key={idx} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors group">
+                    <td className="px-4 sm:px-6 py-5 font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                      {row.tenantName}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 text-gray-600 dark:text-gray-400 whitespace-nowrap tabular-nums font-medium">
+                      {new Date(row.date).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                        {row.shift || "N/A"}
+                      </span>
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 text-gray-600 dark:text-gray-400 whitespace-nowrap max-w-xs truncate font-medium">
+                      {row.formTitle || "N/A"}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-300 font-black text-[10px]">
+                          {row.qcInspector?.split(' ').map((n: string) => n[0]).join('')}
+                        </div>
+                        <span className="font-bold text-gray-700 dark:text-gray-200">{row.qcInspector}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 text-center">
+                      <span className="text-base font-black text-gray-900 dark:text-white tabular-nums">
+                        {row.totalInspection}
+                      </span>
+                    </td>
+                    {/* Dynamic Status Cells */}
+                    {summaryStatuses.map((status) => {
+                      const count = row.statusCounts?.[status] || 0;
+                      const isZero = count === 0;
+                      return (
+                        <td
+                          key={status}
+                          className={`px-4 sm:px-6 py-5 text-center font-black tabular-nums transition-opacity ${isZero ? 'opacity-20 text-gray-400' : 
+                            status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-emerald-600 dark:text-emerald-400' :
+                            status.startsWith('Rework') ? 'text-amber-600 dark:text-amber-400' :
+                            status === 'Rejected' ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'
+                          }`}
+                        >
+                          {count}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
+
+          {/* Improved Responsive Pagination */}
+          {totalSummaryPages > 1 && (
+            <div className="bg-gray-50/50 dark:bg-gray-900/30 px-6 py-6 border-t border-gray-100 dark:border-gray-700">
+              <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4 order-2 lg:order-1">
+                  <div className="flex items-center bg-white dark:bg-gray-800 rounded-xl px-3 py-1.5 border border-gray-200 dark:border-gray-700 shadow-sm">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider mr-3">Show</span>
+                    <select
+                      value={summaryPageSize}
+                      onChange={(e) => { setSummaryPageSize(Number(e.target.value)); setSummaryPage(1); }}
+                      className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-200 focus:outline-none"
+                    >
+                      {[5, 10, 20, 50].map(size => (
+                        <option key={size} value={size}>{size}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                    Showing <span className="text-gray-900 dark:text-white tabular-nums">{startIndex + 1}-{Math.min(endIndex, totalSummaryItems)}</span> of <span className="text-gray-900 dark:text-white tabular-nums">{totalSummaryItems}</span>
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 order-1 lg:order-2">
+                  <button
+                    onClick={() => setSummaryPage(prev => Math.max(1, prev - 1))}
+                    disabled={summaryPage === 1}
+                    className="p-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm group"
+                  >
+                    <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600" />
+                  </button>
+                  
+                  <div className="flex items-center gap-1.5 overflow-x-auto px-2 max-w-[200px] sm:max-w-none">
+                    {Array.from({ length: totalSummaryPages }, (_, i) => i + 1)
+                      .filter(num => 
+                        totalSummaryPages <= 5 || 
+                        Math.abs(num - summaryPage) <= 1 || 
+                        num === 1 || 
+                        num === totalSummaryPages
+                      )
+                      .map((pageNum, idx, arr) => (
+                        <React.Fragment key={pageNum}>
+                          {idx > 0 && arr[idx-1] !== pageNum - 1 && (
+                            <span className="text-gray-300">...</span>
+                          )}
+                          <button
+                            onClick={() => setSummaryPage(pageNum)}
+                            className={`min-w-[40px] h-10 text-xs font-black rounded-xl transition-all ${
+                              summaryPage === pageNum
+                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 shadow-sm'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        </React.Fragment>
+                      ))}
+                  </div>
+
+                  <button
+                    onClick={() => setSummaryPage(prev => Math.min(totalSummaryPages, prev + 1))}
+                    disabled={summaryPage === totalSummaryPages}
+                    className="p-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm group"
+                  >
+                    <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -1300,7 +1162,7 @@ useEffect(() => {
   const paginatedPerformance = performanceTableData.slice(startIndex, endIndex);
 
   return (
-    <div className="mt-12 overflow-x-auto border-t border-gray-100 dark:border-gray-600 pt-8">
+    <div className="mt-12 border-t border-gray-100 dark:border-gray-600 pt-8">
       <div className="flex items-center gap-3 mb-6">
         <div className="w-1.5 h-6 bg-purple-600 rounded-full"></div>
         <h3 className="text-lg font-bold text-gray-800 dark:text-white">
@@ -1308,109 +1170,114 @@ useEffect(() => {
         </h3>
       </div>
 
-      <table className="w-full text-sm text-left border-collapse bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm border border-gray-200 dark:border-gray-700">
-        <thead className="bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 uppercase text-[10px] font-black tracking-widest">
-          <tr>
-            {isSuperAdmin && <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Tenant</th>}
-            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">User Name</th>
-            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Submitted</th>
-            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-blue-600">Dispatched</th>
-            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Total Reviewed</th>
-            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-green-600">Accepted</th>
-            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-red-600">Rejected</th>
-            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 text-orange-600">Reworked</th>
-            <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">Performance Score</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-          {paginatedPerformance.map((row, idx) => (
-            <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-              {isSuperAdmin && <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.tenantName}</td>}
-              <td className="px-4 py-4 font-medium text-gray-900 dark:text-white">{row.name}</td>
-              <td className="px-4 py-4 font-bold">{row.totalSubmitted}</td>
-              <td className="px-4 py-4 font-bold text-blue-600 dark:text-blue-400">{row.dispatched || 0}</td>
-              <td className="px-4 py-4 font-bold">{row.totalReviewed}</td>
-              <td className="px-4 py-4 font-bold text-green-600">{row.accepted}</td>
-              <td className="px-4 py-4 font-bold text-red-600">{row.rejected}</td>
-              <td className="px-4 py-4 font-bold text-orange-600">{row.rework}</td>
-              <td className="px-4 py-4">
-                <span className={`px-2 py-1 rounded-full text-xs font-bold ${
-                  row.performanceScore >= 80 ? 'bg-green-100 text-green-700' :
-                  row.performanceScore >= 50 ? 'bg-orange-100 text-orange-700' :
-                  'bg-red-100 text-red-700'
-                }`}>
-                  {row.performanceScore}%
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      {/* Pagination Controls */}
-      {totalPerformancePages > 1 && (
-        <div className="flex items-center justify-between mt-4 px-2">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600 dark:text-gray-400">Rows per page:</label>
-            <select
-              value={performancePageSize}
-              onChange={(e) => { setPerformancePageSize(Number(e.target.value)); setPerformancePage(1); }}
-              className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-            >
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={20}>20</option>
-              <option value={50}>50</option>
-            </select>
-          </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Showing {startIndex + 1} to {Math.min(endIndex, totalPerformanceItems)} of {totalPerformanceItems} entries
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setPerformancePage(prev => Math.max(1, prev - 1))}
-              disabled={performancePage === 1}
-              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
-            >
-              Previous 
-            </button>
-            <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(5, totalPerformancePages) }, (_, i) => {
-                let pageNum: number;
-                if (totalPerformancePages <= 5) {
-                  pageNum = i + 1;
-                } else if (performancePage <= 3) {
-                  pageNum = i + 1;
-                } else if (performancePage >= totalPerformancePages - 2) {
-                  pageNum = totalPerformancePages - 4 + i;
-                } else {
-                  pageNum = performancePage - 2 + i;
-                }
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setPerformancePage(pageNum)}
-                    className={`w-8 h-8 text-sm rounded-md transition-colors ${
-                      performancePage === pageNum
-                        ? 'bg-purple-600 text-white'
-                        : 'border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-            </div>
-            <button
-              onClick={() => setPerformancePage(prev => Math.min(totalPerformancePages, prev + 1))}
-              disabled={performancePage === totalPerformancePages}
-              className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
-            >
-              Next
-            </button>
-          </div>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 max-h-[600px]">
+          <table className="w-full text-sm text-left border-collapse">
+            <thead className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-md sticky top-0 z-10 text-gray-700 dark:text-gray-300 uppercase text-[10px] font-black tracking-widest">
+              <tr>
+                {isSuperAdmin && <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">Tenant</th>}
+                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">User Name</th>
+                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Total Submitted</th>
+                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-blue-600">Dispatched</th>
+                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Total Reviewed</th>
+                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-green-600">Accepted</th>
+                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-red-600">Rejected</th>
+                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-orange-600">Reworked</th>
+                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Performance Score</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {paginatedPerformance.map((row, idx) => (
+                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+                  {isSuperAdmin && <td className="px-4 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">{row.tenantName}</td>}
+                  <td className="px-4 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">{row.name}</td>
+                  <td className="px-4 py-4 font-bold text-center tabular-nums">{row.totalSubmitted}</td>
+                  <td className="px-4 py-4 font-bold text-center text-blue-600 dark:text-blue-400 tabular-nums">{row.dispatched || 0}</td>
+                  <td className="px-4 py-4 font-bold text-center tabular-nums">{row.totalReviewed}</td>
+                  <td className="px-4 py-4 font-bold text-center text-green-600 tabular-nums">{row.accepted}</td>
+                  <td className="px-4 py-4 font-bold text-center text-red-600 tabular-nums">{row.rejected}</td>
+                  <td className="px-4 py-4 font-bold text-center text-orange-600 tabular-nums">{row.rework}</td>
+                  <td className="px-4 py-4 text-center">
+                    <span className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${
+                      row.performanceScore >= 80 ? 'bg-green-100 text-green-700' :
+                      row.performanceScore >= 50 ? 'bg-orange-100 text-orange-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {row.performanceScore}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+
+        {/* Pagination Controls - Responsive */}
+        {totalPerformancePages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-gray-50/30 dark:bg-gray-900/30 border-t border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Show</label>
+              <select
+                value={performancePageSize}
+                onChange={(e) => { setPerformancePageSize(Number(e.target.value)); setPerformancePage(1); }}
+                className="px-2 py-1 text-xs font-bold border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none"
+              >
+                {[5, 10, 20, 50].map(size => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest hidden xs:inline">
+                {startIndex + 1}-{Math.min(endIndex, totalPerformanceItems)} of {totalPerformanceItems}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPerformancePage(prev => Math.max(1, prev - 1))}
+                disabled={performancePage === 1}
+                className="p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-30 transition-all hover:bg-gray-50 shadow-sm"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              
+              <div className="flex items-center gap-1 overflow-x-auto max-w-[120px] sm:max-w-none scrollbar-none">
+                {Array.from({ length: totalPerformancePages }, (_, i) => i + 1)
+                  .filter(num => 
+                    totalPerformancePages <= 3 || 
+                    Math.abs(num - performancePage) <= 1 || 
+                    num === 1 || 
+                    num === totalPerformancePages
+                  )
+                  .map((pageNum, idx, arr) => (
+                    <React.Fragment key={pageNum}>
+                      {idx > 0 && arr[idx-1] !== pageNum - 1 && (
+                        <span className="text-gray-300 text-[10px]">...</span>
+                      )}
+                      <button
+                        onClick={() => setPerformancePage(pageNum)}
+                        className={`min-w-[28px] h-7 text-[10px] font-black rounded-lg transition-all ${
+                          performancePage === pageNum
+                            ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                            : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    </React.Fragment>
+                  ))}
+              </div>
+
+              <button
+                onClick={() => setPerformancePage(prev => Math.min(totalPerformancePages, prev + 1))}
+                disabled={performancePage === totalPerformancePages}
+                className="p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-30 transition-all hover:bg-gray-50 shadow-sm"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -1487,7 +1354,7 @@ useEffect(() => {
         </h3>
 
         <div className="flex flex-col lg:flex-row items-center gap-8">
-          <div className="relative w-72 h-72 flex-shrink-0">
+          <div className="relative w-full max-w-[280px] aspect-square sm:w-72 sm:h-72 flex-shrink-0">
 
             <Doughnut data={data} options={options} />
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
@@ -1590,139 +1457,140 @@ useEffect(() => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8">
       {/* Tenant Info Banner - Hide for inspectors */}
       {currentTenant && !isInspector && (
-        <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                Your Tenant Information
+        <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-xl p-4 sm:p-6 shadow-sm">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            <div className="space-y-4 lg:space-y-2">
+              <h3 className="text-sm font-bold text-blue-900 dark:text-blue-300 uppercase tracking-widest">
+                Tenant Information
               </h3>
-              <div className="flex items-center space-x-4 text-sm">
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Business Name:
-                  </span>{" "}
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {currentTenant.companyName}
-                  </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-center gap-4 lg:gap-8 text-sm">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">Business:</span>
+                  <span className="font-bold text-gray-900 dark:text-gray-100">{currentTenant.companyName}</span>
                 </div>
-                <div>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {currentTenant._id}
-                  </span>
+                {/* <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">ID:</span>
+                  <code className="px-2 py-0.5 bg-white dark:bg-gray-800 rounded border border-blue-100 dark:border-blue-800 font-bold text-blue-700 dark:text-blue-400">{currentTenant._id}</code>
+                </div> */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">Slug:</span>
+                  <span className="font-bold text-gray-900 dark:text-gray-100">{currentTenant.slug}</span>
                 </div>
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    Tenant Slug:
-                  </span>{" "}
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {currentTenant.slug}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-gray-600 dark:text-gray-400">
-                    User Role:
-                  </span>{" "}
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {user?.role}
-                  </span>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">Role:</span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 capitalize">{user?.role}</span>
                 </div>
               </div>
             </div>
-            {currentTenant.slug && (
-              <div className="text-right">
-                <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">
-                  Customer Portal URL:
+            {/* {currentTenant.slug && (
+              <div className="lg:text-right pt-4 lg:pt-0 border-t lg:border-t-0 border-blue-100 dark:border-blue-800">
+                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-widest">
+                  Customer Portal
                 </p>
                 <a
                   href={`https://3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-sm font-medium text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-200 hover:underline"
+                  className="inline-flex items-center text-sm font-bold text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-100 transition-colors break-all"
                 >
-                  {`https://3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
+                  <Eye className="w-4 h-4 mr-2 flex-shrink-0" />
+                  {`3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
                 </a>
               </div>
-            )}
+            )} */}
           </div>
         </div>
       )}
 
       {/* Main Dashboard Container */}
-      <div className="bg-white dark:bg-gray-700 rounded-2xl border border-gray-100 dark:border-gray-600 p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-4 sm:p-6 lg:p-8 shadow-sm">
         {/* Header with Breadcrumb */}
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center">
+        <div className="mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8">
+            <div className="flex items-center gap-4">
               {showBackButton() && (
                 <button
                   onClick={handleBackToTenants}
-                  className="flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 mr-4"
+                  className="p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-xl text-blue-600 dark:text-blue-400 transition-all group shadow-sm"
+                  title="Back to Tenants"
                 >
-                  <ArrowLeft className="w-4 h-4 mr-1" />
-                  Back to Tenants
+                  <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
                 </button>
               )}
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+              <h2 className="text-2xl lg:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
                 {getPageTitle()}
               </h2>
             </div>
 
-            {/* Search Bar - Only show in forms view and not for inspectors */}
+            {/* Search Bar - Responsive width */}
             {showSearchBar() && !isInspector && (
-              <div className="relative w-96">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 dark:text-gray-500" />
+              <div className="relative w-full sm:max-w-xs md:max-w-sm lg:max-w-md">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 transition-colors group-focus-within:text-blue-500" />
                 <input
                   type="text"
                   placeholder="Search forms..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border-2 border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition shadow-sm"
+                  className="w-full pl-12 pr-4 py-3 rounded-2xl border border-gray-200 dark:border-gray-600 bg-gray-50/50 dark:bg-gray-900/50 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white dark:focus:bg-gray-900 transition-all shadow-sm"
                 />
               </div>
             )}
           </div>
 
-          {/* Stats Summary - Only show in forms view and NOT for inspectors */}
+          {/* Stats Summary - Responsive Grid */}
           {viewMode === "forms" &&
             selectedTenant &&
             !isInspector &&
             tenantStats[selectedTenant._id] && (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                  <div className="flex items-center">
-                    <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400 mr-2" />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      Total Forms
-                    </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
+                <div className="bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl p-4 sm:p-6 border border-blue-100 dark:border-blue-900/20 group hover:bg-blue-50 transition-colors">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-2 sm:p-3 bg-blue-100 dark:bg-blue-900/40 rounded-xl group-hover:scale-110 transition-transform">
+                      <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <span className="text-[10px] sm:text-xs font-bold text-blue-600/50 dark:text-blue-400/50 uppercase tracking-widest">Forms</span>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
+                  <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
                     {tenantStats[selectedTenant._id].totalForms}
                   </p>
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">Active managed forms</p>
                 </div>
-                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                  <div className="flex items-center">
-                    <Users className="w-5 h-5 text-green-600 dark:text-green-400 mr-2" />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      Total Responses
-                    </span>
+
+                <div className="bg-emerald-50/50 dark:bg-emerald-900/10 rounded-2xl p-4 sm:p-6 border border-emerald-100 dark:border-emerald-900/20 group hover:bg-emerald-50 transition-colors">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-2 sm:p-3 bg-emerald-100 dark:bg-emerald-900/40 rounded-xl group-hover:scale-110 transition-transform">
+                      <Users className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600 dark:text-emerald-400" />
+                    </div>
+                    <span className="text-[10px] sm:text-xs font-bold text-emerald-600/50 dark:text-emerald-400/50 uppercase tracking-widest">Growth</span>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
+                  <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
                     {tenantStats[selectedTenant._id].totalResponses}
                   </p>
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">Total user submissions</p>
                 </div>
-                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                  <div className="flex items-center">
-                    <Smile className="w-5 h-5 text-purple-600 dark:text-purple-400 mr-2" />
-                    <span className="text-sm text-gray-600 dark:text-gray-400">
-                      Performance Score
-                    </span>
+
+                <div className="bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl p-4 sm:p-6 border border-purple-100 dark:border-purple-900/20 group hover:bg-purple-50 transition-colors sm:col-span-2 lg:col-span-1">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-2 sm:p-3 bg-purple-100 dark:bg-purple-900/40 rounded-xl group-hover:scale-110 transition-transform">
+                      <Smile className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <span className="text-[10px] sm:text-xs font-bold text-purple-600/50 dark:text-purple-400/50 uppercase tracking-widest">Performance</span>
                   </div>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white mt-2">
-                    {tenantStats[selectedTenant._id].performanceScore}%
-                  </p>
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
+                      {tenantStats[selectedTenant._id].performanceScore}%
+                    </p>
+                    <div className="flex-1 h-2 bg-purple-100 dark:bg-purple-900/40 rounded-full overflow-hidden ml-4">
+                      <div 
+                        className="h-full bg-purple-600 rounded-full"
+                        style={{ width: `${tenantStats[selectedTenant._id].performanceScore}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">Average quality score</p>
                 </div>
               </div>
             )}

@@ -42,6 +42,7 @@ import UserActivityLogs from "./components/admin/UserActivityLogs";
 import Attendance from "./components/admin/Attendance";
 import HRAttendance from "./components/admin/HRAttendance";
 import ShiftManagement from "./components/admin/ShiftManagement";
+import AttendanceAnalytics from "./components/analytics/AttendanceAnalytics";
 import AttendanceDashboard from "./components/inspectors/AttendanceDashboard";
 import LoginPage from "./components/auth/LoginPage";
 import SignupPage from "./components/auth/SignupPage";
@@ -359,6 +360,12 @@ const router = createBrowserRouter(
           path: "/shifts",
           element: withAccessControl(<ShiftManagement />, {
             allowedRoles: ["admin", "subadmin"],
+          }),
+        },
+        {
+          path: "/attendance/analytics",
+          element: withAccessControl(<AttendanceAnalytics />, {
+            allowedRoles: ["admin", "superadmin", "subadmin"],
           }),
         },
         {

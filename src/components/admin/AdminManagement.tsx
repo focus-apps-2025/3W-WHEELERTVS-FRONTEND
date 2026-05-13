@@ -116,12 +116,12 @@ export default function AdminManagement() {
   const [activeTab, setActiveTab] = useState<"admins" | "responses">("admins");
   const [performanceScores, setPerformanceScores] = useState<Record<string, number>>({});
   const TabNavigation = () => (
-    <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
-      <nav className="flex space-x-8" aria-label="Tabs">
+    <div className="mb-6 border-b border-gray-200 dark:border-gray-700 overflow-x-auto no-scrollbar">
+      <nav className="flex space-x-4 sm:space-x-8 min-w-max px-2" aria-label="Tabs">
         <button
           onClick={() => setActiveTab("admins")}
           className={`
-          py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm
+          py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm whitespace-nowrap
           ${
             activeTab === "admins"
               ? "border-blue-500 text-blue-600 dark:text-blue-400"
@@ -134,7 +134,7 @@ export default function AdminManagement() {
         <button
           onClick={() => setActiveTab("responses")}
           className={`
-          py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm
+          py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm whitespace-nowrap
           ${
             activeTab === "responses"
               ? "border-blue-500 text-blue-600 dark:text-blue-400"
@@ -803,10 +803,10 @@ export default function AdminManagement() {
             {activeTab === "admins" &&
               tenant &&
               user?.role === "superadmin" && (
-                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-8 mb-10">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-4 sm:p-8 mb-10">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
                     <div className="flex items-center gap-4">
-                      <div className="relative w-24 h-24 rounded-xl border-2 border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-800 flex items-center justify-center overflow-hidden shadow-sm">
+                      <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl border-2 border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-800 flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0">
                         <img
                           src={logo}
                           alt="Tenant logo"
@@ -816,18 +816,18 @@ export default function AdminManagement() {
                               "none";
                           }}
                         />
-                        <ImageIcon className="w-12 h-12 text-gray-400 dark:text-gray-500 absolute" />
+                        <ImageIcon className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 dark:text-gray-500 absolute" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                        <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
                           Tenant Branding
                         </h2>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
                           Customize your portal appearance
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       {brandingSaving ? (
                         <div className="flex flex-col gap-2">
                           <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
@@ -892,10 +892,10 @@ export default function AdminManagement() {
               <>
                 {/* Add Admin Modal */}
                 {showAddAdminModal && (
-                  <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-0.5 z-50 overflow-y-auto">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-8 ">
-                      <div className="sticky top-0 bg-primary-600 px-6 py-4 flex items-center justify-between rounded-2xl ">
-                        <h2 className="text-2xl font-bold text-white">
+                  <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-auto">
+                      <div className="sticky top-0 bg-primary-600 px-4 sm:px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                        <h2 className="text-xl sm:text-2xl font-bold text-white">
                           Add New User
                         </h2>
                         <button
@@ -911,12 +911,12 @@ export default function AdminManagement() {
                           <X className="w-6 h-6" />
                         </button>
                       </div>
-                      <form className="space-y-6 p-8" onSubmit={handleCreate}>
+                      <form className="space-y-4 sm:space-y-6 p-4 sm:p-8" onSubmit={handleCreate}>
                         <div>
                           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                             Full Name
                           </label>
-                          <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                             <input
                               name="firstName"
                               value={form.firstName}
@@ -940,7 +940,7 @@ export default function AdminManagement() {
                           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                             Contact Information
                           </label>
-                          <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                             <input
                               name="email"
                               type="email"
@@ -1244,7 +1244,8 @@ export default function AdminManagement() {
                       </p>
                     </div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <>
+                      <div className="hidden lg:block overflow-x-auto">
                       <table className="w-full">
                         <thead className="bg-gray-50 dark:bg-gray-900/50">
                           <tr>
@@ -1462,15 +1463,161 @@ export default function AdminManagement() {
                         </tbody>
                       </table>
                     </div>
+
+                    {/* Mobile Card View */}
+                    <div className="lg:hidden space-y-4">
+                      {admins.map((admin) => (
+                        <div
+                          key={admin._id}
+                          className={`p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm ${
+                            deleteConfirmAdminId === admin._id
+                              ? "ring-2 ring-red-500"
+                              : ""
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                checked={selectedAdmins.has(admin._id)}
+                                onChange={() => handleSelectAdmin(admin._id)}
+                                className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
+                              />
+                              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm shadow-sm flex-shrink-0">
+                                {admin.firstName[0]}
+                                {admin.lastName[0]}
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 truncate">
+                                  {admin.firstName} {admin.lastName}
+                                </h3>
+                                <p className="text-xs text-gray-500 truncate">
+                                  @{admin.username}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-1 flex-shrink-0">
+                              <button
+                                onClick={() => handleEditAdmin(admin)}
+                                className="p-2 text-blue-600 bg-blue-50 dark:bg-blue-900/20 rounded-lg"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setDeleteConfirmAdminId(admin._id)
+                                }
+                                className="p-2 text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 text-xs mb-4">
+                            <div>
+                              <p className="text-gray-500 mb-1 font-bold uppercase tracking-wider text-[10px]">
+                                Status
+                              </p>
+                              <button
+                                onClick={() =>
+                                  handleToggleActiveStatus(admin._id)
+                                }
+                                disabled={updatingId === admin._id}
+                                className={`inline-flex items-center px-2 py-1 rounded-full font-medium ${
+                                  admin.isActive
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900/30"
+                                    : "bg-gray-100 text-gray-800 dark:bg-gray-700"
+                                }`}
+                              >
+                                {admin.isActive ? "Active" : "Inactive"}
+                              </button>
+                            </div>
+                            <div>
+                              <p className="text-gray-500 mb-1 font-bold uppercase tracking-wider text-[10px]">
+                                Role
+                              </p>
+                              <span className="inline-flex px-2 py-1 rounded-full font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30">
+                                {admin.role}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="text-gray-500 mb-1 font-bold uppercase tracking-wider text-[10px]">
+                                Score
+                              </p>
+                              <p className="font-bold text-gray-900 dark:text-gray-100">
+                                {performanceScores[admin._id] || 0}%
+                              </p>
+                            </div>
+                            <div className="truncate">
+                              <p className="text-gray-500 mb-1 font-bold uppercase tracking-wider text-[10px]">
+                                Email
+                              </p>
+                              <p className="text-gray-900 dark:text-gray-100 truncate">
+                                {admin.email}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+                            <p className="text-[10px] uppercase font-bold text-gray-400 mb-2">
+                              Permissions
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {MODULE_OPTIONS.map((option) => {
+                                const hasPermission = new Set(
+                                  admin.permissions || [],
+                                ).has(option.key);
+                                const isSuperAdmin =
+                                  user?.role === "superadmin";
+                                const isAdminUser = user?.role === "admin";
+                                const wasCreatedBySuperAdmin =
+                                  admin.createdByRole === "superadmin" ||
+                                  admin.role === "admin";
+                                const canEdit =
+                                  isSuperAdmin ||
+                                  (isAdminUser && !wasCreatedBySuperAdmin);
+
+                                if (!hasPermission && !canEdit) return null;
+
+                                return (
+                                  <button
+                                    key={option.key}
+                                    onClick={() =>
+                                      canEdit &&
+                                      handleTogglePermission(
+                                        admin._id,
+                                        option.key,
+                                      )
+                                    }
+                                    disabled={
+                                      !canEdit || updatingId === admin._id
+                                    }
+                                    className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors ${
+                                      hasPermission
+                                        ? "bg-blue-600 text-white border-blue-600"
+                                        : "bg-white text-gray-400 border-gray-200 dark:bg-gray-800 dark:border-gray-600"
+                                    }`}
+                                  >
+                                    {option.label}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                   )}
                 </div>
 
                 {/* Edit Admin Modal */}
                 {editingForm && (
-                  <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 z-50 overflow-y-auto">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-8">
-                      <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-6 flex items-center justify-between rounded-t-2xl">
-                        <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+                  <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-auto">
+                      <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-8 py-4 sm:py-6 flex items-center justify-between rounded-t-2xl z-10">
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
                           Edit User
                         </h2>
                         <button
@@ -1482,7 +1629,7 @@ export default function AdminManagement() {
                       </div>
 
                       <form
-                        className="space-y-6 p-8"
+                        className="space-y-4 sm:space-y-6 p-4 sm:p-8"
                         onSubmit={(e) => {
                           e.preventDefault();
                           handleSaveAdminChanges();
@@ -1492,7 +1639,7 @@ export default function AdminManagement() {
                           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                             Full Name
                           </label>
-                          <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                             <input
                               name="firstName"
                               value={editingForm.firstName}
@@ -1516,7 +1663,7 @@ export default function AdminManagement() {
                           <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                             Contact Information
                           </label>
-                          <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                             <input
                               name="email"
                               type="email"
@@ -1654,7 +1801,7 @@ export default function AdminManagement() {
                           <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
                             Module Access
                           </p>
-                          <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                             {MODULE_OPTIONS.map((option) => (
                               <label
                                 key={option.key}
@@ -1678,11 +1825,11 @@ export default function AdminManagement() {
                           </div>
                         </div>
 
-                        <div className="pt-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
+                        <div className="pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-3">
                           <button
                             type="submit"
                             disabled={updatingId === editingForm.adminId}
-                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-60 transition"
+                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-60 transition w-full sm:w-auto"
                           >
                             {updatingId === editingForm.adminId ? (
                               <>
@@ -1700,7 +1847,7 @@ export default function AdminManagement() {
                             type="button"
                             onClick={handleCancelEdit}
                             disabled={updatingId === editingForm.adminId}
-                            className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 transition"
+                            className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 transition w-full sm:w-auto"
                           >
                             Cancel
                           </button>

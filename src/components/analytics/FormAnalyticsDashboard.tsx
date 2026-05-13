@@ -22,9 +22,13 @@ import {
   Edit,
   Trash2,
   Eye,
+  MoreHorizontal,
   X,
   Share2,
+  Mail,
+  Send,
   MessageCircle,
+  Info,
   ChevronRight,
   Filter,
   Reply,
@@ -1989,6 +1993,7 @@ export default function FormAnalyticsDashboard() {
   const [responses, setResponses] = useState<Response[]>([]);
   const [form, setForm] = useState<Form | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoOpenSectionId, setAutoOpenSectionId] = useState<string | null>(
     null,
@@ -2005,6 +2010,7 @@ export default function FormAnalyticsDashboard() {
   const [selectedQuestion, setSelectedQuestion] = useState<any>(null);
   const [filterValues, setFilterValues] = useState<string[]>([]);
   const [selectedAnswers, setSelectedAnswers] = useState<string[]>([]);
+  const [showTableActions, setShowTableActions] = useState(false);
 
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showSectionSelector, setShowSectionSelector] = useState(false);
@@ -2084,6 +2090,8 @@ export default function FormAnalyticsDashboard() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedResponseIds, setSelectedResponseIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [showActionMenuModal, setShowActionMenuModal] = useState(false);
+  const [actionResponse, setActionResponse] = useState<Response | null>(null);
 
   // Performance scoring system
   const [performanceScores, setPerformanceScores] = useState<Record<string, number>>({});
@@ -2304,7 +2312,7 @@ const handleReviewSubmit = async (responseId: string, reviewOption: string) => {
 
   const [toast, setToast] = useState<{
     message: string;
-    type: "success" | "error";
+    type: "success" | "error" | "info";
     id: string;
   } | null>(null);
   const [selectedResponse, setSelectedResponse] = useState<Response | null>(
@@ -4352,7 +4360,7 @@ const fetchChatHistory = async (responseId: string) => {
     };
 
     return (
-      <div className="p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700">
+      <div className="p-4 sm:p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700">
         <div className="flex flex-col gap-4 mb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -4360,10 +4368,10 @@ const fetchChatHistory = async (responseId: string) => {
                 <PieChart className="w-4 h-4 text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-primary-900 dark:text-white">
+                <h2 className="text-base sm:text-lg font-bold text-primary-900 dark:text-white">
                   Overall Response Quality
                 </h2>
-                <p className="text-xs text-primary-500 dark:text-primary-400">
+                <p className="text-[10px] sm:text-xs text-primary-500 dark:text-primary-400">
                   {complianceLabels.yes}/{complianceLabels.no}/{complianceLabels.na} Distribution
                 </p>
               </div>
@@ -4394,61 +4402,61 @@ const fetchChatHistory = async (responseId: string) => {
 
         <div className="flex-1 flex flex-col" id="overall-quality-chart">
           {totalPieChartData.counts.total === 0 ? (
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <PieChart className="w-12 h-12 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-                <p className="text-primary-500 dark:text-primary-400 font-medium">
+            <div className="flex-1 flex items-center justify-center min-h-[200px]">
+              <div className="text-center p-4">
+                <PieChart className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
+                <p className="text-primary-500 dark:text-primary-400 font-medium text-sm">
                   No quality data available
                 </p>
-                <p className="text-xs text-primary-400 dark:text-primary-500 mt-1">
+                <p className="text-[10px] text-primary-400 dark:text-primary-500 mt-1">
                   Will appear when sections have {complianceLabels.yes}/{complianceLabels.no}/{complianceLabels.na} questions
                 </p>
               </div>
             </div>
           ) : (
             <>
-              <div style={{ height: "220px", position: "relative" }}>
+              <div style={{ height: "200px", position: "relative" }}>
                 {/* Only change needed here - use Doughnut instead of Pie */}
                 <Doughnut data={data} options={options} />
               </div>
 
               {/* Stats summary */}
-              <div className="mt-4 grid grid-cols-3 gap-4">
+              <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-4">
                 {/* Yes */}
-                <div className="text-center">
-                  <div className="text-sm font-bold text-green-600 dark:text-green-400">
+                <div className="text-center p-1 bg-green-50/50 dark:bg-green-900/10 rounded-lg">
+                  <div className="text-xs sm:text-sm font-bold text-green-600 dark:text-green-400">
                     {totalPieChartData.yes}%
                   </div>
-                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  <div className="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">
                     {complianceLabels.yes}
                   </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-500">
+                  <div className="text-[10px] text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.yes})
                   </div>
                 </div>
 
                 {/* No */}
-                <div className="text-center">
-                  <div className="text-sm font-bold text-red-600 dark:text-red-400">
+                <div className="text-center p-1 bg-red-50/50 dark:bg-red-900/10 rounded-lg">
+                  <div className="text-xs sm:text-sm font-bold text-red-600 dark:text-red-400">
                     {totalPieChartData.no}%
                   </div>
-                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  <div className="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">
                     {complianceLabels.no}
                   </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-500">
+                  <div className="text-[10px] text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.no})
                   </div>
                 </div>
 
                 {/* N/A */}
-                <div className="text-center">
-                  <div className="text-sm font-bold text-gray-600 dark:text-gray-400">
+                <div className="text-center p-1 bg-gray-50/50 dark:bg-gray-900/10 rounded-lg">
+                  <div className="text-xs sm:text-sm font-bold text-gray-600 dark:text-gray-400">
                     {totalPieChartData.na}%
                   </div>
-                  <div className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  <div className="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">
                     {complianceLabels.na}
                   </div>
-                  <div className="text-xs text-gray-600 dark:text-gray-500">
+                  <div className="text-[10px] text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.na})
                   </div>
                 </div>
@@ -4605,42 +4613,42 @@ const fetchChatHistory = async (responseId: string) => {
       : { height: "450px", position: "relative" as const };
 
     return (
-      <div className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">
+      <div className="p-4 sm:p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
           <div className="flex items-center">
             <div className="p-2 bg-gradient-to-br from-red-600 to-slate-700 rounded-lg mr-2">
               <BarChart3 className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
                 Defect Distribution
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
                 {complianceLabels.no} & {complianceLabels.na} volume ({dateRangeLabel})
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {/* Sort Toggle */}
             <div className="flex items-center bg-slate-100 dark:bg-gray-700 p-1 rounded-lg">
               <button
                 onClick={() => setChartSortOrder("default")}
-                className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${chartSortOrder === "default"
+                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded transition-all ${chartSortOrder === "default"
                   ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
                   : "text-slate-500"
                   }`}
               >
-                FORM ORDER
+                DEFAULT
               </button>
               <button
                 onClick={() => setChartSortOrder("percentage")}
-                className={`px-2 py-1 text-[10px] font-bold rounded transition-all ${chartSortOrder === "percentage"
+                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded transition-all ${chartSortOrder === "percentage"
                   ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
                   : "text-slate-500"
                   }`}
               >
-                BY ISSUE %
+                ISSUE %
               </button>
             </div>
 
@@ -4672,7 +4680,7 @@ const fetchChatHistory = async (responseId: string) => {
               </button>
             </div>
 
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
+            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block"></div>
 
             <button
               onClick={() => setShowFilterModal(true)}
@@ -4690,23 +4698,23 @@ const fetchChatHistory = async (responseId: string) => {
               )}
             </button>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From:</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">From:</span>
               <input
                 type="date"
                 value={defectStartDate}
                 onChange={(e) => setDefectStartDate(e.target.value)}
-                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+                className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
               />
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To:</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">To:</span>
               <input
                 type="date"
                 value={defectEndDate}
                 onChange={(e) => setDefectEndDate(e.target.value)}
-                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
+                className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
               />
             </div>
           </div>
@@ -5362,19 +5370,11 @@ const fetchChatHistory = async (responseId: string) => {
     };
   }, [analytics, inspectionStats, sectionSummaryRows, totalPieChartData, inspectorSummary, summaryStatuses, defectStartDate, defectEndDate, form, responses]);
 
-  const handleDownloadPDF = async () => {
-    const button = document.querySelector('button[title="Download as PDF"]');
-    const originalText = "Download PDF";
+  const handleExportToPDF = async () => {
     try {
-      // Show loading state
-      
-      if (button) {
-        button.innerHTML =
-          '<span class="animate-spin">⏳</span> Generating PDF...';
-        button.disabled = true;
-      }
+      setIsExporting(true);
+      showToast("Generating PDF report...", "info");
 
-      // Generate PDF with enhanced data
       const success = await exportDashboardToPDF(
         form?.title || "Form Analytics",
         fullAnalyticsData,
@@ -5382,20 +5382,15 @@ const fetchChatHistory = async (responseId: string) => {
       );
 
       if (success) {
-        console.log("PDF generated successfully");
+        showToast("PDF report generated successfully!", "success");
       } else {
-        alert("Failed to generate PDF. Please check console for details.");
+        showToast("Failed to generate PDF. Please try again.", "error");
       }
     } catch (error) {
       console.error("Error downloading PDF:", error);
-      alert("Failed to generate PDF. Please try again.");
-
-      // Restore button state on error
-      const button = document.querySelector('button[title="Download as PDF"]');
-      if (button) {
-        button.innerHTML = "Download PDF";
-        button.disabled = false;
-      }
+      showToast("Failed to generate PDF. Please try again.", "error");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -5645,9 +5640,10 @@ const fetchChatHistory = async (responseId: string) => {
         wb,
         `${form?.title || "responses"}-${new Date().toLocaleDateString('en-CA')}.xlsx`,
       );
+      showToast("Excel report generated successfully!", "success");
     } catch (error) {
       console.error("Error exporting to Excel:", error);
-      alert("Failed to export to Excel. Please try again.");
+      showToast("Failed to export to Excel. Please try again.", "error");
     }
   };
 
@@ -5726,7 +5722,7 @@ const fetchChatHistory = async (responseId: string) => {
 
   const showToast = (
     message: string,
-    type: "success" | "error" = "success",
+    type: "success" | "error" | "info" = "success",
   ) => {
     const id = Date.now().toString();
     setToast({ message, type, id });
@@ -5816,27 +5812,27 @@ const fetchChatHistory = async (responseId: string) => {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 bg-gray-50 dark:bg-gray-950 min-h-screen" id="analytics-scroll-container">
+    <div className="p-2 sm:p-6 space-y-4 sm:space-y-6 bg-gray-50 dark:bg-gray-950 min-h-screen" id="analytics-scroll-container">
       {/* Header with Tabs - Single Row */}
       {form && (
-        <div className="bg-white dark:bg-gray-900 p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-4 w-full md:w-auto">
+        <div className="bg-white dark:bg-gray-900 p-3 sm:p-4 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 flex flex-col lg:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 w-full lg:w-auto">
             {!isGuest && (
               <button
                 onClick={() => navigate(-1)}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                className="p-1.5 sm:p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
                 title="Go back"
               >
-                <ArrowLeft className="w-5 h-5" />
+                <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             )}
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white truncate">
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate max-w-[200px] sm:max-w-md">
               {form?.title || "Form"}
             </h1>
           </div>
 
           {/* Tabs - Center */}
-          <div className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 max-w-full">
+          <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 max-w-full no-scrollbar">
             
               <>
                 <button
@@ -5908,69 +5904,73 @@ const fetchChatHistory = async (responseId: string) => {
           </div>
 
           {/* Right Side - Count and Actions */}
-          <div className="flex items-center gap-3 whitespace-nowrap">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <Users className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <div className="flex items-center gap-2 sm:gap-3 whitespace-nowrap w-full lg:w-auto justify-between lg:justify-end">
+            <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
               <div className="text-right">
-                <div className="text-base font-bold text-gray-900 dark:text-white">
+                <div className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
                   {analytics.total}
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => setShowFilterModal(true)}
-              className={`p-1.5 rounded transition-colors relative ${appliedFilters.length > 0
-                ? "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 bg-indigo-50 dark:bg-indigo-900/20"
-                : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                }`}
-              title="Advanced Filters"
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
-                />
-              </svg>
-              {appliedFilters.length > 0 && (
-                <span className="absolute top-0 right-0 flex items-center justify-center w-4 h-4 text-xs font-bold text-white bg-red-500 rounded-full -translate-y-1 translate-x-1">
-                  {appliedFilters.length}
-                </span>
-              )}
-            </button>
-            {!isGuest && (
-              <>
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <button
-                onClick={handleShareAnalytics}
-                className="flex items-center gap-2 px-2 py-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
-                title="Share Analytics"
+                onClick={() => setShowFilterModal(true)}
+                className={`p-1.5 sm:p-2 rounded transition-colors relative ${appliedFilters.length > 0
+                  ? "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 bg-indigo-50 dark:bg-indigo-900/20"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  }`}
+                title="Advanced Filters"
               >
-                <Share2 className="w-4 h-4" />
+                <Filter className="w-4 h-4" />
+                {appliedFilters.length > 0 && (
+                  <span className="absolute top-0 right-0 flex items-center justify-center w-3.5 h-3.5 text-[8px] font-bold text-white bg-red-500 rounded-full -translate-y-1 translate-x-1">
+                    {appliedFilters.length}
+                  </span>
+                )}
               </button>
+              {/* Other action buttons - grouped for better spacing */}
+              <div className="flex items-center gap-1">
+                {!isGuest && (
+                  <>
+                    <button
+                      onClick={handleShareAnalytics}
+                      className="p-1.5 sm:p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                      title="Share via WhatsApp/Email"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={handleAutoSendSetup}
+                      className="p-1.5 sm:p-2 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                      title="Email Automation"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
                 <button
-                  onClick={handleAutoSendSetup}
-                  className="flex items-center gap-2 px-2 py-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded transition-colors"
-                  title="Auto Send Setup"
+                  onClick={handleExportToPDF}
+                  disabled={isExporting}
+                  className="p-1.5 sm:p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                  title="Export to PDF"
                 >
-                  <Calendar className="w-4 h-4" />
+                  {isExporting ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
                 </button>
-              </>
-            )}
-            {analyticsView === "dashboard" && (
-              <button
-                onClick={handleDownloadPDF}
-                className="flex items-center gap-2 px-2 py-1.5 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-                title="Download as PDF"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-            )}
+                <button
+                  onClick={handleExportToExcel}
+                  disabled={isExporting}
+                  className="p-1.5 sm:p-2 text-gray-500 hover:text-green-600 dark:text-gray-400 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors disabled:opacity-50"
+                  title="Export to Excel"
+                >
+                  <Table className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
             {isGuest && (
               <button
                 onClick={handleLogout}
@@ -6153,7 +6153,7 @@ const fetchChatHistory = async (responseId: string) => {
           {/* Question-wise Analytics */}
           {analyticsView === "question" && (
             <div className="space-y-6">
-              <div className="card p-6">
+              <div className="card p-3 sm:p-6">
                 <ResponseQuestion
                   question={form}
                   responses={filteredResponses}
@@ -6166,14 +6166,14 @@ const fetchChatHistory = async (responseId: string) => {
             <div className="space-y-6">
               {filteredSectionStats.length > 0 ? (
                 <>
-                  <div className="card p-4 space-y-3">
+                  <div className="card p-3 sm:p-4 space-y-3">
                     {/* Header */}
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                         <PieChart className="w-5 h-5 text-indigo-600" />
-                        Section Summary with Visualization
+                        Section Summary
                       </h3>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {/* Section Date Filters */}
                         <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 p-1 rounded border border-gray-200 dark:border-gray-700">
                           <div className="flex items-center gap-1">
@@ -6182,7 +6182,7 @@ const fetchChatHistory = async (responseId: string) => {
                               type="date"
                               value={sectionStartDate}
                               onChange={(e) => setSectionStartDate(e.target.value)}
-                              className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                              className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
                             />
                           </div>
                           <div className="flex items-center gap-1">
@@ -6191,7 +6191,7 @@ const fetchChatHistory = async (responseId: string) => {
                               type="date"
                               value={sectionEndDate}
                               onChange={(e) => setSectionEndDate(e.target.value)}
-                              className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                              className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
                             />
                           </div>
                         </div>
@@ -6202,7 +6202,7 @@ const fetchChatHistory = async (responseId: string) => {
                             onClick={() =>
                               setShowSectionSelector(!showSectionSelector)
                             }
-                            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded border border-indigo-200 dark:border-indigo-700 transition-colors"
+                            className="flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-medium bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded border border-indigo-200 dark:border-indigo-700 transition-colors"
                           >
                             <svg
                               className="w-3.5 h-3.5"
@@ -6217,12 +6217,11 @@ const fetchChatHistory = async (responseId: string) => {
                                 d="M19 13l-7 7-7-7m0-6l7-7 7 7"
                               />
                             </svg>
-                            Sections ({selectedSectionIds.length}/
-                            {filteredSectionStats.length})
+                            Sections ({selectedSectionIds.length})
                           </button>
 
                           {showSectionSelector && (
-                            <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 min-w-max max-h-64 overflow-y-auto">
+                            <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 min-w-[200px] max-h-64 overflow-y-auto">
                               {/* Select All Option */}
                               <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-700">
                                 <input
@@ -6272,7 +6271,7 @@ const fetchChatHistory = async (responseId: string) => {
 
                     {/* Color Legend with Controls */}
                     <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-gray-50 dark:bg-gray-800/50 rounded border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center gap-3 text-xs">
+                      <div className="flex items-center gap-3 text-[10px] sm:text-xs">
                         <div className="flex items-center gap-1">
                           <div className="w-2 h-2 bg-green-500 rounded"></div>
                           <span className="text-gray-600 dark:text-gray-400">
@@ -6292,28 +6291,25 @@ const fetchChatHistory = async (responseId: string) => {
                           </span>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                      </div>
                     </div>
 
                     {/* Combined Table with Visualization and Radar Chart */}
-                    <div className="flex gap-4">
+                    <div className="flex flex-col lg:flex-row gap-6">
                       {/* Table Container - Always shrinks for radar chart */}
-                      <div className="flex-1">
-                        <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                          <table className="min-w-full text-sm">
+                      <div className="flex-1 min-w-0">
+                        <div className="overflow-x-auto no-scrollbar rounded-lg border border-gray-200 dark:border-gray-700">
+                          <table className="min-w-full text-xs sm:text-sm">
                             <thead className="uppercase tracking-wider text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 sticky top-0">
                               <tr>
-                                <th className="text-left px-4 py-3">Section</th>
-                                <th className="text-center px-3 py-3">Total</th>
-                                <th className="text-center px-3 py-3">
+                                <th className="text-left px-3 sm:px-4 py-3">Section</th>
+                                <th className="text-center px-2 sm:px-3 py-3">Total</th>
+                                <th className="text-center px-2 sm:px-3 py-3">
                                   {complianceLabels.yes}
                                 </th>
-                                <th className="text-center px-3 py-3">
+                                <th className="text-center px-2 sm:px-3 py-3">
                                   {complianceLabels.no}
                                 </th>
-                                <th className="text-center px-3 py-3">
+                                <th className="text-center px-2 sm:px-3 py-3">
                                   {complianceLabels.na}
                                 </th>
                               </tr>
@@ -6594,30 +6590,36 @@ const fetchChatHistory = async (responseId: string) => {
                       </div>
 
                       {/* Radar Chart - Always displayed on right side */}
-                      <div className="w-96 flex-shrink-0">
-                        <div className="card p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg h-full">
-                          <div className="flex items-center justify-between mb-6">
-                            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-                              Section Performance Radar
+                      <div className="w-full lg:w-96 flex-shrink-0">
+                        <div className="card p-4 sm:p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg h-full">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-2">
+                            <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                              Performance Radar
                             </h4>
-                            <div className="flex items-center gap-2">
-                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              <span className="text-xs text-gray-600 dark:text-gray-400">
-                                {complianceLabels.yes}
-                              </span>
-                              <div className="w-2 h-2 bg-red-500 rounded-full ml-2"></div>
-                              <span className="text-xs text-gray-600 dark:text-gray-400">
-                                {complianceLabels.no}
-                              </span>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full ml-2"></div>
-                              <span className="text-xs text-gray-600 dark:text-gray-400">
-                                {complianceLabels.na}
-                              </span>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                <span className="text-[10px] text-gray-600 dark:text-gray-400">
+                                  {complianceLabels.yes}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                <span className="text-[10px] text-gray-600 dark:text-gray-400">
+                                  {complianceLabels.no}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                <span className="text-[10px] text-gray-600 dark:text-gray-400">
+                                  {complianceLabels.na}
+                                </span>
+                              </div>
                             </div>
                           </div>
 
                           {/* Radar Chart Container */}
-                          <div className="h-96">
+                          <div className="h-[300px] sm:h-96">
                             {/* Prepare data for radar chart */}
                             {(() => {
                               // Prepare radar chart data
@@ -7302,24 +7304,24 @@ const fetchChatHistory = async (responseId: string) => {
 
           {/* Responses as Table */}
           {analyticsView === "responses" && (
-            <div className="space-y-6">
-              <div className="card p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <div className="space-y-4 sm:space-y-6">
+              <div className="card p-3 sm:p-6">
+                <div className="mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex flex-col">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                       <Table className="w-5 h-5 text-indigo-600" />
-                      All Responses - Table View
+                      All Responses
                     </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                    <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
                       Viewing {filteredResponses.length} responses
                     </p>
                   </div>
-                  <div className="flex gap-2 items-center relative">
+                  <div className="flex flex-wrap gap-2 items-center relative">
                     <button
                       onClick={() =>
                         setShowResponsesFilter(!showResponsesFilter)
                       }
-                      className={`px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 ${showResponsesFilter ? "ring-2 ring-indigo-400 ring-offset-2 dark:ring-offset-gray-900" : ""}`}
+                      className={`px-3 sm:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-2 ${showResponsesFilter ? "ring-2 ring-indigo-400 ring-offset-2 dark:ring-offset-gray-900" : ""}`}
                     >
                       <svg
                         className="w-4 h-4"
@@ -7334,44 +7336,32 @@ const fetchChatHistory = async (responseId: string) => {
                           d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
                         />
                       </svg>
-                      Filter Sections ({selectedResponsesSectionIds.length}/
-                      {form?.sections?.length})
+                      <span className="hidden xs:inline">Filter Sections</span>
+                      <span className="xs:hidden">Filter</span>
                     </button>
                     <button
                       onClick={() => handleExportToExcel()}
                       disabled={selectedResponsesSectionIds.length === 0}
-                      className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                      className="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2"
                     >
                       <Download className="w-4 h-4" />
-                      Download as Excel
+                      <span className="hidden xs:inline">Export</span>
                     </button>
                     {selectedResponseIds.length > 0 && !isGuest && (
                       <button
                         onClick={() => setShowBulkDeleteConfirm(true)}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-colors flex items-center gap-2"
+                        className="px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2"
                       >
                         <Trash2 className="w-4 h-4" />
-                        Delete Selected ({selectedResponseIds.length})
+                        <span className="hidden xs:inline">Delete ({selectedResponseIds.length})</span>
                       </button>
                     )}
 
                     {showResponsesFilter && (
-                      <div className="absolute top-full left-0 mt-2 p-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 min-w-80 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <div className="sticky top-0 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                      <div className="absolute top-full right-0 mt-2 p-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-50 w-[280px] sm:w-80 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="sticky top-0 bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 px-3 sm:px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                           <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                              <svg
-                                className="w-5 h-5 text-indigo-600"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                <path
-                                  fillRule="evenodd"
-                                  d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
+                            <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                               Select Sections
                             </h4>
                             <button
@@ -7401,25 +7391,25 @@ const fetchChatHistory = async (responseId: string) => {
                                   [],
                                 )
                               }
-                              className="flex-1 px-3 py-1.5 text-xs font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 rounded transition-colors"
+                              className="flex-1 px-2 py-1.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 rounded transition-colors"
                             >
                               Select All
                             </button>
                             <button
                               onClick={() => setSelectedResponsesSectionIds([])}
-                              className="flex-1 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
+                              className="flex-1 px-2 py-1.5 text-[10px] font-semibold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
                             >
                               Clear All
                             </button>
                           </div>
                         </div>
 
-                        <div className="p-4 max-h-96 overflow-y-auto space-y-2">
+                        <div className="p-2 sm:p-4 max-h-64 sm:max-h-96 overflow-y-auto space-y-1">
                           {form?.sections && form.sections.length > 0 ? (
                             form.sections.map((section: Section) => (
                               <label
                                 key={section.id}
-                                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer transition-colors group"
+                                className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer transition-colors group"
                               >
                                 <div className="relative flex items-center">
                                   <input
@@ -7441,44 +7431,21 @@ const fetchChatHistory = async (responseId: string) => {
                                         );
                                       }
                                     }}
-                                    className="w-5 h-5 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
+                                    className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
                                   />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <span className="text-sm font-medium text-gray-900 dark:text-gray-200 block truncate">
+                                  <span className="text-xs font-medium text-gray-900 dark:text-gray-200 block truncate">
                                     {section.title}
                                   </span>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    {section.questions?.length || 0} questions
-                                  </span>
                                 </div>
-                                <svg
-                                  className="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                                  />
-                                </svg>
                               </label>
                             ))
                           ) : (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 text-center py-4">
                               No sections available
                             </p>
                           )}
-                        </div>
-
-                        <div className="sticky bottom-0 px-4 py-3 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700">
-                          <p className="text-xs text-gray-600 dark:text-gray-400 text-center">
-                            {selectedResponsesSectionIds.length} of{" "}
-                            {form?.sections?.length || 0} sections selected
-                          </p>
                         </div>
                       </div>
                     )}
@@ -7488,76 +7455,68 @@ const fetchChatHistory = async (responseId: string) => {
                 {selectedResponsesSectionIds.length > 0 ? (
                   <>
                     {/* Overall Inspection Statistics Summary Bar */}
-                    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4 shadow-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-6">
+                    <div className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 p-3 sm:p-4 mb-4">
+                      <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-4 gap-4 items-center">
                         <div className="flex items-center gap-3">
-                          <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg">
+                          <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
                             <BarChart3 className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                           </div>
                           <div>
-                            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                              Overall Inspection
+                            <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                              Summary
                             </p>
-                            <p className="text-lg font-bold text-gray-900 dark:text-white">
-                              Form Performance
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">
+                              Performance
                             </p>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-8">
-                          <div className="flex flex-col">
-                            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                              Total {complianceLabels.yes}
+                        <div className="flex flex-col p-2 bg-green-50 dark:bg-green-900/10 rounded-lg border border-green-100 dark:border-green-900/20">
+                          <span className="text-[10px] text-green-700 dark:text-green-400 font-bold uppercase">
+                            {complianceLabels.yes}
+                          </span>
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-lg font-black text-green-600 dark:text-green-400">
+                              {inspectionStats.accepted}
                             </span>
-                            <div className="flex items-baseline gap-1">
-                              <span className="text-xl font-bold text-green-600 dark:text-green-400">
-                                {inspectionStats.accepted}
-                              </span>
-                              <CheckCircle className="w-3.5 h-3.5 text-green-500" />
-                            </div>
+                            <CheckCircle className="w-4 h-4 text-green-500" />
                           </div>
+                        </div>
 
-                          <div className="h-10 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
-
-                          <div className="flex flex-col">
-                            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                              Total {complianceLabels.no}
+                        <div className="flex flex-col p-2 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-100 dark:border-red-900/20">
+                          <span className="text-[10px] text-red-700 dark:text-red-400 font-bold uppercase">
+                            {complianceLabels.no}
+                          </span>
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-lg font-black text-red-600 dark:text-red-400">
+                              {inspectionStats.rejected}
                             </span>
-                            <div className="flex items-baseline gap-1">
-                              <span className="text-xl font-bold text-red-600 dark:text-red-400">
-                                {inspectionStats.rejected}
-                              </span>
-                              <XCircle className="w-3.5 h-3.5 text-red-500" />
-                            </div>
+                            <XCircle className="w-4 h-4 text-red-500" />
                           </div>
+                        </div>
 
-                          <div className="h-10 w-px bg-gray-200 dark:bg-gray-700 hidden sm:block"></div>
-
-                          <div className="flex flex-col">
-                            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                              Total {complianceLabels.na}
+                        <div className="flex flex-col p-2 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-100 dark:border-amber-900/20">
+                          <span className="text-[10px] text-amber-700 dark:text-amber-400 font-bold uppercase">
+                            {complianceLabels.na}
+                          </span>
+                          <div className="flex items-baseline justify-between">
+                            <span className="text-lg font-black text-amber-500 dark:text-amber-400">
+                              {inspectionStats.reworked}
                             </span>
-                            <div className="flex items-baseline gap-1">
-                              <span className="text-xl font-bold text-amber-500 dark:text-amber-400">
-                                {inspectionStats.reworked}
-                              </span>
-                              <span className="text-amber-500">⚠</span>
-                            </div>
+                            <span className="text-amber-500 text-sm font-bold">⚠</span>
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                      <table className="text-sm border-collapse">
+                    <div className="overflow-x-auto no-scrollbar rounded-xl border border-gray-200 dark:border-gray-700">
+                      <table className="text-xs border-collapse w-full">
                         <thead className="sticky top-0 z-10">
-                          <tr className="bg-indigo-50 dark:bg-indigo-900/20">
-                            <td className="px-3 py-3 border border-indigo-200 dark:border-indigo-700"></td>
-                            <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
-                            <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
-                            <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
-                            <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
-                            <td className="px-6 py-3 border border-indigo-200 dark:border-indigo-700"></td>
+                          <tr className="bg-gray-100 dark:bg-gray-800">
+                            <th className="hidden sm:table-cell px-3 py-3 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800"></th>
+                            <th colSpan={8} className="px-6 py-3 text-center font-bold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+                              METADATA
+                            </th>
                             {form?.sections?.map((section: Section) => {
                               const sectionQuestionsCount =
                                 section.questions?.length || 0;
@@ -7578,7 +7537,7 @@ const fetchChatHistory = async (responseId: string) => {
                           </tr>
 
                           <tr className="bg-gray-100 dark:bg-gray-800">
-                            <th className="sticky left-0 z-20 text-center px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+                            <th className="hidden sm:table-cell sticky left-0 z-20 text-center px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
                               <input
                                 type="checkbox"
                                 checked={
@@ -7598,11 +7557,20 @@ const fetchChatHistory = async (responseId: string) => {
                                 className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
                               />
                             </th>
-                            <th className="sticky left-12 z-20 text-center px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-24 whitespace-nowrap bg-gray-100 dark:bg-gray-800">
-                              Dispatch
+                            <th className={`sticky left-0 sm:left-12 z-20 text-center px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-100 dark:bg-gray-800 transition-all duration-300 ${showTableActions ? "min-w-[100px]" : "min-w-[50px] w-[50px]"}`}>
+                              <div className="flex items-center justify-center gap-2">
+                                {showTableActions && <span>Actions</span>}
+                                <button 
+                                  onClick={() => setShowTableActions(!showTableActions)}
+                                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                                  title={showTableActions ? "Collapse" : "Expand"}
+                                >
+                                  {showTableActions ? <ChevronDown className="w-4 h-4 rotate-90" /> : <MoreHorizontal className="w-4 h-4" />}
+                                </button>
+                              </div>
                             </th>
-                            <th className="sticky left-12 z-20 text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-100 dark:bg-gray-800">
-                              Actions
+                            <th className="text-center px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-24 whitespace-nowrap bg-gray-100 dark:bg-gray-800">
+                              Dispatch
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
                               Submitted by
@@ -7670,8 +7638,11 @@ const fetchChatHistory = async (responseId: string) => {
 
                           {/* Common Answer Row */}
                           <tr className="bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-200 dark:border-amber-800">
-                            <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 sticky left-12 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">
+                            <td className="hidden sm:table-cell px-3 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
+                            <td className={`px-4 py-3 border border-gray-200 dark:border-gray-700 sticky left-0 sm:left-12 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase transition-all duration-300 ${showTableActions ? "" : "invisible w-0 p-0 overflow-hidden"}`}>
+                              {showTableActions && "Actions"}
+                            </td>
+                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">
                               Expected Answer
                             </td>
                             <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
@@ -7725,7 +7696,7 @@ const fetchChatHistory = async (responseId: string) => {
                                   className={`${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
                                 >
                                   <td
-                                    className={`px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 z-20 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
+                                    className={`hidden sm:table-cell px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 z-20 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
                                   >
                                     <input
                                       type="checkbox"
@@ -7750,7 +7721,21 @@ const fetchChatHistory = async (responseId: string) => {
                                     />
                                   </td>
                                   <td
-                                    className={`px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-12 z-20 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
+                                    className={`px-4 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 sm:left-12 z-20 transition-all duration-300 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"} ${showTableActions ? "" : "w-[50px]"}`}
+                                  >
+                                    <button
+                                      onClick={() => {
+                                        setActionResponse(response);
+                                        setShowActionMenuModal(true);
+                                      }}
+                                      className="p-2 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full transition-all duration-200 shadow-sm border border-gray-200 dark:border-gray-700 active:scale-95"
+                                      title="Response Actions"
+                                    >
+                                      <MoreHorizontal className="w-5 h-5" />
+                                    </button>
+                                  </td>
+                                  <td
+                                    className={`px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
                                   >
                                     {/* Dispatch cell content */}
                                     {(() => {
@@ -7822,122 +7807,6 @@ const fetchChatHistory = async (responseId: string) => {
                                       );
                                     })()}
                                   </td>
-                                 <td className={`px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-12 z-20 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}>
-  {/* Actions cell content */}
-  <div className="flex items-center gap-2">
-    {editingResponseId === response.id ? (
-      <>
-        <button
-          onClick={handleSaveEdit}
-          disabled={isSaving}
-          title="Save Response"
-          className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors disabled:opacity-50"
-        >
-          <CheckCircle className="w-4 h-4" />
-        </button>
-        <button
-          onClick={handleCancelEdit}
-          disabled={isSaving}
-          title="Cancel"
-          className="p-1.5 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
-        >
-          <XCircle className="w-4 h-4" />
-        </button>
-      </>
-    ) : (
-      <>
-        {/* Helper function to check tenant ownership */}
-        {(() => {
-          // Get the response's tenant ID
-          const responseTenantId = response.tenantId;
-          const currentUserTenantId = user?.tenantId;
-          
-          // Check if response belongs to current user's tenant
-          // Superadmin can see all, others only see their own tenant
-          const isOwnTenant = user?.role === 'superadmin' || 
-            !responseTenantId || 
-            (currentUserTenantId && responseTenantId.toString() === currentUserTenantId.toString());
-          
-          // Only show Edit/Delete for own tenant responses AND for superadmin/admin roles
-          if (!isGuest && (user?.role === "superadmin" || user?.role === "admin") && isOwnTenant) {
-            return (
-              <>
-                <button
-                  onClick={() => handleEditStart(response)}
-                  title="Edit Response"
-                  className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded transition-colors"
-                >
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => {
-                    setDeletingResponseId(response.id);
-                    setShowDeleteConfirm(true);
-                  }}
-                  title="Delete Response"
-                  className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </>
-            );
-          }
-          return null;
-        })()}
-        
-        {/* View and Chat Icons - View only for own tenant, Chat for dispatched responses */}
-        {!isGuest && (
-          <div className="relative z-30 flex items-center gap-1">
-            {(() => {
-              const responseTenantId = response.tenantId;
-              const currentUserTenantId = user?.tenantId;
-              const isOwnTenant = user?.role === 'superadmin' || 
-                !responseTenantId || 
-                (currentUserTenantId && responseTenantId.toString() === currentUserTenantId.toString());
-              
-              return (
-                <>
-                  {/* View Icon - Only for own tenant responses */}
-                  {isOwnTenant && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleViewDetails(response);
-                      }}
-                      className="p-1.5 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-all duration-200"
-                      title="View Details"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  )}
-                  
-                  {/* Chat Icon - Show for dispatched responses regardless of tenant */}
-                  {response.isDispatched && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setChatResponse(response);
-                        setShowChatModal(true);
-                        setSelectedReviewOptions(prev => ({ ...prev, [response.id]: '' }));
-                        setReviewedBy(prev => ({ ...prev, [response.id]: null }));
-                      }}
-                      className="p-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded transition-all duration-200"
-                      title="Open Chat"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                    </button>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-        )}
-      </>
-    )}
-  </div>
-</td>
                                   <td className="px-6 py-3 text-sm text-gray-900 dark:text-white font-bold border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
                                     {response.submittedBy ||
                                       response.createdBy ||
@@ -8134,7 +8003,7 @@ const fetchChatHistory = async (responseId: string) => {
                             <tr>
                               <td
                                 colSpan={
-                                  6 +
+                                  9 +
                                   (form?.sections?.reduce(
                                     (acc: number, sec: Section) =>
                                       selectedResponsesSectionIds.includes(
@@ -9017,6 +8886,129 @@ const fetchChatHistory = async (responseId: string) => {
         </div>
       )}
 
+      {/* Action Menu Modal */}
+      {showActionMenuModal && actionResponse && (
+        <div className="fixed inset-0 bg-black/60 dark:bg-black/75 flex items-center justify-center p-4 z-[120] backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                Response Actions
+              </h3>
+              <button
+                onClick={() => {
+                  setShowActionMenuModal(false);
+                  setActionResponse(null);
+                }}
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-4 space-y-2">
+              <div className="px-2 py-1 mb-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Selected Response</p>
+                <p className="text-sm font-bold text-gray-700 dark:text-gray-300 truncate">
+                  {actionResponse.answers?.chassis_number || actionResponse.submittedBy || "Anonymous"}
+                </p>
+              </div>
+
+              {(() => {
+                const responseTenantId = actionResponse.tenantId;
+                const currentUserTenantId = user?.tenantId;
+                const isOwnTenant = user?.role === 'superadmin' || 
+                  !responseTenantId || 
+                  (currentUserTenantId && responseTenantId.toString() === currentUserTenantId.toString());
+                
+                return (
+                  <>
+                    {/* View Details */}
+                    {isOwnTenant && (
+                      <button
+                        onClick={() => {
+                          handleViewDetails(actionResponse);
+                          setShowActionMenuModal(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-3.5 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-gray-700 dark:text-gray-200 rounded-xl transition-colors font-semibold text-sm"
+                      >
+                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/40 rounded-lg text-indigo-600 dark:text-indigo-400">
+                          <Eye className="w-4 h-4" />
+                        </div>
+                        View Full Details
+                      </button>
+                    )}
+
+                    {/* Chat / Review */}
+                    {actionResponse.isDispatched && (
+                      <button
+                        onClick={() => {
+                          setChatResponse(actionResponse);
+                          setShowChatModal(true);
+                          setSelectedReviewOptions(prev => ({ ...prev, [actionResponse.id]: '' }));
+                          setReviewedBy(prev => ({ ...prev, [actionResponse.id]: null }));
+                          setShowActionMenuModal(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-3.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-700 dark:text-gray-200 rounded-xl transition-colors font-semibold text-sm"
+                      >
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/40 rounded-lg text-blue-600 dark:text-blue-400">
+                          <MessageCircle className="w-4 h-4" />
+                        </div>
+                        Review & Discussion
+                      </button>
+                    )}
+
+                    {/* Edit - Admin only */}
+                    {!isGuest && (user?.role === "superadmin" || user?.role === "admin") && isOwnTenant && (
+                      <button
+                        onClick={() => {
+                          handleEditStart(actionResponse);
+                          setShowActionMenuModal(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-3.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-gray-700 dark:text-gray-200 rounded-xl transition-colors font-semibold text-sm"
+                      >
+                        <div className="p-2 bg-amber-100 dark:bg-amber-900/40 rounded-lg text-amber-600 dark:text-amber-400">
+                          <Edit className="w-4 h-4" />
+                        </div>
+                        Edit Response
+                      </button>
+                    )}
+
+                    {/* Delete - Admin only */}
+                    {!isGuest && (user?.role === "superadmin" || user?.role === "admin") && isOwnTenant && (
+                      <button
+                        onClick={() => {
+                          setDeletingResponseId(actionResponse.id);
+                          setShowDeleteConfirm(true);
+                          setShowActionMenuModal(false);
+                        }}
+                        className="w-full flex items-center gap-3 p-3.5 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 rounded-xl transition-colors font-semibold text-sm"
+                      >
+                        <div className="p-2 bg-red-100 dark:bg-red-900/40 rounded-lg text-red-600 dark:text-red-400">
+                          <Trash2 className="w-4 h-4" />
+                        </div>
+                        Delete Response
+                      </button>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+            
+            <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700 text-center">
+              <button
+                onClick={() => {
+                  setShowActionMenuModal(false);
+                  setActionResponse(null);
+                }}
+                className="text-xs font-bold text-gray-500 uppercase tracking-widest hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+              >
+                Close Menu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Share Analytics Modal */}
       <ShareAnalyticsModal
         isOpen={shareAnalyticsModal.open}
@@ -9041,15 +9033,19 @@ const fetchChatHistory = async (responseId: string) => {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 ${
+          className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 animate-fadeIn ${
             toast.type === "success"
-            ? "bg-green-500 dark:bg-green-600"
-            : "bg-red-500 dark:bg-red-600"
-            }`}
+              ? "bg-green-500 dark:bg-green-600"
+              : toast.type === "info"
+              ? "bg-blue-500 dark:bg-blue-600"
+              : "bg-red-500 dark:bg-red-600"
+          }`}
         >
           <div className="flex items-center gap-2">
             {toast.type === "success" ? (
               <CheckCircle className="w-5 h-5" />
+            ) : toast.type === "info" ? (
+              <Info className="w-5 h-5" />
             ) : (
               <XCircle className="w-5 h-5" />
             )}

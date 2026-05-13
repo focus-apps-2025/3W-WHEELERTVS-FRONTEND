@@ -14,12 +14,16 @@ import {
   ChevronLeft,
   ChevronRight,
   TrendingUp,
-  User
+  User,
+  X,
+  Map as MapIcon
 } from 'lucide-react';
 
 export default function HRAttendance() {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<any>(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
   const [filters, setFilters] = useState({
     startDate: new Date(new Date().setDate(1)).toISOString().split('T')[0], // 1st of current month
     endDate: new Date().toISOString().split('T')[0],
@@ -221,13 +225,15 @@ export default function HRAttendance() {
               </div>
             </div>
 
-            {/* Detailed Table */}
+            {/* Daily Logs */}
             <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="p-6 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
-                <h3 className="font-black text-gray-900 uppercase tracking-widest text-sm">Daily Logs</h3>
-                <span className="text-xs font-bold text-gray-500">{data?.detailedLogs?.length || 0} Records Found</span>
+              <div className="p-4 md:p-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 bg-gray-50/50">
+                <h3 className="font-black text-gray-900 uppercase tracking-widest text-xs md:text-sm">Daily Logs</h3>
+                <span className="text-[10px] md:text-xs font-bold text-gray-500">{data?.detailedLogs?.length || 0} Records Found</span>
               </div>
-              <div className="overflow-x-auto">
+
+              {/* Desktop Table View */}
+              <div className="hidden lg:block overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="bg-gray-50/50 text-xs font-black text-gray-400 uppercase tracking-widest">
@@ -284,7 +290,10 @@ export default function HRAttendance() {
                               <button 
                                 title={log.location}
                                 className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition"
-                                onClick={() => alert(log.location)}
+                                onClick={() => {
+                                  setSelectedLocation(log.location);
+                                  setShowLocationModal(true);
+                                }}
                               >
                                 <MapPin size={18} />
                               </button>
@@ -295,6 +304,77 @@ export default function HRAttendance() {
                     )}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="lg:hidden divide-y divide-gray-50">
+                {data.detailedLogs.length === 0 ? (
+                  <div className="px-6 py-12 text-center text-gray-400 italic text-sm">No records found</div>
+                ) : (
+                  data?.detailedLogs?.map((log: any, idx: number) => (
+                    <div key={idx} className="p-4 space-y-4">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-sm font-bold">
+                            {log.inspector?.charAt(0) || '?'}
+                          </div>
+                          <div>
+                            <div className="font-bold text-gray-900 text-sm">{log.inspector}</div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{log.date}</div>
+                          </div>
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                          log.status === 'present' ? 'bg-green-100 text-green-700' : 
+                          log.status === 'late' ? 'bg-yellow-100 text-yellow-700' :
+                          log.status === 'half-day' ? 'bg-orange-100 text-orange-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {log.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                        <div className="space-y-0.5">
+                          <p className="text-[9px] font-bold text-gray-400 uppercase">Shift</p>
+                          <div className="flex items-center gap-1.5 text-gray-700 text-xs font-bold">
+                            <Clock size={12} className="text-blue-500" />
+                            {log.shift}
+                          </div>
+                        </div>
+                        <div className="space-y-0.5 text-right">
+                          <p className="text-[9px] font-bold text-gray-400 uppercase">Working Time</p>
+                          <div className="text-blue-600 font-black text-xs">{log.hours}h</div>
+                        </div>
+                        <div className="space-y-0.5">
+                          <p className="text-[9px] font-bold text-gray-400 uppercase">Check-in</p>
+                          <div className="text-gray-700 text-xs font-medium">{log.checkIn || '-'}</div>
+                        </div>
+                        <div className="space-y-0.5 text-right">
+                          <p className="text-[9px] font-bold text-gray-400 uppercase">Check-out</p>
+                          <div className="text-gray-700 text-xs font-medium">{log.checkOut || '-'}</div>
+                        </div>
+                      </div>
+
+                      {log.location && (
+                        <div className="pt-3 border-t border-gray-50 flex justify-between items-center">
+                          <div className="flex items-center gap-1.5 text-[10px] text-gray-500 truncate max-w-[80%]">
+                            <MapPin size={12} className="text-red-400" />
+                            {log.location}
+                          </div>
+                          <button 
+                            className="text-[10px] font-black text-blue-600 uppercase tracking-widest"
+                            onClick={() => {
+                              setSelectedLocation(log.location);
+                              setShowLocationModal(true);
+                            }}
+                          >
+                            View
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
@@ -341,6 +421,71 @@ export default function HRAttendance() {
             <div>
               <h3 className="text-xl font-bold text-gray-900">Configure Your Report</h3>
               <p className="text-gray-500">Pick a date range and filters above to see attendance analytics.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Location Details Modal */}
+        {showLocationModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div 
+              className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-2xl bg-blue-100 flex items-center justify-center text-blue-600">
+                    <MapIcon size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-widest">
+                      Check-in Location
+                    </h3>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">Precise GPS coordinates address</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowLocationModal(false)}
+                  className="p-2 hover:bg-gray-200 rounded-xl transition-colors"
+                >
+                  <X size={20} className="text-gray-500" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="p-8">
+                <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 relative group">
+                  <div className="absolute -top-3 -left-3">
+                    <div className="bg-blue-600 text-white p-2 rounded-xl shadow-lg shadow-blue-200">
+                      <MapPin size={16} />
+                    </div>
+                  </div>
+                  <p className="text-gray-700 font-medium leading-relaxed">
+                    {selectedLocation}
+                  </p>
+                </div>
+
+                <div className="mt-8 flex gap-3">
+                  <button
+                    onClick={() => {
+                      if (selectedLocation) {
+                        navigator.clipboard.writeText(selectedLocation);
+                        // Optionally show a toast/feedback here
+                      }
+                    }}
+                    className="flex-1 bg-gray-900 text-white py-3 rounded-2xl font-bold hover:bg-gray-800 transition shadow-lg shadow-gray-200 text-sm"
+                  >
+                    Copy Address
+                  </button>
+                  <button
+                    onClick={() => setShowLocationModal(false)}
+                    className="flex-1 bg-white text-gray-700 py-3 rounded-2xl font-bold border border-gray-200 hover:bg-gray-50 transition text-sm"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

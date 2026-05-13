@@ -301,66 +301,68 @@ export default function LoginPage() {
   const socialIcons = [Chrome, Facebook, Github, Linkedin];
 
   return (
-    <div className="min-h-screen md:h-screen w-full flex flex-col md:flex-row bg-white font-sans overflow-x-hidden">
+    <div className="min-h-screen w-full flex flex-col md:flex-row bg-white font-sans overflow-x-hidden">
 
-      {/* Left Side: Welcome Panel - Full Height, Blue Background, Smaller Curve */}
-      <div className="w-full md:w-1/2 flex-none md:flex-1 bg-[#1e3a8a] text-white p-8 md:p-12 flex flex-col justify-center items-center text-center relative z-20 rounded-b-[3rem] md:rounded-b-none md:rounded-r-[10rem] min-h-[40vh] md:min-h-0">
-        <div className="max-w-md animate-in fade-in slide-in-from-left-8 duration-700">
-          <h1 className="text-3xl md:text-4xl font-bold mb-4">Hello, Welcome!</h1>
-          <p className="text-blue-100 text-base md:text-lg mb-4 font-light font-sans">
+      {/* Left Side: Welcome Panel - Adaptive height and width */}
+      <div className="w-full md:w-5/12 flex-none bg-[#1e3a8a] text-white p-8 md:p-12 flex flex-col justify-center items-center text-center relative z-20 rounded-b-[2.5rem] md:rounded-b-none md:rounded-r-[4rem] lg:rounded-r-[6rem] transition-all duration-500 min-h-[25vh] md:min-h-screen">
+        <div className="max-w-sm animate-in fade-in slide-in-from-left-8 duration-700">
+          <h1 className="text-3xl lg:text-4xl font-bold mb-4">Hello, Welcome!</h1>
+          <p className="text-blue-100 text-sm md:text-base lg:text-lg mb-4 font-light font-sans opacity-90">
             Access your dashboard and manage your forms with ease.
           </p>
         </div>
 
-        {/* Subtle decorative background elements for the blue side */}
+        {/* Subtle decorative background elements */}
         <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-10">
-          <div className="absolute top-[-10%] left-[-10%] w-64 h-64 bg-white rounded-full blur-3xl"></div>
-          <div className="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute top-[-5%] left-[-5%] w-48 h-48 md:w-64 md:h-64 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-[-5%] right-[-5%] w-72 h-72 md:w-96 md:h-96 bg-white rounded-full blur-3xl"></div>
         </div>
       </div>
 
-      {/* Right Side: Login Form - Centered on White Background */}
-      <div className="w-full md:w-1/2 flex-1 flex items-center justify-center p-8 md:p-12 bg-white z-10 overflow-y-auto relative">
-        <div className="w-full max-w-sm animate-in fade-in slide-in-from-right-8 duration-700">
+      {/* Right Side: Login Form - Centered and spacious */}
+      <div className="w-full md:w-7/12 flex-1 flex items-center justify-center p-6 sm:p-10 md:p-12 lg:p-16 bg-white z-10 overflow-y-auto relative">
+        <div className="w-full max-w-md animate-in fade-in slide-in-from-right-8 duration-700">
           
           {/* ========== MAIN LOGIN FORM ========== */}
           {!showForgotPassword && (
-            <>
-              <div className="mb-8">
-                <h2 className="text-3xl font-bold text-gray-800 mb-1">Login</h2>
+            <div className="space-y-8">
+              <div className="text-center md:text-left">
+                <h2 className="text-3xl lg:text-4xl font-bold text-gray-800 mb-2">Login</h2>
                 <p className="text-sm text-gray-400">Please enter your details to sign in.</p>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="relative group">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#1e3a8a] transition-colors" size={18} />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email Address"
-                    required
-                    className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-transparent rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:bg-white focus:border-[#1e3a8a]/30 transition-all outline-none text-gray-700 text-sm shadow-sm font-sans"
-                  />
-                </div>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-4">
+                  <div className="relative group">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#1e3a8a] transition-colors" size={18} />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Email Address"
+                      required
+                      className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-[#1e3a8a]/10 focus:bg-white focus:border-[#1e3a8a]/30 transition-all outline-none text-gray-700 text-sm shadow-sm font-sans"
+                    />
+                  </div>
 
-                <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#1e3a8a] transition-colors" size={18} />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Password"
-                    required
-                    className="w-full pl-11 pr-11 py-3 bg-gray-50 border border-transparent rounded-xl focus:ring-2 focus:ring-[#1e3a8a]/20 focus:bg-white focus:border-[#1e3a8a]/30 transition-all outline-none text-gray-700 text-sm shadow-sm font-sans"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
-                  >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                  </button>
+                  <div className="relative group">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#1e3a8a] transition-colors" size={18} />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Password"
+                      required
+                      className="w-full pl-11 pr-11 py-3.5 bg-gray-50 border border-gray-100 rounded-xl focus:ring-4 focus:ring-[#1e3a8a]/10 focus:bg-white focus:border-[#1e3a8a]/30 transition-all outline-none text-gray-700 text-sm shadow-sm font-sans"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none"
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-4">
@@ -378,7 +380,7 @@ export default function LoginPage() {
                   </div>
 
                   {(authError || error) && (
-                    <div className="text-sm text-red-500 bg-red-50 p-3 rounded-xl text-center border border-red-100 animate-in fade-in zoom-in duration-300 font-sans">
+                    <div className="text-sm text-red-500 bg-red-50 p-3.5 rounded-xl text-center border border-red-100 animate-in fade-in zoom-in duration-300 font-sans">
                       {authError || error}
                     </div>
                   )}
@@ -387,7 +389,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={authLoading || loading}
-                  className="w-full py-3 bg-[#1e3a8a] text-white rounded-xl font-bold text-base shadow-lg shadow-blue-100 hover:bg-[#1e40af] hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center disabled:opacity-70 disabled:transform-none disabled:shadow-none mt-4 font-sans"
+                  className="w-full py-3.5 bg-[#1e3a8a] text-white rounded-xl font-bold text-base shadow-lg shadow-blue-100 hover:bg-[#1e40af] hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300 flex items-center justify-center disabled:opacity-70 disabled:transform-none disabled:shadow-none mt-2 font-sans"
                 >
                   {(authLoading || loading) ? (
                     <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
@@ -396,7 +398,7 @@ export default function LoginPage() {
                   )}
                 </button>
               </form>
-            </>
+            </div>
           )}
 
           {/* ========== FORGOT PASSWORD OVERLAY ========== */}

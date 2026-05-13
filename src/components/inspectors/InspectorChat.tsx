@@ -12,7 +12,8 @@ import {
   Filter,
   Edit,
   BarChart3,
-  Eye
+  Eye,
+  ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -336,6 +337,7 @@ export default function InspectorChat() {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedThread, setSelectedThread] = useState<string | null>(null);
+  const [showSidebar, setShowSidebar] = useState(true);
   const [replyText, setReplyText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -985,9 +987,9 @@ const response = await apiClient.getTenantMessages();
   };
 
   return (
-    <div className="flex h-[calc(100vh-64px)] bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-gray-50 dark:bg-gray-900 overflow-hidden">
       {/* Sidebar: Thread List */}
-      <div className="w-80 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col">
+      <div className={`${!selectedThread || showSidebar ? 'flex' : 'hidden'} md:flex w-full md:w-80 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex-col h-full`}>
         <div className="p-4 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -1030,6 +1032,7 @@ const response = await apiClient.getTenantMessages();
                   key={thread.id}
                   onClick={() => {
                     setSelectedThread(thread.id);
+                    setShowSidebar(false);
                     const readThreads = JSON.parse(localStorage.getItem('readThreads') || '{}');
                     readThreads[thread.id] = true;
                     localStorage.setItem('readThreads', JSON.stringify(readThreads));
@@ -1083,31 +1086,31 @@ const response = await apiClient.getTenantMessages();
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className={`flex-1 flex flex-col h-full ${!selectedThread || showSidebar ? 'hidden' : 'flex'} md:flex`}>
         {activeThread ? (
           <>
             {/* Chat Header */}
-            <div className="p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center">
-                  <User className="w-6 h-6 text-white" />
+            <div className="p-3 sm:p-4 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <button 
+                  onClick={() => setShowSidebar(true)}
+                  className="md:hidden p-2 -ml-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5 text-gray-500" />
+                </button>
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-indigo-600 flex items-center justify-center flex-shrink-0">
+                  <User className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
                     {activeThread.questionTitle}
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
                     Form: {activeThread.formTitle} • Ref: {String(activeThread.id).substring(0, 10)}...
                   </p>
-                  {/* Review Status in Header */}
-                  {activeThread?.review && (
-                    <div className="mt-2">
-                      {renderReviewStatus(activeThread.review)}
-                    </div>
-                  )}
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-1 sm:gap-2 flex-shrink-0">
                 <button
                   onClick={() => {
                     const formId = activeThread.formId;
@@ -1115,23 +1118,21 @@ const response = await apiClient.getTenantMessages();
                     console.log("[OpenDashboard] responseIdStr:", activeThread.responseIdStr);
                     navigate(`/forms/${formId}/analytics?responseId=${activeThread.responseIdStr}`);
                   }}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-lg shadow-lg shadow-indigo-100 dark:shadow-none transition-all active:scale-95"
+                  className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] sm:text-xs font-black rounded-lg shadow-lg shadow-indigo-100 dark:shadow-none transition-all active:scale-95"
                 >
-                  <BarChart3 className="w-3.5 h-3.5" />
-                  Open Dashboard
-                </button>
-                <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
-                  <Filter className="w-5 h-5 text-gray-400" />
+                  <BarChart3 className="w-3 sm:w-3.5 h-3 sm:h-3.5" />
+                  <span className="hidden xs:inline">Open Dashboard</span>
+                  <span className="xs:hidden">Dashboard</span>
                 </button>
               </div>
             </div>
 
             {/* Message History */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 dark:bg-gray-900/50">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 space-y-4 bg-gray-50 dark:bg-gray-900/50">
 
               {/* Sample Zone In Question */}
               <div className="flex justify-start">
-                <div className="max-w-[75%] bg-white dark:bg-gray-100 rounded-2xl shadow-sm p-4">
+                <div className="max-w-[85%] sm:max-w-[75%] bg-white dark:bg-gray-100 rounded-2xl shadow-sm p-4">
                   <p className="text-sm mb-2">Here's a Zone In inspection question:</p>
                   <QuestionDisplayRenderer
                     question={{
@@ -1150,7 +1151,7 @@ const response = await apiClient.getTenantMessages();
 
               {/* Sample Zone Out Question */}
               <div className="flex justify-start">
-                <div className="max-w-[75%] bg-white dark:bg-gray-100 rounded-2xl shadow-sm p-4">
+                <div className="max-w-[85%] sm:max-w-[75%] bg-white dark:bg-gray-100 rounded-2xl shadow-sm p-4">
                   <p className="text-sm mb-2">Here's a Zone Out inspection question:</p>
                   <QuestionDisplayRenderer
                     question={{
@@ -1183,7 +1184,7 @@ const response = await apiClient.getTenantMessages();
                   key={i} 
                   className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-5 duration-300`}
                 >
-                  <div className={`max-w-[75%] group`}>
+                  <div className={`max-w-[85%] sm:max-w-[75%] group`}>
                     <div className={`px-4 py-3 rounded-2xl shadow-sm text-sm leading-relaxed ${
                       isMe
                         ? 'bg-[#dcf8c6] text-gray-900 rounded-br-lg rounded-tr-lg rounded-tl-sm' 

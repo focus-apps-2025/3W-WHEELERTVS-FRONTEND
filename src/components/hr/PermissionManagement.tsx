@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronFirst,
   ChevronLast,
+  X,
 } from "lucide-react";
 import { format } from "date-fns";
 import { apiClient } from "../../api/client";
@@ -36,6 +37,9 @@ export default function PermissionManagement() {
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+
+  const [selectedPermission, setSelectedPermission] = useState<any | null>(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -205,136 +209,212 @@ export default function PermissionManagement() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="bg-gray-50/50 border-b border-gray-100">
-                  <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                    Type
-                  </th>
-                  {activeTab === "all" && (
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-gray-50/50 border-b border-gray-100">
                     <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                      Employee
+                      Type
                     </th>
-                  )}
-                  <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                    Timing
-                  </th>
-                  <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                    Status
-                  </th>
-                  {isAdmin && activeTab === "all" && (
+                    {activeTab === "all" && (
+                      <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">
+                        Employee
+                      </th>
+                    )}
                     <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">
-                      Actions
+                      Timing
                     </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {(activeTab === "all" ? allPermissions : myPermissions)
-                  .length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={isAdmin ? 5 : 4}
-                      className="px-6 py-20 text-center"
-                    >
-                      <div className="max-w-xs mx-auto">
-                        <Clock className="w-12 h-12 text-gray-100 mx-auto mb-4" />
-                        <p className="text-gray-400 font-bold mb-1">
-                          No requests found
-                        </p>
-                        <p className="text-gray-300 text-sm">
-                          Permission requests will appear here after submission.
-                        </p>
-                      </div>
-                    </td>
+                    <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">
+                      Status
+                    </th>
+                    {isAdmin && activeTab === "all" && (
+                      <th className="px-6 py-5 text-xs font-bold text-gray-400 uppercase tracking-widest">
+                        Actions
+                      </th>
+                    )}
                   </tr>
-                ) : (
-                  (
-                    (activeTab === "all" ? allPermissions : myPermissions) || []
-                  ).map((perm) => (
-                    <tr
-                      key={perm._id}
-                      className="hover:bg-gray-50/50 transition-colors group"
-                    >
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`p-2.5 rounded-xl ${perm.permissionType === "short-leave" ? "bg-purple-50 text-purple-600" : "bg-amber-50 text-amber-600"}`}
-                          >
-                            <Clock size={18} />
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {(activeTab === "all" ? allPermissions : myPermissions)
+                    .length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={isAdmin ? 5 : 4}
+                        className="px-6 py-20 text-center"
+                      >
+                        <div className="max-w-xs mx-auto">
+                          <Clock className="w-12 h-12 text-gray-100 mx-auto mb-4" />
+                          <p className="text-gray-400 font-bold mb-1">
+                            No requests found
+                          </p>
+                          <p className="text-gray-300 text-sm">
+                            Permission requests will appear here after submission.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : (
+                    (
+                      (activeTab === "all" ? allPermissions : myPermissions) || []
+                    ).map((perm) => (
+                      <tr
+                        key={perm._id}
+                        className="hover:bg-gray-50/50 transition-colors group"
+                      >
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`p-2.5 rounded-xl ${perm.permissionType === "short-leave" ? "bg-purple-50 text-purple-600" : "bg-amber-50 text-amber-600"}`}
+                            >
+                              <Clock size={18} />
+                            </div>
+                            <span className="font-bold text-gray-700 capitalize">
+                              {perm.permissionType.replace("-", " ")}
+                            </span>
                           </div>
-                          <span className="font-bold text-gray-700 capitalize">
+                        </td>
+                        {activeTab === "all" && (
+                          <td className="px-6 py-5">
+                            <div className="flex flex-col">
+                              <span className="font-bold text-gray-900">
+                                {perm.inspector?.firstName}{" "}
+                                {perm.inspector?.lastName}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {perm.inspector?.email}
+                              </span>
+                            </div>
+                          </td>
+                        )}
+                        <td className="px-6 py-5 text-sm font-medium text-gray-600">
+                          <div className="flex flex-col">
+                            <span className="font-bold text-gray-700">
+                              {format(new Date(perm.date), "MMM d, yyyy")}
+                            </span>
+                            <span className="text-xs text-blue-600 font-bold mt-1">
+                              {format(new Date(perm.startTime), "hh:mm a")} -{" "}
+                              {format(new Date(perm.endTime), "hh:mm a")} (
+                              {perm.duration}h)
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-5">
+                          <span
+                            className={`px-4 py-1.5 rounded-full text-xs font-bold border ${getStatusColor(perm.status)}`}
+                          >
+                            {perm.status.toUpperCase()}
+                          </span>
+                        </td>
+                        {isAdmin && activeTab === "all" && (
+                          <td className="px-6 py-5">
+                            {perm.status === "pending" ? (
+                              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={() =>
+                                    handleUpdateStatus(perm._id, "approved")
+                                  }
+                                  className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
+                                >
+                                  <CheckCircle size={20} />
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleUpdateStatus(perm._id, "rejected")
+                                  }
+                                  className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                                >
+                                  <XCircle size={20} />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400 italic">
+                                Actioned
+                              </span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="lg:hidden divide-y divide-gray-100">
+              {(activeTab === "all" ? allPermissions : myPermissions).length === 0 ? (
+                <div className="px-6 py-20 text-center">
+                  <Clock className="w-12 h-12 text-gray-100 mx-auto mb-4" />
+                  <p className="text-gray-400 font-bold">No requests found</p>
+                </div>
+              ) : (
+                (activeTab === "all" ? allPermissions : myPermissions).map((perm) => (
+                  <div 
+                    key={perm._id} 
+                    className="p-5 space-y-4 hover:bg-gray-50/50 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setSelectedPermission(perm);
+                      setShowDetailModal(true);
+                    }}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl ${perm.permissionType === "short-leave" ? "bg-purple-100 text-purple-600" : "bg-amber-100 text-amber-600"}`}>
+                          <Clock size={18} />
+                        </div>
+                        <div>
+                          <span className="font-bold text-gray-900 capitalize block">
                             {perm.permissionType.replace("-", " ")}
                           </span>
+                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Type</span>
                         </div>
-                      </td>
-                      {activeTab === "all" && (
-                        <td className="px-6 py-5">
-                          <div className="flex flex-col">
-                            <span className="font-bold text-gray-900">
-                              {perm.inspector?.firstName}{" "}
-                              {perm.inspector?.lastName}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {perm.inspector?.email}
-                            </span>
-                          </div>
-                        </td>
-                      )}
-                      <td className="px-6 py-5 text-sm font-medium text-gray-600">
-                        <div className="flex flex-col">
-                          <span className="font-bold text-gray-700">
-                            {format(new Date(perm.date), "MMM d, yyyy")}
-                          </span>
-                          <span className="text-xs text-blue-600 font-bold mt-1">
-                            {format(new Date(perm.startTime), "hh:mm a")} -{" "}
-                            {format(new Date(perm.endTime), "hh:mm a")} (
-                            {perm.duration}h)
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-5">
-                        <span
-                          className={`px-4 py-1.5 rounded-full text-xs font-bold border ${getStatusColor(perm.status)}`}
-                        >
+                      </div>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold border ${getStatusColor(perm.status)}`}>
                           {perm.status.toUpperCase()}
                         </span>
-                      </td>
-                      {isAdmin && activeTab === "all" && (
-                        <td className="px-6 py-5">
-                          {perm.status === "pending" ? (
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={() =>
-                                  handleUpdateStatus(perm._id, "approved")
-                                }
-                                className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
-                              >
-                                <CheckCircle size={20} />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleUpdateStatus(perm._id, "rejected")
-                                }
-                                className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
-                              >
-                                <XCircle size={20} />
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-xs text-gray-400 italic">
-                              Actioned
-                            </span>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                        <ChevronRight size={14} className="text-gray-300" />
+                      </div>
+                    </div>
+
+                    {activeTab === "all" && (
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                        <div className="w-9 h-9 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-sm">
+                          {perm.inspector?.firstName?.[0]}{perm.inspector?.lastName?.[0]}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">{perm.inspector?.firstName} {perm.inspector?.lastName}</p>
+                          <p className="text-[10px] text-gray-500">Employee</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Date</p>
+                        <p className="text-sm font-bold text-gray-700 dark:text-gray-300">{format(new Date(perm.date), "MMM d, yyyy")}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Duration</p>
+                        <p className="text-xs text-blue-600 font-bold">
+                          {format(new Date(perm.startTime), "hh:mm a")} - {format(new Date(perm.endTime), "hh:mm a")}
+                          <span className="ml-1 text-gray-400 font-medium">({perm.duration}h)</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {perm.reason && (
+                      <div className="p-3 bg-gray-50/50 dark:bg-gray-800/30 rounded-xl border border-gray-100 dark:border-gray-700 italic text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                        "{perm.reason}"
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </>
         )}
 
         {/* Pagination */}
@@ -387,6 +467,120 @@ export default function PermissionManagement() {
           </div>
         )}
       </div>
+
+        {/* Detail Modal */}
+        {showDetailModal && selectedPermission && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white dark:bg-gray-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animate-in fade-in zoom-in duration-200">
+              <div className="p-6 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
+                <div className="flex items-center gap-4">
+                  <div className={`p-3 rounded-2xl ${selectedPermission.permissionType === "short-leave" ? "bg-purple-100 text-purple-600" : "bg-amber-100 text-amber-600"}`}>
+                    <Clock size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-black text-gray-900 dark:text-white capitalize">
+                      {selectedPermission.permissionType.replace("-", " ")}
+                    </h3>
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">Permission Details</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDetailModal(false)}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
+                >
+                  <X size={24} className="text-gray-400" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6 overflow-y-auto no-scrollbar">
+                {activeTab === "all" && (
+                  <div className="flex items-center gap-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                    <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-lg">
+                      {selectedPermission.inspector?.firstName?.[0]}{selectedPermission.inspector?.lastName?.[0]}
+                    </div>
+                    <div>
+                      <p className="text-base font-black text-gray-900 dark:text-white">{selectedPermission.inspector?.firstName} {selectedPermission.inspector?.lastName}</p>
+                      <p className="text-xs text-gray-500 font-bold">{selectedPermission.inspector?.email}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Date</p>
+                    <p className="text-sm font-black text-gray-900 dark:text-white">{format(new Date(selectedPermission.date), "MMMM d, yyyy")}</p>
+                  </div>
+                  <div className="space-y-1 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Status</p>
+                    <span className={`inline-block px-3 py-1 rounded-full text-[10px] font-black border ${getStatusColor(selectedPermission.status)}`}>
+                      {selectedPermission.status.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-blue-50/30 dark:bg-blue-900/5 rounded-2xl border border-blue-50 dark:border-blue-900/20">
+                  <p className="text-[10px] font-black text-blue-400 dark:text-blue-500 uppercase tracking-widest mb-3">Time Window</p>
+                  <div className="flex items-center justify-between">
+                    <div className="text-center">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">From</p>
+                      <p className="text-base font-black text-blue-600 dark:text-blue-400">{format(new Date(selectedPermission.startTime), "hh:mm a")}</p>
+                    </div>
+                    <div className="h-px flex-1 bg-blue-100 dark:bg-blue-900/30 mx-4 mt-4 relative">
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 px-2 text-[10px] font-black text-blue-400">
+                        {selectedPermission.duration}h
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">To</p>
+                      <p className="text-base font-black text-blue-600 dark:text-blue-400">{format(new Date(selectedPermission.endTime), "hh:mm a")}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedPermission.reason && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Reason</p>
+                    <div className="p-4 bg-gray-50 dark:bg-gray-800/50 rounded-2xl border border-gray-100 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 font-medium leading-relaxed">
+                      {selectedPermission.reason}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
+                {isAdmin && activeTab === "all" && selectedPermission.status === "pending" ? (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        handleUpdateStatus(selectedPermission._id, "rejected");
+                        setShowDetailModal(false);
+                      }}
+                      className="flex-1 py-4 bg-white dark:bg-gray-900 border border-red-200 dark:border-red-900/30 text-red-600 dark:text-red-400 rounded-2xl font-black text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95"
+                    >
+                      Reject
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleUpdateStatus(selectedPermission._id, "approved");
+                        setShowDetailModal(false);
+                      }}
+                      className="flex-1 py-4 bg-green-600 text-white rounded-2xl font-black text-sm hover:bg-green-700 shadow-lg shadow-green-100 dark:shadow-none transition-all active:scale-95"
+                    >
+                      Approve
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowDetailModal(false)}
+                    className="w-full py-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-2xl font-black text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-all active:scale-95"
+                  >
+                    Close
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
       {/* Apply Modal */}
       {showApplyModal && (

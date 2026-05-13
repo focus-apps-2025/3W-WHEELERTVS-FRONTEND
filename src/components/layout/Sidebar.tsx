@@ -121,6 +121,13 @@ export default function Sidebar() {
       roles: ["admin", "inspector"],
     },
     {
+      title: "Attendance Reports",
+      icon: BarChart2,
+      path: "/attendance/analytics",
+      description: "Shift-based attendance tracking and analytics",
+      roles: ["admin", "superadmin", "subadmin", "inspector"],
+    },
+    {
       title: "Customer Requests",
       icon: FileText,
       path: "/responses/all",

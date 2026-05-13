@@ -23,6 +23,7 @@ import {
   Download,
   Database,
   Send,
+  Share2,
 } from "lucide-react";
 import { useForms, useMutation } from "../hooks/useApi";
 import { apiClient } from "../api/client";
@@ -348,8 +349,8 @@ export default function FormsManagementNew() {
                 }}
                 className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
               >
-                <Send className="w-4 h-4 mr-2" />
-                Share Analytics
+                <Share2 className="w-4 h-4 mr-2" />
+                Share via WhatsApp/Email
               </button>
               <button
                 onClick={() => {
@@ -359,8 +360,8 @@ export default function FormsManagementNew() {
                 }}
                 className="w-full text-left px-4 py-2 text-sm text-primary-700 hover:bg-primary-50 flex items-center"
               >
-                <Calendar className="w-4 h-4 mr-2" />
-                Auto Send Setup
+                <Send className="w-4 h-4 mr-2" />
+                Email Automation
               </button>
             </div>
           )}

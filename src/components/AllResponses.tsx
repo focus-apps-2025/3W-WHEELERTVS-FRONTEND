@@ -2181,7 +2181,8 @@ if (typeof value === "object") {
                 Question Breakdown
               </h4>
             </div>
-            <div className="overflow-x-auto max-h-64">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto max-h-64">
               <table className="w-full divide-y divide-blue-200 dark:divide-blue-700 text-sm">
                 <thead className="bg-blue-50 dark:bg-blue-900/50 sticky top-0">
                   <tr>
@@ -2331,6 +2332,86 @@ if (typeof value === "object") {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-blue-100 dark:divide-blue-800 max-h-96 overflow-y-auto">
+              {questionStats.map((stat) => {
+                const total = stat.yes + stat.no + stat.na;
+                const yesPercent = total > 0 ? ((stat.yes / total) * 100).toFixed(1) : 0;
+                const noPercent = total > 0 ? ((stat.no / total) * 100).toFixed(1) : 0;
+                const naPercent = total > 0 ? ((stat.na / total) * 100).toFixed(1) : 0;
+                
+                return (
+                  <div key={stat.id} className="p-4 bg-white dark:bg-gray-900">
+                    <div className="flex flex-col gap-2 mb-4">
+                      {stat.subParam1 && (
+                        <span className="inline-block bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-200 px-2 py-0.5 rounded font-bold text-[10px] uppercase w-fit">
+                          {stat.subParam1}
+                        </span>
+                      )}
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 leading-tight">
+                        {stat.title}
+                      </p>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-green-50 dark:bg-green-900/20 p-2 rounded-xl border border-green-100 dark:border-green-800/30 text-center">
+                        <p className="text-[10px] font-bold text-green-700 dark:text-green-400 uppercase mb-1">Yes</p>
+                        <p className="text-sm font-black text-green-800 dark:text-green-200">{stat.yes}</p>
+                        <p className="text-[9px] font-bold text-green-600 dark:text-green-500">{yesPercent}%</p>
+                      </div>
+                      <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-xl border border-red-100 dark:border-red-800/30 text-center">
+                        <p className="text-[10px] font-bold text-red-700 dark:text-red-400 uppercase mb-1">No</p>
+                        <p className="text-sm font-black text-red-800 dark:text-green-200">{stat.no}</p>
+                        <p className="text-[9px] font-bold text-red-600 dark:text-green-500">{noPercent}%</p>
+                      </div>
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded-xl border border-yellow-100 dark:border-yellow-800/30 text-center">
+                        <p className="text-[10px] font-bold text-yellow-700 dark:text-yellow-400 uppercase mb-1">N/A</p>
+                        <p className="text-sm font-black text-yellow-800 dark:text-green-200">{stat.na}</p>
+                        <p className="text-[9px] font-bold text-yellow-600 dark:text-yellow-500">{naPercent}%</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between items-center">
+                      <span className="text-xs font-bold text-gray-400 uppercase">Total Responses</span>
+                      <span className="text-sm font-black text-blue-600 dark:text-blue-400">{total}</span>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* Mobile Section Totals */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/30 border-t-2 border-blue-200 dark:border-blue-800">
+                <p className="text-xs font-black text-blue-900 dark:text-blue-100 uppercase tracking-widest mb-3">Section Totals</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-blue-100 dark:border-blue-700 shadow-sm">
+                    <p className="text-[10px] font-bold text-green-600 uppercase mb-1">Total Yes</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-black text-gray-900 dark:text-white">{sectionTotals.yes}</span>
+                      <span className="text-xs font-bold text-green-500">{sectionPercentages.yes}%</span>
+                    </div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-blue-100 dark:border-blue-700 shadow-sm">
+                    <p className="text-[10px] font-bold text-red-600 uppercase mb-1">Total No</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-black text-gray-900 dark:text-white">{sectionTotals.no}</span>
+                      <span className="text-xs font-bold text-red-500">{sectionPercentages.no}%</span>
+                    </div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-xl border border-blue-100 dark:border-blue-700 shadow-sm">
+                    <p className="text-[10px] font-bold text-yellow-600 uppercase mb-1">Total N/A</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-lg font-black text-gray-900 dark:text-white">{sectionTotals.na}</span>
+                      <span className="text-xs font-bold text-yellow-500">{sectionPercentages.na}%</span>
+                    </div>
+                  </div>
+                  <div className="bg-blue-600 p-3 rounded-xl shadow-lg shadow-blue-200 dark:shadow-none">
+                    <p className="text-[10px] font-bold text-blue-100 uppercase mb-1">Total Items</p>
+                    <span className="text-lg font-black text-white">{sectionTotals.total}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -2401,30 +2482,22 @@ if (typeof value === "object") {
               {renderSectionYesNoTable(section.id)}
 
               {/* Main Parameters Table */}
-              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-8 rounded-3xl shadow-xl border border-emerald-200 dark:border-emerald-800">
+              <div className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-900/20 dark:to-teal-900/20 p-4 sm:p-8 rounded-3xl shadow-xl border border-emerald-200 dark:border-emerald-800">
                 <div className="mb-6">
-                  <h3 className="text-2xl font-bold text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
-                    <div className="w-1 h-8 bg-emerald-600 rounded-full"></div>
-                    {section.name || section.label || `Section`} - Main
-                    Parameters
+                  <h3 className="text-xl sm:text-2xl font-bold text-emerald-900 dark:text-emerald-100 flex items-center gap-3">
+                    <div className="w-1 h-6 sm:h-8 bg-emerald-600 rounded-full"></div>
+                    {section.name || section.label || `Section`} - Main Parameters
                   </h3>
-                  {/* <p className="text-emerald-700 dark:text-emerald-300 mt-2">
-                    Main questions with their follow-up answers organized by subparameters
-                  </p> */}
-                  {/* {allFollowUpIds.size > 0 && (
-                    <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/30 border border-blue-300 rounded text-sm text-blue-800 dark:text-blue-200">
-                      <strong>Found {allFollowUpIds.size} follow-up question(s)</strong> • {Array.from(allFollowUpIds).join(', ')}
-                    </div>
-                  )} */}
                   {allFollowUpIds.size === 0 && sectionQuestions.length > 0 && (
-                    <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 rounded text-sm text-yellow-800 dark:text-yellow-200">
+                    <div className="mt-3 p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-300 rounded text-xs sm:text-sm text-yellow-800 dark:text-yellow-200">
                       <strong>⚠️ No follow-up questions found</strong> for{" "}
                       {sectionQuestions.length} main question(s)
                     </div>
                   )}
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-emerald-200 dark:bg-emerald-800/50">
@@ -2511,6 +2584,52 @@ if (typeof value === "object") {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Mobile/Tablet Card View */}
+                <div className="lg:hidden space-y-6">
+                  {sectionQuestions.map((mainQuestion) => (
+                    <div key={mainQuestion.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-md border border-emerald-100 dark:border-emerald-700 overflow-hidden">
+                      <div className="p-4 bg-emerald-50 dark:bg-emerald-900/30 border-b border-emerald-100 dark:border-emerald-800">
+                        {mainQuestion.subParam1 && (
+                          <span className="inline-block bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-200 px-2 py-0.5 rounded font-bold text-[10px] uppercase mb-2">
+                            {mainQuestion.subParam1}
+                          </span>
+                        )}
+                        <p className="text-sm font-bold text-emerald-900 dark:text-emerald-100 leading-tight">
+                          {mainQuestion.title}
+                        </p>
+                      </div>
+                      <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                        {uniqueSubParams.map((subParam) => {
+                          const followUpsForParam = followUpsBySubParam.get(subParam) || [];
+                          const answersForParam = followUpsForParam
+                            .map((followUp) => {
+                              const followUpFromMain = mainQuestion.followUpQuestions.find(
+                                (fq: any) => fq.id === followUp.id
+                              );
+                              return followUpFromMain?.answer;
+                            })
+                            .filter(answer => answer !== undefined && answer !== null && answer !== "");
+
+                          if (answersForParam.length === 0) return null;
+
+                          return (
+                            <div key={subParam} className="p-4 bg-white dark:bg-gray-800">
+                              <p className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1.5">{subParam}</p>
+                              <div className="space-y-1.5">
+                                {answersForParam.map((answer, idx) => (
+                                  <div key={idx} className="bg-emerald-50/50 dark:bg-emerald-900/10 p-2 rounded-lg border border-emerald-50 dark:border-emerald-800/50 text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                                    {answer}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           );
@@ -2587,12 +2706,12 @@ if (typeof value === "object") {
                     {question.text || question.id}
                   </div>
                   {question.subParam1 && (
-                    <div className="mt-2 ml-7 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-700 font-medium">
+                    <div className="mt-2 ml-4 sm:ml-7 text-sm bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-700 font-medium">
                       <span className="font-semibold">Main Parameter:</span>{" "}
                       {question.subParam1}
                     </div>
                   )}
-                  <div className="mt-3 text-slate-700 dark:text-slate-300 ml-7 text-base flex flex-col gap-1">
+                  <div className="mt-3 text-slate-700 dark:text-slate-300 ml-4 sm:ml-7 text-base flex flex-col gap-1">
                     {renderAnswerDisplay(answer, question)}
                     {selectedResponse.responseRanks?.[question.id] && (
                       <div className={`mt-1 text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}>
@@ -2609,7 +2728,7 @@ if (typeof value === "object") {
                     return (
                       <div
                         key={followUp.id}
-                        className={`mt-4 ml-12 p-4 border-l-4 rounded-r-xl shadow-sm ${hasAnswer
+                        className={`mt-4 ml-4 sm:ml-12 p-4 border-l-4 rounded-r-xl shadow-sm ${hasAnswer
                           ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500"
                           : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500"
                           }`}
@@ -2629,7 +2748,7 @@ if (typeof value === "object") {
                           {followUp.text || followUp.id}
                         </div>
                         {followUp.subParam1 && (
-                          <div className="mt-2 ml-6 text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-700 font-medium w-fit">
+                          <div className="mt-2 ml-4 sm:ml-6 text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-700 font-medium w-fit">
                             <span className="font-semibold">
                               Follow-up Parameter:
                             </span>{" "}
@@ -2637,7 +2756,7 @@ if (typeof value === "object") {
                           </div>
                         )}
                         <div
-                          className={`mt-2 ml-6 flex flex-col gap-1 ${hasAnswer
+                          className={`mt-2 ml-4 sm:ml-6 flex flex-col gap-1 ${hasAnswer
                             ? "text-blue-700 dark:text-blue-300"
                             : "text-gray-600 dark:text-gray-400"
                             }`}
@@ -2691,7 +2810,7 @@ if (typeof value === "object") {
               return (
                 <div
                   key={followUp.id}
-                  className={`p-6 ml-12 border-l-4 rounded-r-xl shadow-sm hover:transition-colors duration-200 ${hasAnswer
+                  className={`p-6 ml-4 sm:ml-12 border-l-4 rounded-r-xl shadow-sm hover:transition-colors duration-200 ${hasAnswer
                     ? "bg-blue-50 dark:bg-blue-900/30 border-blue-400 dark:border-blue-500 hover:bg-blue-100 dark:hover:bg-blue-900/40"
                     : "bg-gray-50 dark:bg-gray-900/30 border-gray-400 dark:border-gray-500 hover:bg-gray-100 dark:hover:bg-gray-900/40"
                     }`}
@@ -2711,7 +2830,7 @@ if (typeof value === "object") {
                     {followUp.text || followUp.id}
                   </div>
                   {followUp.subParam1 && (
-                    <div className="mt-2 ml-8 text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-700 font-medium w-fit">
+                    <div className="mt-2 ml-4 sm:ml-8 text-xs bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded border border-emerald-200 dark:border-emerald-700 font-medium w-fit">
                       <span className="font-semibold">
                         Follow-up Parameter:
                       </span>{" "}
@@ -2719,7 +2838,7 @@ if (typeof value === "object") {
                     </div>
                   )}
                   <div
-                    className={`mt-3 ml-8 ${hasAnswer
+                    className={`mt-3 ml-4 sm:ml-8 ${hasAnswer
                       ? "text-blue-700 dark:text-blue-300"
                       : "text-gray-600 dark:text-gray-400"
                       } text-base`}
@@ -2874,172 +2993,167 @@ if (typeof value === "object") {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-blue-100/50 dark:from-gray-900 dark:to-gray-800 p-6 md:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-slate-50 to-blue-100/50 dark:from-gray-900 dark:to-gray-800 p-4 sm:p-6 md:p-8">
       {/* Page Header */}
-      <div className="mb-8 flex items-center justify-between gap-4 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/10 dark:to-indigo-900/10 p-4 rounded-xl">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex-shrink-0">
-            <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+      <div className="mb-6 sm:mb-8 bg-gradient-to-r from-blue-50/80 to-indigo-50/80 dark:from-blue-900/10 dark:to-indigo-900/10 p-4 sm:p-5 rounded-2xl border border-blue-100 dark:border-blue-800/20 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="p-3 bg-blue-100 dark:bg-blue-900/40 rounded-xl shadow-inner flex-shrink-0">
+              <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white leading-tight">
+                Customer Requests
+              </h1>
+              <p className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm font-medium mt-0.5">
+                View and manage all customer interactions
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white whitespace-nowrap">
-              Customer Requests
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 text-xs whitespace-nowrap">
-              View all requests and responses
-            </p>
-          </div>
-        </div>
-        
-        <div className="flex-1 max-w-sm">
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 border border-blue-200 dark:border-blue-700 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-gray-900 dark:text-white placeholder-blue-400 dark:placeholder-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-sm text-sm"
-            />
-          </div>
-        </div>
-        
-        <div className="flex-shrink-0 relative flex items-center gap-2">
-          <button
-            onClick={fetchData}
-            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-            title="Refresh responses"
-          >
-            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-
-          <button
-            onClick={() => setIsAnswerTemplateOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg font-semibold transition-all shadow-md hover:shadow-lg text-sm"
-          >
-            <Upload className="w-4 h-4" />
-            Import Answers
-          </button>
-
-          <div className="relative">
-          <button
-            onClick={() => setShowFormFilter(!showFormFilter)}
-            style={{ backgroundColor: "#1e3a8a" }}
-            className={`px-4 py-2.5 text-white rounded-lg font-semibold transition-all duration-200 flex items-center gap-2 whitespace-nowrap hover:opacity-90 shadow-md hover:shadow-lg text-sm ${showFormFilter ? 'ring-2 ring-blue-400 ring-offset-2 dark:ring-offset-gray-700' : ''}`}
-          >
-            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-              <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-            </svg>
-            Forms ({selectedFormIds.length === 0 ? uniqueForms.length : (selectedFormIds.includes('NONE_SELECTED') ? 0 : selectedFormIds.length)}/{uniqueForms.length})
-          </button>
-
-          {showFormFilter && (
-              <div className="absolute top-full right-0 mt-2 p-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 min-w-80 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="sticky top-0 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" style={{ color: "#1e3a8a" }}>
-                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                        <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                      </svg>
-                      Select Forms
-                    </h4>
-                    <button
-                      onClick={() => setShowFormFilter(false)}
-                      className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                    >
-                      <X className="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                    </button>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setSelectedFormIds([])}
-                      className="flex-1 px-3 py-1.5 text-xs font-semibold text-white rounded transition-colors hover:opacity-90"
-                      style={{ backgroundColor: "#1e3a8a" }}
-                    >
-                      Select All
-                    </button>
-                    <button
-                      onClick={() => setSelectedFormIds(['NONE_SELECTED'])}
-                      className="flex-1 px-3 py-1.5 text-xs font-semibold text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors"
-                    >
-                      Clear All
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="p-4 max-h-96 overflow-y-auto space-y-2">
-                  {uniqueForms.length > 0 ? (
-                    uniqueForms.map(form => (
-                      <label key={form.id} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50 cursor-pointer transition-colors group">
-                        <div className="relative flex items-center flex-shrink-0">
-                          <input
-                            type="checkbox"
-                            checked={selectedFormIds.length === 0 || (selectedFormIds.includes(form.id) && !selectedFormIds.includes('NONE_SELECTED'))}
-                            onChange={(e) => {
-                              const isChecked = e.target.checked;
-                              if (selectedFormIds.length === 0) {
-                                // Currently "All" (effectively all checked)
-                                if (!isChecked) {
-                                  // User unchecked one, so we select all OTHERS
-                                  const allIds = uniqueForms.map(f => f.id);
-                                  setSelectedFormIds(allIds.filter(id => id !== form.id));
-                                }
-                              } else if (selectedFormIds.includes('NONE_SELECTED')) {
-                                // Currently "None"
-                                if (isChecked) {
-                                  setSelectedFormIds([form.id]);
-                                }
-                              } else {
-                                // Currently specific selection
-                                if (isChecked) {
-                                  const newIds = [...selectedFormIds, form.id];
-                                  // If now all are selected, switch back to "All" (empty)
-                                  if (newIds.length === uniqueForms.length) {
-                                    setSelectedFormIds([]);
-                                  } else {
-                                    setSelectedFormIds(newIds);
-                                  }
-                                } else {
-                                  const newIds = selectedFormIds.filter(id => id !== form.id);
-                                  if (newIds.length === 0) {
-                                    setSelectedFormIds(['NONE_SELECTED']);
-                                  } else {
-                                    setSelectedFormIds(newIds);
-                                  }
-                                }
-                              }
-                            }}
-                            className="w-5 h-5 border-gray-300 dark:border-gray-600 rounded cursor-pointer"
-                            style={{ accentColor: "#1e3a8a" }}
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-medium text-gray-900 dark:text-gray-200 block truncate">{form.title}</span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {responses.filter(r => (r.questionId || r.formId) === form.id).length} responses
-                          </span>
-                        </div>
-                        <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
-                      </label>
-                    ))
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">No forms available</p>
-                  )}
-                </div>
-                
-                <div className="sticky bottom-0 px-4 py-3 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-700">
-                  <p className="text-xs text-gray-600 dark:text-gray-400 text-center">
-                    {selectedFormIds.length === 0 ? uniqueForms.length : (selectedFormIds.includes('NONE_SELECTED') ? 0 : selectedFormIds.length)} of {uniqueForms.length} forms selected
-                  </p>
-                </div>
+          
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 lg:flex-1 lg:max-w-2xl lg:justify-end">
+            <div className="relative flex-1 sm:max-w-xs">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-4 w-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
               </div>
-            )}
+              <input
+                type="text"
+                placeholder="Search requests..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-800/50 border border-blue-200 dark:border-blue-700/50 rounded-xl text-gray-900 dark:text-white placeholder-blue-300 dark:placeholder-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all shadow-sm text-sm"
+              />
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchData}
+                disabled={loading}
+                className="p-2.5 text-gray-500 hover:text-blue-600 bg-white dark:bg-gray-800/50 border border-blue-100 dark:border-blue-700/50 rounded-xl transition-all hover:shadow-md disabled:opacity-50"
+                title="Refresh responses"
+              >
+                <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+
+              <button
+                onClick={() => setIsAnswerTemplateOpen(true)}
+                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold transition-all shadow-md hover:shadow-lg text-sm active:scale-95"
+              >
+                <Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">Import</span>
+                <span className="sm:hidden">Import Answers</span>
+              </button>
+
+              <div className="relative">
+                <button
+                  onClick={() => setShowFormFilter(!showFormFilter)}
+                  className={`px-4 py-2.5 text-white rounded-xl font-bold transition-all duration-200 flex items-center justify-center gap-2 whitespace-nowrap shadow-md hover:shadow-lg text-sm active:scale-95 ${showFormFilter ? 'ring-2 ring-blue-400 ring-offset-2 dark:ring-offset-gray-900' : ''}`}
+                  style={{ backgroundColor: "#1e3a8a" }}
+                >
+                  <List className="w-4 h-4" />
+                  <span>Forms ({selectedFormIds.length === 0 ? uniqueForms.length : (selectedFormIds.includes('NONE_SELECTED') ? 0 : selectedFormIds.length)})</span>
+                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${showFormFilter ? 'rotate-180' : ''}`} />
+                </button>
+
+                {showFormFilter && (
+                  <div className="absolute top-full right-0 mt-3 p-0 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl z-[100] w-72 sm:w-80 animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 px-4 py-4 border-b border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                          <Filter className="w-4 h-4 text-blue-700 dark:text-blue-400" />
+                          Filter by Form
+                        </h4>
+                        <button
+                          onClick={() => setShowFormFilter(false)}
+                          className="p-1.5 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        >
+                          <X className="w-4 h-4 text-gray-500" />
+                        </button>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedFormIds([])}
+                          className="flex-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-white rounded-lg transition-all hover:opacity-90 active:scale-95 shadow-sm"
+                          style={{ backgroundColor: "#1e3a8a" }}
+                        >
+                          Select All
+                        </button>
+                        <button
+                          onClick={() => setSelectedFormIds(['NONE_SELECTED'])}
+                          className="flex-1 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-all active:scale-95 shadow-sm"
+                        >
+                          Clear All
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="max-h-[60vh] overflow-y-auto py-2 custom-scrollbar">
+                      {uniqueForms.length > 0 ? (
+                        uniqueForms.map(form => (
+                          <label key={form.id} className="flex items-center gap-3 px-4 py-3 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 cursor-pointer transition-colors group">
+                            <div className="relative flex items-center">
+                              <input
+                                type="checkbox"
+                                checked={selectedFormIds.length === 0 || (selectedFormIds.includes(form.id) && !selectedFormIds.includes('NONE_SELECTED'))}
+                                onChange={(e) => {
+                                  const isChecked = e.target.checked;
+                                  if (selectedFormIds.length === 0) {
+                                    if (!isChecked) {
+                                      const allIds = uniqueForms.map(f => f.id);
+                                      setSelectedFormIds(allIds.filter(id => id !== form.id));
+                                    }
+                                  } else if (selectedFormIds.includes('NONE_SELECTED')) {
+                                    if (isChecked) {
+                                      setSelectedFormIds([form.id]);
+                                    }
+                                  } else {
+                                    if (isChecked) {
+                                      const newIds = [...selectedFormIds, form.id];
+                                      if (newIds.length === uniqueForms.length) {
+                                        setSelectedFormIds([]);
+                                      } else {
+                                        setSelectedFormIds(newIds);
+                                      }
+                                    } else {
+                                      const newIds = selectedFormIds.filter(id => id !== form.id);
+                                      if (newIds.length === 0) {
+                                        setSelectedFormIds(['NONE_SELECTED']);
+                                      } else {
+                                        setSelectedFormIds(newIds);
+                                      }
+                                    }
+                                  }
+                                }}
+                                className="w-5 h-5 border-2 border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer checked:bg-blue-600 transition-all"
+                                style={{ accentColor: "#1e3a8a" }}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-semibold text-gray-800 dark:text-gray-200 block truncate group-hover:text-blue-700 dark:group-hover:text-blue-400">
+                                {form.title}
+                              </span>
+                              <span className="text-[10px] text-gray-500 font-medium">
+                                {responses.filter(r => (r.questionId || r.formId) === form.id).length} responses
+                              </span>
+                            </div>
+                          </label>
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-6">No forms available</p>
+                      )}
+                    </div>
+                    
+                    <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-700">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">
+                        {selectedFormIds.length === 0 ? uniqueForms.length : (selectedFormIds.includes('NONE_SELECTED') ? 0 : selectedFormIds.length)} of {uniqueForms.length} selected
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -3256,9 +3370,9 @@ if (typeof value === "object") {
       {selectedResponse && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[9999] overflow-y-auto p-2 animate-in fade-in duration-300">
           <div className="bg-gradient-to-br from-white to-blue-50/30 dark:from-gray-800 dark:to-blue-900/10 rounded-2xl shadow-2xl max-w-7xl w-full my-auto max-h-[95vh] flex flex-col border border-blue-200 dark:border-blue-800/50 animate-in slide-in-from-bottom duration-300">
-            <div className="sticky top-0 z-50 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 px-6 py-3 border-b border-blue-200 dark:border-blue-700/50 flex justify-between items-center">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+            <div className="sticky top-0 z-50 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 px-4 sm:px-6 py-3 border-b border-blue-200 dark:border-blue-700/50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate" title={selectedResponse.formTitle}>
                   {selectedResponse.formTitle}
                 </h3>
                 <div className="flex items-center gap-2 mt-1">
@@ -3268,7 +3382,7 @@ if (typeof value === "object") {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {/* Edit Button */}
                 <button
                   onClick={() => {
@@ -3285,8 +3399,8 @@ if (typeof value === "object") {
                   style={{ backgroundColor: "#2563eb" }}
                   title="Edit response"
                 >
-                  <Edit2 className="w-3 h-3 mr-1.5" />
-                  Edit
+                  <Edit2 className="w-3 h-3 sm:mr-1.5" />
+                  <span className="hidden sm:inline">Edit</span>
                 </button>
 
                 {/* Delete Button */}
@@ -3301,8 +3415,8 @@ if (typeof value === "object") {
                   style={{ backgroundColor: "#dc2626" }}
                   title="Delete response"
                 >
-                  <Trash2 className="w-3 h-3 mr-1.5" />
-                  {deletingResponseId === selectedResponse?.id ? "..." : "Delete"}
+                  <Trash2 className="w-3 h-3 sm:mr-1.5" />
+                  <span className="hidden sm:inline">{deletingResponseId === selectedResponse?.id ? "..." : "Delete"}</span>
                 </button>
 
                 {viewMode === "dashboard" ? (
@@ -3503,8 +3617,8 @@ if (typeof value === "object") {
                             </div>
 
                             {/* Two-Column Layout: Stats (25%) and Basic Info (75%) */}
-                            <div className="flex gap-4 items-stretch">
-                              <div className="w-1/4 flex flex-col gap-3">
+                            <div className="flex flex-col md:flex-row gap-4 items-stretch">
+                              <div className="w-full md:w-1/4 flex flex-col gap-3">
                               <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 backdrop-blur-sm p-3 rounded-xl border border-yellow-200/50 dark:border-yellow-700/50 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
                                 <div className="flex items-center justify-between">
                                   <div>
@@ -3733,7 +3847,7 @@ if (typeof value === "object") {
                             </div>
 
                               {/* Basic Information - 75% */}
-                              <div className="w-3/4">
+                              <div className="w-full md:w-3/4">
                                 {selectedForm?.sections?.[0] && (
                                   <div className="border border-primary-100 rounded-lg overflow-hidden">
                                     <div className="px-4 py-3 bg-primary-50">
@@ -3788,7 +3902,7 @@ if (typeof value === "object") {
 
                           {/* Charts Section */}
                           <div className="grid gap-8 grid-cols-1">
-                            <div className="bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 dark:from-gray-800 dark:via-blue-900/10 dark:to-indigo-900/10 p-8 rounded-3xl shadow-2xl border border-blue-200/50 dark:border-blue-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm lg:max-w-3xl mx-auto w-full">
+                            <div className="bg-gradient-to-br from-white via-blue-50/30 to-indigo-50/30 dark:from-gray-800 dark:via-blue-900/10 dark:to-indigo-900/10 p-4 sm:p-6 md:p-8 rounded-3xl shadow-2xl border border-blue-200/50 dark:border-blue-700/50 transform hover:scale-[1.02] transition-all duration-500 hover:shadow-3xl backdrop-blur-sm lg:max-w-3xl mx-auto w-full">
                               <div className="flex items-center justify-between mb-8">
                                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
                                   <div className="p-2 bg-blue-500/20 rounded-lg mr-4">

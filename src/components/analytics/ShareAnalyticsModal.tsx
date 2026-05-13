@@ -3,7 +3,7 @@ import {
   X, 
   Upload, 
   Mail, 
-  MessageSquare, 
+  MessageCircle, 
   CheckCircle, 
   AlertCircle, 
   FileText,
@@ -434,7 +434,7 @@ export default function ShareAnalyticsModal({
                         : 'border-gray-200 dark:border-gray-700 text-gray-500'}
                     `}
                   >
-                    <MessageSquare className="w-5 h-5" />
+                    <MessageCircle className="w-5 h-5" />
                     <span className="font-semibold">WhatsApp</span>
                   </button>
                 </div>

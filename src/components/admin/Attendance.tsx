@@ -16,6 +16,8 @@ import {
   Activity,
   Wifi,
   WifiOff,
+  Building,
+  X,
 } from "lucide-react";
 
 interface AttendanceRecord {
@@ -158,6 +160,8 @@ export default function Attendance() {
   const [currentPage, setCurrentPage] = useState(1);
   const [exporting, setExporting] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedUserAttendance, setSelectedUserAttendance] = useState<UserAttendance | null>(null);
+  const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const currentMonth = currentDate.getMonth();
   const currentYear = currentDate.getFullYear();
   const year = currentYear;
@@ -762,31 +766,33 @@ export default function Attendance() {
         {/* Month Selector and Controls */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handlePrevMonth}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
+            <div className="flex items-center flex-wrap gap-2">
+              <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+                <button
+                  onClick={handlePrevMonth}
+                  className="p-2 rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
 
-              <div className="flex items-center gap-2 min-w-[180px] justify-center">
-                <Calendar className="w-5 h-5 text-gray-400" />
-                <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {monthDetails.monthName} {year}
-                </span>
+                <div className="flex items-center gap-2 px-4 min-w-[160px] justify-center">
+                  <Calendar className="w-4 h-4 text-gray-400" />
+                  <span className="text-base font-semibold text-gray-900 dark:text-white whitespace-nowrap">
+                    {monthDetails.monthName} {year}
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleNextMonth}
+                  className="p-2 rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
               </div>
 
               <button
-                onClick={handleNextMonth}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-
-              <button
                 onClick={() => setCurrentDate(new Date())}
-                className="ml-2 px-3 py-1.5 text-sm font-medium text-primary-600 hover:text-primary-700 border border-primary-200 rounded-lg hover:bg-primary-50"
+                className="px-4 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 border border-primary-200 rounded-lg hover:bg-primary-50 transition-colors bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-primary-400 dark:hover:bg-gray-700"
               >
                 Current Month
               </button>
@@ -856,110 +862,197 @@ export default function Attendance() {
               <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1400px]">
-                <thead className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
-                  <tr>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-0 bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[150px]">
-                      User Name
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-[150px] bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[100px]">
-                      Role
-                    </th>
-                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-[250px] bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[120px]">
-                      Dealer
-                    </th>
-                    {visibleDates.map((d) => (
-                      <th
-                        key={d.dateString}
-                        className={`px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider min-w-[140px] ${d.isToday ? "bg-primary-50 dark:bg-primary-900/20" : ""}`}
-                      >
-                        <div className="flex flex-col">
-                          <span className={d.isWeekend ? "text-red-500" : ""}>
-                            {d.dayOfWeek}
-                          </span>
-                          <span
-                            className={`font-bold ${d.isToday ? "text-primary-600" : ""}`}
-                          >
-                            {d.day}/{month}
-                          </span>
-                        </div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredUsers.length === 0 ? (
+            <>
+              {/* Desktop Table View */}
+              <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full min-w-[1400px]">
+                  <thead className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
                     <tr>
-                      <td
-                        colSpan={visibleDates.length + 3}
-                        className="px-6 py-12 text-center text-gray-500 dark:text-gray-400"
-                      >
-                        No attendance records found for this month
-                      </td>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-0 bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[150px]">
+                        User Name
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-[150px] bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[100px]">
+                        Role
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-[250px] bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[120px]">
+                        Dealer
+                      </th>
+                      {visibleDates.map((d) => (
+                        <th
+                          key={d.dateString}
+                          className={`px-2 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider min-w-[140px] ${d.isToday ? "bg-primary-50 dark:bg-primary-900/20" : ""}`}
+                        >
+                          <div className="flex flex-col">
+                            <span className={d.isWeekend ? "text-red-500" : ""}>
+                              {d.dayOfWeek}
+                            </span>
+                            <span
+                              className={`font-bold ${d.isToday ? "text-primary-600" : ""}`}
+                            >
+                              {d.day}/{month}
+                            </span>
+                          </div>
+                        </th>
+                      ))}
                     </tr>
-                  ) : (
-                    paginatedUsers.map((user) => (
-                      <tr
-                        key={user.userId}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {filteredUsers.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={visibleDates.length + 3}
+                          className="px-6 py-12 text-center text-gray-500 dark:text-gray-400"
+                        >
+                          No attendance records found for this month
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedUsers.map((user) => (
+                        <tr
+                          key={user.userId}
+                          className="hover:bg-gray-50 dark:hover:bg-gray-700/30"
+                        >
+                          {/* User Name Column */}
+                          <td className="px-3 py-3 sticky left-0 bg-white dark:bg-gray-800 z-10">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                                <span className="text-primary-600 dark:text-primary-400 text-sm font-medium">
+                                  {user.firstName?.[0]}
+                                  {user.lastName?.[0]}
+                                </span>
+                              </div>
+                              <div className="ml-3">
+                                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                  {user.firstName} {user.lastName}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  {user.username}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Role Column */}
+                          <td className="px-3 py-3 sticky left-[150px] bg-white dark:bg-gray-800 z-10">
+                            <span
+                              className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${getRoleBadgeColor(user.role)}`}
+                            >
+                              {user.role}
+                            </span>
+                          </td>
+
+                          {/* Dealer Column */}
+                          <td className="px-3 py-3 sticky left-[250px] bg-white dark:bg-gray-800 z-10">
+                            <div className="text-sm text-gray-900 dark:text-white">
+                              {user.tenantId?.companyName ||
+                                user.tenantId?.name ||
+                                "-"}
+                            </div>
+                          </td>
+
+                          {/* Date Columns */}
+                          {visibleDates.map((d) => {
+                            const record = user.attendance[d.dateString];
+                            return (
+                              <td
+                                key={d.dateString}
+                                className={`px-2 py-2 text-center ${d.isToday ? "bg-primary-50/50 dark:bg-primary-900/10" : ""}`}
+                              >
+                                {renderDateCell(record, d.isFuture)}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="lg:hidden divide-y divide-gray-200 dark:divide-gray-700">
+                {filteredUsers.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    No records found
+                  </div>
+                ) : (
+                  paginatedUsers.map((user) => {
+                    // Calculate summary
+                    const monthAttendance = Object.values(user.attendance);
+                    const presentCount = monthAttendance.filter(r => r.isPresent).length;
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const todayRecord = user.attendance[todayStr];
+
+                    return (
+                      <div 
+                        key={user.userId} 
+                        className="p-4 space-y-4 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors cursor-pointer"
+                        onClick={() => {
+                          setSelectedUserAttendance(user);
+                          setShowAttendanceModal(true);
+                        }}
                       >
-                        {/* User Name Column */}
-                        <td className="px-3 py-3 sticky left-0 bg-white dark:bg-gray-800 z-10">
+                        <div className="flex items-center justify-between">
                           <div className="flex items-center">
-                            <div className="flex-shrink-0 h-8 w-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
-                              <span className="text-primary-600 dark:text-primary-400 text-sm font-medium">
-                                {user.firstName?.[0]}
-                                {user.lastName?.[0]}
+                            <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                              <span className="text-primary-600 dark:text-primary-400 font-bold">
+                                {user.firstName?.[0]}{user.lastName?.[0]}
                               </span>
                             </div>
                             <div className="ml-3">
-                              <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              <h3 className="text-sm font-bold text-gray-900 dark:text-white">
                                 {user.firstName} {user.lastName}
+                              </h3>
+                              <p className="text-xs text-gray-500">@{user.username}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 text-[10px] font-bold rounded-full uppercase ${getRoleBadgeColor(user.role)}`}>
+                              {user.role}
+                            </span>
+                            <ChevronRight size={16} className="text-gray-400" />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-800/50">
+                            <p className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase mb-1">Today's Status</p>
+                            <div className="mt-1">
+                              {renderDateCell(todayRecord, false)}
+                            </div>
+                          </div>
+                          <div className="bg-green-50/50 dark:bg-green-900/10 p-3 rounded-xl border border-green-100 dark:border-green-800/50">
+                            <p className="text-[10px] text-green-600 dark:text-green-400 font-bold uppercase mb-1">Month Summary</p>
+                            <div className="flex flex-col gap-1 mt-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Present</span>
+                                <span className="text-xs font-bold text-green-600">{presentCount}</span>
                               </div>
-                              <div className="text-xs text-gray-500 dark:text-gray-400">
-                                {user.username}
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-500">Working</span>
+                                <span className="text-xs font-bold text-blue-600">
+                                  {Math.round(monthAttendance.reduce((acc, r) => acc + (r.workingHours || 0), 0) * 60)}m
+                                </span>
                               </div>
                             </div>
                           </div>
-                        </td>
+                        </div>
 
-                        {/* Role Column */}
-                        <td className="px-3 py-3 sticky left-[150px] bg-white dark:bg-gray-800 z-10">
-                          <span
-                            className={`px-2 py-1 text-xs font-medium rounded-full capitalize ${getRoleBadgeColor(user.role)}`}
-                          >
-                            {user.role}
-                          </span>
-                        </td>
-
-                        {/* Dealer Column */}
-                        <td className="px-3 py-3 sticky left-[250px] bg-white dark:bg-gray-800 z-10">
-                          <div className="text-sm text-gray-900 dark:text-white">
-                            {user.tenantId?.companyName ||
-                              user.tenantId?.name ||
-                              "-"}
+                        {user.tenantId && (
+                          <div className="flex items-center justify-between text-xs">
+                            <div className="flex items-center gap-2 text-gray-500">
+                              <Building size={14} />
+                              <span>{user.tenantId.companyName || user.tenantId.name}</span>
+                            </div>
+                            <span className="text-primary-600 font-medium text-[10px] uppercase">View Full Log</span>
                           </div>
-                        </td>
-
-                        {/* Date Columns */}
-                        {visibleDates.map((d) => {
-                          const record = user.attendance[d.dateString];
-                          return (
-                            <td
-                              key={d.dateString}
-                              className={`px-2 py-2 text-center ${d.isToday ? "bg-primary-50/50 dark:bg-primary-900/10" : ""}`}
-                            >
-                              {renderDateCell(record, d.isFuture)}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
           )}
         </div>
 
@@ -1035,6 +1128,89 @@ export default function Attendance() {
             <span className="text-xs">Future Date / No Data</span>
           </div>
         </div>
+
+        {/* User Attendance Details Modal */}
+        {showAttendanceModal && selectedUserAttendance && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50 dark:bg-gray-800/50">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                    <span className="text-primary-600 dark:text-primary-400 font-bold uppercase">
+                      {selectedUserAttendance.firstName?.[0]}{selectedUserAttendance.lastName?.[0]}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                      {selectedUserAttendance.firstName} {selectedUserAttendance.lastName}
+                    </h3>
+                    <p className="text-xs text-gray-500">Monthly Attendance Log</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowAttendanceModal(false)}
+                  className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors"
+                >
+                  <X size={20} className="text-gray-500 dark:text-gray-400" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-3 no-scrollbar">
+                {visibleDates.slice().reverse().map((d) => {
+                  const record = selectedUserAttendance.attendance[d.dateString];
+                  if (d.isFuture) return null;
+
+                  return (
+                    <div 
+                      key={d.dateString}
+                      className={`p-3 rounded-xl border ${d.isToday ? 'bg-primary-50/50 border-primary-100 dark:bg-primary-900/10 dark:border-primary-900/30' : 'bg-white dark:bg-gray-900 border-gray-100 dark:border-gray-800'}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold ${d.isWeekend ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>
+                            {d.day} {monthDetails.monthName}
+                          </span>
+                          <span className="text-[10px] text-gray-400 uppercase">{d.dayOfWeek}</span>
+                        </div>
+                        {d.isToday && <span className="px-2 py-0.5 bg-primary-100 dark:bg-primary-900/40 text-primary-700 dark:text-primary-300 text-[10px] font-bold rounded-full uppercase">Today</span>}
+                      </div>
+
+                      {record && record.loginTime ? (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 uppercase">Check In</span>
+                            <span className="text-xs font-bold text-blue-600">{formatTime(record.loginTime)}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 uppercase">Check Out</span>
+                            <span className="text-xs font-bold text-orange-600">{formatTime(record.logoutTime)}</span>
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-[10px] text-gray-400 uppercase">Duration</span>
+                            <span className="text-xs font-bold text-gray-700 dark:text-gray-300">
+                              {Math.round((record.workingMinutes || record.workingHours * 60))}m
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-1 text-xs text-gray-400 italic">No attendance record</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                <button
+                  onClick={() => setShowAttendanceModal(false)}
+                  className="w-full py-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1186,112 +1362,182 @@ function SubAdminAttendanceNew() {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 mb-6">
-          <div className="flex items-center justify-center gap-4">
-            <button
-              onClick={handlePrevMonth}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-gray-400" />
-              <span className="text-lg font-semibold text-gray-900 dark:text-white">
-                {monthDetails.monthName} {year}
-              </span>
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              <button
+                onClick={handlePrevMonth}
+                className="p-2 rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <div className="flex items-center gap-2 px-4 min-w-[160px] justify-center">
+                <Calendar className="w-4 h-4 text-gray-400" />
+                <span className="text-base font-semibold text-gray-900 dark:text-white whitespace-nowrap">
+                  {monthDetails.monthName} {year}
+                </span>
+              </div>
+              <button
+                onClick={handleNextMonth}
+                className="p-2 rounded-md hover:bg-white dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
             </div>
             <button
-              onClick={handleNextMonth}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-            <button
               onClick={() => setCurrentDate(new Date())}
-              className="px-3 py-1.5 text-sm font-medium text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50"
+              className="px-4 py-2 text-sm font-medium text-primary-600 hover:text-primary-700 border border-primary-200 rounded-lg hover:bg-primary-50 transition-colors bg-white dark:bg-gray-800 dark:border-gray-600 dark:text-primary-400 dark:hover:bg-gray-700"
             >
               Current Month
             </button>
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1200px]">
-                <thead className="bg-gray-50 dark:bg-gray-700/50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
-                      Date
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
-                      Day
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
-                      Check In
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
-                      Check Out
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
-                      Hours
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleDates.map((d) => {
-                    const record = attendanceByDate[d.dateString];
-                    const hours = record
-                      ? calculateWorkingHours(
-                          record.loginTime,
-                          record.logoutTime,
-                          record.workingHours,
-                        )
-                      : 0;
-                    const isActive =
-                      record && !record.logoutTime && record.isActive;
+            <>
+              {/* Desktop View */}
+              <div className="hidden sm:block overflow-x-auto">
+                <table className="w-full min-w-[800px]">
+                  <thead className="bg-gray-50 dark:bg-gray-700/50">
+                    <tr>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Date
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Day
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Check In
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Check Out
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Duration
+                      </th>
+                      <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {visibleDates.slice().reverse().map((d) => {
+                      const record = attendanceByDate[d.dateString];
+                      const hours = record
+                        ? calculateWorkingHours(
+                            record.loginTime,
+                            record.logoutTime,
+                            record.workingHours,
+                          )
+                        : 0;
+                      const isActive =
+                        record && !record.logoutTime && record.isActive;
 
-                    return (
-                      <tr
-                        key={d.dateString}
-                        className={`border-t ${d.isToday ? "bg-primary-50" : ""}`}
-                      >
-                        <td className="px-4 py-3">
-                          {d.day}/{month}/{year}
-                        </td>
-                        <td className="px-4 py-3">{d.dayOfWeek}</td>
-                        <td className="px-4 py-3 text-blue-600">
-                          {record ? formatTime(record.loginTime) : "-"}
-                        </td>
-                        <td className="px-4 py-3 text-orange-600">
-                          {record ? formatTime(record.logoutTime) : "-"}
-                        </td>
-                        <td className="px-4 py-3">
-                          {hours > 0 ? `${Math.round(hours * 60)}m` : "-"}
-                        </td>
-                        <td className="px-4 py-3">
-                          {isActive ? (
-                            <span className="text-green-500 flex items-center gap-1">
-                              <Wifi className="w-3 h-3" /> Active
-                            </span>
-                          ) : record && record.isPresent ? (
-                            <span className="text-green-600 font-bold">P</span>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      return (
+                        <tr
+                          key={d.dateString}
+                          className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors ${d.isToday ? "bg-primary-50/30 dark:bg-primary-900/10" : ""}`}
+                        >
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                            {d.day} {monthDetails.monthName}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                            {d.dayOfWeek}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 dark:text-blue-400 font-medium">
+                            {record ? formatTime(record.loginTime) : "-"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-orange-600 dark:text-orange-400 font-medium">
+                            {record ? formatTime(record.logoutTime) : "-"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                            {hours > 0 ? `${Math.round(hours * 60)}m` : "-"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {isActive ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5 animate-pulse"></span>
+                                Active
+                              </span>
+                            ) : record && record.isPresent ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                Present
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-sm">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Mobile Card View */}
+              <div className="sm:hidden divide-y divide-gray-100 dark:divide-gray-700">
+                {visibleDates.slice().reverse().map((d) => {
+                  const record = attendanceByDate[d.dateString];
+                  if (d.isFuture) return null;
+                  
+                  const hours = record
+                        ? calculateWorkingHours(
+                            record.loginTime,
+                            record.logoutTime,
+                            record.workingHours,
+                          )
+                        : 0;
+                  const isActive = record && !record.logoutTime && record.isActive;
+
+                  return (
+                    <div 
+                      key={d.dateString}
+                      className={`p-4 space-y-3 ${d.isToday ? 'bg-primary-50/30 dark:bg-primary-900/10' : ''}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-bold ${d.isWeekend ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>
+                            {d.day} {monthDetails.monthName}
+                          </span>
+                          <span className="text-[10px] text-gray-400 uppercase font-bold">{d.dayOfWeek}</span>
+                        </div>
+                        {isActive ? (
+                          <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 text-[10px] font-bold rounded-full uppercase flex items-center gap-1">
+                             <span className="w-1 h-1 rounded-full bg-green-500 animate-pulse"></span>
+                             Active
+                          </span>
+                        ) : d.isToday ? (
+                          <span className="px-2 py-0.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 text-[10px] font-bold rounded-full uppercase">Today</span>
+                        ) : null}
+                      </div>
+
+                      {record && record.loginTime ? (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="bg-blue-50/50 dark:bg-blue-900/10 p-2 rounded-xl border border-blue-100/50 dark:border-blue-900/30">
+                            <span className="text-[9px] text-blue-600 dark:text-blue-400 uppercase font-bold block mb-1">In</span>
+                            <span className="text-xs font-bold text-blue-700 dark:text-blue-300">{formatTime(record.loginTime)}</span>
+                          </div>
+                          <div className="bg-orange-50/50 dark:bg-orange-900/10 p-2 rounded-xl border border-orange-100/50 dark:border-orange-900/30">
+                            <span className="text-[9px] text-orange-600 dark:text-orange-400 uppercase font-bold block mb-1">Out</span>
+                            <span className="text-xs font-bold text-orange-700 dark:text-orange-300">{formatTime(record.logoutTime)}</span>
+                          </div>
+                          <div className="bg-gray-50 dark:bg-gray-800 p-2 rounded-xl border border-gray-100 dark:border-gray-700">
+                            <span className="text-[9px] text-gray-500 uppercase font-bold block mb-1">Work</span>
+                            <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{Math.round(hours * 60)}m</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-400 italic py-1">No record for this day</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </div>
 
