@@ -1064,120 +1064,138 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
                     )}
                   </div>
                   <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto border-t sm:border-t-0 border-primary-50 pt-3 sm:pt-0">
-                    <div
-                      className="relative"
-                      ref={openMenuId === formId ? menuRef : null}
-                    >
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleMenu(formId);
-                        }}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-primary-100 hover:bg-primary-50 transition-colors text-primary-600 text-xs font-medium"
-                      >
-                        <MoreVertical className="w-4 h-4" />
-                        <span>Options</span>
-                      </button>
+                  <div className="relative">
+  <button
+    onClick={() => setOpenMenuId(openMenuId === formId ? null : formId)}
+    className="flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-primary-600 border border-primary-200 rounded-lg hover:bg-primary-50 transition-colors"
+  >
+    <MoreVertical className="w-4 h-4" />
+    <span>Options</span>
+  </button>
 
-                      {/* Dropdown menu */}
-                      {openMenuId === formId && (
-                        <div className="absolute right-0 top-10 w-64 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-primary-100 py-2 z-50 animate-fadeIn overflow-hidden">
-                          <div className="px-4 py-2 border-b border-primary-50 mb-1">
-                            <span className="text-[10px] font-bold text-primary-400 uppercase tracking-wider">Form Actions</span>
-                          </div>
-                          <button
-                            onClick={() => handleManageChildForms(formId)}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
-                          >
-                            <div className="p-1.5 bg-primary-50 rounded-lg">
-                              <Layers className="w-4 h-4 text-primary-600" />
-                            </div>
-                            <div className="text-left flex-1">
-                              <div className="font-medium">Manage Child Forms</div>
-                              <div className="text-[10px] text-primary-500">Link & organize forms</div>
-                            </div>
-                            {children.length > 0 && (
-                              <span className="px-2 py-0.5 bg-primary-600 text-white text-[10px] font-bold rounded-full">
-                                {children.length}
-                              </span>
-                            )}
-                          </button>
+  {openMenuId === formId && (
+    <>
+      {/* Backdrop */}
+      <div 
+        className="fixed inset-0 z-40" 
+        onClick={() => setOpenMenuId(null)} 
+      />
+      
+      {/* Dropdown — fixed on mobile, absolute on desktop */}
+      <div className="
+        fixed z-50
+        left-4 right-4
+        sm:absolute sm:left-auto sm:right-0 sm:w-64
+        top-1/2 -translate-y-1/2
+        sm:top-10 sm:translate-y-0
+        bg-white dark:bg-gray-900 
+        rounded-xl shadow-2xl 
+        border border-primary-100 
+        py-2 
+        animate-fadeIn 
+        overflow-hidden
+        max-h-[80vh] overflow-y-auto
+      ">
+        <div className="px-4 py-2 border-b border-primary-50 mb-1 flex items-center justify-between">
+  <span className="text-[10px] font-bold text-primary-400 uppercase tracking-wider">Form Actions</span>
+  <button
+    onClick={() => setOpenMenuId(null)}
+    className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 transition-colors"
+    title="Close"
+  >
+    <X className="w-4 h-4" />
+  </button>
+</div>
+        <button
+          onClick={() => handleManageChildForms(formId)}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+        >
+          <div className="p-1.5 bg-primary-50 rounded-lg">
+            <Layers className="w-4 h-4 text-primary-600" />
+          </div>
+          <div className="text-left flex-1">
+            <div className="font-medium">Manage Child Forms</div>
+            <div className="text-[10px] text-primary-500">Link & organize forms</div>
+          </div>
+          {children.length > 0 && (
+            <span className="px-2 py-0.5 bg-primary-600 text-white text-[10px] font-bold rounded-full">
+              {children.length}
+            </span>
+          )}
+        </button>
 
-                          <button
-                            onClick={() => handleLinkToParent(formId)}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
-                          >
-                            <div className="p-1.5 bg-blue-50 rounded-lg">
-                              <Link2 className="w-4 h-4 text-blue-600" />
-                            </div>
-                            <div className="text-left">
-                              <div className="font-medium">Link to Parent</div>
-                              <div className="text-[10px] text-primary-500">Connect to existing form</div>
-                            </div>
-                          </button>
+        <button
+          onClick={() => handleLinkToParent(formId)}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+        >
+          <div className="p-1.5 bg-blue-50 rounded-lg">
+            <Link2 className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="text-left">
+            <div className="font-medium">Link to Parent</div>
+            <div className="text-[10px] text-primary-500">Connect to existing form</div>
+          </div>
+        </button>
 
-                          <button
-                            onClick={() => handleToggleViewType(formId, parent.viewType)}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
-                          >
-                            <div className="p-1.5 bg-orange-50 rounded-lg">
-                              {parent.viewType === "question-wise" ? (
-                                <Layout className="w-4 h-4 text-orange-600" />
-                              ) : (
-                                <Split className="w-4 h-4 text-orange-600" />
-                              )}
-                            </div>
-                            <div className="text-left">
-                              <div className="font-medium">
-                                {parent.viewType === "question-wise"
-                                  ? "Section-wise View"
-                                  : "Question-wise View"}
-                              </div>
-                              <div className="text-[10px] text-primary-500">Change display layout</div>
-                            </div>
-                          </button>
+        <button
+          onClick={() => handleToggleViewType(formId, parent.viewType)}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+        >
+          <div className="p-1.5 bg-orange-50 rounded-lg">
+            {parent.viewType === "question-wise" ? (
+              <Layout className="w-4 h-4 text-orange-600" />
+            ) : (
+              <Split className="w-4 h-4 text-orange-600" />
+            )}
+          </div>
+          <div className="text-left">
+            <div className="font-medium">
+              {parent.viewType === "question-wise" ? "Section-wise View" : "Question-wise View"}
+            </div>
+            <div className="text-[10px] text-primary-500">Change display layout</div>
+          </div>
+        </button>
 
-                          <div className="border-t border-primary-50 my-1"></div>
-                          <div className="px-4 py-2">
-                            <span className="text-[10px] font-bold text-primary-400 uppercase tracking-wider">Sharing</span>
-                          </div>
+        <div className="border-t border-primary-50 my-1"></div>
+        <div className="px-4 py-2">
+          <span className="text-[10px] font-bold text-primary-400 uppercase tracking-wider">Sharing</span>
+        </div>
 
-                          <button
-                            onClick={() => handleCopyShareLink(formId)}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
-                          >
-                            <div className="p-1.5 bg-green-50 rounded-lg">
-                              {copiedId === formId ? (
-                                <Check className="w-4 h-4 text-green-600" />
-                              ) : (
-                                <Link2 className="w-4 h-4 text-green-600" />
-                              )}
-                            </div>
-                            <div className="text-left">
-                              <div className="font-medium">
-                                {copiedId === formId
-                                  ? "Link Copied!"
-                                  : "Copy Form Link"}
-                              </div>
-                              <div className="text-[10px] text-primary-500">Share with responders</div>
-                            </div>
-                          </button>
+        <button
+          onClick={() => handleCopyShareLink(formId)}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+        >
+          <div className="p-1.5 bg-green-50 rounded-lg">
+            {copiedId === formId ? (
+              <Check className="w-4 h-4 text-green-600" />
+            ) : (
+              <Link2 className="w-4 h-4 text-green-600" />
+            )}
+          </div>
+          <div className="text-left">
+            <div className="font-medium">
+              {copiedId === formId ? "Link Copied!" : "Copy Form Link"}
+            </div>
+            <div className="text-[10px] text-primary-500">Share with responders</div>
+          </div>
+        </button>
 
-                          <button
-                            onClick={() => openShareAnalyticsModal(formId)}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
-                          >
-                            <div className="p-1.5 bg-indigo-50 rounded-lg">
-                              <Share2 className="w-4 h-4 text-indigo-600" />
-                            </div>
-                            <div className="text-left">
-                              <div className="font-medium">Share Analytics</div>
-                              <div className="text-[10px] text-primary-500">Invite external viewers</div>
-                            </div>
-                          </button>
-                        </div>
-                      )}
-                    </div>
+        <button
+          onClick={() => openShareAnalyticsModal(formId)}
+          className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-primary-700 hover:bg-primary-50 transition-colors"
+        >
+          <div className="p-1.5 bg-indigo-50 rounded-lg">
+            <Share2 className="w-4 h-4 text-indigo-600" />
+          </div>
+          <div className="text-left">
+            <div className="font-medium">Share Analytics</div>
+            <div className="text-[10px] text-primary-500">Invite external viewers</div>
+          </div>
+        </button>
+      </div>
+    </>
+  )}
+</div>
 
                     <div className="flex items-center text-primary-400 font-medium">
                       <Calendar className="w-3.5 h-3.5 mr-1.5" />

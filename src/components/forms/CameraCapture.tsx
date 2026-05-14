@@ -107,7 +107,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, disab
         oldStream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [facingMode]);
+  }, [facingMode,capturedImage]);
 
   const switchCamera = () => {
     setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
@@ -164,8 +164,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, disab
     setError(null);
     setRemark('');
     setShowRemarkInput(false);
-    // Refresh the page to restart camera
-    window.location.reload();
+   
   };
 
   const uploadPhoto = async () => {

@@ -4435,99 +4435,143 @@ export default function FormCreator() {
                                 </div>
 
                                 {/* Action Buttons */}
-                                <div className="flex items-center gap-1">
-  <label className="flex items-center space-x-1.5 cursor-pointer px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:border-blue-400 transition-all shadow-sm mr-2" title="Track Question">
-                                    <input
-                                      type="checkbox"
-                                      checked={question.trackResponseQuestion || false}
-                                      disabled={question.trackResponseRank || false}
-                                      onChange={(e) =>
-                                        updateQuestion(
-                                          section.id,
-                                          question.id,
-                                          {
-                                            trackResponseQuestion: e.target.checked,
-                                          }
-                                        )
-                                      }
-                                      className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all disabled:opacity-50"
-                                    />
-                                    <span className="text-xs font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">Track Question</span>
-                                  </label>
-                                  <label className="flex items-center space-x-1.5 cursor-pointer px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:border-blue-400 transition-all shadow-sm mr-2" title="Track Rank">                                    <input
-                                      type="checkbox"
-                                      checked={question.trackResponseRank || false}
-                                      disabled={question.trackResponseQuestion || false}
-                                      onChange={(e) =>
-                                        updateQuestion(
-                                          section.id,
-                                          question.id,
-                                          {
-                                            trackResponseRank: e.target.checked,
-                                          }
-                                        )
-                                      }
-                                      className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all disabled:opacity-50"
-                                    />
-                                    <span className="text-xs font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">Track Rank</span>
-                                  </label>
-                                  {/* Move Up */}
-                                  <button
-                                    onClick={() =>
-                                      moveQuestionUp(section.id, question.id)
-                                    }
-                                    disabled={questionIndex === 0}
-                                    className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                    title="Move up"
-                                  >
-                                    <ChevronUp className="w-5 h-5" />
-                                  </button>
-                                  {/* Move Down */}
-                                  <button
-                                    onClick={() =>
-                                      moveQuestionDown(section.id, question.id)
-                                    }
-                                    disabled={
-                                      questionIndex ===
-                                      section.questions.length - 1
-                                    }
-                                    className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                    title="Move down"
-                                  >
-                                    <ChevronDown className="w-5 h-5" />
-                                  </button>
-                                  {/* Duplicate */}
-                                  <button
-                                    onClick={() =>
-                                      duplicateQuestion(section.id, question.id)
-                                    }
-                                    className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors"
-                                    title="Duplicate question"
-                                  >
-                                    <Copy className="w-5 h-5" />
-                                  </button>
-                                  {/* Split into New Section */}
-                                  <button
-                                    onClick={() =>
-                                      splitSectionAtQuestion(section.id, question.id)
-                                    }
-                                    disabled={questionIndex === 0}
-                                    className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                    title="Split into new section starting from this question"
-                                  >
-                                    <Scissors className="w-5 h-5" />
-                                  </button>
-                                  {/* Delete */}
-                                  <button
-                                    onClick={() =>
-                                      deleteQuestion(section.id, question.id)
-                                    }
-                                    className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
-                                    title="Delete question"
-                                  >
-                                    <Trash2 className="w-5 h-5" />
-                                  </button>
-                                </div>
+                               <div className="flex items-center gap-1">
+  {/* Desktop: show all buttons inline */}
+  <div className="hidden md:flex items-center gap-1">
+    <label className="flex items-center space-x-1.5 cursor-pointer px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:border-blue-400 transition-all shadow-sm" title="Track Question">
+      <input
+        type="checkbox"
+        checked={question.trackResponseQuestion || false}
+        disabled={question.trackResponseRank || false}
+        onChange={(e) => updateQuestion(section.id, question.id, { trackResponseQuestion: e.target.checked })}
+        className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all disabled:opacity-50"
+      />
+      <span className="text-xs font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">Track Question</span>
+    </label>
+    <label className="flex items-center space-x-1.5 cursor-pointer px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:border-blue-400 transition-all shadow-sm ml-1" title="Track Rank">
+      <input
+        type="checkbox"
+        checked={question.trackResponseRank || false}
+        disabled={question.trackResponseQuestion || false}
+        onChange={(e) => updateQuestion(section.id, question.id, { trackResponseRank: e.target.checked })}
+        className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all disabled:opacity-50"
+      />
+      <span className="text-xs font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">Track Rank</span>
+    </label>
+    <button onClick={() => moveQuestionUp(section.id, question.id)} disabled={questionIndex === 0} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Move up">
+      <ChevronUp className="w-5 h-5" />
+    </button>
+    <button onClick={() => moveQuestionDown(section.id, question.id)} disabled={questionIndex === section.questions.length - 1} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Move down">
+      <ChevronDown className="w-5 h-5" />
+    </button>
+    <button onClick={() => duplicateQuestion(section.id, question.id)} className="p-2 text-green-600 hover:text-green-800 hover:bg-green-50 rounded-lg transition-colors" title="Duplicate question">
+      <Copy className="w-5 h-5" />
+    </button>
+    <button onClick={() => splitSectionAtQuestion(section.id, question.id)} disabled={questionIndex === 0} className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Split into new section">
+      <Scissors className="w-5 h-5" />
+    </button>
+    <button onClick={() => deleteQuestion(section.id, question.id)} className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors" title="Delete question">
+      <Trash2 className="w-5 h-5" />
+    </button>
+  </div>
+
+  {/* Mobile: 3-dot dropdown menu */}
+  <div className="relative md:hidden">
+    <button
+      onClick={() => setOpenQuestionMenu(openQuestionMenu === question.id ? null : question.id)}
+      className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+      title="More options"
+    >
+      <MoreVertical className="w-5 h-5" />
+    </button>
+
+    {openQuestionMenu === question.id && (
+      <>
+        <div className="fixed inset-0 z-10" onClick={() => setOpenQuestionMenu(null)} />
+        <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-20 overflow-hidden border-t-4 border-t-blue-500">
+          
+          {/* Track Question */}
+          <label className="flex items-center gap-3 px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700">
+            <input
+              type="checkbox"
+              checked={question.trackResponseQuestion || false}
+              disabled={question.trackResponseRank || false}
+              onChange={(e) => {
+                updateQuestion(section.id, question.id, { trackResponseQuestion: e.target.checked });
+                setOpenQuestionMenu(null);
+              }}
+              className="w-4 h-4 text-blue-600 rounded disabled:opacity-50"
+            />
+            <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">Track Question</span>
+          </label>
+
+          {/* Track Rank */}
+          <label className="flex items-center gap-3 px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700">
+            <input
+              type="checkbox"
+              checked={question.trackResponseRank || false}
+              disabled={question.trackResponseQuestion || false}
+              onChange={(e) => {
+                updateQuestion(section.id, question.id, { trackResponseRank: e.target.checked });
+                setOpenQuestionMenu(null);
+              }}
+              className="w-4 h-4 text-blue-600 rounded disabled:opacity-50"
+            />
+            <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">Track Rank</span>
+          </label>
+
+          {/* Move Up */}
+          <button
+            onClick={() => { moveQuestionUp(section.id, question.id); setOpenQuestionMenu(null); }}
+            disabled={questionIndex === 0}
+            className="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed border-b border-gray-100 dark:border-gray-700"
+          >
+            <ChevronUp className="w-4 h-4 text-blue-500" />
+            Move Up
+          </button>
+
+          {/* Move Down */}
+          <button
+            onClick={() => { moveQuestionDown(section.id, question.id); setOpenQuestionMenu(null); }}
+            disabled={questionIndex === section.questions.length - 1}
+            className="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed border-b border-gray-100 dark:border-gray-700"
+          >
+            <ChevronDown className="w-4 h-4 text-blue-500" />
+            Move Down
+          </button>
+
+          {/* Duplicate */}
+          <button
+            onClick={() => { duplicateQuestion(section.id, question.id); setOpenQuestionMenu(null); }}
+            className="w-full text-left px-4 py-3 text-sm text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-gray-700 flex items-center gap-3 border-b border-gray-100 dark:border-gray-700"
+          >
+            <Copy className="w-4 h-4" />
+            Duplicate
+          </button>
+
+          {/* Split Section */}
+          <button
+            onClick={() => { splitSectionAtQuestion(section.id, question.id); setOpenQuestionMenu(null); }}
+            disabled={questionIndex === 0}
+            className="w-full text-left px-4 py-3 text-sm text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-gray-700 flex items-center gap-3 disabled:opacity-40 disabled:cursor-not-allowed border-b border-gray-100 dark:border-gray-700"
+          >
+            <Scissors className="w-4 h-4" />
+            Split Section Here
+          </button>
+
+          {/* Delete */}
+          <button
+            onClick={() => { deleteQuestion(section.id, question.id); setOpenQuestionMenu(null); }}
+            className="w-full text-left px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-gray-700 flex items-center gap-3"
+          >
+            <Trash2 className="w-4 h-4" />
+            Delete Question
+          </button>
+        </div>
+      </>
+    )}
+  </div>
+</div>
                               </div>
 
                               {/* Question Body */}
@@ -4544,105 +4588,71 @@ export default function FormCreator() {
                                   </div>
                                 )}
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                  <div>
-                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                      Question Text (optional when using image)
-                                    </label>
-                                    <input
-                                      type="text"
-                                      value={question.text}
-                                      onChange={(e) =>
-                                        updateQuestion(
-                                          section.id,
-                                          question.id,
-                                          {
-                                            text: e.target.value,
-                                          }
-                                        )
-                                      }
-                                      className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
-                                      placeholder="Enter your question"
-                                    />
-                                    <div className="mt-3 space-y-3">
-                                      {question.imageUrl ? (
-                                        <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
-                                          <img
-                                            src={question.imageUrl}
-                                            alt={`Question ${questionIndex + 1
-                                              } image`}
-                                            className="h-20 w-20 object-contain rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
-                                          />
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              clearQuestionImage(
-                                                section.id,
-                                                question.id
-                                              )
-                                            }
-                                            className="px-3 py-2 text-sm font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 rounded-lg transition-colors"
-                                          >
-                                            Remove Image
-                                          </button>
-                                        </div>
-                                      ) : null}
-                                      <div className="flex flex-col gap-2">
-                                        <label className="inline-flex items-center justify-center px-3 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
-                                          <input
-                                            type="file"
-                                            accept="image/*,.stp,.step,.pvz"
-
-                                            className="hidden"
-                                            onChange={(e) => {
-                                              const file = e.target.files?.[0];
-                                              if (file) {
-                                                void handleQuestionImageUpload(
-                                                  section.id,
-                                                  question.id,
-                                                  file
-                                                );
-                                                e.target.value = "";
-                                              }
-                                            }}
-                                          />
-                                          Upload Image/File
-                                        </label>
-                                        <p className="text-xs text-gray-500 dark:text-gray-500">
-                                            Images, STP, or PVZ files.
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div>
-                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
-                                      Question Type
-                                    </label>
-                                    <select
-                                      value={question.type}
-                                      onChange={(e) =>
-                                        handleQuestionTypeChange(
-                                          section.id,
-                                          question.id,
-                                          question,
-                                          e.target.value
-                                        )
-                                      }
-                                      className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
-                                    >
-
-                                      {questionTypes.map((type) => (
-                                        <option
-                                          key={type.value}
-                                          value={type.value}
-                                        >
-                                          {type.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                </div>
+                               <div className="space-y-4">
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div>
+      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+        Question Text (optional when using image)
+      </label>
+      <input
+        type="text"
+        value={question.text}
+        onChange={(e) => updateQuestion(section.id, question.id, { text: e.target.value })}
+        className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+        placeholder="Enter your question"
+      />
+    </div>
+    <div>
+      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
+        Question Type
+      </label>
+      <select
+        value={question.type}
+        onChange={(e) => handleQuestionTypeChange(section.id, question.id, question, e.target.value)}
+        className="w-full px-3 py-2.5 border-2 border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+      >
+        {questionTypes.map((type) => (
+          <option key={type.value} value={type.value}>{type.label}</option>
+        ))}
+      </select>
+    </div>
+  </div>
+  {/* Image upload below both fields */}
+  <div className="mt-1 space-y-2">
+    {question.imageUrl ? (
+      <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3">
+        <img
+          src={question.imageUrl}
+          alt={`Question ${questionIndex + 1} image`}
+          className="h-20 w-20 object-contain rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900"
+        />
+        <button
+          type="button"
+          onClick={() => clearQuestionImage(section.id, question.id)}
+          className="px-3 py-2 text-sm font-semibold text-red-600 hover:text-white hover:bg-red-500 border border-red-200 rounded-lg transition-colors"
+        >
+          Remove Image
+        </button>
+      </div>
+    ) : null}
+    <label className="inline-flex items-center justify-center w-full px-3 py-2 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer text-sm font-medium text-blue-600 hover:border-blue-400 hover:text-blue-700 transition-colors">
+      <input
+        type="file"
+        accept="image/*,.stp,.step,.pvz"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            void handleQuestionImageUpload(section.id, question.id, file);
+            e.target.value = "";
+          }
+        }}
+      />
+      Upload Image/File
+    </label>
+    <p className="text-xs text-gray-500 dark:text-gray-500">Images, STP, or PVZ files.</p>
+  </div>
+</div>
                                  {question.trackResponseRank && (
                                   <div className="mt-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl space-y-4">
                                     <div className="flex items-center gap-2 mb-1">
@@ -4952,7 +4962,7 @@ export default function FormCreator() {
                                   />
                                 </div>
 
-                                <div className="mt-4 grid grid-cols-2 gap-3">
+                               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                                   <div>
                                     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2 uppercase tracking-wide">
                                       Sub Parameter 1

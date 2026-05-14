@@ -1019,6 +1019,8 @@ export default function PreviewForm({
       if (!qId) return;
       if (sampleResponses[qId] !== undefined && sampleResponses[qId] !== "") return;
 
+      
+
       switch (question.type) {
         case "text":
         case "paragraph":
@@ -1089,6 +1091,40 @@ export default function PreviewForm({
             sampleResponses[qId] = gridData;
           }
           break;
+          case "chassis-with-zone":
+case "chassis-without-zone":
+  const sampleStatus = "Accepted";
+  sampleResponses[qId] = {
+    chassisNumber: `CH-${Math.floor(Math.random() * 9000) + 1000}`,
+    status: sampleStatus,
+    zone: question.type === "chassis-with-zone" ? ["Zone A"] : undefined,
+    zonesData: question.type === "chassis-with-zone" ? {} : undefined,
+    categories: question.type === "chassis-without-zone" ? [] : undefined,
+    defectCategory: [],
+    defects: [],
+    remark: "Sample inspection remark",
+    evidenceUrl: "",
+  };
+  break;
+
+case "zone-in":
+  sampleResponses[qId] = {
+    chassisNumber: `CH-${Math.floor(Math.random() * 9000) + 1000}`,
+    status: "Accepted",
+    remark: "Sample remark for zone inspection",
+    evidenceUrl: "",
+    zones: ["Zone A", "Zone B"],
+  };
+  break;
+
+case "zone-out":
+  sampleResponses[qId] = {
+    chassisNumber: `CH-${Math.floor(Math.random() * 9000) + 1000}`,
+    status: "Rework",
+    remark: "Sample rework remark",
+    evidenceUrl: "",
+  };
+  break;
       }
     });
 
@@ -2230,39 +2266,7 @@ export default function PreviewForm({
               </button>
 
               {/* Location Status Badge */}
-              <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-800" />
-
-              <div className="flex items-center gap-2">
-                {location ? (
-                  <div
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${darkMode ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border-emerald-100 text-emerald-700"}`}
-                  >
-                    <MapPin className="h-3 w-3" />
-                    <span className="text-[9px] font-black uppercase tracking-tight truncate max-w-[100px] sm:max-w-[150px]">
-                      {locationDisplayName ||
-                        `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`}
-                    </span>
-                  </div>
-                ) : locationError ? (
-                  <div
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${darkMode ? "bg-red-500/10 border-red-500/20 text-red-400" : "bg-red-50 border-red-100 text-red-700"}`}
-                  >
-                    <AlertTriangle className="h-3 w-3" />
-                    <span className="text-[9px] font-black uppercase tracking-tight">
-                      Location Disabled
-                    </span>
-                  </div>
-                ) : (
-                  <div
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border ${darkMode ? "bg-blue-500/10 border-blue-500/20 text-blue-400" : "bg-blue-50 border-blue-100 text-blue-700"}`}
-                  >
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    <span className="text-[9px] font-black uppercase tracking-tight">
-                      Capturing...
-                    </span>
-                  </div>
-                )}
-              </div>
+              
             </div>
 
             <div className="flex items-center gap-3">
