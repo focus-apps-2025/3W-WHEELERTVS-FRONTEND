@@ -1120,7 +1120,7 @@ case "zone-in":
 case "zone-out":
   sampleResponses[qId] = {
     chassisNumber: `CH-${Math.floor(Math.random() * 9000) + 1000}`,
-    status: "Rework",
+    status: "Accepted",
     remark: "Sample rework remark",
     evidenceUrl: "",
   };

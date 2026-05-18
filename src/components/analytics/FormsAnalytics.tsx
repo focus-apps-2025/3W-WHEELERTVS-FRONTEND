@@ -403,28 +403,46 @@ export default function FormsAnalytics() {
   });
 
   const responseCounts = useMemo(() => {
-    const allResponses =
+    let allResponses =
       (responsesData as ResponseData | undefined)?.responses || [];
     
-    // Filter responses for inspectors to only count their own
-    const filteredResponses = user?.role === "inspector" 
-      ? allResponses.filter((response: any) => {
-          const creatorId = typeof response.createdBy === 'object' ? response.createdBy?._id || response.createdBy?.id : response.createdBy;
-          const userId = user._id || user.id;
-          const submittedBy = response.submittedBy || '';
-          const submitterEmail = response.submitterContact?.email || '';
-          const userEmail = user.email || '';
-          const userUsername = user.username || '';
-          
-          // Match by createdBy or submittedBy or submitterContact.email
-          return String(creatorId) === String(userId) ||
-                 submittedBy === userEmail ||
-                 submittedBy === userUsername ||
-                 submitterEmail === userEmail;
-        })
-      : allResponses;
-    
-    return filteredResponses.reduce<Record<string, number>>((acc, response: any) => {
+    // Apply Inspector Visibility Rules
+    if (user?.role === "inspector") {
+      const currentUserEmail = user?.email || "";
+      const currentUserUsername = user?.username || "";
+      const currentUserId = user?._id || user?.id;
+      const currentUserTenantId = user?.tenantId;
+      
+      allResponses = allResponses.filter((response: any) => {
+        const submittedBy = response.submittedBy || "";
+        const createdBy = response.createdBy || "";
+        const submitterEmail = response.submitterContact?.email || "";
+        const responseTenantId = response.tenantId;
+
+        // Check if current user is the submitter (can see own responses)
+        const isOwnSubmission = 
+          submittedBy === currentUserEmail ||
+          submittedBy === currentUserUsername ||
+          createdBy === currentUserEmail ||
+          createdBy === currentUserUsername ||
+          submitterEmail === currentUserEmail ||
+          (currentUserId && (response.createdBy === currentUserId || (response.createdBy && response.createdBy._id === currentUserId)));
+        
+        // Check if response is from different tenant
+        const isDifferentTenant = !responseTenantId || 
+          (currentUserTenantId && responseTenantId.toString() !== currentUserTenantId.toString());
+        
+        // Check if response is from same tenant but different user
+        const isSameTenantOtherUser = !isOwnSubmission && 
+          responseTenantId && 
+          currentUserTenantId && 
+          responseTenantId.toString() === currentUserTenantId.toString();
+        
+        return isOwnSubmission || (isDifferentTenant && !isSameTenantOtherUser);
+      });
+    }
+
+    return allResponses.reduce<Record<string, number>>((acc, response: any) => {
       if (response.questionId) {
         acc[response.questionId] = (acc[response.questionId] || 0) + 1;
       }
@@ -523,10 +541,7 @@ export default function FormsAnalytics() {
   const allForms = filteredForms.length;
   const totalResponses = filteredForms.reduce((sum, form) => {
     const formId = form.id || form._id;
-    // For inspectors, only count their own responses
-    const count = user?.role === "inspector" 
-      ? (responseCounts[formId] || 0) 
-      : (responseCounts[formId] || form.responseCount || 0);
+    const count = responseCounts[formId] || 0;
     return sum + count;
   }, 0);
 
@@ -978,9 +993,7 @@ export default function FormsAnalytics() {
             if (!parent) return null;
 
             const formId = parent.id || parent._id;
-            const responseCount = user?.role === "inspector" 
-              ? (responseCounts[formId] || 0) 
-              : (responseCounts[formId] || parent.responseCount || 0);
+            const responseCount = responseCounts[formId] || 0;
             const isLocationEnabled = parent.locationEnabled !== false;
 
             const ownerTenantId = typeof parent.tenantId === 'object' ? parent.tenantId?._id : parent.tenantId;
@@ -1443,10 +1456,9 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {children.map((child, index) => {
                         const childId = child.id || child._id;
-                        // For inspectors, only count their own responses
                         const childResponseCount = childId
-                          ? (user?.role === "inspector" ? (responseCounts[childId] || 0) : (responseCounts[childId] || child.responseCount || 0))
-                          : (user?.role === "inspector" ? 0 : (child.responseCount || 0));
+                          ? (responseCounts[childId] || 0)
+                          : 0;
 
                         return (
                           <div

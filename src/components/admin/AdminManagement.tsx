@@ -893,8 +893,8 @@ export default function AdminManagement() {
                 {/* Add Admin Modal */}
                 {showAddAdminModal && (
                   <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-auto">
-                      <div className="sticky top-0 bg-primary-600 px-4 sm:px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+                    <div className="bg-white mt-12 dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-auto">
+                      <div className="sticky top-0 bg-primary-600 px-4 sm:px-4 py-3 flex items-center justify-between rounded-t-2xl z-10">
                         <h2 className="text-xl sm:text-2xl font-bold text-white">
                           Add New User
                         </h2>

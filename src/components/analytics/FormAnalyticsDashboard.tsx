@@ -1292,7 +1292,7 @@ const computeDirectAcceptedDailyStats = (
 
     const dayStats = dailyMap.get(dateKey)!;
     dayStats.total += 1;
-    
+
     // Calculate rework count based on individual questions
     let formReworkQuestionsCount = 0;
     if (response.answers) {
@@ -1658,14 +1658,14 @@ const QuestionSuggestionRenderer = ({
   };
 
   // Render the current answer as read-only context
-  
+
 
   return (
     <div className="space-y-3 mt-2" onClick={e => e.stopPropagation()}>
 
 
-      
-      
+
+
 
       {/* Remark */}
       <div
@@ -2102,20 +2102,20 @@ export default function FormAnalyticsDashboard() {
 
   const handleShareAnalytics = () => {
     if (id) {
-      setShareAnalyticsModal({ 
-        open: true, 
-        formId: id, 
-        formTitle: form?.title || "Form Analytics" 
+      setShareAnalyticsModal({
+        open: true,
+        formId: id,
+        formTitle: form?.title || "Form Analytics"
       });
     }
   };
 
   const handleAutoSendSetup = () => {
     if (id) {
-      setAutoSendModal({ 
-        open: true, 
-        formId: id, 
-        formTitle: form?.title || "Form Analytics" 
+      setAutoSendModal({
+        open: true,
+        formId: id,
+        formTitle: form?.title || "Form Analytics"
       });
     }
   };
@@ -2263,7 +2263,7 @@ export default function FormAnalyticsDashboard() {
       return {};
     }
   });
-  const [reviewedBy, setReviewedBy] = useState<Record<string, {id: string, name: string, email: string} | null>>(() => {
+  const [reviewedBy, setReviewedBy] = useState<Record<string, { id: string, name: string, email: string } | null>>(() => {
     try {
       const saved = localStorage.getItem('reviewedBy');
       return saved ? JSON.parse(saved) : {};
@@ -2321,123 +2321,124 @@ export default function FormAnalyticsDashboard() {
   }, [reviewSubmitted]);
 
   const tenantId = useMemo(() => {
-  // Get from form
-  if (form?.tenantId) {
-    return typeof form.tenantId === 'object' ? form.tenantId._id : form.tenantId;
-  }
-  // Or from user
-  if (user?.tenantId) {
-    return typeof user.tenantId === 'object' ? user.tenantId._id : user.tenantId;
-  }
-  return null;
-}, [form, user]);
-const handleReviewSubmit = async (responseId: string, reviewOption: string) => {
-  console.log('=== HANDLE REVIEW SUBMIT START ===');
-  console.log('responseId:', responseId);
-  console.log('reviewOption:', reviewOption);
-  
-  // Get reviewerId properly
-  let reviewerId = user?._id || user?.id;
-  if (!reviewerId) {
-    try {
-      const token = localStorage.getItem('auth_token');
-      if (token) {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        reviewerId = payload.userId || payload.id;
+    // Get from form
+    if (form?.tenantId) {
+      return typeof form.tenantId === 'object' ? form.tenantId._id : form.tenantId;
+    }
+    // Or from user
+    if (user?.tenantId) {
+      return typeof user.tenantId === 'object' ? user.tenantId._id : user.tenantId;
+    }
+    return null;
+  }, [form, user]);
+  const handleReviewSubmit = async (responseId: string, reviewOption: string) => {
+    console.log('=== HANDLE REVIEW SUBMIT START ===');
+    console.log('responseId:', responseId);
+    console.log('reviewOption:', reviewOption);
+
+    // Get reviewerId properly
+    let reviewerId = user?._id || user?.id;
+    if (!reviewerId) {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          reviewerId = payload.userId || payload.id;
+        }
+      } catch (e) {
+        console.error('Failed to parse token:', e);
       }
-    } catch (e) {
-      console.error('Failed to parse token:', e);
     }
-  }
-  
-  if (!reviewerId) {
-    showToast("Cannot submit review. User ID not found.", "error");
-    return;
-  }
-  
-  if (!chatResponse) return;
 
-  let submitterId = (chatResponse as any).submittedBy;
-  
-  if (!submitterId && chatResponse.createdBy) {
-    if (typeof chatResponse.createdBy === 'object') {
-      submitterId = (chatResponse.createdBy as any)._id || (chatResponse.createdBy as any).id;
-    } else {
-      submitterId = chatResponse.createdBy;
+    if (!reviewerId) {
+      showToast("Cannot submit review. User ID not found.", "error");
+      return;
     }
-  }
 
-  if (!submitterId) {
-    showToast("Cannot submit review. Missing submitter information.", "error");
-    return;
-  }
+    if (!chatResponse) return;
 
-  // Don't allow self-review
-  if (submitterId && reviewerId === submitterId) {
-    showToast("You cannot review your own submissions", "error");
-    return;
-  }
+    let submitterId = (chatResponse as any).submittedBy;
 
-  // Only allow reviews for "Direct Ok" responses
-  const responseStatus = responseStatuses[responseId];
-  if (responseStatus !== "Direct Ok") {
-    showToast("Only Direct Ok responses can be reviewed", "error");
-    return;
-  }
-
-  try {
-    setPendingReviewOption(null);
-
-    const reviewData = {
-      responseId,
-      reviewerId: reviewerId,
-      submitterId: submitterId,
-      reviewOption,
-      tenantId: tenantId
-    };
-    
-    console.log('📤 Submitting review with data:', reviewData);
-    
-    const result = await apiClient.submitReview(reviewData);
-    
-    console.log('📥 Review API response:', result);
-    
-    // ✅ Check if successful
-    if (result && result.success) {
-      console.log('✅ Review submitted successfully!');
-      
-      // Clear local state to force refresh from API
-      setSelectedReviewOptions(prev => {
-        const newState = { ...prev };
-        delete newState[responseId];
-        return newState;
-      });
-      setReviewedBy(prev => {
-        const newState = { ...prev };
-        delete newState[responseId];
-        return newState;
-      });
-      setReviewSubmitted(prev => {
-        const newState = { ...prev };
-        delete newState[`${reviewerId}-${responseId}`];
-        return newState;
-      });
-      
-      // Refresh chat history to get the new review
-      await fetchChatHistory(responseId);
-      setForceUpdate(prev => prev + 1);
-      
-      showToast(result.message || `Review submitted: ${reviewOption}`, "success");
-    } else {
-      console.error('❌ Review submission failed:', result);
-      showToast(result?.message || "Failed to submit review", "error");
+    if (!submitterId && chatResponse.createdBy) {
+      if (typeof chatResponse.createdBy === 'object') {
+        submitterId = (chatResponse.createdBy as any)._id || (chatResponse.createdBy as any).id;
+      } else {
+        submitterId = chatResponse.createdBy;
+      }
     }
-    
-  } catch (error: any) {
-    console.error('❌ Review submission error:', error);
-    showToast(error.message || "Failed to submit review", "error");
-  }
-};
+
+    if (!submitterId) {
+      showToast("Cannot submit review. Missing submitter information.", "error");
+      return;
+    }
+
+    // Don't allow self-review
+    if (submitterId && reviewerId === submitterId) {
+      showToast("You cannot review your own submissions", "error");
+      return;
+    }
+
+    // Only allow reviews for valid response statuses
+    const responseStatus = responseStatuses[responseId];
+    const validStatusesForReview = ["Direct Ok", "Rework Accepted", "Accepted", "Pending Review", "Rework Completed"];
+    if (!validStatusesForReview.includes(responseStatus)) {
+      showToast("This response status cannot be reviewed", "error");
+      return;
+    }
+
+    try {
+      setPendingReviewOption(null);
+
+      const reviewData = {
+        responseId,
+        reviewerId: reviewerId,
+        submitterId: submitterId,
+        reviewOption,
+        tenantId: tenantId
+      };
+
+      console.log('📤 Submitting review with data:', reviewData);
+
+      const result = await apiClient.submitReview(reviewData);
+
+      console.log('📥 Review API response:', result);
+
+      // ✅ Check if successful
+      if (result && result.success) {
+        console.log('✅ Review submitted successfully!');
+
+        // Clear local state to force refresh from API
+        setSelectedReviewOptions(prev => {
+          const newState = { ...prev };
+          delete newState[responseId];
+          return newState;
+        });
+        setReviewedBy(prev => {
+          const newState = { ...prev };
+          delete newState[responseId];
+          return newState;
+        });
+        setReviewSubmitted(prev => {
+          const newState = { ...prev };
+          delete newState[`${reviewerId}-${responseId}`];
+          return newState;
+        });
+
+        // Refresh chat history to get the new review
+        await fetchChatHistory(responseId);
+        setForceUpdate(prev => prev + 1);
+
+        showToast(result.message || `Review submitted: ${reviewOption}`, "success");
+      } else {
+        console.error('❌ Review submission failed:', result);
+        showToast(result?.message || "Failed to submit review", "error");
+      }
+
+    } catch (error: any) {
+      console.error('❌ Review submission error:', error);
+      showToast(error.message || "Failed to submit review", "error");
+    }
+  };
 
   const [toast, setToast] = useState<{
     message: string;
@@ -2798,32 +2799,7 @@ const handleReviewSubmit = async (responseId: string, reviewOption: string) => {
   const baseFilteredResponses = useMemo(() => {
     let result = responses;
 
-    // 0. Role-based Filter (Inspector sees their own responses only)
-    if (user?.role === "inspector") {
-      const userId = user._id || user.id;
-      const userIdStr = String(userId);
-      const userEmail = user.email || "";
-      const userUsername = user.username || "";
-
-      result = result.filter((r) => {
-        const creatorId =
-          typeof r.createdBy === "object"
-            ? (r.createdBy as any)?._id || (r.createdBy as any)?.id
-            : r.createdBy;
-        const creatorIdStr = creatorId ? String(creatorId) : null;
-        const submittedBy = r.submittedBy || "";
-        const submitterEmail = r.submitterContact?.email || "";
-
-        return (
-          creatorIdStr === userIdStr ||
-          (submittedBy !== "Anonymous" &&
-            submittedBy !== "" &&
-            (submittedBy === userEmail ||
-              submittedBy === userUsername ||
-              submitterEmail === userEmail))
-        );
-      });
-    }
+    // 0. Role-based Filter (LIFTED: Inspectors can now view and review other tenant/user responses)
 
     // 2. Location Filter
     if (locationFilter.length > 0) {
@@ -2879,56 +2855,56 @@ const handleReviewSubmit = async (responseId: string, reviewOption: string) => {
     return result;
   }, [responses, user, locationFilter, cascadingFilters, columnFilters]);
 
-const fetchChatHistory = async (responseId: string) => {
-  try {
-    console.log('[ChatModal] Fetching chat history for response:', responseId);
-    
-    // Fetch messages
-    const response = await apiClient.get<any[]>(`/messages/response/${responseId}`);
-    const messages = Array.isArray(response.data) ? response.data : [];
-    setChatMessages(messages);
-
-    // Fetch reviews from API
+  const fetchChatHistory = async (responseId: string) => {
     try {
-      const reviewsResponse = await apiClient.getReviewsForResponse(responseId);
-      console.log('[ChatModal] Reviews API response:', reviewsResponse);
-      
-      if (reviewsResponse && reviewsResponse.reviews && reviewsResponse.reviews.length > 0) {
-        const latestReview = reviewsResponse.reviews[0];
-        console.log('[ChatModal] Latest review from API:', latestReview);
-        
-        // Update state from API
-        setSelectedReviewOptions(prev => ({ 
-          ...prev, 
-          [responseId]: latestReview.option 
-        }));
-        
-        setReviewedBy(prev => ({
-          ...prev,
-          [responseId]: latestReview.reviewer ? {
-            id: latestReview.reviewer.id,
-            name: latestReview.reviewer.name || 'Reviewer',
-            email: latestReview.reviewer.email || ''
-          } : null
-        }));
-        
-        // Also update chatResponse
-        setChatResponse(prev => prev ? {
-          ...prev,
-          review: latestReview
-        } : null);
-        
-        console.log('[ChatModal] Review state updated from API');
-      } else {
-        console.log('[ChatModal] No reviews found');
+      console.log('[ChatModal] Fetching chat history for response:', responseId);
+
+      // Fetch messages
+      const response = await apiClient.get<any[]>(`/messages/response/${responseId}`);
+      const messages = Array.isArray(response.data) ? response.data : [];
+      setChatMessages(messages);
+
+      // Fetch reviews from API
+      try {
+        const reviewsResponse = await apiClient.getReviewsForResponse(responseId);
+        console.log('[ChatModal] Reviews API response:', reviewsResponse);
+
+        if (reviewsResponse && reviewsResponse.reviews && reviewsResponse.reviews.length > 0) {
+          const latestReview = reviewsResponse.reviews[0];
+          console.log('[ChatModal] Latest review from API:', latestReview);
+
+          // Update state from API
+          setSelectedReviewOptions(prev => ({
+            ...prev,
+            [responseId]: latestReview.option
+          }));
+
+          setReviewedBy(prev => ({
+            ...prev,
+            [responseId]: latestReview.reviewer ? {
+              id: latestReview.reviewer.id,
+              name: latestReview.reviewer.name || 'Reviewer',
+              email: latestReview.reviewer.email || ''
+            } : null
+          }));
+
+          // Also update chatResponse
+          setChatResponse(prev => prev ? {
+            ...prev,
+            review: latestReview
+          } : null);
+
+          console.log('[ChatModal] Review state updated from API');
+        } else {
+          console.log('[ChatModal] No reviews found');
+        }
+      } catch (reviewError) {
+        console.error("[ChatModal] Error fetching reviews:", reviewError);
       }
-    } catch (reviewError) {
-      console.error("[ChatModal] Error fetching reviews:", reviewError);
+    } catch (err) {
+      console.error("[ChatModal] Error fetching chat history:", err);
     }
-  } catch (err) {
-    console.error("[ChatModal] Error fetching chat history:", err);
-  }
-};
+  };
   useEffect(() => {
     if (showChatModal && chatResponse) {
       fetchChatHistory(chatResponse.id);
@@ -5820,11 +5796,11 @@ const fetchChatHistory = async (responseId: string) => {
         responses.map((r) =>
           r.id === editingResponseId
             ? {
-                ...r,
-                answers: editFormData,
-                status: editFormStatus,
-                notes: editFormNotes,
-              }
+              ...r,
+              answers: editFormData,
+              status: editFormStatus,
+              notes: editFormNotes,
+            }
             : r,
         ),
       );
@@ -5962,39 +5938,39 @@ const fetchChatHistory = async (responseId: string) => {
 
           {/* Tabs - Center */}
           <div className="flex items-center gap-1 overflow-x-auto pb-1 lg:pb-0 max-w-full no-scrollbar">
-            
-              <>
-                <button
-                  onClick={() => setAnalyticsView("dashboard")}
-                  className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "dashboard"
-                    ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                    : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-                    }`}
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Dashboard
-                </button>
-                <button
-                  onClick={() => setAnalyticsView("question")}
-                  className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "question"
-                    ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                    : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-                    }`}
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Questions
-                </button>
-                <button
-                  onClick={() => setAnalyticsView("section")}
-                  className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "section"
-                    ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                    : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-                    }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  Sections
-                </button>
-                {/* <button
+
+            <>
+              <button
+                onClick={() => setAnalyticsView("dashboard")}
+                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "dashboard"
+                  ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                  : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                  }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                Dashboard
+              </button>
+              <button
+                onClick={() => setAnalyticsView("question")}
+                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "question"
+                  ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                  : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                  }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                Questions
+              </button>
+              <button
+                onClick={() => setAnalyticsView("section")}
+                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "section"
+                  ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                  : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                  }`}
+              >
+                <FileText className="w-4 h-4" />
+                Sections
+              </button>
+              {/* <button
                   onClick={() => setAnalyticsView("table")}
                   className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${
                     analyticsView === "table"
@@ -6005,8 +5981,8 @@ const fetchChatHistory = async (responseId: string) => {
                   <Table className="w-4 h-4" />
                   Table
                 </button> */}
-              </>
-          
+            </>
+
             <button
               onClick={() => setAnalyticsView("responses")}
               className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "responses"
@@ -6309,7 +6285,7 @@ const fetchChatHistory = async (responseId: string) => {
                           <p className="text-xs text-gray-500 dark:text-gray-400">Section-wise performance breakdown</p>
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-wrap items-center gap-3">
                         {/* Section Date Filters */}
                         <div className="flex items-center gap-2 bg-white dark:bg-gray-900 p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -7536,9 +7512,9 @@ const fetchChatHistory = async (responseId: string) => {
 
                     <div className="overflow-x-auto no-scrollbar rounded-xl border border-gray-200 dark:border-gray-700">
                       <table className="text-xs border-collapse w-full">
-                        <thead className="sticky top-16 z-20">
+                        <thead className="sticky top-18 z-30">
                           <tr className="bg-gray-100 dark:bg-gray-800">
-                            <th className="hidden sm:table-cell sticky left-0 z-20 text-center px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
+                            <th className="hidden sm:table-cell sticky left-0 z-30 text-center px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
                               <input
                                 type="checkbox"
                                 checked={
@@ -7558,28 +7534,28 @@ const fetchChatHistory = async (responseId: string) => {
                                 className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
                               />
                             </th>
-                            <th className="sticky left-0 sm:left-12 z-20 text-center px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-100 dark:bg-gray-800 min-w-[120px]">
+                            <th className="sticky left-0 sm:left-12 z-30 text-center px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-100 dark:bg-gray-800 min-w-[120px]">
                               <span>Actions</span>
                             </th>
                             <th className="text-center px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-24 whitespace-nowrap bg-gray-100 dark:bg-gray-800">
                               Dispatch
                             </th>
-                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
+                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Submitted by
                             </th>
-                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
+                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Status
                             </th>
-                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
+                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Selected Chassis
                             </th>
-                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
+                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Review
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                               Timestamp
                             </th>
-                            <th className="text-center px-4 py-3 font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800/50">
+                            <th className="text-center px-4 py-3 font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Time Taken
                             </th>
                             {form?.sections?.map(
@@ -7627,56 +7603,6 @@ const fetchChatHistory = async (responseId: string) => {
                                 }),
                             )}
                           </tr>
-
-                          {/* Common Answer Row */}
-                          <tr className="bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-200 dark:border-amber-800">
-                            <td className="hidden sm:table-cell px-3 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                            <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 sticky left-0 sm:left-12 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">
-                              Actions
-                            </td>
-                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">
-                              Expected Answers
-                            </td>
-                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                            <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                            <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                            {form?.sections?.map(
-                              (section: Section) =>
-                                selectedResponsesSectionIds.includes(
-                                  section.id,
-                                ) &&
-                                section.questions?.map((q: any) => {
-                                  const isFollowUp =
-                                    q.parentId || q.showWhen?.questionId;
-                                  const hasCorrectAnswer =
-                                    q.correctAnswer !== undefined;
-                                  return (
-                                    <td
-                                      key={`correct-${q.id}`}
-                                      className={`px-4 py-3 text-xs font-bold border border-gray-200 dark:border-gray-700 ${isFollowUp ? "bg-purple-50 dark:bg-purple-900/10" : ""} ${hasCorrectAnswer ? "text-green-700 dark:text-green-400" : "text-gray-400 italic"}`}
-                                    >
-                                      {hasCorrectAnswer ? (
-                                        <div className="flex flex-col gap-1">
-                                          <span className="text-[10px] uppercase text-gray-500 opacity-70">
-                                            Expected Answer:
-                                          </span>
-                                          <span>
-                                            {Array.isArray(q.correctAnswer)
-                                              ? q.correctAnswer.join(", ")
-                                              : String(q.correctAnswer)}
-                                          </span>
-                                        </div>
-                                      ) : (
-                                        "-"
-                                      )}
-                                    </td>
-                                  );
-                                }),
-                            )}
-                          </tr>
                         </thead>
 
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -7685,10 +7611,10 @@ const fetchChatHistory = async (responseId: string) => {
                               (response: Response, idx: number) => (
                                 <tr
                                   key={response.id}
-                                  className={`${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
+                                  className={`${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}`}
                                 >
                                   <td
-                                    className={`hidden sm:table-cell px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 z-20 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
+                                    className={`hidden sm:table-cell  px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 z-20 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}`}
                                   >
                                     <input
                                       type="checkbox"
@@ -7713,7 +7639,7 @@ const fetchChatHistory = async (responseId: string) => {
                                     />
                                   </td>
                                   <td
-                                    className={`px-4 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 sm:left-12 z-20 transition-all duration-300 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
+                                    className={`px-4 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 sm:left-12 z-20 transition-all duration-300 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}`}
                                   >
                                     <div className="flex items-center gap-1.5 justify-center">
                                       {editingResponseId === response.id ? (
@@ -7749,10 +7675,9 @@ const fetchChatHistory = async (responseId: string) => {
                                           {(() => {
                                             const responseTenantId = response.tenantId;
                                             const currentUserTenantId = user?.tenantId;
-                                            const isOwnTenant = user?.role === 'superadmin' || 
-                                              !responseTenantId || 
-                                              (currentUserTenantId && responseTenantId.toString() === currentUserTenantId.toString());
-                                            
+                                            const isActualOwnTenant = user?.role === 'superadmin' || !responseTenantId || (currentUserTenantId && responseTenantId.toString() === currentUserTenantId.toString());
+                                            const isOwnTenant = isActualOwnTenant;
+
                                             return (
                                               <>
                                                 {/* View Details */}
@@ -7783,7 +7708,7 @@ const fetchChatHistory = async (responseId: string) => {
                                                 )}
 
                                                 {/* Edit & Delete - Admin only */}
-                                                {!isGuest && (user?.role === "superadmin" || user?.role === "admin") && isOwnTenant && (
+                                                {!isGuest && (user?.role === "superadmin" || user?.role === "admin") && isActualOwnTenant && (
                                                   <>
                                                     <button
                                                       onClick={() => handleEditStart(response)}
@@ -7812,20 +7737,26 @@ const fetchChatHistory = async (responseId: string) => {
                                     </div>
                                   </td>
                                   <td
-                                    className={`px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
+                                    className={`px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800"}`}
                                   >
                                     {/* Dispatch cell content */}
                                     {(() => {
                                       const status = responseStatuses[response.id] || "";
-                                      const canShowDispatch = status === "Direct Ok" || status === "Rework Accepted" || status === "Rework Completed" || status ==="Accepted";
+                                      const canShowDispatch = status === "Direct Ok" || status === "Rework Accepted" || status === "Rework Completed" || status === "Accepted";
                                       // Check submitter based on email/username like other parts of the code
                                       const userEmail = user?.email || "";
                                       const userUsername = user?.username || "";
+                                      const userIdStr = user?._id ? String(user._id) : (user?.id ? String(user.id) : "");
+                                      const creatorId = typeof response.createdBy === 'object'
+                                        ? (response.createdBy as any)?._id || (response.createdBy as any)?.id
+                                        : response.createdBy;
+                                      const creatorIdStr = creatorId ? String(creatorId) : "";
+
                                       const isSubmitter = response.submittedBy === userEmail ||
                                         response.submittedBy === userUsername ||
                                         response.createdBy === userEmail ||
                                         response.createdBy === userUsername ||
-                                        response.submitterContact?.email === userEmail;
+                                        response.submitterContact?.email === userEmail || (creatorIdStr && creatorIdStr === userIdStr);
 
                                       // Debug: Uncomment to see what statuses are being checked
                                       console.log(`Dispatch check for response ${response.id}:`, {
@@ -7869,7 +7800,7 @@ const fetchChatHistory = async (responseId: string) => {
                                               try {
                                                 await apiClient.updateResponse(response.id, { isDispatched: true });
                                                 // Update local state to reflect change immediately
-                                                setResponses(prev => prev.map(r => 
+                                                setResponses(prev => prev.map(r =>
                                                   r.id === response.id ? { ...r, isDispatched: true, dispatchedAt: new Date().toISOString() } : r
                                                 ));
                                               } catch (error) {
@@ -7892,57 +7823,61 @@ const fetchChatHistory = async (responseId: string) => {
                                   <td className="px-6 py-3 text-sm font-bold border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
                                     <span
                                       className={`px-2 py-1 rounded-full text-xs ${responseStatuses[response.id] === "Rejected"
-                                        ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                                        : responseStatuses[response.id]?.includes(
-                                          "Rework",
-                                        ) &&
-                                          responseStatuses[response.id] !==
-                                          "Rework Accepted"
-                                          ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                                          : responseStatuses[response.id] ===
-                                            "Direct Ok" ||
-                                            responseStatuses[response.id] ===
-                                            "Rework Accepted" ||
-                                            responseStatuses[response.id] ===
-                                            "Accepted"
-                                            ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                                            : "text-gray-500"
+                                          ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                          : responseStatuses[response.id]?.includes("Rework") &&
+                                            responseStatuses[response.id] !== "Rework Accepted"
+                                            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                                            : responseStatuses[response.id] === "Direct Ok" ||
+                                              responseStatuses[response.id] === "Rework Accepted" ||
+                                              responseStatuses[response.id] === "Accepted"
+                                              ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                              : responseStatuses[response.id] === "Pending Review"
+                                                ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
+                                                : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
                                         }`}
                                     >
-                                      {(responseStatuses[response.id] === "Direct Ok" || responseStatuses[response.id] === "Rework Accepted") ? responseStatuses[response.id] : "-"}
+                                    {responseStatuses[response.id] || "Pending Review"}
                                     </span>
                                   </td>
                                   <td className="px-6 py-3 text-sm text-gray-900 dark:text-white font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
                                     {response.answers?.chassis_number || "-"}
                                   </td>
                                   <td className="px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
-                                    {(response as any).review ? (
-                                      <div className="flex flex-col gap-1">
-                                        <div className="flex items-center gap-2">
-                                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                            (response as any).review.status === 'Accepted' ? 'bg-green-500/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800' :
-                                            (response as any).review.status === 'Rejected' ? 'bg-red-500/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800' :
-                                            'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800'
-                                          }`}>
-                                            {(response as any).review.status}
-                                          </span>
-                                          <span className="text-xs text-gray-500 dark:text-gray-400">
-                                            by <span className="font-semibold text-gray-700 dark:text-gray-300">{(response as any).review.reviewer}</span>
-                                          </span>
-                                        </div>
-                                        {(response as any).review.flaggedQuestions && (response as any).review.flaggedQuestions.length > 0 && (
-                                          <div className="mt-1 flex flex-wrap gap-1">
-                                            {(response as any).review.flaggedQuestions.map((q: any, i: number) => (
-                                              <span key={i} className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-[10px] text-gray-600 dark:text-gray-400 rounded border border-gray-200 dark:border-gray-700 line-clamp-1" title={q}>
-                                                {q}
-                                              </span>
-                                            ))}
+                                    {(() => {
+                                      const reviewObj = (response as any).review || (reviewedBy[response.id] ? {
+                                        status: reviewedBy[response.id]?.option || reviewedBy[response.id]?.status,
+                                        reviewer: reviewedBy[response.id]?.name || reviewedBy[response.id]?.reviewer || 'Reviewer',
+                                        flaggedQuestions: reviewedBy[response.id]?.flaggedQuestions || []
+                                      } : null);
+
+                                      return reviewObj ? (
+                                        <div className="flex flex-col gap-1">
+                                          <div className="flex items-center gap-2">
+                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                              String(reviewObj.status).toLowerCase().trim() === 'accepted' ? 'bg-green-500/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800' :
+                                              String(reviewObj.status).toLowerCase().trim() === 'rejected' ? 'bg-red-500/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800' :
+                                                'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800'
+                                            }`}>
+                                              {reviewObj.status}
+                                            </span>
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                              by <span className="font-semibold text-gray-700 dark:text-gray-300">{reviewObj.reviewer}</span>
+                                            </span>
                                           </div>
-                                        )}
-                                      </div>
-                                    ) : (
-                                      <span className="text-gray-400 italic text-xs">No review yet</span>
-                                    )}
+                                          {reviewObj.flaggedQuestions && reviewObj.flaggedQuestions.length > 0 && (
+                                            <div className="mt-1 flex flex-wrap gap-1">
+                                              {reviewObj.flaggedQuestions.map((q: any, i: number) => (
+                                                <span key={i} className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-[10px] text-gray-600 dark:text-gray-400 rounded border border-gray-200 dark:border-gray-700 line-clamp-1" title={q}>
+                                                  {q}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-gray-400 italic text-xs">No review yet</span>
+                                      );
+                                    })()}
                                   </td>
                                   <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                                     {getResponseTimestamp(response)
@@ -8022,34 +7957,34 @@ const fetchChatHistory = async (responseId: string) => {
                                                 : ""
                                               }`}
                                           >
-                                             {isEditing ? (
-                                               <input
-                                                 type="text"
-                                                 value={typeof editFormData[q.id] === 'object' && 'status' in editFormData[q.id] ? editFormData[q.id].status : (editFormData[q.id] ? (typeof editFormData[q.id] === 'string' ? editFormData[q.id] : JSON.stringify(editFormData[q.id], null, 2)) : "")}
-                                                 onChange={(e) => {
-                                                   const val = e.target.value;
-                                                   if (editFormData[q.id] && typeof editFormData[q.id] === 'object' && 'status' in editFormData[q.id]) {
-                                                     setEditFormData({
-                                                       ...editFormData,
-                                                       [q.id]: { ...editFormData[q.id], status: val },
-                                                     });
-                                                   } else {
-                                                     let parsed;
-                                                     try {
-                                                       parsed = JSON.parse(val);
-                                                     } catch {
-                                                       parsed = val;
-                                                     }
-                                                     setEditFormData({
-                                                       ...editFormData,
-                                                       [q.id]: parsed,
-                                                     });
-                                                   }
-                                                 }}
-                                                 className="w-full px-2 py-1 border border-blue-400 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                                 placeholder="Enter answer"
-                                               />
-                                             ) : (
+                                            {isEditing ? (
+                                              <input
+                                                type="text"
+                                                value={typeof editFormData[q.id] === 'object' && 'status' in editFormData[q.id] ? editFormData[q.id].status : (editFormData[q.id] ? (typeof editFormData[q.id] === 'string' ? editFormData[q.id] : JSON.stringify(editFormData[q.id], null, 2)) : "")}
+                                                onChange={(e) => {
+                                                  const val = e.target.value;
+                                                  if (editFormData[q.id] && typeof editFormData[q.id] === 'object' && 'status' in editFormData[q.id]) {
+                                                    setEditFormData({
+                                                      ...editFormData,
+                                                      [q.id]: { ...editFormData[q.id], status: val },
+                                                    });
+                                                  } else {
+                                                    let parsed;
+                                                    try {
+                                                      parsed = JSON.parse(val);
+                                                    } catch {
+                                                      parsed = val;
+                                                    }
+                                                    setEditFormData({
+                                                      ...editFormData,
+                                                      [q.id]: parsed,
+                                                    });
+                                                  }
+                                                }}
+                                                className="w-full px-2 py-1 border border-blue-400 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                placeholder="Enter answer"
+                                              />
+                                            ) : (
                                               <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
                                                 {renderAnswerDisplay(answer, q)}
                                                 {q.trackResponseRank &&
@@ -8991,9 +8926,14 @@ const fetchChatHistory = async (responseId: string) => {
               </div>
 
               {(() => {
-                const responseTenantId = actionResponse.tenantId;
-                const currentUserTenantId = user?.tenantId;
                 const isOwnTenant = user?.role === 'superadmin' ||
+                  user?.role === 'admin' ||
+                  user?.role === 'subadmin' ||
+                  user?.role === 'inspector' ||
+                  !responseTenantId ||
+                  (currentUserTenantId && responseTenantId.toString() === currentUserTenantId.toString());
+
+                const isActualOwnTenant = user?.role === 'superadmin' ||
                   !responseTenantId ||
                   (currentUserTenantId && responseTenantId.toString() === currentUserTenantId.toString());
 
@@ -9049,7 +8989,7 @@ const fetchChatHistory = async (responseId: string) => {
                     )}
 
                     {/* Edit - Admin only */}
-                    {!isGuest && (user?.role === "superadmin" || user?.role === "admin") && isOwnTenant && (
+                    {!isGuest && (user?.role === "superadmin" || user?.role === "admin") && isActualOwnTenant && (
                       <button
                         onClick={() => {
                           handleEditStart(actionResponse);
@@ -9065,7 +9005,7 @@ const fetchChatHistory = async (responseId: string) => {
                     )}
 
                     {/* Delete - Admin only */}
-                    {!isGuest && (user?.role === "superadmin" || user?.role === "admin") && isOwnTenant && (
+                    {!isGuest && (user?.role === "superadmin" || user?.role === "admin") && isActualOwnTenant && (
                       <button
                         onClick={() => {
                           setDeletingResponseId(actionResponse.id);
@@ -9124,13 +9064,12 @@ const fetchChatHistory = async (responseId: string) => {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 animate-fadeIn ${
-            toast.type === "success"
-              ? "bg-green-500 dark:bg-green-600"
-              : toast.type === "info"
+          className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 animate-fadeIn ${toast.type === "success"
+            ? "bg-green-500 dark:bg-green-600"
+            : toast.type === "info"
               ? "bg-blue-500 dark:bg-blue-600"
               : "bg-red-500 dark:bg-red-600"
-          }`}
+            }`}
         >
           <div className="flex items-center gap-2">
             {toast.type === "success" ? (
@@ -9208,8 +9147,8 @@ const fetchChatHistory = async (responseId: string) => {
                     const badgeClass = isAccepted
                       ? 'bg-green-500/20 border-green-400 text-green-100'
                       : isRejected
-                      ? 'bg-red-500/20 border-red-400 text-red-100'
-                      : 'bg-yellow-500/20 border-yellow-400 text-yellow-100';
+                        ? 'bg-red-500/20 border-red-400 text-red-100'
+                        : 'bg-yellow-500/20 border-yellow-400 text-yellow-100';
 
                     const scoreVal = performanceScores[chatResponse?.submittedBy || ''] ??
                       performanceScores[(chatResponse?.createdBy as any)?._id || chatResponse?.createdBy as string || ''];
@@ -9220,7 +9159,7 @@ const fetchChatHistory = async (responseId: string) => {
                           <span className="font-bold">Status:</span>{' '}
                           {emoji} {reviewOption} by {reviewerName}
                         </span>
-                        
+
                       </div>
                     );
                   })()}
@@ -9228,67 +9167,83 @@ const fetchChatHistory = async (responseId: string) => {
                   {/* === BEFORE REVIEW: Show 3 buttons or "pending" state === */}
                   {!reviewSubmitted[`${String(user?._id)}-${String(chatResponse?.id)}`] &&
                     !reviewedBy[chatResponse?.id || ''] &&
-                    responseStatuses[chatResponse?.id] === "Direct Ok" &&
+                    (responseStatuses[chatResponse?.id] === "Direct Ok" ||
+                     responseStatuses[chatResponse?.id] === "Rework Accepted" ||
+                     responseStatuses[chatResponse?.id] === "Accepted" ||
+                     responseStatuses[chatResponse?.id] === "Pending Review" ||
+                     responseStatuses[chatResponse?.id] === "Rework Completed") &&
                     (() => {
                       const userEmail = user?.email || "";
                       const userUsername = user?.username || "";
+                      const userId = user?._id || user?.id;
+                      const userIdStr = userId ? String(userId) : "";
+                      const creatorId = typeof chatResponse?.createdBy === "object"
+                        ? (chatResponse.createdBy as any)?._id || (chatResponse.createdBy as any)?.id
+                        : chatResponse?.createdBy;
+                      const creatorIdStr = creatorId ? String(creatorId) : "";
+
                       const isSubmitter = chatResponse?.submittedBy === userEmail ||
                         chatResponse?.submittedBy === userUsername ||
-                        chatResponse?.submitterContact?.email === userEmail;
+                        chatResponse?.submitterContact?.email === userEmail ||
+                        (creatorIdStr && creatorIdStr === userIdStr);
                       return !isSubmitter;
                     })() && (
-                    pendingReviewOption ? (
-                      /* Pending state: show label + cancel */
-                      <div className="flex items-center gap-2">
-                        <span className={`px-3 py-1 text-xs font-bold rounded ${
-                          pendingReviewOption === 'Rejected' ? 'bg-red-500/30 text-red-100 border border-red-400' : 'bg-yellow-500/30 text-yellow-100 border border-yellow-400'
-                        }`}>
-                          {pendingReviewOption === 'Rejected' ? '❌' : '🔄'} {pendingReviewOption} — Select questions below
-                        </span>
-                        <button
-                          onClick={() => setPendingReviewOption(null)}
-                          className="px-2 py-1 text-xs font-bold rounded bg-white/10 text-white hover:bg-white/20 transition-all"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      /* Normal state: 3 review buttons - Only show if user is not the submitter */
-                      (() => {
-                        const userEmail = user?.email || "";
-                        const userUsername = user?.username || "";
-                        const isSubmitter = chatResponse?.submittedBy === userEmail ||
-                          chatResponse?.submittedBy === userUsername ||
-                          chatResponse?.submitterContact?.email === userEmail;
+                      pendingReviewOption ? (
+                        /* Pending state: show label + cancel */
+                        <div className="flex items-center gap-2">
+                          <span className={`px-3 py-1 text-xs font-bold rounded ${pendingReviewOption === 'Rejected' ? 'bg-red-500/30 text-red-100 border border-red-400' : 'bg-yellow-500/30 text-yellow-100 border border-yellow-400'
+                            }`}>
+                            {pendingReviewOption === 'Rejected' ? '❌' : '🔄'} {pendingReviewOption} — Select questions below
+                          </span>
+                          <button
+                            onClick={() => setPendingReviewOption(null)}
+                            className="px-2 py-1 text-xs font-bold rounded bg-white/10 text-white hover:bg-white/20 transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        /* Normal state: 3 review buttons - Only show if user is not the submitter */
+                        (() => {
+                          const userEmail = user?.email || "";
+                          const userUsername = user?.username || "";
+                          const userIdStr = user?._id ? String(user._id) : (user?.id ? String(user.id) : "");
+                          const creatorId = typeof chatResponse?.createdBy === "object"
+                            ? (chatResponse.createdBy as any)?._id || (chatResponse.createdBy as any)?.id
+                            : chatResponse?.createdBy;
+                          const creatorIdStr = creatorId ? String(creatorId) : "";
 
-                        return !isSubmitter ? (
-                          <div className="flex gap-2">
-                            {['Accepted', 'Rejected', 'Rework'].map((option) => (
-                              <button
-                                key={option}
-                                onClick={() => {
-                                  if (option === 'Accepted') {
-                                    handleReviewSubmit(chatResponse!.id, option);
-                                  } else {
-                                    setPendingReviewOption(option);
-                                  }
-                                }}
-                                className={`px-3 py-1 text-xs font-bold rounded transition-all border ${
-                                  option === 'Accepted'
+                          const isSubmitter = chatResponse?.submittedBy === userEmail ||
+                            chatResponse?.submittedBy === userUsername ||
+                            chatResponse?.submitterContact?.email === userEmail || (creatorIdStr && creatorIdStr === userIdStr);
+
+                          return !isSubmitter ? (
+                            <div className="flex gap-2">
+                              {['Accepted', 'Rejected', 'Rework'].map((option) => (
+                                <button
+                                  key={option}
+                                  onClick={() => {
+                                    if (option === 'Accepted') {
+                                      handleReviewSubmit(chatResponse!.id, option);
+                                    } else {
+                                      setPendingReviewOption(option);
+                                    }
+                                  }}
+                                  className={`px-3 py-1 text-xs font-bold rounded transition-all border ${option === 'Accepted'
                                     ? 'bg-green-500/30 border-green-400 text-green-100 hover:bg-green-500/50'
                                     : option === 'Rejected'
-                                    ? 'bg-red-500/30 border-red-400 text-red-100 hover:bg-red-500/50'
-                                    : 'bg-yellow-500/30 border-yellow-400 text-yellow-100 hover:bg-yellow-500/50'
-                                }`}
-                              >
-                                {option === 'Accepted' ? '✅' : option === 'Rejected' ? '❌' : '🔄'} {option}
-                              </button>
-                            ))}
-                          </div>
-                        ) : null;
-                      })()
-                    )
-                  )}
+                                      ? 'bg-red-500/30 border-red-400 text-red-100 hover:bg-red-500/50'
+                                      : 'bg-yellow-500/30 border-yellow-400 text-yellow-100 hover:bg-yellow-500/50'
+                                    }`}
+                                >
+                                  {option === 'Accepted' ? '✅' : option === 'Rejected' ? '❌' : '🔄'} {option}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null;
+                        })()
+                      )
+                    )}
 
                   <button
                     onClick={() => {
@@ -9329,9 +9284,9 @@ const fetchChatHistory = async (responseId: string) => {
                       return 'N/A';
                     })()}</p>
 
-                     {/* Show question selection panel when Rejected/Rework is pending */}
-                      {pendingReviewOption && (
-  <>
+                    {/* Show question selection panel when Rejected/Rework is pending */}
+                    {pendingReviewOption && (
+                      <>
                         <div className="space-y-2">
                           <div className={`flex items-center gap-2 mb-3 px-3 py-2 rounded-lg ${pendingReviewOption === 'Rejected' ? 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800' : 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'}`}>
                             <span className="text-lg">{pendingReviewOption === 'Rejected' ? '❌' : '🔄'}</span>
@@ -9346,9 +9301,9 @@ const fetchChatHistory = async (responseId: string) => {
                             Select Questions to Flag
                           </label>
                           <div className="max-h-[400px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl shadow-inner scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 bg-white dark:bg-gray-800">
-                            {form?.sections?.flatMap(s => 
-  (s.questions || []).filter((q: any) => !q.parentId && !q.showWhen?.questionId)
-).map(q => (
+                            {form?.sections?.flatMap(s =>
+                              (s.questions || []).filter((q: any) => !q.parentId && !q.showWhen?.questionId)
+                            ).map(q => (
                               <div key={q.id} className="border-b border-gray-100 dark:border-gray-700 last:border-0">
                                 <div className="flex items-start gap-3 p-3 hover:bg-indigo-50/50 dark:hover:bg-indigo-900/10 cursor-default transition-colors group">
                                   <label className="mt-1 cursor-pointer">
@@ -9391,209 +9346,214 @@ const fetchChatHistory = async (responseId: string) => {
                           </div>
                         </div>
 
-                  <div className="pt-6 flex items-center justify-between">
+                        <div className="pt-6 flex items-center justify-between">
                           <button
-                      onClick={() => setChatFilters({ chassisNumber: "", location: "", questions: [], selectedCategories: {}, zoneType: "both", suggestedAnswers: {} })}
-                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
-                    >
-                      Clear All Filters
-                    </button>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setShowChatModal(false)}
-                        className="px-4 py-2 text-xs font-bold text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                            onClick={() => setChatFilters({ chassisNumber: "", location: "", questions: [], selectedCategories: {}, zoneType: "both", suggestedAnswers: {} })}
+                            className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
                           >
-                        Cancel
-                      </button>
-                      <button 
-                        onClick={() => setShowChatModal(false)}
-                        className="px-4 py-2 text-xs font-extrabold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition-all active:scale-95"
-                      >
-                        Apply Filters
+                            Clear All Filters
                           </button>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setShowChatModal(false)}
+                              className="px-4 py-2 text-xs font-bold text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => setShowChatModal(false)}
+                              className="px-4 py-2 text-xs font-extrabold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none transition-all active:scale-95"
+                            >
+                              Apply Filters
+                            </button>
+                          </div>
                         </div>
-                    </div>
                         <p className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold mt-2">
                           ✏️ Type your message below and click <b>Send Feedback</b> to submit the review.
                         </p>
-                        </>)}
+                      </>)}
 
-                 </div>
-                 </div>
-                 </div>
-                    {/* Right Column: Chat history and input */}
-                    <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 border-t md:border-t-0 p-6 overflow-hidden">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
-                          Message Center
-                        </h3>
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 rounded-full border border-green-200 dark:border-green-800">
-                          <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-                          <span className="text-[10px] font-bold text-green-700 dark:text-green-400">Live Context</span>
-                        </div>
-                      </div>
-
-                      <div className="flex-1 bg-gray-50 dark:bg-gray-800/20 rounded-2xl border border-gray-100 dark:border-gray-800 p-4 mb-4 overflow-y-auto space-y-4 flex flex-col scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
-                        {chatMessages.length === 0 ? (
-                          <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-3 opacity-50">
-                            <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full ring-8 ring-gray-50 dark:ring-gray-900/50">
-                              <MessageCircle className="w-10 h-10" />
-                            </div>
-                            <div className="text-center">
-                              <p className="text-sm font-bold text-gray-600 dark:text-gray-300">No active conversation</p>
-                              <p className="text-xs">Send a message to start the thread.</p>
-                            </div>
-                          </div>
-                        ) : (
-                          chatMessages.map((msg, i) => (
-                            <div key={i} className={`flex flex-col ${String(msg.from?._id || msg.from) === String(user?._id || (user as any)?.id) ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-                              <div className={`max-w-[90%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${String(msg.from?._id || msg.from) === String(user?._id || (user as any)?.id)
-                                ? 'bg-[#dcf8c6] text-gray-900 rounded-br-lg rounded-tr-lg rounded-tl-sm'
-                                : 'bg-white dark:bg-gray-100 text-gray-900 border border-gray-100 dark:border-gray-700 rounded-bl-lg rounded-tl-lg rounded-tr-sm'
-                                }`}>
-                                {msg.questionContexts && msg.questionContexts.length > 0 ? (
-                                  <div className="space-y-3">
-                                    {msg.questionContexts.map((ctx: any, idx: number) => (
-                                      <div key={idx} className="space-y-2">
-                                         <p className="text-[12px] font-bold text-gray-500 dark:text-gray-400 border-b border-indigo-100 dark:border-indigo-800/50 pb-0.5">
-                                           {ctx.title}
-                                        </p> 
-                                       
-                                         {ctx.suggestion && (
-                                           <div className="mt-1 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-100 dark:border-amber-800">
-                                             <p className="text-[10px] font-bold text-amber-600 uppercase mb-1">Review Feedback:</p>
-                                             {ctx.question ? (
-                                               <QuestionSuggestionRenderer
-                                                 question={ctx.question}
-                                                 value={ctx.suggestion}
-                                                 currentAnswer={ctx.answer}
-                                                 onChange={(newSuggestion) => {
-                                                   // Update the suggestion in chatFilters
-                                                   setChatFilters(prev => ({
-                                                     ...prev,
-                                                     suggestedAnswers: {
-                                                       ...prev.suggestedAnswers,
-                                                       [ctx.question.id]: newSuggestion
-                                                     }
-                                                   }));
-                                                 }}
-                                               />
-                                             ) : (
-                                               // Fallback to read-only display if question data is missing
-                                               <div className="text-xs text-gray-600 dark:text-gray-400">
-                                                 {renderAnswerDisplay(ctx.suggestion, { type: 'text' } as any)}
-                                               </div>
-                                             )}
-                                           </div>
-                                         )}
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : msg.questionTitles && msg.questionTitles.length > 0 && (
-                                  <div className="mb-2 p-2 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100/50 dark:border-indigo-800/30">
-                                    <p className="text-[10px] uppercase font-black text-indigo-500 dark:text-indigo-400 mb-1.5 flex items-center gap-1">
-                                      <Filter className="w-2.5 h-2.5" />
-                                      Linked Questions
-                                    </p>
-                                    <div className="flex flex-wrap gap-1">
-                                      {msg.questionTitles.map((title: string, idx: number) => (
-                                        <span key={idx} className="px-1.5 py-0.5 bg-white dark:bg-gray-700 text-[9px] font-bold text-indigo-600 dark:text-indigo-300 rounded-md border border-indigo-100 dark:border-indigo-800">
-                                          {title}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-                                {renderMessageWithImages(msg.message)}
-                              </div>
-                              <div className="flex items-center gap-1 mt-1.5 px-1 opacity-60">
-                                <span className="text-[9px] font-medium text-gray-500 dark:text-gray-400">
-                                  {String(msg.from?._id || msg.from) === String(user?._id || (user as any)?.id) ? 'You' : (msg.from?.name || 'Inspector')} • {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                                {String(msg.from?._id || msg.from) !== String(user?._id || (user as any)?.id) && (
-                                  <button
-                                    onClick={() => {
-                                      setNewMessage(`Replying to: "${msg.message.substring(0, 30)}..." \n`);
-                                      const textarea = document.querySelector('textarea');
-                                      if (textarea) textarea.focus();
-                                    }}
-                                    className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:underline ml-2 pointer-events-auto"
-                                  >
-                                    <Reply className="w-3 h-3" />
-                                    Reply
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                       {(() => {
-                         const userEmail = user?.email || "";
-                         const userUsername = user?.username || "";
-                         const isSubmitter = chatResponse?.submittedBy === userEmail ||
-                           chatResponse?.submittedBy === userUsername ||
-                           chatResponse?.submitterContact?.email === userEmail;
-
-                         // For submitters, only show message input if no review option is pending
-                         if (isSubmitter && pendingReviewOption) {
-                           return null;
-                         }
-
-                         return (
-                           <div className="space-y-3">
-                             <div className="relative">
-                               <textarea
-                                 value={newMessage}
-                                 onChange={(e) => setNewMessage(e.target.value)}
-                                 placeholder={isSubmitter ? "Send a message..." : "Type your feedback to the inspector..."}
-                                 className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-indigo-500 dark:focus:border-indigo-400 rounded-2xl text-sm focus:ring-0 transition-all resize-none shadow-inner text-gray-800 dark:text-gray-200"
-                                 rows={3}
-                               />
-                             </div>
-                             <button
-                               onClick={async () => {
-                                 // If a Rejected/Rework review is pending and user is not submitter, send message + submit review together
-                                 if (pendingReviewOption && !isSubmitter) {
-                                   setPendingReviewOption(null); // Clear pending state immediately
-                                   const reviewNote = newMessage.trim() || `Please review and correct the flagged questions (${pendingReviewOption}).`;
-                                   await handleSendMessage(reviewNote);
-                                   await handleReviewSubmit(chatResponse!.id, pendingReviewOption);
-                                 } else {
-                                   await handleSendMessage();
-                                 }
-                               }}
-                               disabled={isSendingMessage || !newMessage.trim()}
-                               className={`w-full flex items-center justify-center gap-2 px-6 py-3.5 text-white text-sm font-black rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-xl ${
-                                 pendingReviewOption && !isSubmitter
-                                   ? (pendingReviewOption === 'Rejected'
-                                       ? 'bg-red-600 hover:bg-red-700 shadow-red-200 dark:shadow-none'
-                                       : 'bg-yellow-600 hover:bg-yellow-700 shadow-yellow-200 dark:shadow-none')
-                                   : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200 dark:shadow-none'
-                               }`}
-                             >
-                               {isSendingMessage ? (
-                                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                               ) : (
-                                 <>
-                                   <span>{pendingReviewOption && !isSubmitter ? `Send Feedback & Submit ${pendingReviewOption}` : 'Send Message'}</span>
-                                   <ChevronRight className="w-4 h-4" />
-                                 </>
-                               )}
-                             </button>
-                             <div className="flex justify-center gap-2">
-                               <p className="text-[10px] text-center text-gray-400 font-medium">
-                                 Message will be sent to <b>{isSubmitter ? 'the reviewer' : (chatResponse.submittedBy || 'the submitter')}</b>
-                               </p>
-                             </div>
-                           </div>
-                         );
-                       })()}
-                    </div>
+                  </div>
                 </div>
               </div>
+              {/* Right Column: Chat history and input */}
+              <div className="flex-1 flex flex-col bg-white dark:bg-gray-900 border-t md:border-t-0 p-6 overflow-hidden">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+                    Message Center
+                  </h3>
+                  <div className="flex items-center gap-1.5 px-2 py-0.5 bg-green-100 dark:bg-green-900/30 rounded-full border border-green-200 dark:border-green-800">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-[10px] font-bold text-green-700 dark:text-green-400">Live Context</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 bg-gray-50 dark:bg-gray-800/20 rounded-2xl border border-gray-100 dark:border-gray-800 p-4 mb-4 overflow-y-auto space-y-4 flex flex-col scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
+                  {chatMessages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-gray-400 gap-3 opacity-50">
+                      <div className="p-4 bg-gray-100 dark:bg-gray-800 rounded-full ring-8 ring-gray-50 dark:ring-gray-900/50">
+                        <MessageCircle className="w-10 h-10" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-bold text-gray-600 dark:text-gray-300">No active conversation</p>
+                        <p className="text-xs">Send a message to start the thread.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, i) => (
+                      <div key={i} className={`flex flex-col ${String(msg.from?._id || msg.from) === String(user?._id || (user as any)?.id) ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                        <div className={`max-w-[90%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${String(msg.from?._id || msg.from) === String(user?._id || (user as any)?.id)
+                          ? 'bg-[#dcf8c6] text-gray-900 rounded-br-lg rounded-tr-lg rounded-tl-sm'
+                          : 'bg-white dark:bg-gray-100 text-gray-900 border border-gray-100 dark:border-gray-700 rounded-bl-lg rounded-tl-lg rounded-tr-sm'
+                          }`}>
+                          {msg.questionContexts && msg.questionContexts.length > 0 ? (
+                            <div className="space-y-3">
+                              {msg.questionContexts.map((ctx: any, idx: number) => (
+                                <div key={idx} className="space-y-2">
+                                  <p className="text-[12px] font-bold text-gray-500 dark:text-gray-400 border-b border-indigo-100 dark:border-indigo-800/50 pb-0.5">
+                                    {ctx.title}
+                                  </p>
+
+                                  {ctx.suggestion && (
+                                    <div className="mt-1 p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-100 dark:border-amber-800">
+                                      <p className="text-[10px] font-bold text-amber-600 uppercase mb-1">Review Feedback:</p>
+                                      {ctx.question ? (
+                                        <QuestionSuggestionRenderer
+                                          question={ctx.question}
+                                          value={ctx.suggestion}
+                                          currentAnswer={ctx.answer}
+                                          onChange={(newSuggestion) => {
+                                            // Update the suggestion in chatFilters
+                                            setChatFilters(prev => ({
+                                              ...prev,
+                                              suggestedAnswers: {
+                                                ...prev.suggestedAnswers,
+                                                [ctx.question.id]: newSuggestion
+                                              }
+                                            }));
+                                          }}
+                                        />
+                                      ) : (
+                                        // Fallback to read-only display if question data is missing
+                                        <div className="text-xs text-gray-600 dark:text-gray-400">
+                                          {renderAnswerDisplay(ctx.suggestion, { type: 'text' } as any)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : msg.questionTitles && msg.questionTitles.length > 0 && (
+                            <div className="mb-2 p-2 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100/50 dark:border-indigo-800/30">
+                              <p className="text-[10px] uppercase font-black text-indigo-500 dark:text-indigo-400 mb-1.5 flex items-center gap-1">
+                                <Filter className="w-2.5 h-2.5" />
+                                Linked Questions
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {msg.questionTitles.map((title: string, idx: number) => (
+                                  <span key={idx} className="px-1.5 py-0.5 bg-white dark:bg-gray-700 text-[9px] font-bold text-indigo-600 dark:text-indigo-300 rounded-md border border-indigo-100 dark:border-indigo-800">
+                                    {title}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {renderMessageWithImages(msg.message)}
+                        </div>
+                        <div className="flex items-center gap-1 mt-1.5 px-1 opacity-60">
+                          <span className="text-[9px] font-medium text-gray-500 dark:text-gray-400">
+                            {String(msg.from?._id || msg.from) === String(user?._id || (user as any)?.id) ? 'You' : (msg.from?.name || 'Inspector')} • {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {String(msg.from?._id || msg.from) !== String(user?._id || (user as any)?.id) && (
+                            <button
+                              onClick={() => {
+                                setNewMessage(`Replying to: "${msg.message.substring(0, 30)}..." \n`);
+                                const textarea = document.querySelector('textarea');
+                                if (textarea) textarea.focus();
+                              }}
+                              className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:underline ml-2 pointer-events-auto"
+                            >
+                              <Reply className="w-3 h-3" />
+                              Reply
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {(() => {
+                  const userEmail = user?.email || "";
+                  const userUsername = user?.username || "";
+                  const userIdStr = user?._id ? String(user._id) : (user?.id ? String(user.id) : "");
+                  const creatorId = typeof chatResponse?.createdBy === "object"
+                    ? (chatResponse.createdBy as any)?._id || (chatResponse.createdBy as any)?.id
+                    : chatResponse?.createdBy;
+                  const creatorIdStr = creatorId ? String(creatorId) : "";
+
+                  const isSubmitter = chatResponse?.submittedBy === userEmail ||
+                    chatResponse?.submittedBy === userUsername ||
+                    chatResponse?.submitterContact?.email === userEmail || (creatorIdStr && creatorIdStr === userIdStr);
+
+                  // For submitters, only show message input if no review option is pending
+                  if (isSubmitter && pendingReviewOption) {
+                    return null;
+                  }
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="relative">
+                        <textarea
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          placeholder={isSubmitter ? "Send a message..." : "Type your feedback to the inspector..."}
+                          className="w-full px-5 py-4 bg-gray-50 dark:bg-gray-800 border-2 border-transparent focus:border-indigo-500 dark:focus:border-indigo-400 rounded-2xl text-sm focus:ring-0 transition-all resize-none shadow-inner text-gray-800 dark:text-gray-200"
+                          rows={3}
+                        />
+                      </div>
+                      <button
+                        onClick={async () => {
+                          // If a Rejected/Rework review is pending and user is not submitter, send message + submit review together
+                          if (pendingReviewOption && !isSubmitter) {
+                            setPendingReviewOption(null); // Clear pending state immediately
+                            const reviewNote = newMessage.trim() || `Please review and correct the flagged questions (${pendingReviewOption}).`;
+                            await handleSendMessage(reviewNote);
+                            await handleReviewSubmit(chatResponse!.id, pendingReviewOption);
+                          } else {
+                            await handleSendMessage();
+                          }
+                        }}
+                        disabled={isSendingMessage || !newMessage.trim()}
+                        className={`w-full flex items-center justify-center gap-2 px-6 py-3.5 text-white text-sm font-black rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-xl ${pendingReviewOption && !isSubmitter
+                          ? (pendingReviewOption === 'Rejected'
+                            ? 'bg-red-600 hover:bg-red-700 shadow-red-200 dark:shadow-none'
+                            : 'bg-yellow-600 hover:bg-yellow-700 shadow-yellow-200 dark:shadow-none')
+                          : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200 dark:shadow-none'
+                          }`}
+                      >
+                        {isSendingMessage ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <span>{pendingReviewOption && !isSubmitter ? `Send Feedback & Submit ${pendingReviewOption}` : 'Send Message'}</span>
+                            <ChevronRight className="w-4 h-4" />
+                          </>
+                        )}
+                      </button>
+                      <div className="flex justify-center gap-2">
+                        <p className="text-[10px] text-center text-gray-400 font-medium">
+                          Message will be sent to <b>{isSubmitter ? 'the reviewer' : (chatResponse.submittedBy || 'the submitter')}</b>
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
+          </div>
+        </div>
       )}
     </div>
   );
