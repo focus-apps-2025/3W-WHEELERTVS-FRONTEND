@@ -1756,7 +1756,7 @@ if (typeof value === "object") {
     if (!availableSections.length || !selectedForm) return null;
 
     return (
-      <div className="sticky top-0 z-20 bg-white dark:bg-gray-900 border-b border-primary-200 shadow-sm mb-6">
+      <div className="sticky top-16 z-20 bg-white dark:bg-gray-900 border-b border-primary-200 shadow-sm mb-6">
         <div className="flex items-center gap-2 overflow-x-auto p-4">
           {availableSections.map((section: any) => {
             const sectionResponseCount =

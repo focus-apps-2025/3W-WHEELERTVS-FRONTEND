@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, useMap, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.heat";
-import { MapPin } from "lucide-react";
+import { MapPin, Users } from "lucide-react";
 import type { Response } from "../../types";
 
 interface LocationData {

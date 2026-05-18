@@ -7,7 +7,7 @@ import {
   exportFormAnalyticsToPDF,
 } from "../../utils/formanalyticsexport";
 import {
-  Users,
+  Users as UsersIcon,
   CheckCircle,
   Clock,
   XCircle,
@@ -35,7 +35,8 @@ import {
   Upload,
   ChevronDown,
   Camera,
-  Loader2
+  Loader2,
+  Maximize
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Pie, Doughnut, Radar } from "react-chartjs-2";
@@ -118,6 +119,12 @@ interface Response {
   createdBy?: string;
   isDispatched?: boolean;
   dispatchedAt?: string;
+  tenantId?: string;
+  submittedBy?: string;
+  timeSpent?: number;
+  submitterContact?: {
+    email?: string;
+  };
 }
 
 // Helper function to get the timestamp from response (handles both timestamp and createdAt)
@@ -1826,6 +1833,129 @@ const renderMessageWithImages = (message: string) => {
 
 export default function FormAnalyticsDashboard() {
   const [selectedForm, setSelectedForm] = useState<Form | null>(null);
+
+  const generateTableBarChart = (
+    yesPercent: number,
+    noPercent: number,
+    naPercent: number,
+  ) => {
+    const totalWidth = 160;
+    const yesWidth = (yesPercent / 100) * totalWidth;
+    const noWidth = (noPercent / 100) * totalWidth;
+    const naWidth = (naPercent / 100) * totalWidth;
+
+    return (
+      <div
+        className="relative"
+        style={{
+          width: `${totalWidth}px`,
+          height: "20px",
+        }}
+      >
+        <div className="absolute inset-0 bg-gray-100 dark:bg-gray-700 rounded-sm border border-gray-300 dark:border-gray-600"></div>
+
+        {yesPercent > 0 && (
+          <div
+            className="absolute left-0 h-full bg-green-500"
+            style={{ width: `${yesWidth}px` }}
+          >
+            {yesPercent >= 10 && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span
+                  className="text-xs font-bold text-white"
+                  style={{
+                    textShadow: "0 0 2px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  {yesPercent.toFixed(0)}%
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {noPercent > 0 && (
+          <div
+            className="absolute h-full bg-red-500"
+            style={{
+              left: `${yesWidth}px`,
+              width: `${noWidth}px`,
+            }}
+          >
+            {noPercent >= 10 && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span
+                  className="text-xs font-bold text-white"
+                  style={{
+                    textShadow: "0 0 2px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  {noPercent.toFixed(0)}%
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {naPercent > 0 && (
+          <div
+            className="absolute h-full bg-gray-400"
+            style={{
+              left: `${yesWidth + noWidth}px`,
+              width: `${naWidth}px`,
+            }}
+          >
+            {naPercent >= 10 && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span
+                  className="text-xs font-bold text-white"
+                  style={{
+                    textShadow: "0 0 2px rgba(0,0,0,0.5)",
+                  }}
+                >
+                  {naPercent.toFixed(0)}%
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {yesPercent > 0 && yesPercent < 10 && (
+          <div className="absolute" style={{ left: "2px", top: "1px" }}>
+            <span className="text-[9px] font-bold text-green-700 bg-white/80 px-0.5 rounded">
+              {yesPercent.toFixed(0)}%
+            </span>
+          </div>
+        )}
+        {noPercent > 0 && noPercent < 10 && (
+          <div
+            className="absolute"
+            style={{
+              left: `${yesWidth + 2}px`,
+              top: "1px",
+            }}
+          >
+            <span className="text-[9px] font-bold text-red-700 bg-white/80 px-0.5 rounded">
+              {noPercent.toFixed(0)}%
+            </span>
+          </div>
+        )}
+        {naPercent > 0 && naPercent < 10 && (
+          <div
+            className="absolute"
+            style={{
+              left: `${yesWidth + noWidth + 2}px`,
+              top: "1px",
+            }}
+          >
+            <span className="text-[9px] font-bold text-gray-700 bg-white/80 px-0.5 rounded">
+              {naPercent.toFixed(0)}%
+            </span>
+          </div>
+        )}
+      </div>
+    );
+  };
   const [selectedQuestionIndex, setSelectedQuestionIndex] = useState<number | null>(null);
   const { darkMode } = useTheme();
   const { user } = useAuth();
@@ -2010,7 +2140,6 @@ export default function FormAnalyticsDashboard() {
   const [selectedQuestion, setSelectedQuestion] = useState<any>(null);
   const [filterValues, setFilterValues] = useState<string[]>([]);
   const [selectedAnswers, setSelectedAnswers] = useState<string[]>([]);
-  const [showTableActions, setShowTableActions] = useState(false);
 
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showSectionSelector, setShowSectionSelector] = useState(false);
@@ -5885,7 +6014,7 @@ const fetchChatHistory = async (responseId: string) => {
                 : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
                 }`}
             >
-              <Users className="w-4 h-4" />
+              <UsersIcon className="w-4 h-4" />
               Responses
             </button>
             {/* {!isInspector && !isGuest && (
@@ -5897,7 +6026,7 @@ const fetchChatHistory = async (responseId: string) => {
                     : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
                 }`}
               >
-                <Users className="w-4 h-4" />
+                <UsersIcon className="w-4 h-4" />
                 Comparison
               </button>
             )} */}
@@ -5906,7 +6035,7 @@ const fetchChatHistory = async (responseId: string) => {
           {/* Right Side - Count and Actions */}
           <div className="flex items-center gap-2 sm:gap-3 whitespace-nowrap w-full lg:w-auto justify-between lg:justify-end">
             <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
+              <UsersIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
               <div className="text-right">
                 <div className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
                   {analytics.total}
@@ -6168,30 +6297,38 @@ const fetchChatHistory = async (responseId: string) => {
                 <>
                   <div className="card p-3 sm:p-4 space-y-3">
                     {/* Header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <PieChart className="w-5 h-5 text-indigo-600" />
-                        Section Summary
-                      </h3>
-                      <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gray-50/50 dark:bg-gray-800/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/40 rounded-lg">
+                          <PieChart className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">
+                            Section Summary
+                          </h3>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Section-wise performance breakdown</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-3">
                         {/* Section Date Filters */}
-                        <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 p-1 rounded border border-gray-200 dark:border-gray-700">
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">From:</span>
+                        <div className="flex items-center gap-2 bg-white dark:bg-gray-900 p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+                          <div className="flex items-center gap-1.5 px-2 border-r border-gray-100 dark:border-gray-800">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">From</span>
                             <input
                               type="date"
                               value={sectionStartDate}
                               onChange={(e) => setSectionStartDate(e.target.value)}
-                              className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                              className="text-xs font-bold bg-transparent outline-none text-gray-700 dark:text-gray-200"
                             />
                           </div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase">To:</span>
+                          <div className="flex items-center gap-1.5 px-2">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">To</span>
                             <input
                               type="date"
                               value={sectionEndDate}
                               onChange={(e) => setSectionEndDate(e.target.value)}
-                              className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 dark:text-slate-200"
+                              className="text-xs font-bold bg-transparent outline-none text-gray-700 dark:text-gray-200"
                             />
                           </div>
                         </div>
@@ -6202,94 +6339,83 @@ const fetchChatHistory = async (responseId: string) => {
                             onClick={() =>
                               setShowSectionSelector(!showSectionSelector)
                             }
-                            className="flex items-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-medium bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded border border-indigo-200 dark:border-indigo-700 transition-colors"
+                            className="flex items-center gap-2 px-4 py-2 text-xs font-bold bg-white dark:bg-gray-900 text-indigo-600 dark:text-indigo-400 rounded-lg border-2 border-indigo-100 dark:border-indigo-900/50 hover:border-indigo-500 transition-all shadow-sm"
                           >
-                            <svg
-                              className="w-3.5 h-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 13l-7 7-7-7m0-6l7-7 7 7"
-                              />
-                            </svg>
+                            <Filter className="w-3.5 h-3.5" />
                             Sections ({selectedSectionIds.length})
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showSectionSelector ? 'rotate-180' : ''}`} />
                           </button>
 
                           {showSectionSelector && (
-                            <div className="absolute top-full right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-10 min-w-[200px] max-h-64 overflow-y-auto">
-                              {/* Select All Option */}
-                              <label className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-700">
-                                <input
-                                  type="checkbox"
-                                  checked={
-                                    selectedSectionIds.length ===
-                                    filteredSectionStats.length &&
-                                    filteredSectionStats.length > 0
-                                  }
-                                  onChange={handleSelectAllSections}
-                                  className="w-4 h-4 rounded border-gray-300 text-indigo-600 cursor-pointer"
-                                />
-                                <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                                  Select All
-                                </span>
-                              </label>
+                            <div className="absolute top-full right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-[60] min-w-[240px] max-h-80 overflow-y-auto animate-in slide-in-from-top-2 duration-200">
+                              <div className="sticky top-0 bg-gray-50 dark:bg-gray-900 p-2 border-b border-gray-100 dark:border-gray-800 z-10">
+                                <label className="flex items-center gap-3 px-3 py-2 hover:bg-white dark:hover:bg-gray-800 rounded-lg cursor-pointer transition-colors">
+                                  <input
+                                    type="checkbox"
+                                    checked={
+                                      selectedSectionIds.length ===
+                                      filteredSectionStats.length &&
+                                      filteredSectionStats.length > 0
+                                    }
+                                    onChange={handleSelectAllSections}
+                                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                  />
+                                  <span className="text-sm font-bold text-gray-900 dark:text-white">
+                                    Select All Sections
+                                  </span>
+                                </label>
+                              </div>
 
-                              {/* Section Checkboxes */}
-                              {filteredSectionStats.map((stat) => {
-                                const selected = selectedSectionIds.includes(
-                                  stat.id,
-                                );
-                                return (
-                                  <label
-                                    key={stat.id}
-                                    className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-700 last:border-0 text-sm"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={selected}
-                                      onChange={() =>
-                                        toggleSectionSelection(stat.id)
-                                      }
-                                      className="w-4 h-4 rounded border-gray-300 text-indigo-600 cursor-pointer"
-                                    />
-                                    <span className="text-gray-900 dark:text-gray-300 truncate">
-                                      {stat.title}
-                                    </span>
-                                  </label>
-                                );
-                              })}
+                              <div className="p-1">
+                                {filteredSectionStats.map((stat) => {
+                                  const selected = selectedSectionIds.includes(
+                                    stat.id,
+                                  );
+                                  return (
+                                    <label
+                                      key={stat.id}
+                                      className={`flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg cursor-pointer transition-colors ${selected ? 'bg-indigo-50/30 dark:bg-indigo-900/10' : ''}`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={selected}
+                                        onChange={() =>
+                                          toggleSectionSelection(stat.id)
+                                        }
+                                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                      />
+                                      <span className={`text-sm ${selected ? 'font-bold text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                                        {stat.title}
+                                      </span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
                             </div>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Color Legend with Controls */}
-                    <div className="flex flex-wrap items-center justify-between gap-2 p-2 bg-gray-50 dark:bg-gray-800/50 rounded border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center gap-3 text-[10px] sm:text-xs">
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-green-500 rounded"></div>
-                          <span className="text-gray-600 dark:text-gray-400">
-                            {complianceLabels.yes}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-red-500 rounded"></div>
-                          <span className="text-gray-600 dark:text-gray-400">
-                            {complianceLabels.no}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded"></div>
-                          <span className="text-gray-600 dark:text-gray-400">
-                            {complianceLabels.na}
-                          </span>
-                        </div>
+                    {/* Color Legend */}
+                    <div className="flex flex-wrap items-center gap-6 px-4 py-2 border-b border-gray-100 dark:border-gray-800">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]"></div>
+                        <span className="text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                          {complianceLabels.yes}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.4)]"></div>
+                        <span className="text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                          {complianceLabels.no}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 bg-gray-400 rounded-full shadow-[0_0_8px_rgba(156,163,175,0.4)]"></div>
+                        <span className="text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
+                          {complianceLabels.na}
+                        </span>
                       </div>
                     </div>
 
@@ -6298,320 +6424,219 @@ const fetchChatHistory = async (responseId: string) => {
                       {/* Table Container - Always shrinks for radar chart */}
                       <div className="flex-1 min-w-0">
                         <div className="overflow-x-auto no-scrollbar rounded-lg border border-gray-200 dark:border-gray-700">
-                          <table className="min-w-full text-xs sm:text-sm">
-                            <thead className="uppercase tracking-wider text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 sticky top-0">
-                              <tr>
-                                <th className="text-left px-3 sm:px-4 py-3">Section</th>
-                                <th className="text-center px-2 sm:px-3 py-3">Total</th>
-                                <th className="text-center px-2 sm:px-3 py-3">
+                          <table className="min-w-full text-xs sm:text-sm border-collapse">
+                            <thead className="uppercase tracking-wider text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 z-20">
+                              <tr className="bg-gray-200 dark:bg-gray-800">
+                                <th rowSpan={2} className="text-left px-4 py-3 border border-gray-300 dark:border-gray-600 min-w-[250px] font-bold">Section Summary</th>
+                                <th rowSpan={2} className="text-center px-3 py-3 border border-gray-300 dark:border-gray-600 font-bold">Total</th>
+                                <th colSpan={3} className="text-center px-3 py-2 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 font-bold">
+                                  Section Performance Breakdown
+                                </th>
+                                <th rowSpan={2} className="text-center px-4 py-3 border border-gray-300 dark:border-gray-600 font-bold">Visualization</th>
+                              </tr>
+                              <tr className="bg-gray-100 dark:bg-gray-700/50">
+                                <th className="text-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-green-700 dark:text-green-400 font-bold">
                                   {complianceLabels.yes}
                                 </th>
-                                <th className="text-center px-2 sm:px-3 py-3">
+                                <th className="text-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-red-700 dark:text-red-400 font-bold">
                                   {complianceLabels.no}
                                 </th>
-                                <th className="text-center px-2 sm:px-3 py-3">
+                                <th className="text-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-slate-700 dark:text-slate-400 font-bold">
                                   {complianceLabels.na}
                                 </th>
                               </tr>
                             </thead>
                             <tbody>
-                              {sectionSummaryRows.map((row, index) => {
-                                const rowBgColor =
-                                  index % 2 === 0
-                                    ? "bg-white dark:bg-gray-900"
-                                    : "bg-gray-50 dark:bg-gray-800/50";
-
-                                const generateTableBarChart = (
-                                  yesPercent: number,
-                                  noPercent: number,
-                                  naPercent: number,
-                                ) => {
-                                  const totalWidth = 160;
-                                  const yesWidth =
-                                    (yesPercent / 100) * totalWidth;
-                                  const noWidth =
-                                    (noPercent / 100) * totalWidth;
-                                  const naWidth =
-                                    (naPercent / 100) * totalWidth;
-
-                                  return (
-                                    <div
-                                      className="relative"
-                                      style={{
-                                        width: `${totalWidth}px`,
-                                        height: "20px",
-                                      }}
-                                    >
-                                      {/* Background bar */}
-                                      <div className="absolute inset-0 bg-gray-100 dark:bg-gray-700 rounded-sm border border-gray-300 dark:border-gray-600"></div>
-
-                                      {/* Yes segment */}
-                                      {yesPercent > 0 && (
-                                        <div
-                                          className="absolute left-0 h-full bg-green-500"
-                                          style={{ width: `${yesWidth}px` }}
-                                        >
-                                          {yesPercent >= 10 && (
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                              <span
-                                                className="text-xs font-bold text-white"
-                                                style={{
-                                                  textShadow:
-                                                    "0 0 2px rgba(0,0,0,0.5)",
-                                                }}
-                                              >
-                                                {yesPercent.toFixed(0)}%
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {/* No segment */}
-                                      {noPercent > 0 && (
-                                        <div
-                                          className="absolute h-full bg-red-500"
-                                          style={{
-                                            left: `${yesWidth}px`,
-                                            width: `${noWidth}px`,
-                                          }}
-                                        >
-                                          {noPercent >= 10 && (
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                              <span
-                                                className="text-xs font-bold text-white"
-                                                style={{
-                                                  textShadow:
-                                                    "0 0 2px rgba(0,0,0,0.5)",
-                                                }}
-                                              >
-                                                {noPercent.toFixed(0)}%
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {/* N/A segment */}
-                                      {naPercent > 0 && (
-                                        <div
-                                          className="absolute h-full bg-gray-400"
-                                          style={{
-                                            left: `${yesWidth + noWidth}px`,
-                                            width: `${naWidth}px`,
-                                          }}
-                                        >
-                                          {naPercent >= 10 && (
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                              <span
-                                                className="text-xs font-bold text-white"
-                                                style={{
-                                                  textShadow:
-                                                    "0 0 2px rgba(0,0,0,0.5)",
-                                                }}
-                                              >
-                                                {naPercent.toFixed(0)}%
-                                              </span>
-                                            </div>
-                                          )}
-                                        </div>
-                                      )}
-
-                                      {/* Fallback labels for small segments */}
-                                      {yesPercent > 0 && yesPercent < 10 && (
-                                        <div
-                                          className="absolute"
-                                          style={{ left: "2px", top: "1px" }}
-                                        >
-                                          <span className="text-[9px] font-bold text-green-700 bg-white/80 px-0.5 rounded">
-                                            {yesPercent.toFixed(0)}%
-                                          </span>
-                                        </div>
-                                      )}
-                                      {noPercent > 0 && noPercent < 10 && (
-                                        <div
-                                          className="absolute"
-                                          style={{
-                                            left: `${yesWidth + 2}px`,
-                                            top: "1px",
-                                          }}
-                                        >
-                                          <span className="text-[9px] font-bold text-red-700 bg-white/80 px-0.5 rounded">
-                                            {noPercent.toFixed(0)}%
-                                          </span>
-                                        </div>
-                                      )}
-                                      {naPercent > 0 && naPercent < 10 && (
-                                        <div
-                                          className="absolute"
-                                          style={{
-                                            left: `${yesWidth + noWidth + 2}px`,
-                                            top: "1px",
-                                          }}
-                                        >
-                                          <span className="text-[9px] font-bold text-gray-700 bg-white/80 px-0.5 rounded">
-                                            {naPercent.toFixed(0)}%
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                };
-
+                              {(() => {
                                 return (
-                                  <tr
-                                    key={row.id}
-                                    onClick={() => {
-                                      setAutoOpenSectionId(null);
-                                      setTimeout(
-                                        () => setAutoOpenSectionId(row.id),
-                                        10,
+                                  <>
+                                    {sectionSummaryRows.map((row, index) => {
+                                      const rowBgColor =
+                                        index % 2 === 0
+                                          ? "bg-white dark:bg-gray-900"
+                                          : "bg-gray-50 dark:bg-gray-800/50";
+
+                                      return (
+                                        <tr
+                                          key={row.id}
+                                          onClick={() => {
+                                            setAutoOpenSectionId(null);
+                                            setTimeout(
+                                              () => setAutoOpenSectionId(row.id),
+                                              10,
+                                            );
+                                          }}
+                                          className={`border-b border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${rowBgColor}`}
+                                        >
+                                          {/* Section Column */}
+                                          <td className="px-4 py-3 cursor-pointer border border-gray-300 dark:border-gray-600">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setAutoOpenSectionId(null);
+                                                setTimeout(
+                                                  () =>
+                                                    setAutoOpenSectionId(row.id),
+                                                  10,
+                                                );
+                                              }}
+                                              className="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm transition-colors text-left"
+                                            >
+                                              {row.title}
+                                            </button>
+                                          </td>
+
+                                          {/* Total Column */}
+                                          <td className="text-center px-3 py-3 border border-gray-300 dark:border-gray-600">
+                                            <div className="font-bold text-gray-900 dark:text-white text-sm">
+                                              {row.total}
+                                            </div>
+                                          </td>
+
+                                          {/* Yes Column */}
+                                          <td className="text-center px-3 py-3 border border-gray-300 dark:border-gray-600">
+                                            <div className="font-bold text-green-700 dark:text-green-400 text-sm">
+                                              {row.yesCount}{" "}
+                                              <span className="text-gray-500 dark:text-gray-400 font-medium">
+                                                (
+                                                {Number.isFinite(row.yesPercent)
+                                                  ? row.yesPercent.toFixed(0)
+                                                  : "0"}
+                                                %)
+                                              </span>
+                                            </div>
+                                          </td>
+
+                                          {/* No Column */}
+                                          <td className="text-center px-3 py-3 border-x border-gray-300 dark:border-gray-600">
+                                            <div className="font-bold text-red-700 dark:text-red-400 text-sm">
+                                              {row.noCount}{" "}
+                                              <span className="text-gray-500 dark:text-gray-400 font-medium">
+                                                (
+                                                {Number.isFinite(row.noPercent)
+                                                  ? row.noPercent.toFixed(0)
+                                                  : "0"}
+                                                %)
+                                              </span>
+                                            </div>
+                                          </td>
+
+                                          {/* N/A Column */}
+                                          <td className="text-center px-3 py-3 border-x border-gray-300 dark:border-gray-600">
+                                            <div className="font-bold text-slate-700 dark:text-slate-400 text-sm">
+                                              {row.naCount}{" "}
+                                              <span className="text-gray-500 dark:text-gray-400 font-medium">
+                                                (
+                                                {Number.isFinite(row.naPercent)
+                                                  ? row.naPercent.toFixed(0)
+                                                  : "0"}
+                                                %)
+                                              </span>
+                                            </div>
+                                          </td>
+
+                                          {/* Visualization Column */}
+                                          <td className="px-3 py-3 border-x border-gray-300 dark:border-gray-600">
+                                            <div className="flex justify-center">
+                                              {generateTableBarChart(
+                                                row.yesPercent,
+                                                row.noPercent,
+                                                row.naPercent,
+                                              )}
+                                            </div>
+                                          </td>
+                                        </tr>
                                       );
-                                    }}
-                                    className={`border-t border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${rowBgColor}`}
-                                  >
-                                    {/* Section Column */}
-                                    <td className="px-4 py-2.5 cursor-pointer">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setAutoOpenSectionId(null);
-                                          setTimeout(
-                                            () =>
-                                              setAutoOpenSectionId(row.id),
-                                            10,
-                                          );
-                                        }}
-                                        className="font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm truncate max-w-[150px] transition-colors text-left"
-                                      >
-                                        {row.title}
-                                      </button>
-                                    </td>
+                                    })}
 
-                                    {/* Total Column */}
-                                    <td className="text-center px-3 py-2.5">
-                                      <div className="font-semibold text-blue-600 dark:text-blue-400 text-sm">
-                                        {row.total}
-                                      </div>
-                                    </td>
-
-                                    {/* Yes Column */}
-                                    <td className="text-center px-3 py-2.5">
-                                      <div className="font-semibold text-green-600 dark:text-green-400 text-sm">
-                                        {row.yesCount}{" "}
-                                        <span className="text-gray-600 dark:text-gray-400">
-                                          (
-                                          {Number.isFinite(row.yesPercent)
-                                            ? row.yesPercent.toFixed(0)
-                                            : "0"}
-                                          %)
-                                        </span>
-                                      </div>
-                                    </td>
-
-                                    {/* No Column */}
-                                    <td className="text-center px-3 py-2.5">
-                                      <div className="font-semibold text-red-600 dark:text-red-400 text-sm">
-                                        {row.noCount}{" "}
-                                        <span className="text-gray-600 dark:text-gray-400">
-                                          (
-                                          {Number.isFinite(row.noPercent)
-                                            ? row.noPercent.toFixed(0)
-                                            : "0"}
-                                          %)
-                                        </span>
-                                      </div>
-                                    </td>
-
-                                    {/* N/A Column */}
-                                    <td className="text-center px-3 py-2.5">
-                                      <div className="font-semibold text-slate-600 dark:text-slate-400 text-sm">
-                                        {row.naCount}{" "}
-                                        <span className="text-gray-600 dark:text-gray-400">
-                                          (
-                                          {Number.isFinite(row.naPercent)
-                                            ? row.naPercent.toFixed(0)
-                                            : "0"}
-                                          %)
-                                        </span>
-                                      </div>
-                                    </td>
-
-                                  </tr>
+                                    {/* Comprehensive Total Row */}
+                                    <tr className="bg-gray-100 dark:bg-gray-800 font-extrabold border-t-2 border-gray-400 dark:border-gray-500">
+                                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100 border-x border-gray-300 dark:border-gray-600">
+                                        <div className="flex items-center">
+                                          <div className="w-3 h-3 bg-indigo-600 rounded-full mr-3"></div>
+                                          <span>TOTAL</span>
+                                        </div>
+                                      </td>
+                                      <td className="text-center px-3 py-3 text-gray-900 dark:text-gray-100 border-x border-gray-300 dark:border-gray-600">
+                                        {summaryTotals?.total || 0}
+                                      </td>
+                                      <td className="text-center px-3 py-3 text-green-700 dark:text-green-400 border-x border-gray-300 dark:border-gray-600">
+                                        {summaryTotals?.yesCount || 0} (
+                                        {summaryTotals?.total > 0
+                                          ? (
+                                            (summaryTotals.yesCount /
+                                              summaryTotals.total) *
+                                            100
+                                          ).toFixed(0)
+                                          : 0}
+                                        %)
+                                      </td>
+                                      <td className="text-center px-3 py-3 text-red-700 dark:text-red-400 border-x border-gray-300 dark:border-gray-600">
+                                        {summaryTotals?.noCount || 0} (
+                                        {summaryTotals?.total > 0
+                                          ? (
+                                            (summaryTotals.noCount /
+                                              summaryTotals.total) *
+                                            100
+                                          ).toFixed(0)
+                                          : 0}
+                                        %)
+                                      </td>
+                                      <td className="text-center px-3 py-3 text-slate-700 dark:text-slate-400 border-x border-gray-300 dark:border-gray-600">
+                                        {summaryTotals?.naCount || 0} (
+                                        {summaryTotals?.total > 0
+                                          ? (
+                                            (summaryTotals.naCount /
+                                              summaryTotals.total) *
+                                            100
+                                          ).toFixed(0)
+                                          : 0}
+                                        %)
+                                      </td>
+                                      <td className="px-3 py-3 border-x border-gray-300 dark:border-gray-600">
+                                        <div className="flex justify-center">
+                                          {generateTableBarChart(
+                                            summaryTotals.total > 0 ? (summaryTotals.yesCount / summaryTotals.total) * 100 : 0,
+                                            summaryTotals.total > 0 ? (summaryTotals.noCount / summaryTotals.total) * 100 : 0,
+                                            summaryTotals.total > 0 ? (summaryTotals.naCount / summaryTotals.total) * 100 : 0
+                                          )}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  </>
                                 );
-                              })}
-
-                              {/* Comprehensive Total Row */}
-                              <tr className="bg-gray-100 dark:bg-gray-800 font-bold border-t-2 border-gray-300 dark:border-gray-600">
-                                <td className="px-4 py-3 font-bold text-gray-900 dark:text-gray-100 flex items-center">
-                                  <div className="w-3 h-3 bg-indigo-600 rounded-full mr-3"></div>
-                                  <span>TOTAL</span>
-                                </td>
-                                <td className="text-center px-3 py-2.5 text-gray-900 dark:text-gray-100 font-bold">
-                                  {summaryTotals?.total || 0}
-                                </td>
-                                <td className="text-center px-3 py-2.5 text-green-600 dark:text-green-400 font-bold">
-                                  {summaryTotals?.yesCount || 0} (
-                                  {summaryTotals?.total > 0
-                                    ? (
-                                      (summaryTotals.yesCount /
-                                        summaryTotals.total) *
-                                      100
-                                    ).toFixed(0)
-                                    : 0}
-                                  %)
-                                </td>
-                                <td className="text-center px-3 py-2.5 text-red-600 dark:text-red-400 font-bold">
-                                  {summaryTotals?.noCount || 0} (
-                                  {summaryTotals?.total > 0
-                                    ? (
-                                      (summaryTotals.noCount /
-                                        summaryTotals.total) *
-                                      100
-                                    ).toFixed(0)
-                                    : 0}
-                                  %)
-                                </td>
-                                <td className="text-center px-3 py-2.5 text-slate-600 dark:text-slate-400 font-bold">
-                                  {summaryTotals?.naCount || 0} (
-                                  {summaryTotals?.total > 0
-                                    ? (
-                                      (summaryTotals.naCount /
-                                        summaryTotals.total) *
-                                      100
-                                    ).toFixed(0)
-                                    : 0}
-                                  %)
-                                </td>
-                              </tr>
+                              })()}
                             </tbody>
                           </table>
                         </div>
                       </div>
 
                       {/* Radar Chart - Always displayed on right side */}
-                      <div className="w-full lg:w-96 flex-shrink-0">
-                        <div className="card p-4 sm:p-6 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-lg h-full">
+                      <div className="w-full lg:w-[450px] flex-shrink-0">
+                        <div className="bg-white dark:bg-gray-800/40 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md h-full">
                           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-2">
-                            <h4 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
-                              Performance Radar
-                            </h4>
+                            <div>
+                              <h4 className="text-base font-bold text-gray-900 dark:text-white uppercase tracking-tight">
+                                Performance Radar
+                              </h4>
+                              <p className="text-[10px] text-gray-500 font-medium">Comparative section analysis</p>
+                            </div>
                             <div className="flex flex-wrap items-center gap-2">
                               <div className="flex items-center gap-1">
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <span className="text-[10px] text-gray-600 dark:text-gray-400">
+                                <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                                <span className="text-[9px] font-bold text-gray-500 uppercase">
                                   {complianceLabels.yes}
                                 </span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                <span className="text-[10px] text-gray-600 dark:text-gray-400">
+                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
+                                <span className="text-[9px] font-bold text-gray-500 uppercase">
                                   {complianceLabels.no}
                                 </span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                                <span className="text-[10px] text-gray-600 dark:text-gray-400">
+                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>
+                                <span className="text-[9px] font-bold text-gray-500 uppercase">
                                   {complianceLabels.na}
                                 </span>
                               </div>
@@ -7511,31 +7536,7 @@ const fetchChatHistory = async (responseId: string) => {
 
                     <div className="overflow-x-auto no-scrollbar rounded-xl border border-gray-200 dark:border-gray-700">
                       <table className="text-xs border-collapse w-full">
-                        <thead className="sticky top-0 z-10">
-                          <tr className="bg-gray-100 dark:bg-gray-800">
-                            <th className="hidden sm:table-cell px-3 py-3 border-b border-r border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800"></th>
-                            <th colSpan={8} className="px-6 py-3 text-center font-bold text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
-                              METADATA
-                            </th>
-                            {form?.sections?.map((section: Section) => {
-                              const sectionQuestionsCount =
-                                section.questions?.length || 0;
-                              return (
-                                selectedResponsesSectionIds.includes(
-                                  section.id,
-                                ) && (
-                                  <td
-                                    key={`header-${section.id}`}
-                                    colSpan={sectionQuestionsCount}
-                                    className="px-6 py-3 text-center font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-700"
-                                  >
-                                    {section.title}
-                                  </td>
-                                )
-                              );
-                            })}
-                          </tr>
-
+                        <thead className="sticky top-16 z-20">
                           <tr className="bg-gray-100 dark:bg-gray-800">
                             <th className="hidden sm:table-cell sticky left-0 z-20 text-center px-3 py-3 font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800">
                               <input
@@ -7557,17 +7558,8 @@ const fetchChatHistory = async (responseId: string) => {
                                 className="w-4 h-4 text-indigo-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-indigo-600"
                               />
                             </th>
-                            <th className={`sticky left-0 sm:left-12 z-20 text-center px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-100 dark:bg-gray-800 transition-all duration-300 ${showTableActions ? "min-w-[100px]" : "min-w-[50px] w-[50px]"}`}>
-                              <div className="flex items-center justify-center gap-2">
-                                {showTableActions && <span>Actions</span>}
-                                <button 
-                                  onClick={() => setShowTableActions(!showTableActions)}
-                                  className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
-                                  title={showTableActions ? "Collapse" : "Expand"}
-                                >
-                                  {showTableActions ? <ChevronDown className="w-4 h-4 rotate-90" /> : <MoreHorizontal className="w-4 h-4" />}
-                                </button>
-                              </div>
+                            <th className="sticky left-0 sm:left-12 z-20 text-center px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-100 dark:bg-gray-800 min-w-[120px]">
+                              <span>Actions</span>
                             </th>
                             <th className="text-center px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-24 whitespace-nowrap bg-gray-100 dark:bg-gray-800">
                               Dispatch
@@ -7639,11 +7631,11 @@ const fetchChatHistory = async (responseId: string) => {
                           {/* Common Answer Row */}
                           <tr className="bg-amber-50 dark:bg-amber-900/20 border-b-2 border-amber-200 dark:border-amber-800">
                             <td className="hidden sm:table-cell px-3 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
-                            <td className={`px-4 py-3 border border-gray-200 dark:border-gray-700 sticky left-0 sm:left-12 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase transition-all duration-300 ${showTableActions ? "" : "invisible w-0 p-0 overflow-hidden"}`}>
-                              {showTableActions && "Actions"}
+                            <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 sticky left-0 sm:left-12 z-20 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">
+                              Actions
                             </td>
                             <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/20 font-bold text-amber-800 dark:text-amber-200 text-xs uppercase">
-                              Expected Answer
+                              Expected Answers
                             </td>
                             <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
                             <td className="px-6 py-3 border border-gray-200 dark:border-gray-700 bg-amber-50/50 dark:bg-amber-900/10"></td>
@@ -7721,18 +7713,103 @@ const fetchChatHistory = async (responseId: string) => {
                                     />
                                   </td>
                                   <td
-                                    className={`px-4 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 sm:left-12 z-20 transition-all duration-300 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"} ${showTableActions ? "" : "w-[50px]"}`}
+                                    className={`px-4 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap sticky left-0 sm:left-12 z-20 transition-all duration-300 ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
                                   >
-                                    <button
-                                      onClick={() => {
-                                        setActionResponse(response);
-                                        setShowActionMenuModal(true);
-                                      }}
-                                      className="p-2 text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full transition-all duration-200 shadow-sm border border-gray-200 dark:border-gray-700 active:scale-95"
-                                      title="Response Actions"
-                                    >
-                                      <MoreHorizontal className="w-5 h-5" />
-                                    </button>
+                                    <div className="flex items-center gap-1.5 justify-center">
+                                      {editingResponseId === response.id ? (
+                                        <>
+                                          <button
+                                            onClick={handleSaveEdit}
+                                            disabled={isSaving}
+                                            title="Save Response"
+                                            className="p-1 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors disabled:opacity-50"
+                                          >
+                                            <CheckCircle className="w-4 h-4" />
+                                          </button>
+                                          <button
+                                            onClick={handleCancelEdit}
+                                            disabled={isSaving}
+                                            title="Cancel"
+                                            className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                                          >
+                                            <XCircle className="w-4 h-4" />
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <>
+                                          {/* Focus It */}
+                                          <button
+                                            onClick={() => handleOpenModal(response)}
+                                            className="p-1.5 text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                                            title="Focus It"
+                                          >
+                                            <Maximize className="w-4 h-4" />
+                                          </button>
+
+                                          {(() => {
+                                            const responseTenantId = response.tenantId;
+                                            const currentUserTenantId = user?.tenantId;
+                                            const isOwnTenant = user?.role === 'superadmin' || 
+                                              !responseTenantId || 
+                                              (currentUserTenantId && responseTenantId.toString() === currentUserTenantId.toString());
+                                            
+                                            return (
+                                              <>
+                                                {/* View Details */}
+                                                {isOwnTenant && (
+                                                  <button
+                                                    onClick={() => handleViewDetails(response)}
+                                                    className="p-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-all"
+                                                    title="View Full Details"
+                                                  >
+                                                    <Eye className="w-4 h-4" />
+                                                  </button>
+                                                )}
+
+                                                {/* Review & Discussion */}
+                                                {response.isDispatched && (
+                                                  <button
+                                                    onClick={() => {
+                                                      setChatResponse(response);
+                                                      setShowChatModal(true);
+                                                      setSelectedReviewOptions(prev => ({ ...prev, [response.id]: '' }));
+                                                      setReviewedBy(prev => ({ ...prev, [response.id]: null }));
+                                                    }}
+                                                    className="p-1.5 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all"
+                                                    title="Review & Discussion"
+                                                  >
+                                                    <MessageCircle className="w-4 h-4" />
+                                                  </button>
+                                                )}
+
+                                                {/* Edit & Delete - Admin only */}
+                                                {!isGuest && (user?.role === "superadmin" || user?.role === "admin") && isOwnTenant && (
+                                                  <>
+                                                    <button
+                                                      onClick={() => handleEditStart(response)}
+                                                      className="p-1.5 text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-lg transition-all"
+                                                      title="Edit Response"
+                                                    >
+                                                      <Edit className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                      onClick={() => {
+                                                        setDeletingResponseId(response.id);
+                                                        setShowDeleteConfirm(true);
+                                                      }}
+                                                      className="p-1.5 text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                                                      title="Delete Response"
+                                                    >
+                                                      <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                  </>
+                                                )}
+                                              </>
+                                            );
+                                          })()}
+                                        </>
+                                      )}
+                                    </div>
                                   </td>
                                   <td
                                     className={`px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap ${editingResponseId === response.id ? "bg-blue-50 dark:bg-blue-900/20" : idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50 dark:bg-gray-800/50"}`}
@@ -8301,7 +8378,7 @@ const fetchChatHistory = async (responseId: string) => {
                   if (last5.length === 0) {
                     return (
                       <div className="col-span-full flex flex-col items-center justify-center min-h-64 py-12">
-                        <Users className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" />
+                        <UsersIcon className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" />
                         <p className="text-gray-600 dark:text-gray-400 font-medium">
                           No responses to compare
                         </p>
@@ -8649,7 +8726,7 @@ const fetchChatHistory = async (responseId: string) => {
               <div className="card p-6">
                 {filteredResponses.length === 0 ? (
                   <div className="flex flex-col items-center justify-center min-h-96 py-12">
-                    <Users className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" />
+                    <UsersIcon className="w-12 h-12 text-gray-300 dark:text-gray-600 mb-4" />
                     <p className="text-gray-600 dark:text-gray-400 font-medium">
                       No responses to compare
                     </p>
@@ -8904,7 +8981,7 @@ const fetchChatHistory = async (responseId: string) => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="p-4 space-y-2">
               <div className="px-2 py-1 mb-2">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Selected Response</p>
@@ -8916,12 +8993,26 @@ const fetchChatHistory = async (responseId: string) => {
               {(() => {
                 const responseTenantId = actionResponse.tenantId;
                 const currentUserTenantId = user?.tenantId;
-                const isOwnTenant = user?.role === 'superadmin' || 
-                  !responseTenantId || 
+                const isOwnTenant = user?.role === 'superadmin' ||
+                  !responseTenantId ||
                   (currentUserTenantId && responseTenantId.toString() === currentUserTenantId.toString());
-                
+
                 return (
                   <>
+                    {/* Focus It */}
+                    <button
+                      onClick={() => {
+                        handleOpenModal(actionResponse);
+                        setShowActionMenuModal(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-3.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-gray-700 dark:text-gray-200 rounded-xl transition-colors font-semibold text-sm"
+                    >
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900/40 rounded-lg text-blue-600 dark:text-blue-400">
+                        <Maximize className="w-4 h-4" />
+                      </div>
+                      FOCUS IT
+                    </button>
+
                     {/* View Details */}
                     {isOwnTenant && (
                       <button
@@ -8993,7 +9084,7 @@ const fetchChatHistory = async (responseId: string) => {
                 );
               })()}
             </div>
-            
+
             <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700 text-center">
               <button
                 onClick={() => {

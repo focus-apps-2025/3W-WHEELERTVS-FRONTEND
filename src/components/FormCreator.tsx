@@ -227,6 +227,7 @@ export default function FormCreator() {
   const [showParameterModal, setShowParameterModal] = useState(false);
   const [parameters, setParameters] = useState<any[]>([]);
   const [tempParameters, setTempParameters] = useState<any[]>([]);
+  const [showMobilePagesModal, setShowMobilePagesModal] = useState(false);
   const { showSuccess, showError, showConfirm } = useNotification();
 
   useEffect(() => {
@@ -3762,7 +3763,7 @@ export default function FormCreator() {
   return (
     <div className="w-full overflow-auto bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-0 z-50 w-full">
+      <div className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-16 z-50 w-full">
         <div className="w-full px-4 sm:px-6 py-4">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -5622,7 +5623,7 @@ export default function FormCreator() {
           </div>
 
           {/* Sidebar */}
-          <div className="w-full lg:w-80 flex-shrink-0 space-y-6">
+          <div className="hidden lg:block lg:w-80 flex-shrink-0 space-y-6">
             {/* Sticky Page Navigation */}
             {(() => {
               const pages = getPagesFromSections();
@@ -6024,6 +6025,110 @@ export default function FormCreator() {
                 </>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Floating Pages Button */}
+      {(() => {
+        const pages = getPagesFromSections();
+        if (pages.length > 1) {
+          return (
+            <button
+              onClick={() => setShowMobilePagesModal(true)}
+              className="lg:hidden fixed right-0 top-1/2 -translate-y-1/2 z-[9999] bg-blue-600 text-white p-3 rounded-l-2xl shadow-2xl border-2 border-r-0 border-blue-400 hover:bg-blue-700 transition-all active:scale-95 flex flex-col items-center gap-1 group"
+              title="Jump to Page"
+            >
+              <FileText className="w-6 h-6" />
+              <span className="text-[10px] font-bold uppercase tracking-tighter">Pages</span>
+              <div className="absolute right-full mr-2 bg-blue-900 text-white px-2 py-1 rounded text-[10px] font-bold opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                {pages.length} Pages Available
+              </div>
+            </button>
+          );
+        }
+        return null;
+      })()}
+
+      {/* Mobile Pages Selection Modal */}
+      {showMobilePagesModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[10001] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div 
+            className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-sm max-h-[80vh] overflow-hidden flex flex-col shadow-2xl border border-blue-100 dark:border-blue-900 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800 bg-gradient-to-r from-blue-600 to-blue-700 text-white">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center">
+                    <FileText className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black tracking-tight">Jump to Page</h3>
+                    <p className="text-blue-100 text-xs font-medium uppercase tracking-widest">Navigation</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setShowMobilePagesModal(false)}
+                  className="p-2 hover:bg-white/10 rounded-xl transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-950">
+              {getPagesFromSections().map((page, pageIndex) => {
+                const isCurrent = currentPage === pageIndex;
+                const sectionLabel = String.fromCharCode(65 + pageIndex);
+                const mainSection = page.find((s) => !s.isSubsection);
+                const questionCount = page.reduce((total, s) => total + s.questions.length, 0);
+
+                return (
+                  <button
+                    key={pageIndex}
+                    onClick={() => {
+                      handlePageChange(pageIndex);
+                      setShowMobilePagesModal(false);
+                    }}
+                    className={`
+                      w-full p-4 rounded-2xl text-left transition-all duration-300 flex items-center gap-4
+                      ${isCurrent
+                        ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-lg ring-4 ring-blue-500/20 scale-[1.02]"
+                        : "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-gray-100 dark:border-gray-800 shadow-sm"
+                      }
+                    `}
+                  >
+                    <div className={`
+                      w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm flex-shrink-0 shadow-sm
+                      ${isCurrent ? "bg-white text-blue-600" : "bg-blue-600 text-white"}
+                    `}>
+                      {sectionLabel}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-black truncate ${isCurrent ? "text-white" : "text-gray-900 dark:text-white"}`}>
+                        {mainSection?.title?.trim().length ? mainSection.title : `Page ${pageIndex + 1}`}
+                      </p>
+                      <p className={`text-[10px] font-bold uppercase tracking-wider ${isCurrent ? "text-blue-100" : "text-gray-400"}`}>
+                        {questionCount} {questionCount === 1 ? "question" : "questions"}
+                      </p>
+                    </div>
+                    {isCurrent && (
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse shadow-[0_0_10px_rgba(255,255,255,0.8)]"></div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <div className="p-4 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800">
+              <button 
+                onClick={() => setShowMobilePagesModal(false)}
+                className="w-full py-3 text-sm font-bold text-gray-500 dark:text-gray-400 hover:text-gray-700 transition-colors uppercase tracking-widest"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

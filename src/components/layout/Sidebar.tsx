@@ -221,7 +221,7 @@ export default function Sidebar() {
       {/* Overlay for mobile */}
       {isMobileOpen && (
         <div
-          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-[10001]"
           onClick={closeMobile}
         />
       )}
@@ -229,7 +229,7 @@ export default function Sidebar() {
       {/* Sidebar */}
       <aside
         className={`
-          fixed top-0 left-0 h-full z-40 transition-all duration-300 bg-[#1e3a8a]
+          fixed top-0 left-0 h-full z-[10002] transition-all duration-300 bg-[#1e3a8a]
           ${isCollapsed ? "w-16" : "w-64"}
           ${
             isMobileOpen
