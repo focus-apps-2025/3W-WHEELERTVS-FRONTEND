@@ -1648,165 +1648,401 @@ function generateBothResponseAnalysis(
   return limitCombinedResponseAnalysisSize(html, maxSize);
 }
 
-function generateResponsesViewAnalysis(form: any, response: any): string {
+function generateResponsesViewAnalysis(
+  form: any,
+  response: any,
+  logoBase64?: string,
+): string {
   if (!form || !response || !response.answers) return "";
 
-  let html = "";
+  const complianceLabels = getComplianceLabels(form);
 
-  const sections = form.sections || [];
+  const getSectionQuestionsWithFollowUps = (sectionId: string) => {
+    const section = form.sections?.find((s: any) => s.id === sectionId);
+    if (!section) return [];
 
-  sections.forEach((section: any) => {
-    const questions = section.questions || [];
-    if (questions.length === 0) return;
+    const mainQuestionsWithFollowUps: any[] = [];
+    const mainQuestions: any[] = [];
+    const followUpMap = new Map<string, any[]>();
 
-    html += `
-      <div style="margin-top: 30px; margin-bottom: 20px; page-break-inside: avoid;">
-        <h3 style="font-size: 16px; font-weight: 700; color: #1e3a8a; border-bottom: 2px solid #1e3a8a; padding-bottom: 5px; margin-bottom: 15px;">
-          ${section.title || "Section"}
-        </h3>
-        <table style="width: 100%; border-collapse: collapse; border: 1px solid #e2e8f0; font-size: 11px;">
-          <thead>
-            <tr style="background: #1e3a8a;">
-              <th style="padding: 10px; text-align: left; font-size: 11px; font-weight: 600; color: white; border: 1px solid #e2e8f0; width: 40%;">Question</th>
-              <th style="padding: 10px; text-align: center; font-size: 11px; font-weight: 600; color: white; border: 1px solid #e2e8f0; width: 60%;">Response</th>
-            </tr>
-          </thead>
-          <tbody>
-    `;
-
-    questions.forEach((question: any, idx: number) => {
-      const answer = response.answers[question.id];
-      const hasCorrectAnswer = !!(
-        question.correctAnswer ||
-        (question.correctAnswers && question.correctAnswers.length > 0)
-      );
-
-      const correctAnswerDisplay = hasCorrectAnswer
-        ? question.correctAnswers && question.correctAnswers.length > 0
-          ? question.correctAnswers.join(", ")
-          : String(question.correctAnswer)
-        : "";
-
-      const selectedAnswer =
-        answer !== undefined
-          ? Array.isArray(answer)
-            ? answer.join(", ")
-            : String(answer)
-          : "Not Answered";
-
-      const isArray = Array.isArray(answer);
-      const normalized = String(selectedAnswer || "")
-        .trim()
-        .toLowerCase();
-
-      let isCorrect = false;
-      if (hasCorrectAnswer) {
-        if (question.correctAnswers && question.correctAnswers.length > 0) {
-          if (isArray) {
-            isCorrect =
-              answer.length === question.correctAnswers.length &&
-              answer.every((a: any) =>
-                question.correctAnswers!.some(
-                  (ca: any) =>
-                    String(ca).toLowerCase() === String(a).toLowerCase(),
-                ),
-              );
-          } else {
-            isCorrect = question.correctAnswers.some(
-              (ca: any) => String(ca).toLowerCase() === normalized,
-            );
-          }
-        } else if (question.correctAnswer) {
-          isCorrect =
-            String(question.correctAnswer).toLowerCase() === normalized;
+    section.questions?.forEach((question: any) => {
+      if (question.showWhen && question.showWhen.questionId) {
+        const parentId = question.showWhen.questionId;
+        if (!followUpMap.has(parentId)) {
+          followUpMap.set(parentId, []);
         }
-      }
-
-      const rowBgColor = idx % 2 === 0 ? "#ffffff" : "#f8fafc";
-
-      let answerColor = "#1e40af";
-      if (hasCorrectAnswer) {
-        answerColor = isCorrect ? "#059669" : "#dc2626";
+        followUpMap.get(parentId)!.push(question);
       } else {
-        const normalizedValue = String(selectedAnswer || "")
-          .trim()
-          .toLowerCase();
-        if (normalizedValue === "yes" || normalizedValue === "y") {
-          answerColor = "#059669";
-        } else if (normalizedValue === "no" || normalizedValue === "n") {
-          answerColor = "#dc2626";
-        } else if (
-          normalizedValue === "n/a" ||
-          normalizedValue === "na" ||
-          normalizedValue === "not applicable"
-        ) {
-          answerColor = "#ca8a04"; // Yellow/Orange
-        }
-      }
-
-      if (hasCorrectAnswer) {
-        html += `
-          <tr style="background-color: ${rowBgColor};">
-            <td style="padding: 8px; border: 1px solid #e2e8f0; color: #1f2937; font-weight: 500; width: 40%;">
-              ${question.text || question.title || "Question"}
-            </td>
-            <td style="padding: 0; border: 1px solid #e2e8f0; width: 60%;">
-              <table style="width: 100%; border-collapse: collapse; margin: 0; border: none;">
-                <tr>
-                  <td style="padding: 8px; text-align: center; color: #059669; font-weight: 600; width: 50%; border-right: 1px solid #e2e8f0;">
-                    ${correctAnswerDisplay}
-                  </td>
-                  <td style="padding: 8px; text-align: center; width: 50%;">
-                    ${renderAnswerHTML(answer, answerColor)}
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        `;
-      } else {
-        html += `
-          <tr style="background-color: ${rowBgColor};">
-            <td style="padding: 8px; border: 1px solid #e2e8f0; color: #1f2937; font-weight: 500; width: 40%;">
-              ${question.text || question.title || "Question"}
-            </td>
-            <td style="padding: 8px; border: 1px solid #e2e8f0; text-align: center; width: 60%;">
-              ${renderAnswerHTML(answer, answerColor)}
-            </td>
-          </tr>
-        `;
-      }
-
-      // ADDITION: Include synthetic follow-ups in Responses View
-      const syntheticKey = `synthetic_${question.id}`;
-      const syntheticData = response.answers?.[syntheticKey];
-      if (syntheticData && typeof syntheticData === "object") {
-        Object.entries(syntheticData).forEach(
-          ([fuText, fuData]: [string, any]) => {
-            if (fuData.answer) {
-              html += `
-              <tr style="background-color: ${rowBgColor}; font-style: italic;">
-                <td style="padding: 6px 8px 6px 20px; border: 1px solid #e2e8f0; color: #4b5563; font-size: 10px;">
-                  <span style="color: #ef4444; font-weight: 600; margin-right: 5px;">FU.S</span> ${fuText}
-                </td>
-                <td style="padding: 6px 8px; border: 1px solid #e2e8f0; text-align: center; color: #1e40af; font-size: 10px;">
-                  ${renderAnswerHTML(fuData.answer, "#1e40af")}
-                </td>
-              </tr>
-            `;
-            }
-          },
-        );
+        mainQuestions.push(question);
       }
     });
 
+    mainQuestions.forEach((question: any) => {
+      const answers = response.answers?.[question.id];
+
+      const followUpQuestionsForThis = [
+        ...(form.followUpQuestions?.filter(
+          (fq: any) => fq.parentId === question.id,
+        ) || []),
+        ...(question.followUpQuestions || []),
+        ...(followUpMap.get(question.id) || []),
+      ];
+
+      if (
+        (answers !== undefined && answers !== null && answers !== "") ||
+        followUpQuestionsForThis.length > 0
+      ) {
+        const mainQuestion = {
+          id: question.id,
+          title: question.title || question.label || question.text,
+          description: question.description,
+          instructions: question.instructions,
+          subParam1: question.subParam1,
+          answer: answers,
+          followUpQuestions: followUpQuestionsForThis.map((fq: any) => ({
+            id: fq.id || fq._id,
+            title: fq.title || fq.label || fq.text,
+            description: fq.description,
+            instructions: fq.instructions,
+            subParam1: fq.subParam1,
+            answer: response.answers?.[fq.id || fq._id],
+          })),
+        };
+
+        mainQuestionsWithFollowUps.push(mainQuestion);
+      }
+    });
+
+    return mainQuestionsWithFollowUps;
+  };
+
+  const sectionStatsList = getSectionYesNoStats(form, response.answers);
+
+  let html = `
+    <div style="background-color: #ffffff; width: 100%; border: 1px solid #e2e8f0; overflow: hidden;">
+      <!-- Main Header -->
+      <div style="background-color: #1e3a8a; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="flex: 1;">
+          <h1 style="font-size: 24px; font-weight: 700; text-transform: uppercase; color: #ffffff; margin: 0; letter-spacing: 1px;">
+            ${form?.title || "Mystery Shop Checklist"}
+          </h1>
+          ${
+            form?.description
+              ? `
+            <p style="color: #dbeafe; font-size: 14px; margin-top: 5px; font-style: italic; opacity: 0.9; margin-bottom: 0;">
+              ${form.description}
+            </p>
+          `
+              : ""
+          }
+        </div>
+        ${
+          logoBase64
+            ? `
+          <div style="background-color: rgba(255, 255, 255, 0.1); padding: 8px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); margin-left: 20px;">
+            <img src="${logoBase64}" style="height: 45px; max-width: 150px; object-fit: contain;" />
+          </div>
+        `
+            : ""
+        }
+      </div>
+
+      <!-- Sections -->
+  `;
+
+  form.sections?.forEach((section: any) => {
+    const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
+    if (sectionQuestions.length === 0) return;
+
+    const stats = sectionStatsList.find((s) => s.id === section.id) || {
+      yes: 0,
+      no: 0,
+      correct: 0,
+      wrong: 0,
+      total: 0,
+    };
+    const scoringTotal = stats.yes + stats.no + stats.correct + stats.wrong;
+    const totalSuccess = stats.yes + stats.correct;
+    const score =
+      scoringTotal > 0 ? ((totalSuccess / scoringTotal) * 100).toFixed(2) : "0.00";
+
     html += `
-          </tbody>
-        </table>
+      <div style="margin-bottom: 0;">
+        <!-- Section Header -->
+        <div style="background-color: #1e3a8a; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #3b82f6;">
+          <h3 style="font-size: 14px; font-weight: 700; text-transform: uppercase; color: #ffffff; margin: 0; letter-spacing: 0.5px;">
+            ${section.title}
+          </h3>
+          <div style="font-size: 14px; font-weight: 900; color: #ffffff;">
+            ${score}% (${totalSuccess} / ${scoringTotal})
+          </div>
+        </div>
+
+        <!-- Questions -->
+        <div style="border-bottom: 1px solid #e2e8f0;">
+    `;
+
+    sectionQuestions.forEach((q: any, qIdx: number) => {
+      const answer = q.answer;
+
+      html += `
+        <div style="padding: 15px; border-bottom: 1px solid #f1f5f9;">
+          <div style="display: flex; justify-content: space-between; gap: 15px; margin-bottom: 8px;">
+            <div style="display: flex; gap: 12px;">
+              <span style="font-size: 14px; font-weight: 700; color: #111827; flex-shrink: 0;">${qIdx + 1}.</span>
+              <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                  ${
+                    q.subParam1
+                      ? `
+                    <span style="font-size: 10px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 0.5px; background-color: #eff6ff; padding: 2px 6px; border-radius: 4px; display: inline-block;">
+                      ${q.subParam1}
+                    </span>
+                  `
+                      : ""
+                  }
+                  <div style="font-size: 14px; font-weight: 700; color: #1f2937;">
+                    ${q.title}
+                  </div>
+                </div>
+                ${
+                  q.description || q.instructions
+                    ? `
+                  <div style="font-size: 11px; color: #6b7280; line-height: 1.4; background-color: #f8fafc; padding: 6px 10px; border-radius: 4px; border-left: 2px solid #60a5fa; width: fit-content; max-width: 100%;">
+                    ${q.description ? `<div style="margin-bottom: 2px;">${q.description}</div>` : ""}
+                    ${q.instructions ? `<div style="font-weight: 500; font-style: italic; font-size: 10px; opacity: 0.8;">${q.instructions}</div>` : ""}
+                  </div>
+                `
+                    : ""
+                }
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-left: 30px;">
+            <div style="font-size: 14px; font-weight: 500; color: #4b5563;">
+              ${(() => {
+                const trackingValue = response.answers?.[`${q.id}_tracking`];
+
+                const renderTracking = (val: any) => {
+                  if (!val) return "";
+                  return `
+                    <div style="font-size: 11px; color: #1d4ed8; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; border-left: 4px solid #3b82f6; font-weight: 500; font-style: italic; margin-top: 8px;">
+                      <span style="font-weight: 700; text-transform: uppercase; font-size: 9px; display: block; margin-bottom: 4px; font-style: normal; opacity: 0.7;">Tracking:</span>
+                      ${String(val)}
+                    </div>
+                  `;
+                };
+
+                const renderValue = (val: any) => {
+                  if (typeof val === "object" && val !== null) {
+                    const displayValue =
+                      val.answer !== undefined
+                        ? String(val.answer)
+                        : val.status || JSON.stringify(val);
+                    const remark =
+                      val.remark || val.remarks || val.comment || val.notes;
+
+                    return `
+                      <div style="display: flex; flex-direction: column;">
+                        <div>${displayValue}</div>
+                        ${
+                          remark
+                            ? `
+                          <div style="font-size: 12px; color: #b45309; background-color: #fffbeb; padding: 8px 12px; border-radius: 8px; border-left: 4px solid #fbbf24; font-weight: 500; font-style: italic; margin-top: 8px;">
+                            <span style="font-weight: 700; text-transform: uppercase; font-size: 10px; display: block; margin-bottom: 4px; font-style: normal; opacity: 0.7;">Remark:</span>
+                            "${remark}"
+                          </div>
+                        `
+                            : ""
+                        }
+                        ${renderTracking(trackingValue)}
+                      </div>
+                    `;
+                  }
+                  return `
+                    <div style="display: flex; flex-direction: column;">
+                      <div>${String(val || "Not Answered")}</div>
+                      ${renderTracking(trackingValue)}
+                    </div>
+                  `;
+                };
+
+                return renderValue(answer);
+              })()}
+            </div>
+
+            <!-- Follow-ups -->
+            ${q.followUpQuestions
+              ?.map((fu: any) => {
+                const fuAns = fu.answer;
+                const fuTracking = response.answers?.[`${fu.id}_tracking`];
+                if (!fuAns && !fuTracking) return "";
+
+                return `
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #f1f5f9;">
+                  <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px;">
+                    ${
+                      fu.subParam1
+                        ? `
+                      <span style="font-size: 9px; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.2px; width: fit-content;">
+                        ${fu.subParam1}
+                      </span>
+                    `
+                        : ""
+                    }
+                    <div style="font-size: 12px; font-weight: 700; color: #9ca3af; text-transform: uppercase;">${fu.title}:</div>
+                  </div>
+                  <div style="font-size: 14px; color: #374151; font-style: italic;">
+                    ${(() => {
+                      const renderFuTracking = (val: any) => {
+                        if (!val) return "";
+                        return `
+                        <div style="font-size: 11px; color: #1d4ed8; background-color: #eff6ff; padding: 6px 10px; border-radius: 4px; border-left: 3px solid #3b82f6; font-weight: 500; font-style: italic; margin-top: 4px;">
+                          <span style="font-weight: 700; text-transform: uppercase; font-size: 9px; margin-right: 5px; font-style: normal;">Tracking:</span>
+                          ${String(val)}
+                        </div>
+                      `;
+                      };
+
+                      if (typeof fuAns === "object" && fuAns !== null) {
+                        const display =
+                          fuAns.answer !== undefined
+                            ? String(fuAns.answer)
+                            : fuAns.status || JSON.stringify(fuAns);
+                        const remark =
+                          fuAns.remark || fuAns.remarks || fuAns.comment || fuAns.notes;
+                        return `
+                        <div style="display: flex; flex-direction: column;">
+                          <div>${display}</div>
+                          ${
+                            remark
+                              ? `<div style="font-size: 11px; color: #b45309; background-color: #fffbeb; padding: 6px 10px; border-radius: 4px; border-left: 3px solid #fbbf24; font-style: italic; margin-top: 4px;">"${remark}"</div>`
+                              : ""
+                          }
+                          ${renderFuTracking(fuTracking)}
+                        </div>
+                      `;
+                      }
+                      return `
+                      <div style="display: flex; flex-direction: column;">
+                        ${fuAns ? `<div>${String(fuAns)}</div>` : ""}
+                        ${renderFuTracking(fuTracking)}
+                      </div>
+                    `;
+                    })()}
+                  </div>
+                </div>
+              `;
+              })
+              .join("")}
+          </div>
+        </div>
+      `;
+    });
+
+    html += `
+        </div>
+
+        <!-- Evidence & Remarks Grid -->
+        ${(() => {
+          const images: string[] = [];
+          const remarks: Array<{ title: string; answer: string; subParam?: string }> =
+            [];
+
+          const collectImages = (obj: any) => {
+            if (!obj) return;
+            if (typeof obj === "string" && isImageUrl(obj)) {
+              images.push(obj);
+            } else if (Array.isArray(obj)) {
+              obj.forEach(collectImages);
+            } else if (typeof obj === "object") {
+              if (obj.url && isImageUrl(String(obj.url))) images.push(String(obj.url));
+              if (obj.answer && isImageUrl(String(obj.answer)))
+                images.push(String(obj.answer));
+              Object.values(obj).forEach(collectImages);
+            }
+          };
+
+          sectionQuestions.forEach((q: any) => {
+            collectImages(q.answer);
+            q.followUpQuestions?.forEach((fu: any) => {
+              collectImages(fu.answer);
+              if (
+                fu.answer &&
+                typeof fu.answer !== "object" &&
+                !isImageUrl(String(fu.answer))
+              ) {
+                const strVal = String(fu.answer);
+                if (
+                  strVal &&
+                  strVal.toLowerCase() !== "n/a" &&
+                  strVal.length > 1
+                ) {
+                  remarks.push({
+                    title: fu.title,
+                    answer: strVal,
+                    subParam: fu.subParam1,
+                  });
+                }
+              }
+            });
+          });
+
+          if (images.length === 0 && remarks.length === 0) return "";
+
+          let evidenceHtml = `
+            <div style="padding: 15px; background-color: #f8fafc;">
+          `;
+
+          if (images.length > 0) {
+            evidenceHtml += `
+              <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+                ${images
+                  .map(
+                    (img) => `
+                  <div style="width: 120px; height: 120px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; background-color: #ffffff;">
+                    <img src="${img}" style="width: 100%; height: 100%; object-fit: cover;">
+                  </div>
+                `,
+                  )
+                  .join("")}
+              </div>
+            `;
+          }
+
+          if (remarks.length > 0) {
+            evidenceHtml += `
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                ${remarks
+                  .map(
+                    (rem) => `
+                  <div style="background-color: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0;">
+                    <div style="margin-bottom: 8px;">
+                      ${
+                        rem.subParam
+                          ? `<span style="font-size: 9px; font-weight: 700; color: #2563eb; text-transform: uppercase; background-color: #eff6ff; padding: 2px 6px; border-radius: 4px;">${rem.subParam}</span>`
+                          : ""
+                      }
+                      <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; margin-top: 4px;">${rem.title}</div>
+                    </div>
+                    <div style="font-size: 13px; color: #1f2937; font-weight: 500; font-style: italic;">"${rem.answer}"</div>
+                  </div>
+                `,
+                  )
+                  .join("")}
+              </div>
+            `;
+          }
+
+          evidenceHtml += `</div>`;
+          return evidenceHtml;
+        })()}
       </div>
     `;
   });
 
+  html += `</div>`;
   return html;
 }
 
@@ -4860,7 +5096,11 @@ async function generateCompleteHTMLForServer(
       responseAnalysisHTML = "";
       break;
     case "responses-view":
-      responseAnalysisHTML = generateResponsesViewAnalysis(form, response);
+      responseAnalysisHTML = generateResponsesViewAnalysis(
+        form,
+        response,
+        logoBase64,
+      );
       break;
     default:
       responseAnalysisHTML = generateNoResponseAnalysis(
@@ -5238,7 +5478,14 @@ async function generateCompleteHTMLForServer(
   }
 </style>
 </head>
-<body><div class="container">${coverPageHTML}<div class="first-page" style="width: 100%; page-break-after: always; padding: 4%; box-sizing: border-box;">
+<body><div class="container">`;
+
+  if (type === "responses-view") {
+    // Only Response Analysis for responses-view (Redesigned Response Tab)
+    completeHTML += responseAnalysisHTML;
+  } else {
+    // Standard structure for other types
+    completeHTML += `${coverPageHTML}<div class="first-page" style="width: 100%; page-break-after: always; padding: 4%; box-sizing: border-box;">
       <!-- Header -->
       <div class="header">
         <div class="header-content">
@@ -5283,60 +5530,58 @@ async function generateCompleteHTMLForServer(
       <div class="compact-section">
         ${sectionSummaryHTML}
       </div>
-    </div>
-  `;
+    </div>`;
 
-  const showOverallTable =
-    type === "both" ||
-    type === "default" ||
-    type === "section" ||
-    type === "no-only" ||
-    type === "yes-only" ||
-    type === "na-only" ||
-    type === "na";
+    const showOverallTable =
+      type === "both" ||
+      type === "default" ||
+      type === "section" ||
+      type === "no-only" ||
+      type === "yes-only" ||
+      type === "na-only" ||
+      type === "na";
 
-  if (showOverallTable) {
-    completeHTML += `<div class="page-break-before">
-      <div class="table-container">
-        <div class="table-title">Overall Section Performance</div>
-        <table class="performance-table">
-          <thead>
-            <tr>${tableHeaders}</tr>
-          </thead>
-          <tbody>${tableRows}</tbody>
-        </table>
-        <div class="table-legend">
-          <div class="legend-item">
-            <div class="legend-color legend-yes"></div>
-            <span>Yes (Y%) - Green</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color legend-no"></div>
-            <span>No (N%) - Red</span>
-          </div>
-          <div class="legend-item">
-            <div class="legend-color legend-na"></div>
-            <span>N/A (N/A%) - Gray</span>
+    if (showOverallTable) {
+      completeHTML += `<div class="page-break-before">
+        <div class="table-container">
+          <div class="table-title">Overall Section Performance</div>
+          <table class="performance-table">
+            <thead>
+              <tr>${tableHeaders}</tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+          <div class="table-legend">
+            <div class="legend-item">
+              <div class="legend-color legend-yes"></div>
+              <span>Yes (Y%) - Green</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color legend-no"></div>
+              <span>No (N%) - Red</span>
+            </div>
+            <div class="legend-item">
+              <div class="legend-color legend-na"></div>
+              <span>N/A (N/A%) - Gray</span>
+            </div>
           </div>
         </div>
-      </div>
-    </div>
-    `;
-  }
+      </div>`;
+    }
 
-  // Add Response Analysis Section (if not section type)
-  if (responseAnalysisHTML && type !== "section") {
-    completeHTML += `<div class="${showOverallTable ? "page-break-before" : ""}">
-      <div class="table-container">
-        ${responseAnalysisHTML}
-      </div>
-    </div>
-    `;
-  }
+    // Add Response Analysis Section (if not section type)
+    if (responseAnalysisHTML && type !== "section") {
+      completeHTML += `<div class="${showOverallTable ? "page-break-before" : ""}">
+        <div class="table-container">
+          ${responseAnalysisHTML}
+        </div>
+      </div>`;
+    }
 
-  // Add Section Tables ONLY for specific types
-  if (sectionTablesHTML) {
-    completeHTML += sectionTablesHTML;
+    // Add Section Tables ONLY for specific types
+    if (sectionTablesHTML) {
+      completeHTML += sectionTablesHTML;
+    }
   }
 
   // Add Footer
