@@ -37,7 +37,7 @@ const createCustomIcon = (count: number) => {
     <div style="
       
       width: ${iconSize}px;
-      height: 300;
+      height: ${iconSize}px;
     ">
       <div style="
     
@@ -84,6 +84,15 @@ const HeatmapLayer = ({ data }: HeatmapLayerProps) => {
 
   useEffect(() => {
     if (data.length === 0) return;
+
+    // Guard against zero-size map which causes 'getImageData' errors in leaflet.heat
+    const size = map.getSize();
+    if (size.x === 0 || size.y === 0) {
+      // Try to invalidate size in case it's just a timing issue
+      map.invalidateSize();
+      const newSize = map.getSize();
+      if (newSize.x === 0 || newSize.y === 0) return;
+    }
 
     const heatLayer = (L as any).heatLayer(data, {
       radius: 25,

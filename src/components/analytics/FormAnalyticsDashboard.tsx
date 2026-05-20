@@ -4718,7 +4718,7 @@ export default function FormAnalyticsDashboard() {
       : { height: "450px", position: "relative" as const };
 
     return (
-      <div className="p-4 sm:p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">
+      <div id="defect-distribution-chart" className="p-4 sm:p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
           <div className="flex items-center">
             <div className="p-2 bg-gradient-to-br from-red-600 to-slate-700 rounded-lg mr-2">
@@ -4837,7 +4837,7 @@ export default function FormAnalyticsDashboard() {
           </div>
         ) : (
           <div className={chartOrientation === "h" ? "overflow-y-auto" : "w-full"}>
-            <div style={containerStyle}>
+            <div style={containerStyle} id="issue-percentage-chart">
               <Bar data={data} options={options} />
             </div>
           </div>
@@ -4966,7 +4966,7 @@ export default function FormAnalyticsDashboard() {
     };
 
     return (
-      <div className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
+      <div id="performance-trend-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center">
             <div className="p-2 bg-gradient-to-br from-slate-700 to-red-600 rounded-lg mr-2">
@@ -5215,7 +5215,7 @@ export default function FormAnalyticsDashboard() {
     };
 
     return (
-      <div id="direct-accepted-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
+      <div id="inspection-status-distribution-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center">
             <div className={`p-2 bg-gradient-to-br from-blue-600 to-indigo-800 rounded-lg mr-2`}>
@@ -5329,7 +5329,7 @@ export default function FormAnalyticsDashboard() {
     };
 
     return (
-      <div id="inspection-status-line-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
+      <div id="status-trends-rework-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center">
             <div className={`p-2 bg-gradient-to-br from-purple-600 to-indigo-800 rounded-lg mr-2`}>
@@ -6088,13 +6088,13 @@ export default function FormAnalyticsDashboard() {
         </div>
       )}
 
-      {/* Dashboard View */}
-      {analyticsView === "dashboard" && (
-        <div className="space-y-6">
-          <div
-            className="w-full"
-            id="summary-cards"
-          >
+      {/* Dashboard View - Always render for PDF export capability, but hide if not active */}
+      {(analyticsView === "dashboard" || isExporting) && (
+        <div className={analyticsView === "dashboard" ? "space-y-6" : "hidden"} aria-hidden={analyticsView !== "dashboard"}>
+        <div
+          className="w-full"
+          id="summary-cards"
+        >
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
               {/* Response Trend Chart - COMPACT */}
               <div className="p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">

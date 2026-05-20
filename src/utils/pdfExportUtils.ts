@@ -231,11 +231,37 @@ const renderAnswerHTML = (value: any, color: string = "#1f2937"): string => {
     if (potentialUrl && isImageUrl(String(potentialUrl))) {
       return renderSingleValue(potentialUrl);
     }
-    return `<pre style="font-size: 10px; white-space: pre-wrap; color: #4b5563; margin: 0; text-align: left;">${JSON.stringify(
-      value,
-      null,
-      2,
-    )}</pre>`;
+
+    // Format object as key-value pairs for better UI
+    const entries = Object.entries(value).filter(([key, val]) => {
+      // Skip empty values and standard metadata
+      if (val === null || val === undefined || val === "") return false;
+      if (key === "_id" || key === "id") return false;
+      return true;
+    });
+
+    if (entries.length === 0) {
+      return '<span style="color: #9ca3af; font-style: italic;">No response</span>';
+    }
+
+    return `
+      <div style="text-align: left; font-size: 10px; color: #374151; background: #f8fafc; padding: 6px; border-radius: 4px; border: 1px solid #e2e8f0; min-width: 140px; overflow-wrap: break-word; word-wrap: break-word; word-break: break-word;">
+        ${entries.map(([key, val]) => {
+          const displayKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+          let displayVal = String(val);
+          
+          if (isImageUrl(displayVal)) {
+            displayVal = `<img src="${displayVal}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; display: block; margin-top: 4px;">`;
+          }
+
+          return `
+            <div style="margin-bottom: 4px; line-height: 1.2;">
+              <span style="font-weight: 700; color: #4b5563; font-size: 9px; text-transform: uppercase;">${displayKey}:</span>
+              <span style="font-weight: 600; color: #1f2937;">${displayVal}</span>
+            </div>
+          `;
+        }).join("")}
+      </div>`;
   }
 
   return renderSingleValue(value);
@@ -3320,8 +3346,8 @@ function generateGaugeSVG(score: number): string {
       <!-- Needle -->
       <g transform="rotate(${needleAngle} ${centerX} ${centerY})">
         <line x1="${centerX}" y1="${centerY}" x2="${centerX - radius + 5}" y2="${centerY}" 
-              stroke="#334155" stroke-width="4" stroke-linecap="round" filter="url(#shadow)" />
-        <circle cx="${centerX}" cy="${centerY}" r="6" fill="#334155" />
+              stroke="#1e3a8a" stroke-width="4" stroke-linecap="round" filter="url(#shadow)" />
+        <circle cx="${centerX}" cy="${centerY}" r="6" fill="#1e3a8a" />
       </g>
 
       <!-- Score Text inside Gauge -->
@@ -3352,7 +3378,7 @@ function generateFirstSectionContent(form: any, response: any): string {
 
   let html = `
     <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #fff; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-      <div style="padding: 10px; background: #334155; text-align: center; border-bottom: 2px solid #1e293b;">
+      <div style="padding: 10px; background: #1e3a8a; text-align: center; border-bottom: 2px solid #1e293b;">
         <h2 style="font-size: 15px; font-weight: 700; color: #f8fafc; margin: 0; text-transform: uppercase; letter-spacing: 1px;">
           Basic Information
         </h2>
@@ -3376,26 +3402,26 @@ function generateFirstSectionContent(form: any, response: any): string {
     html += `<tr style="border-bottom: 1px solid #f1f5f9;">`;
 
     // Left Column Cell
-    html += `<td style="padding: 10px 15px; border-right: 1px solid #f1f5f9; vertical-align: middle; width: 50%; background: ${i % 2 === 0 ? "#fff" : "#fcfcfc"};">`;
+    html += `<td style="padding: 10px 15px; border-right: 1px solid #f1f5f9; vertical-align: top; width: 50%; background: ${i % 2 === 0 ? "#fff" : "#fcfcfc"};">`;
     if (leftQuestion) {
       const answer = response?.answers?.[leftQuestion.id];
       html += `
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">${leftQuestion.text || leftQuestion.id}</span>
-          <span style="color: #1e293b; font-weight: 600; text-align: right; margin-left: 10px;">${renderAnswerHTML(answer)}</span>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <span style="font-weight: 700; color: #475569; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; width: fit-content;">${leftQuestion.text || leftQuestion.id}</span>
+          <div style="color: #1e293b; font-weight: 600; font-size: 11px;">${renderAnswerHTML(answer)}</div>
         </div>
       `;
     }
     html += `</td>`;
 
     // Right Column Cell
-    html += `<td style="padding: 10px 15px; vertical-align: middle; width: 50%; background: ${i % 2 === 0 ? "#fff" : "#fcfcfc"};">`;
+    html += `<td style="padding: 10px 15px; vertical-align: top; width: 50%; background: ${i % 2 === 0 ? "#fff" : "#fcfcfc"};">`;
     if (rightQuestion) {
       const answer = response?.answers?.[rightQuestion.id];
       html += `
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-weight: 700; color: #475569; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">${rightQuestion.text || rightQuestion.id}</span>
-          <span style="color: #1e293b; font-weight: 600; text-align: right; margin-left: 10px;">${renderAnswerHTML(answer)}</span>
+        <div style="display: flex; flex-direction: column; gap: 4px;">
+          <span style="font-weight: 700; color: #475569; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px; border-bottom: 1px solid #f1f5f9; padding-bottom: 2px; width: fit-content;">${rightQuestion.text || rightQuestion.id}</span>
+          <div style="color: #1e293b; font-weight: 600; font-size: 11px;">${renderAnswerHTML(answer)}</div>
         </div>
       `;
     }
@@ -3458,7 +3484,7 @@ function generateScoreSection(sectionStats: any[], form?: any): string {
 
   return `
     <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #fff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-      <div style="padding: 10px; background: #334155; text-align: center; border-bottom: 2px solid #1e293b;">
+      <div style="padding: 10px; background: #1e3a8a; text-align: center; border-bottom: 2px solid #1e293b;">
         <h2 style="font-size: 15px; font-weight: 700; color: #f8fafc; margin: 0; text-transform: uppercase; letter-spacing: 1px;">
           Performance Summary
         </h2>
@@ -3479,7 +3505,7 @@ function generateScoreSection(sectionStats: any[], form?: any): string {
 
         <!-- Summary Stats Section -->
         <div style="background: #f8fafc; border-radius: 6px; padding: 12px; border: 1px solid #e2e8f0;">
-          <div style="font-size: 11px; font-weight: 800; color: #334155; margin-bottom: 10px; text-align: center; text-transform: uppercase; letter-spacing: 0.5px;">Detailed Breakdown</div>
+          <div style="font-size: 11px; font-weight: 800; color: #1e3a8a; margin-bottom: 10px; text-align: center; text-transform: uppercase; letter-spacing: 0.5px;">Detailed Breakdown</div>
           
           <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
             <!-- Accepted Card -->
@@ -3498,7 +3524,7 @@ function generateScoreSection(sectionStats: any[], form?: any): string {
 
             <!-- Rework Card -->
             <div style="background: #fff; padding: 10px; border-radius: 6px; border-left: 4px solid #94a3b8; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-              <div style="font-size: 18px; font-weight: 800; color: #334155;">${totalNA}</div>
+              <div style="font-size: 18px; font-weight: 800; color: #1e3a8a;">${totalNA}</div>
               <div style="font-size: 10px; color: #475569; font-weight: 700; text-transform: uppercase;">Rework</div>
               <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 2px;">${(( totalNA / (grandTotal || 1) ) * 100).toFixed(1)}%</div>
             </div>
@@ -3542,8 +3568,8 @@ function generateSectionSummary(sectionStats: any[]): string {
   const overallMissingPct = 100 - overallPct;
 
   return `
-    <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #fff; margin-top: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
-      <div style="padding: 10px; background: #334155; text-align: center; border-bottom: 2px solid #1e293b;">
+    <div style="border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #fff; margin-top: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); page-break-inside: avoid; break-inside: avoid;">
+      <div style="padding: 10px; background: #1e3a8a; text-align: center; border-bottom: 2px solid #1e293b;">
         <h2 style="font-size: 15px; font-weight: 700; color: #f8fafc; margin: 0; text-transform: uppercase; letter-spacing: 1px;">
           Section Summary
         </h2>
@@ -3570,11 +3596,11 @@ function generateSectionSummary(sectionStats: any[]): string {
               
               return `
                 <tr style="border-bottom: 1px solid #f1f5f9; background: ${i % 2 === 0 ? "#fff" : "#fcfcfc"};">
-                  <td style="padding: 8px 15px; font-weight: 700; color: #334155; font-size: 10px; text-transform: uppercase;">${stat.title}</td>
+                  <td style="padding: 8px 15px; font-weight: 700; color: #1e3a8a; font-size: 10px; text-transform: uppercase;">${stat.title}</td>
                   <td style="padding: 8px 15px;">
                     ${generateSectionSummaryBarSVG(pct, missingPct)}
                   </td>
-                  <td style="padding: 8px 15px; text-align: center; font-weight: 700; color: #334155;">${pct.toFixed(1)}%</td>
+                  <td style="padding: 8px 15px; text-align: center; font-weight: 700; color: #1e3a8a;">${pct.toFixed(1)}%</td>
                   <td style="padding: 8px 15px; text-align: center; color: #94a3b8;">-</td>
                   <td style="padding: 8px 15px; text-align: center; color: #94a3b8;">-</td>
                 </tr>
@@ -5302,6 +5328,12 @@ async function generateCompleteHTMLForServer(
     height: 50px;
     object-fit: contain;
   }
+
+  .compact-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin-bottom: 15px;
+  }
   .section-table {
   page-break-inside: auto;
   border-collapse: collapse;
@@ -5346,8 +5378,9 @@ async function generateCompleteHTMLForServer(
     border-collapse: collapse;
     border: 1px solid #e5e7eb;
     font-size: 10px;
-    /* FIX: Allow table to break naturally */
-    page-break-inside: auto;
+    /* Prevent table from breaking across pages */
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
   
   /* FIXED: Better table row handling for page breaks */
@@ -5485,7 +5518,7 @@ async function generateCompleteHTMLForServer(
     completeHTML += responseAnalysisHTML;
   } else {
     // Standard structure for other types
-    completeHTML += `${coverPageHTML}<div class="first-page" style="width: 100%; page-break-after: always; padding: 4%; box-sizing: border-box;">
+    completeHTML += `${coverPageHTML}<div class="first-page" style="width: 100%; padding: 4%; box-sizing: border-box;">
       <!-- Header -->
       <div class="header">
         <div class="header-content">

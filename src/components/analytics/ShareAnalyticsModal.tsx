@@ -168,8 +168,8 @@ export default function ShareAnalyticsModal({
         setIsSending(true); // Ensure state is correct
         try {
           const chartElementIds = [
-            'overall-quality-chart', 'direct-accepted-chart', 'performance-trend-chart',
-            'inspection-status-distribution-chart', 'status-trends-rework-chart',
+            'overall-quality-chart', 'inspection-status-distribution-chart', 'performance-trend-chart',
+            'status-trends-rework-chart',
             'defect-distribution-chart', 'issue-percentage-chart'
           ];
           
