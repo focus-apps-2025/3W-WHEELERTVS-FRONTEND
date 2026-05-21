@@ -1,13 +1,17 @@
 import React from "react";
+import { createPortal } from "react-dom";
 import { useNotification } from "../../context/NotificationContext";
 import NotificationModal from "./NotificationModal";
 import Toast from "./Toast";
 
 const NotificationContainer: React.FC = () => {
   const { notifications, hideNotification } = useNotification();
+  const notificationRoot = document.getElementById("notification-root");
 
-  return (
-    <>
+  if (!notificationRoot) return null;
+
+  return createPortal(
+    <div className="notification-wrapper" style={{ position: 'relative', zIndex: 999999 }}>
       {notifications.map((notification) => {
         // Use Toast for success, error, warning, info notifications
         if (
@@ -42,7 +46,8 @@ const NotificationContainer: React.FC = () => {
           />
         );
       })}
-    </>
+    </div>,
+    notificationRoot
   );
 };
 

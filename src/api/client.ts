@@ -68,7 +68,7 @@ class ApiClient {
 
   public async request<T>(
     endpoint: string,
-    options: RequestInit = {},
+    options: RequestInit & { timeout?: number } = {},
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
@@ -88,7 +88,8 @@ class ApiClient {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    const timeout = options.timeout || 30000;
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
 
     const config: RequestInit = {
       ...options,
@@ -2365,6 +2366,8 @@ class ApiClient {
     invites: any[],
     channels: string[] = ["email"],
     customMessage?: string,
+    pdfHtml?: string,
+    shareMode: string = "both",
   ) {
     return this.request<{
       sent: number;
@@ -2373,7 +2376,8 @@ class ApiClient {
       details: any[];
     }>(`/analytics-invites/${formId}/send`, {
       method: "POST",
-      body: JSON.stringify({ invites, channels, customMessage }),
+      body: JSON.stringify({ invites, channels, customMessage, pdfHtml, shareMode }),
+      timeout: 600000, // 10 minutes timeout for PDF generation and bulk sending
     });
   }
 

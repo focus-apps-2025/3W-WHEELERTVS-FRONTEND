@@ -17,6 +17,7 @@ import {
   CalendarDays,
   ShieldCheck,
   UserCheck,
+  ChevronRight,
 } from "lucide-react";
 import { useLogo } from "../context/LogoContext";
 import { useAuth } from "../context/AuthContext";
@@ -46,6 +47,7 @@ const MODULE_PERMISSIONS = {
 export default function Header() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [mobileActiveDropdown, setMobileActiveDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { logo } = useLogo();
   const { user, isAuthenticated, logout } = useAuth();
@@ -448,11 +450,62 @@ export default function Header() {
 
         {/* Mobile Navigation Menu */}
         {isMobileOpen && (
-          <div className="lg:hidden border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+          <div className="lg:hidden border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 max-h-[calc(100vh-64px)] overflow-y-auto">
             <nav className="flex flex-col p-4 space-y-2">
               {menuItems.map((item) => {
                 const isActive = location.pathname === item.path;
                 const Icon = item.icon;
+                const hasChildren = item.children && item.children.length > 0;
+                const isExpanded = mobileActiveDropdown === item.title;
+
+                if (hasChildren) {
+                  return (
+                    <div key={item.title} className="flex flex-col space-y-1">
+                      <button
+                        onClick={() => setMobileActiveDropdown(isExpanded ? null : item.title)}
+                        className={`
+                          flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200
+                          ${
+                            isExpanded
+                              ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                              : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                          }
+                        `}
+                      >
+                        <div className="flex items-center">
+                          <Icon className="w-5 h-5 mr-3" />
+                          {item.title}
+                        </div>
+                        <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                      </button>
+                      
+                      {isExpanded && (
+                        <div className="pl-12 flex flex-col space-y-1 mt-1">
+                          {item.children?.map((child) => {
+                            const isChildActive = location.pathname === child.path;
+                            return (
+                              <Link
+                                key={child.path}
+                                to={child.path}
+                                onClick={closeMobile}
+                                className={`
+                                  block py-2 text-sm transition-colors duration-200
+                                  ${
+                                    isChildActive
+                                      ? "text-primary-700 font-bold dark:text-primary-400"
+                                      : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                                  }
+                                `}
+                              >
+                                {child.title}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
 
                 return (
                   <Link
