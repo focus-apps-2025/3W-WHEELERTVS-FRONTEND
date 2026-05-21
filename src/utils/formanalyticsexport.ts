@@ -233,9 +233,13 @@ async function getLogoAsBase64(): Promise<string> {
 export function generateAnalyticsHTML(options: any, logoBase64: string): string {
   const {
     formTitle, generatedDate, totalPieChartData,
-    inspectorSummary, summaryStatuses, inspectionStats, defectStartDate, defectEndDate,
-    sectionSummaryRows, sectionAnalyticsData, chartImages
+    inspectorSummary, summaryStatuses, inspectionStats,
+    sectionSummaryRows, sectionAnalyticsData, chartImages, includeSectionAnalytics
   } = options;
+
+  // Use dates from options or fallback
+  const defectStartDate = options.defectStartDate || '';
+  const defectEndDate = options.defectEndDate || '';
 
   // Ensure we have some counts even if inspectionStats is mostly zeros
   const finalAccepted = (inspectionStats?.accepted || 0) || (totalPieChartData.counts?.yes || 0);
@@ -371,49 +375,50 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
           ` : ''}
         </div>
 
-        <div class="page-break-before"></div>
+        ${includeSectionAnalytics ? `
+          <div class="page-break-before"></div>
+          <div class="section-header">Section-wise Performance Analysis</div>
+          ${generateSectionPerformanceTable(sectionSummaryRows)}
 
-        <div class="section-header">Section-wise Performance Analysis</div>
-        ${generateSectionPerformanceTable(sectionSummaryRows)}
-
-        <div class="section-header">Detailed Quality Breakdown</div>
-        ${sectionAnalyticsData.map((section: any) => `
-          <div class="table-title">${section.sectionTitle}</div>
-          <table style="margin-bottom: 20px;">
-            <thead>
-              <tr>
-                <th style="width: 50%;">Parameter</th>
-                <th style="text-align: center;">Yes</th>
-                <th style="text-align: center;">No</th>
-                <th style="text-align: center;">NA</th>
-                <th style="text-align: center;">Total</th>
-                <th style="text-align: center;">Quality %</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${section.qualityBreakdown.map((row: any) => `
+          <div class="section-header">Detailed Quality Breakdown</div>
+          ${sectionAnalyticsData.map((section: any) => `
+            <div class="table-title">${section.sectionTitle}</div>
+            <table style="margin-bottom: 20px;">
+              <thead>
                 <tr>
-                  <td style="font-weight: 700;">${row.parameterName}</td>
-                  <td style="text-align: center;">${row.yes}</td>
-                  <td style="text-align: center;">${row.no}</td>
-                  <td style="text-align: center;">${row.na}</td>
-                  <td style="text-align: center;">${row.total}</td>
-                  <td style="text-align: center; font-weight: 900; color: ${((row.yes / row.total) * 100) >= 90 ? '#059669' : '#dc2626'}">
-                    ${((row.yes / row.total) * 100).toFixed(1)}%
-                  </td>
+                  <th style="width: 50%;">Parameter</th>
+                  <th style="text-align: center;">Yes</th>
+                  <th style="text-align: center;">No</th>
+                  <th style="text-align: center;">NA</th>
+                  <th style="text-align: center;">Total</th>
+                  <th style="text-align: center;">Quality %</th>
                 </tr>
-              `).join('')}
-              <tr style="background: #f8fafc; font-weight: 900;">
-                <td>SECTION TOTAL</td>
-                <td style="text-align: center;">${section.overallQuality.totalYes}</td>
-                <td style="text-align: center;">${section.overallQuality.totalNo}</td>
-                <td style="text-align: center;">${section.overallQuality.totalNA}</td>
-                <td style="text-align: center;">${section.overallQuality.totalResponses}</td>
-                <td style="text-align: center; color: #1e3a8a;">${section.overallQuality.percentages.yes}%</td>
-              </tr>
-            </tbody>
-          </table>
-        `).join('')}
+              </thead>
+              <tbody>
+                ${section.qualityBreakdown.map((row: any) => `
+                  <tr>
+                    <td style="font-weight: 700;">${row.parameterName}</td>
+                    <td style="text-align: center;">${row.yes}</td>
+                    <td style="text-align: center;">${row.no}</td>
+                    <td style="text-align: center;">${row.na}</td>
+                    <td style="text-align: center;">${row.total}</td>
+                    <td style="text-align: center; font-weight: 900; color: ${((row.yes / row.total) * 100) >= 90 ? '#059669' : '#dc2626'}">
+                      ${((row.yes / row.total) * 100).toFixed(1)}%
+                    </td>
+                  </tr>
+                `).join('')}
+                <tr style="background: #f8fafc; font-weight: 900;">
+                  <td>SECTION TOTAL</td>
+                  <td style="text-align: center;">${section.overallQuality.totalYes}</td>
+                  <td style="text-align: center;">${section.overallQuality.totalNo}</td>
+                  <td style="text-align: center;">${section.overallQuality.totalNA}</td>
+                  <td style="text-align: center;">${section.overallQuality.totalResponses}</td>
+                  <td style="text-align: center; color: #1e3a8a;">${section.overallQuality.percentages.yes}%</td>
+                </tr>
+              </tbody>
+            </table>
+          `).join('')}
+        ` : ''}
       </div>
     </body>
     </html>
@@ -505,7 +510,8 @@ export async function exportDashboardToPDF(formTitle: string, analyticsData: any
       summaryStatuses: analyticsData.summaryStatuses,
       inspectionStats: analyticsData.inspectionStats,
       defectStartDate: analyticsData.defectStartDate,
-      defectEndDate: analyticsData.defectEndDate
+      defectEndDate: analyticsData.defectEndDate,
+      includeSectionAnalytics
     });
     return true;
   } catch (error) {

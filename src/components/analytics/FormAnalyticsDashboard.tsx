@@ -59,7 +59,6 @@ import ChartDataLabels from "chartjs-plugin-datalabels";
 import { apiClient } from "../../api/client";
 import ResponseQuestion from "./ResponseQuestion";
 import SectionAnalytics from "./SectionAnalytics";
-import LocationHeatmap from "./LocationHeatmap";
 import CascadingFilterModal from "./CascadingFilterModal";
 import * as XLSX from "xlsx-js-style";
 import { isImageUrl } from "../../utils/answerTemplateUtils";
@@ -2459,16 +2458,6 @@ export default function FormAnalyticsDashboard() {
   const [inspectorSummary, setInspectorSummary] = useState<any[]>([]);
   const [summaryStatuses, setSummaryStatuses] = useState<string[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
-  const [defectStartDate, setDefectStartDate] = useState<string>("");
-  const [defectEndDate, setDefectEndDate] = useState<string>("");
-  const [trendStartDate, setTrendStartDate] = useState<string>("");
-  const [trendEndDate, setTrendEndDate] = useState<string>("");
-  const [qualityStartDate, setQualityStartDate] = useState<string>("");
-  const [qualityEndDate, setQualityEndDate] = useState<string>("");
-  const [sectionStartDate, setSectionStartDate] = useState<string>("");
-  const [sectionEndDate, setSectionEndDate] = useState<string>("");
-  const [directAcceptedStartDate, setDirectAcceptedStartDate] = useState<string>("");
-  const [directAcceptedEndDate, setDirectAcceptedEndDate] = useState<string>("");
   const [chartOrientation, setChartOrientation] = useState<"v" | "h">("v");
   const [timeSeriesView, setTimeSeriesView] = useState<"daily" | "monthly">("daily");
   const [chartSortOrder, setChartSortOrder] = useState<"default" | "percentage">("percentage");
@@ -3305,43 +3294,43 @@ export default function FormAnalyticsDashboard() {
 
   const qualityChartResponses = useMemo(() => {
     let result = [...filteredResponses];
-    if (qualityStartDate || qualityEndDate) {
+    if (dateFilter.startDate || dateFilter.endDate) {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
         const responseDate = new Date(timestamp).toISOString().split("T")[0];
-        if (qualityStartDate && qualityEndDate) {
-          return responseDate >= qualityStartDate && responseDate <= qualityEndDate;
-        } else if (qualityStartDate) {
-          return responseDate >= qualityStartDate;
-        } else if (qualityEndDate) {
-          return responseDate <= qualityEndDate;
+        if (dateFilter.startDate && dateFilter.endDate) {
+          return responseDate >= dateFilter.startDate && responseDate <= dateFilter.endDate;
+        } else if (dateFilter.startDate) {
+          return responseDate >= dateFilter.startDate;
+        } else if (dateFilter.endDate) {
+          return responseDate <= dateFilter.endDate;
         }
         return true;
       });
     }
     return result;
-  }, [filteredResponses, qualityStartDate, qualityEndDate]);
+  }, [filteredResponses, dateFilter.startDate, dateFilter.endDate]);
 
   const sectionChartResponses = useMemo(() => {
     let result = [...filteredResponses];
-    if (sectionStartDate || sectionEndDate) {
+    if (dateFilter.startDate || dateFilter.endDate) {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
         const responseDate = new Date(timestamp).toISOString().split("T")[0];
-        if (sectionStartDate && sectionEndDate) {
-          return responseDate >= sectionStartDate && responseDate <= sectionEndDate;
-        } else if (sectionStartDate) {
-          return responseDate >= sectionStartDate;
-        } else if (sectionEndDate) {
-          return responseDate <= sectionEndDate;
+        if (dateFilter.startDate && dateFilter.endDate) {
+          return responseDate >= dateFilter.startDate && responseDate <= dateFilter.endDate;
+        } else if (dateFilter.startDate) {
+          return responseDate >= dateFilter.startDate;
+        } else if (dateFilter.endDate) {
+          return responseDate <= dateFilter.endDate;
         }
         return true;
       });
     }
     return result;
-  }, [filteredResponses, sectionStartDate, sectionEndDate]);
+  }, [filteredResponses, dateFilter.startDate, dateFilter.endDate]);
 
   const qualitySectionPerformanceStats = useMemo(
     () => computeSectionPerformanceStats(form, qualityChartResponses),
@@ -4303,18 +4292,18 @@ export default function FormAnalyticsDashboard() {
   const defectChartResponses = useMemo(() => {
     let result = [...filteredResponses];
 
-    if (defectStartDate || defectEndDate) {
+    if (dateFilter.startDate || dateFilter.endDate) {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
         const responseDate = new Date(timestamp).toISOString().split("T")[0];
 
-        if (defectStartDate && defectEndDate) {
-          return responseDate >= defectStartDate && responseDate <= defectEndDate;
-        } else if (defectStartDate) {
-          return responseDate >= defectStartDate;
-        } else if (defectEndDate) {
-          return responseDate <= defectEndDate;
+        if (dateFilter.startDate && dateFilter.endDate) {
+          return responseDate >= dateFilter.startDate && responseDate <= dateFilter.endDate;
+        } else if (dateFilter.startDate) {
+          return responseDate >= dateFilter.startDate;
+        } else if (dateFilter.endDate) {
+          return responseDate <= dateFilter.endDate;
         }
         return true;
       });
@@ -4326,28 +4315,28 @@ export default function FormAnalyticsDashboard() {
       return dateB - dateA;
     });
 
-    if (!defectStartDate && !defectEndDate) {
+    if (!dateFilter.startDate && !dateFilter.endDate) {
       return result.slice(0, 20);
     }
 
     return result;
-  }, [filteredResponses, defectStartDate, defectEndDate]);
+  }, [filteredResponses, dateFilter.startDate, dateFilter.endDate]);
 
   const trendChartResponses = useMemo(() => {
     let result = [...filteredResponses];
 
-    if (trendStartDate || trendEndDate) {
+    if (dateFilter.startDate || dateFilter.endDate) {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
         const responseDate = new Date(timestamp).toISOString().split("T")[0];
 
-        if (trendStartDate && trendEndDate) {
-          return responseDate >= trendStartDate && responseDate <= trendEndDate;
-        } else if (trendStartDate) {
-          return responseDate >= trendStartDate;
-        } else if (trendEndDate) {
-          return responseDate <= trendEndDate;
+        if (dateFilter.startDate && dateFilter.endDate) {
+          return responseDate >= dateFilter.startDate && responseDate <= dateFilter.endDate;
+        } else if (dateFilter.startDate) {
+          return responseDate >= dateFilter.startDate;
+        } else if (dateFilter.endDate) {
+          return responseDate <= dateFilter.endDate;
         }
         return true;
       });
@@ -4360,7 +4349,7 @@ export default function FormAnalyticsDashboard() {
     });
 
     return result;
-  }, [filteredResponses, trendStartDate, trendEndDate]);
+  }, [filteredResponses, dateFilter.startDate, dateFilter.endDate]);
 
   const chartQuestionPerformanceStats = useMemo(() => {
     return computeQuestionPerformanceStats(form, defectChartResponses);
@@ -4482,27 +4471,6 @@ export default function FormAnalyticsDashboard() {
               </div>
             </div>
           </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">From:</span>
-              <input
-                type="date"
-                value={qualityStartDate}
-                onChange={(e) => setQualityStartDate(e.target.value)}
-                className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-purple-500 text-slate-700 dark:text-slate-200"
-              />
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase">To:</span>
-              <input
-                type="date"
-                value={qualityEndDate}
-                onChange={(e) => setQualityEndDate(e.target.value)}
-                className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-purple-500 text-slate-700 dark:text-slate-200"
-              />
-            </div>
-          </div>
         </div>
 
         <div className="flex-1 flex flex-col" id="overall-quality-chart">
@@ -4601,7 +4569,7 @@ export default function FormAnalyticsDashboard() {
       return `${format(minDate)} - ${format(maxDate)}`;
     }, [defectChartResponses]);
 
-    if (!processedQuestions.length && !defectStartDate && !defectEndDate) return null;
+    if (!processedQuestions.length && !dateFilter.startDate && !dateFilter.endDate) return null;
 
     const data = {
       labels: processedQuestions.map((q) =>
@@ -4802,26 +4770,6 @@ export default function FormAnalyticsDashboard() {
                 </span>
               )}
             </button>
-
-            <div className="flex items-center gap-1">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">From:</span>
-              <input
-                type="date"
-                value={defectStartDate}
-                onChange={(e) => setDefectStartDate(e.target.value)}
-                className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
-              />
-            </div>
-
-            <div className="flex items-center gap-1">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">To:</span>
-              <input
-                type="date"
-                value={defectEndDate}
-                onChange={(e) => setDefectEndDate(e.target.value)}
-                className="text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-1.5 py-0.5 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
-              />
-            </div>
           </div>
         </div>
 
@@ -4852,17 +4800,17 @@ export default function FormAnalyticsDashboard() {
         return computeMonthlyPerformanceStats(
           trendChartResponses,
           responseStatuses,
-          trendStartDate,
-          trendEndDate,
+          dateFilter.startDate,
+          dateFilter.endDate,
         );
       }
       return computeDailyPerformanceStats(
         trendChartResponses,
         responseStatuses,
-        trendStartDate,
-        trendEndDate,
+        dateFilter.startDate,
+        dateFilter.endDate,
       );
-    }, [trendChartResponses, responseStatuses, timeSeriesView, trendStartDate, trendEndDate]);
+    }, [trendChartResponses, responseStatuses, timeSeriesView, dateFilter.startDate, dateFilter.endDate]);
 
     if (timeData.length === 0) return null;
 
@@ -5003,28 +4951,6 @@ export default function FormAnalyticsDashboard() {
                 MONTHLY
               </button>
             </div>
-
-            <div className="h-4 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From:</span>
-              <input
-                type="date"
-                value={trendStartDate}
-                onChange={(e) => setTrendStartDate(e.target.value)}
-                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
-              />
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To:</span>
-              <input
-                type="date"
-                value={trendEndDate}
-                onChange={(e) => setTrendEndDate(e.target.value)}
-                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
-              />
-            </div>
           </div>
         </div>
         <div style={{ height: "400px", position: "relative" }}>
@@ -5115,10 +5041,10 @@ export default function FormAnalyticsDashboard() {
       return computeDirectAcceptedDailyStats(
         baseFilteredResponses,
         responseStatuses,
-        directAcceptedStartDate,
-        directAcceptedEndDate,
+        dateFilter.startDate,
+        dateFilter.endDate,
       );
-    }, [baseFilteredResponses, responseStatuses, directAcceptedStartDate, directAcceptedEndDate]);
+    }, [baseFilteredResponses, responseStatuses, dateFilter.startDate, dateFilter.endDate]);
 
     if (timeData.length === 0) return null;
 
@@ -5230,28 +5156,6 @@ export default function FormAnalyticsDashboard() {
               </p>
             </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From:</span>
-              <input
-                type="date"
-                value={directAcceptedStartDate}
-                onChange={(e) => setDirectAcceptedStartDate(e.target.value)}
-                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
-              />
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To:</span>
-              <input
-                type="date"
-                value={directAcceptedEndDate}
-                onChange={(e) => setDirectAcceptedEndDate(e.target.value)}
-                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
-              />
-            </div>
-          </div>
         </div>
         <div style={{ height: "400px", position: "relative" }}>
           <Bar data={data} options={options} />
@@ -5265,10 +5169,10 @@ export default function FormAnalyticsDashboard() {
       return computeDailyReworkVolumeStats(
         form,
         baseFilteredResponses,
-        directAcceptedStartDate,
-        directAcceptedEndDate,
+        dateFilter.startDate,
+        dateFilter.endDate,
       );
-    }, [form, baseFilteredResponses, directAcceptedStartDate, directAcceptedEndDate]);
+    }, [form, baseFilteredResponses, dateFilter.startDate, dateFilter.endDate]);
 
     if (timeData.length === 0) return null;
 
@@ -5342,28 +5246,6 @@ export default function FormAnalyticsDashboard() {
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Daily Rework Volume (Sum of question-level reworks)
               </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">From:</span>
-              <input
-                type="date"
-                value={directAcceptedStartDate}
-                onChange={(e) => setDirectAcceptedStartDate(e.target.value)}
-                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
-              />
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">To:</span>
-              <input
-                type="date"
-                value={directAcceptedEndDate}
-                onChange={(e) => setDirectAcceptedEndDate(e.target.value)}
-                className="text-xs bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded px-2 py-1 outline-none focus:ring-1 focus:ring-blue-500 text-slate-700 dark:text-slate-200"
-              />
             </div>
           </div>
         </div>
@@ -5470,10 +5352,10 @@ export default function FormAnalyticsDashboard() {
       sectionAnalyticsData: getSectionAnalyticsData(),
       inspectorSummary: inspectorSummary,
       summaryStatuses: summaryStatuses,
-      defectStartDate,
-      defectEndDate
+      defectStartDate: dateFilter.startDate,
+      defectEndDate: dateFilter.endDate
     };
-  }, [analytics, inspectionStats, sectionSummaryRows, totalPieChartData, inspectorSummary, summaryStatuses, defectStartDate, defectEndDate, form, responses]);
+  }, [analytics, inspectionStats, sectionSummaryRows, totalPieChartData, inspectorSummary, summaryStatuses, dateFilter.startDate, dateFilter.endDate, form, responses]);
 
   const handleExportToPDF = async () => {
     try {
@@ -5483,7 +5365,7 @@ export default function FormAnalyticsDashboard() {
       const success = await exportDashboardToPDF(
         form?.title || "Form Analytics",
         fullAnalyticsData,
-        true
+        analyticsView === "section"
       );
 
       if (success) {
@@ -6090,12 +5972,12 @@ export default function FormAnalyticsDashboard() {
 
       {/* Dashboard View - Always render for PDF export capability, but hide if not active */}
       {(analyticsView === "dashboard" || isExporting) && (
-        <div className={analyticsView === "dashboard" ? "space-y-6" : "hidden"} aria-hidden={analyticsView !== "dashboard"}>
+        <div className={analyticsView === "dashboard" ? "space-y-6" : "absolute -left-[9999px] top-0 w-full opacity-0 pointer-events-none"} aria-hidden={analyticsView !== "dashboard"}>
         <div
           className="w-full"
           id="summary-cards"
         >
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
               {/* Response Trend Chart - COMPACT */}
               <div className="p-6 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 flex flex-col rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">
                 <div className="flex items-center justify-between mb-4">
@@ -6225,13 +6107,6 @@ export default function FormAnalyticsDashboard() {
                 )}
               </div>
 
-              {/* Location Heatmap - Self-contained component */}
-              <LocationHeatmap
-                responses={filteredResponses}
-                title="Response Locations Heatmap"
-                id="location-heatmap"
-              />
-
               {/* Pie Chart - COMPACT */}
               <OverallQualityPieChart />
             </div>
@@ -6287,28 +6162,6 @@ export default function FormAnalyticsDashboard() {
                       </div>
 
                       <div className="flex flex-wrap items-center gap-3">
-                        {/* Section Date Filters */}
-                        <div className="flex items-center gap-2 bg-white dark:bg-gray-900 p-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
-                          <div className="flex items-center gap-1.5 px-2 border-r border-gray-100 dark:border-gray-800">
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">From</span>
-                            <input
-                              type="date"
-                              value={sectionStartDate}
-                              onChange={(e) => setSectionStartDate(e.target.value)}
-                              className="text-xs font-bold bg-transparent outline-none text-gray-700 dark:text-gray-200"
-                            />
-                          </div>
-                          <div className="flex items-center gap-1.5 px-2">
-                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">To</span>
-                            <input
-                              type="date"
-                              value={sectionEndDate}
-                              onChange={(e) => setSectionEndDate(e.target.value)}
-                              className="text-xs font-bold bg-transparent outline-none text-gray-700 dark:text-gray-200"
-                            />
-                          </div>
-                        </div>
-
                         {/* Section Selection Dropdown */}
                         <div className="relative">
                           <button
