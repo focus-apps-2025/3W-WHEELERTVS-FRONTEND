@@ -223,7 +223,7 @@ export default function Header() {
       return permissionSet.has(item.permission);
     });
 
-    if (user.role === "admin") {
+    if (user.role === "admin" || user.role === "subadmin") {
       filteredItems.push(adminManagementMenuItem);
       filteredItems.push({
         title: "Attendance",

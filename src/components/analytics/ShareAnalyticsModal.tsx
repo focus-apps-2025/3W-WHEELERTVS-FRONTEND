@@ -220,7 +220,12 @@ export default function ShareAnalyticsModal({
         
         showError(msg);
       } else {
-        showError("Failed to send any invites. Please check your service configuration (SMTP/Twilio).");
+        const firstError = response.details?.[0]?.deliveryReport?.emailError;
+        if (firstError) {
+          showError(`Failed to send: ${firstError}`);
+        } else {
+          showError("Failed to send any invites. Please check your service configuration (SMTP/Twilio).");
+        }
       }
       
       onClose();

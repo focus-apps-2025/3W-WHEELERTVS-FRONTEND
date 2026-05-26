@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useForms, useResponses } from "../hooks/useApi";
@@ -14,6 +14,8 @@ import {
   Building,
   ArrowLeft,
   Eye,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
@@ -78,6 +80,7 @@ export default function DashboardNew() {
    const [summaryPageSize, setSummaryPageSize] = useState(10);
    const [performancePage, setPerformancePage] = useState(1);
    const [performancePageSize, setPerformancePageSize] = useState(10);
+   const [expandedForms, setExpandedForms] = useState<Set<string>>(new Set());
 
   // Check user role
   const isSuperAdmin = user?.role === "superadmin";
@@ -237,6 +240,28 @@ export default function DashboardNew() {
       fetchSummary();
     }
   }, [user, summaryStartDate, summaryEndDate]);
+
+  const groupedSummary = useMemo(() => {
+    const groups: Record<string, any> = {};
+    inspectorSummary.forEach(item => {
+      const title = item.formTitle || "N/A";
+      if (!groups[title]) {
+        groups[title] = {
+          formTitle: title,
+          tenantName: item.tenantName,
+          totalInspection: 0,
+          statusCounts: {},
+          subItems: []
+        };
+      }
+      groups[title].totalInspection += item.totalInspection;
+      Object.entries(item.statusCounts || {}).forEach(([status, count]) => {
+        groups[title].statusCounts[status] = (groups[title].statusCounts[status] || 0) + (count as number);
+      });
+      groups[title].subItems.push(item);
+    });
+    return Object.values(groups);
+  }, [inspectorSummary]);
 
   // Fetch my review stats
   useEffect(() => {
@@ -922,6 +947,18 @@ useEffect(() => {
     );
   };
 
+  const toggleFormExpansion = (formTitle: string) => {
+    setExpandedForms(prev => {
+      const next = new Set(prev);
+      if (next.has(formTitle)) {
+        next.delete(formTitle);
+      } else {
+        next.add(formTitle);
+      }
+      return next;
+    });
+  };
+
   const renderSummaryTable = () => {
     if (summaryLoading) {
       return (
@@ -932,7 +969,7 @@ useEffect(() => {
       );
     }
 
-    if (inspectorSummary.length === 0) {
+    if (groupedSummary.length === 0) {
       return (
         <div className="text-center py-8 text-gray-500 text-sm">
           No inspection data available for the current summary.
@@ -941,11 +978,11 @@ useEffect(() => {
     }
 
     // Pagination logic
-    const totalSummaryItems = inspectorSummary.length;
+    const totalSummaryItems = groupedSummary.length;
     const totalSummaryPages = Math.ceil(totalSummaryItems / summaryPageSize);
     const startIndex = (summaryPage - 1) * summaryPageSize;
     const endIndex = startIndex + summaryPageSize;
-    const paginatedSummary = inspectorSummary.slice(startIndex, endIndex);
+    const paginatedSummary = groupedSummary.slice(startIndex, endIndex);
 
     return (
       <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-700">
@@ -1011,57 +1048,140 @@ useEffect(() => {
                       {status}
                     </th>
                   ))}
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
-                {paginatedSummary.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors group">
-                    <td className="px-4 sm:px-6 py-5 font-bold text-gray-900 dark:text-white whitespace-nowrap">
-                      {row.tenantName}
-                    </td>
-                    <td className="px-4 sm:px-6 py-5 text-gray-600 dark:text-gray-400 whitespace-nowrap tabular-nums font-medium">
-                      {new Date(row.date).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
-                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                        {row.shift || "N/A"}
-                      </span>
-                    </td>
-                    <td className="px-4 sm:px-6 py-5 text-gray-600 dark:text-gray-400 whitespace-nowrap max-w-xs truncate font-medium">
-                      {row.formTitle || "N/A"}
-                    </td>
-                    <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center text-blue-700 dark:text-blue-300 font-black text-[10px]">
-                          {row.qcInspector?.split(' ').map((n: string) => n[0]).join('')}
-                        </div>
-                        <span className="font-bold text-gray-700 dark:text-gray-200">{row.qcInspector}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 sm:px-6 py-5 text-center">
-                      <span className="text-base font-black text-gray-900 dark:text-white tabular-nums">
-                        {row.totalInspection}
-                      </span>
-                    </td>
-                    {/* Dynamic Status Cells */}
-                    {summaryStatuses.map((status) => {
-                      const count = row.statusCounts?.[status] || 0;
-                      const isZero = count === 0;
-                      return (
-                        <td
-                          key={status}
-                          className={`px-4 sm:px-6 py-5 text-center font-black tabular-nums transition-opacity ${isZero ? 'opacity-20 text-gray-400' : 
-                            status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-emerald-600 dark:text-emerald-400' :
-                            status.startsWith('Rework') ? 'text-amber-600 dark:text-amber-400' :
-                            status === 'Rejected' ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'
-                          }`}
-                        >
-                          {count}
+                {paginatedSummary.map((group, groupIdx) => {
+                  const isExpanded = expandedForms.has(group.formTitle);
+                  // Collect all inspectors for this form
+                  const inspectors = Array.from(new Set(group.subItems.map((i: any) => i.qcInspector)));
+                  
+                  return (
+                    <React.Fragment key={groupIdx}>
+                      {/* Main Group Row */}
+                      <tr 
+                        className={`transition-colors cursor-pointer ${isExpanded ? 'bg-blue-50/50 dark:bg-blue-900/20' : 'hover:bg-blue-50/30 dark:hover:bg-blue-900/10'}`}
+                        onClick={() => toggleFormExpansion(group.formTitle)}
+                      >
+                        <td className="px-4 sm:px-6 py-5 font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                          {group.tenantName}
                         </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                        <td className="px-4 sm:px-6 py-5 text-gray-400 whitespace-nowrap text-xs">
+                          {isExpanded ? '—' : (
+                            group.subItems.length > 1 
+                              ? `${new Date(Math.min(...group.subItems.map((i: any) => new Date(i.date).getTime()))).toLocaleDateString()} - ...`
+                              : new Date(group.subItems[0].date).toLocaleDateString()
+                          )}
+                        </td>
+                        <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
+                          {!isExpanded && (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                              {Array.from(new Set(group.subItems.map((i: any) => i.shift || "N/A"))).join(', ')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 sm:px-6 py-5 text-gray-900 dark:text-white whitespace-nowrap max-w-xs truncate font-black">
+                          {group.formTitle}
+                        </td>
+                        <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
+                          <div className="flex items-center -space-x-2">
+                            {inspectors.slice(0, 3).map((inspector: any, i) => (
+                              <div 
+                                key={i}
+                                className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 border-2 border-white dark:border-gray-800 flex items-center justify-center text-blue-700 dark:text-blue-300 font-black text-[10px] z-[i]"
+                                title={inspector}
+                              >
+                                {inspector?.split(' ').map((n: string) => n[0]).join('')}
+                              </div>
+                            ))}
+                            {inspectors.length > 3 && (
+                              <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 font-bold text-[10px] z-10">
+                                +{inspectors.length - 3}
+                              </div>
+                            )}
+                            {inspectors.length <= 1 && inspectors[0] && (
+                               <span className="ml-3 font-bold text-gray-700 dark:text-gray-200 text-xs">{inspectors[0]}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 sm:px-6 py-5 text-center">
+                          <span className="text-base font-black text-gray-900 dark:text-white tabular-nums">
+                            {group.totalInspection}
+                          </span>
+                        </td>
+                        {/* Dynamic Status Cells */}
+                        {summaryStatuses.map((status) => {
+                          const count = group.statusCounts?.[status] || 0;
+                          const isZero = count === 0;
+                          return (
+                            <td
+                              key={status}
+                              className={`px-4 sm:px-6 py-5 text-center font-black tabular-nums transition-opacity ${isZero ? 'opacity-20 text-gray-400' : 
+                                status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-emerald-600 dark:text-emerald-400' :
+                                status.startsWith('Rework') ? 'text-amber-600 dark:text-amber-400' :
+                                status === 'Rejected' ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'
+                              }`}
+                            >
+                              {count}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 sm:px-6 py-5 text-center">
+                           <button className="p-2 hover:bg-white/50 dark:hover:bg-white/10 rounded-full transition-colors">
+                             {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                           </button>
+                        </td>
+                      </tr>
+
+                      {/* Sub Items (QC Inspectors for this Form) */}
+                      {isExpanded && group.subItems.map((row: any, subIdx: number) => (
+                        <tr key={`${groupIdx}-${subIdx}`} className="bg-gray-50/30 dark:bg-gray-900/20 border-l-4 border-l-blue-500">
+                          <td className="px-4 sm:px-6 py-4 opacity-50">
+                            {/* Empty or same tenant */}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 text-gray-600 dark:text-gray-400 whitespace-nowrap tabular-nums font-medium text-xs italic">
+                            {new Date(row.date).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400">
+                              {row.shift || "N/A"}
+                            </span>
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 text-gray-400 whitespace-nowrap text-xs italic">
+                            {/* Same form title, usually empty or dimmed */}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap pl-10">
+                            <div className="flex items-center gap-3">
+                              <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-[8px]">
+                                {row.qcInspector?.split(' ').map((n: string) => n[0]).join('')}
+                              </div>
+                              <span className="font-bold text-gray-600 dark:text-gray-300 text-xs">{row.qcInspector}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 text-center">
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-200 tabular-nums">
+                              {row.totalInspection}
+                            </span>
+                          </td>
+                          {summaryStatuses.map((status) => {
+                            const count = row.statusCounts?.[status] || 0;
+                            const isZero = count === 0;
+                            return (
+                              <td
+                                key={status}
+                                className={`px-4 sm:px-6 py-4 text-center font-bold text-xs tabular-nums ${isZero ? 'opacity-10 text-gray-400' : 'opacity-70'}`}
+                              >
+                                {count}
+                              </td>
+                            );
+                          })}
+                          <td></td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
               </tbody>
             </table>
           </div>

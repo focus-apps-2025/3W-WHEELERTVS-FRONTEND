@@ -857,12 +857,13 @@ class ApiClient {
     }>("/analytics/my-review-stats");
   }
 
-  async getPerformanceTable(params?: { startDate?: string; endDate?: string }) {
+  async getPerformanceTable(params?: { startDate?: string; endDate?: string; formId?: string }) {
     let url = "/analytics/performance-table";
     if (params) {
       const searchParams = new URLSearchParams();
       if (params.startDate) searchParams.append("startDate", params.startDate);
       if (params.endDate) searchParams.append("endDate", params.endDate);
+      if (params.formId) searchParams.append("formId", params.formId);
       const query = searchParams.toString();
       if (query) url += `?${query}`;
     }

@@ -30,10 +30,11 @@ import {
   MessageCircle,
   Info,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Filter,
   Reply,
   Upload,
-  ChevronDown,
   Camera,
   Loader2,
   Maximize
@@ -1246,8 +1247,9 @@ const computeDirectAcceptedDailyStats = (
   rejectedCount: number;
   total: number;
   questionReworkCount: number;
+  reworkCompletedCount: number;
 }[] => {
-  const dailyMap = new Map<string, { total: number; direct: number; rework: number; rejected: number }>();
+  const dailyMap = new Map<string, { total: number; direct: number; rework: number; rejected: number; questionRework: number; reworkCompleted: number }>();
 
   let start: Date | null = null;
   let end: Date | null = null;
@@ -1275,7 +1277,7 @@ const computeDirectAcceptedDailyStats = (
 
     while (curr <= last) {
       const dKey = curr.toISOString().split("T")[0];
-      dailyMap.set(dKey, { total: 0, direct: 0, rework: 0, rejected: 0 });
+      dailyMap.set(dKey, { total: 0, direct: 0, rework: 0, rejected: 0, questionRework: 0, reworkCompleted: 0 });
       curr.setDate(curr.getDate() + 1);
     }
   }
@@ -1286,7 +1288,7 @@ const computeDirectAcceptedDailyStats = (
 
     const dateKey = new Date(timestamp).toISOString().split("T")[0];
     if (!dailyMap.has(dateKey)) {
-      dailyMap.set(dateKey, { total: 0, direct: 0, rework: 0, rejected: 0 });
+      dailyMap.set(dateKey, { total: 0, direct: 0, rework: 0, rejected: 0, questionRework: 0, reworkCompleted: 0 });
     }
 
     const dayStats = dailyMap.get(dateKey)!;
@@ -1314,6 +1316,8 @@ const computeDirectAcceptedDailyStats = (
     const status = statuses[response.id];
     if (status === "Direct Ok" || status === "Accepted") {
       dayStats.direct += 1;
+    } else if (status && (status.startsWith("Rework Accepted") || status.startsWith("Rework Completed"))) {
+      dayStats.reworkCompleted += 1;
     } else if (status && status.startsWith("Rework")) {
       dayStats.rework += 1;
     } else if (status === "Rejected") {
@@ -1335,6 +1339,8 @@ const computeDirectAcceptedDailyStats = (
         reworkCount: stats.rework,
         rejectedCount: stats.rejected,
         total: stats.total,
+        questionReworkCount: stats.questionRework,
+        reworkCompletedCount: stats.reworkCompleted,
       };
     })
     .sort((a, b) => (a.dateKey > b.dateKey ? 1 : -1));
@@ -2129,7 +2135,7 @@ export default function FormAnalyticsDashboard() {
   );
   const [analyticsView, setAnalyticsView] = useState<
     "question" | "section" | "table" | "responses" | "dashboard" | "comparison"
-  >(isGuest ? "dashboard" : user?.role === "inspector" ? "responses" : "section");
+  >(isGuest ? "dashboard" : user?.role === "inspector" ? "responses" : "dashboard");
   const [tableViewType, setTableViewType] = useState<"question" | "section">(
     "question",
   );
@@ -2192,6 +2198,7 @@ export default function FormAnalyticsDashboard() {
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [selectedInspectorForTrend, setSelectedInspectorForTrend] = useState<string>("Overall");
   const [dateFilter, setDateFilter] = useState<{
     type: "all" | "single" | "range";
     startDate: string;
@@ -2223,6 +2230,36 @@ export default function FormAnalyticsDashboard() {
 
   // Performance scoring system
   const [performanceScores, setPerformanceScores] = useState<Record<string, number>>({});
+
+  const [performanceTableData, setPerformanceTableData] = useState<any[]>([]);
+  const [performanceTableLoading, setPerformanceTableLoading] = useState(false);
+  const [performancePage, setPerformancePage] = useState(1);
+  const [performancePageSize, setPerformancePageSize] = useState(10);
+
+  // Fetch performance table data
+  useEffect(() => {
+    const fetchPerformanceTable = async () => {
+      if (!id || (user?.role !== 'admin' && user?.role !== 'superadmin')) return;
+      
+      setPerformanceTableLoading(true);
+      try {
+        const response = await apiClient.getPerformanceTable({
+          startDate: dateFilter.startDate,
+          endDate: dateFilter.endDate,
+          formId: id
+        });
+        if (response.success) {
+          setPerformanceTableData(response.data || []);
+        }
+      } catch (error) {
+        console.error("Error fetching performance table:", error);
+      } finally {
+        setPerformanceTableLoading(false);
+      }
+    };
+
+    fetchPerformanceTable();
+  }, [id, dateFilter.startDate, dateFilter.endDate, user?.role]);
 
   // Load performance scores from API
   useEffect(() => {
@@ -2456,6 +2493,8 @@ export default function FormAnalyticsDashboard() {
   >("dashboard");
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [inspectorSummary, setInspectorSummary] = useState<any[]>([]);
+  const [expandedInspectorForms, setExpandedInspectorForms] = useState<Set<string>>(new Set());
+  const [allInspectors, setAllInspectors] = useState<any[]>([]);
   const [summaryStatuses, setSummaryStatuses] = useState<string[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [chartOrientation, setChartOrientation] = useState<"v" | "h">("v");
@@ -2621,13 +2660,26 @@ export default function FormAnalyticsDashboard() {
     const fetchSummary = async () => {
       setSummaryLoading(true);
       try {
-        const response = await apiClient.get<any>("/analytics/inspector-summary");
-        if (response.data) {
-          setInspectorSummary(response.data.summary || []);
-          setSummaryStatuses(response.data.allStatuses || []);
+        let url = "/analytics/inspector-summary";
+        if (id) {
+          url += `?formId=${id}`;
+        }
+        
+        const [summaryRes, hierarchyRes] = await Promise.all([
+          apiClient.get<any>(url),
+          apiClient.getUsersHierarchy({ role: "Inspector" })
+        ]);
+
+        if (summaryRes.data) {
+          setInspectorSummary(summaryRes.data.summary || []);
+          setSummaryStatuses(summaryRes.data.allStatuses || []);
+        }
+
+        if (hierarchyRes.users) {
+          setAllInspectors(hierarchyRes.users);
         }
       } catch (error) {
-        console.error("Error fetching inspector summary:", error);
+        console.error("Error fetching inspector data:", error);
       } finally {
         setSummaryLoading(false);
       }
@@ -2636,7 +2688,29 @@ export default function FormAnalyticsDashboard() {
     if (user) {
       fetchSummary();
     }
-  }, [user]);
+  }, [user, id]);
+
+  const groupedInspectorSummary = useMemo(() => {
+    const groups: Record<string, any> = {};
+    inspectorSummary.forEach(item => {
+      const title = item.formTitle || "N/A";
+      if (!groups[title]) {
+        groups[title] = {
+          formTitle: title,
+          tenantName: item.tenantName,
+          totalInspection: 0,
+          statusCounts: {},
+          subItems: []
+        };
+      }
+      groups[title].totalInspection += item.totalInspection;
+      Object.entries(item.statusCounts || {}).forEach(([status, count]) => {
+        groups[title].statusCounts[status] = (groups[title].statusCounts[status] || 0) + (count as number);
+      });
+      groups[title].subItems.push(item);
+    });
+    return Object.values(groups);
+  }, [inspectorSummary]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -4246,43 +4320,96 @@ export default function FormAnalyticsDashboard() {
     [qualitySectionPerformanceStats],
   );
 
+  const uniqueInspectors = useMemo(() => {
+    // Combine inspectors from responses, inspectorSummary, and allInspectors (Role-based)
+    const inspectors = new Set<string>();
+
+    // From Responses
+    filteredResponses.forEach((r) => {
+      if (r.submittedBy) inspectors.add(r.submittedBy);
+    });
+
+    // From Admin/System Summary
+    inspectorSummary.forEach((s) => {
+      if (s.qcInspector) inspectors.add(s.qcInspector);
+    });
+
+    // From Role-based fetch (All users with Inspector role)
+    allInspectors.forEach((i) => {
+      if (i.name) inspectors.add(i.name);
+      if (i.email) inspectors.add(i.email);
+    });
+
+    return Array.from(inspectors).sort();
+  }, [filteredResponses, inspectorSummary, allInspectors]);
+
+  const inspectionStats = useMemo(() => {
+    let accepted = 0;
+    let rejected = 0;
+    let reworked = 0;
+    let reworkCompleted = 0;
+
+    filteredResponses.forEach((response) => {
+      // If an inspector is selected, ensure the response matches that inspector
+      if (selectedInspectorForTrend !== "Overall") {
+        const inspectorName = response.submittedBy;
+        if (inspectorName !== selectedInspectorForTrend) {
+          return;
+        }
+      }
+
+      const status = responseStatuses[response.id];
+      if (status === "Direct Ok" || status === "Accepted") {
+        accepted++;
+      } else if (status === "Rework Accepted") {
+        reworkCompleted++;
+      } else if (status && status.startsWith("Rework")) {
+        reworked++;
+      } else if (status === "Rejected") {
+        rejected++;
+      }
+    });
+
+    return { accepted, rejected, reworked, reworkCompleted };
+  }, [filteredResponses, responseStatuses, selectedInspectorForTrend]);
+
   const totalPieChartData = useMemo(() => {
-    if (qualitySectionSummaryRows.length === 0) {
+    const directOk = inspectionStats.accepted;
+    const reworkCompleted = inspectionStats.reworkCompleted;
+    const totalNo = inspectionStats.rejected;
+    const totalNA = inspectionStats.reworked;
+
+    const total = directOk + reworkCompleted + totalNo + totalNA;
+
+    if (total === 0) {
       return {
-        yes: 0,
+        directOk: 0,
+        reworkCompleted: 0,
         no: 0,
         na: 0,
-        counts: { yes: 0, no: 0, na: 0, total: 0 },
+        counts: { directOk: 0, reworkCompleted: 0, no: 0, na: 0, total: 0 },
       };
     }
 
-    let totalYes = 0;
-    let totalNo = 0;
-    let totalNA = 0;
-
-    qualitySectionSummaryRows.forEach((row) => {
-      totalYes += row.yesCount;
-      totalNo += row.noCount;
-      totalNA += row.naCount;
-    });
-
-    const total = totalYes + totalNo + totalNA;
-    const yesPercent = total > 0 ? (totalYes / total) * 100 : 0;
-    const noPercent = total > 0 ? (totalNo / total) * 100 : 0;
-    const naPercent = total > 0 ? (totalNA / total) * 100 : 0;
+    const directOkPercent = (directOk / total) * 100;
+    const reworkCompletedPercent = (reworkCompleted / total) * 100;
+    const noPercent = (totalNo / total) * 100;
+    const naPercent = (totalNA / total) * 100;
 
     return {
-      yes: Number(yesPercent.toFixed(1)),
+      directOk: Number(directOkPercent.toFixed(1)),
+      reworkCompleted: Number(reworkCompletedPercent.toFixed(1)),
       no: Number(noPercent.toFixed(1)),
       na: Number(naPercent.toFixed(1)),
       counts: {
-        yes: totalYes,
+        directOk: directOk,
+        reworkCompleted: reworkCompleted,
         no: totalNo,
         na: totalNA,
         total: total,
       },
     };
-  }, [qualitySectionSummaryRows]);
+  }, [inspectionStats]);
 
   const questionPerformanceStats = useMemo(
     () => computeQuestionPerformanceStats(form, filteredResponses),
@@ -4378,26 +4505,30 @@ export default function FormAnalyticsDashboard() {
   const OverallQualityPieChart = () => {
     const data = {
       labels: [
-        complianceLabels.yes,
-        complianceLabels.no,
-        complianceLabels.na,
+        "Direct Ok",
+        "Rework Completed",
+        "Rejected",
+        "Ongoing Rework",
       ],
       datasets: [
         {
           data: [
-            totalPieChartData.yes,
+            totalPieChartData.directOk,
+            totalPieChartData.reworkCompleted,
             totalPieChartData.no,
             totalPieChartData.na,
           ],
           backgroundColor: [
-            "rgba(34, 197, 94)", // Green for Yes
-            "rgba(239, 68, 68, 0.8)", // Red for No
-            "rgba(156, 163, 175, 0.8)", // Gray for N/A
+            "rgba(34, 197, 94, 0.85)", // Green for Direct Ok
+            "rgba(59, 130, 246, 0.85)", // Blue for Rework Completed
+            "rgba(239, 68, 68, 0.85)", // Red for Rejected
+            "rgba(234, 179, 8, 0.85)", // Yellow for Ongoing Rework
           ],
           borderColor: [
             "rgb(34, 197, 94)",
+            "rgb(59, 130, 246)",
             "rgb(239, 68, 68)",
-            "rgb(156, 163, 175)",
+            "rgb(234, 179, 8)",
           ],
           borderWidth: 2,
           hoverOffset: 15,
@@ -4411,42 +4542,39 @@ export default function FormAnalyticsDashboard() {
       plugins: {
         datalabels: {
           color: "white",
+          font: { weight: "bold" as const, size: 10 },
+          formatter: (value: number) => value > 0 ? `${value}%` : "",
         },
         legend: {
-          position: "bottom",
-
+          position: "bottom" as const,
           labels: {
             color: document.documentElement.classList.contains("dark")
               ? "#e5e7eb"
               : "#374151",
-            font: {
-              size: 10,
-            },
-            padding: 10,
+            font: { size: 9, weight: "bold" as const },
+            padding: 8,
+            usePointStyle: true,
           },
         },
         tooltip: {
           callbacks: {
-            label: function (context) {
+            label: function (context: any) {
               const label = context.label || "";
               const value = context.raw || 0;
               const index = context.dataIndex;
-              const total = context.dataset.data.reduce((a, b) => a + b, 0);
-              const percentage =
-                total > 0 ? ((value / total) * 100).toFixed(1) : 0;
 
               let count = 0;
-              if (index === 0) count = totalPieChartData.counts.yes;
-              else if (index === 1) count = totalPieChartData.counts.no;
-              else if (index === 2) count = totalPieChartData.counts.na;
+              if (index === 0) count = totalPieChartData.counts.directOk;
+              else if (index === 1) count = totalPieChartData.counts.reworkCompleted;
+              else if (index === 2) count = totalPieChartData.counts.no;
+              else if (index === 3) count = totalPieChartData.counts.na;
 
               return `${label}: ${value}% (${count} responses)`;
             },
           },
         },
       },
-      // DONUT CHART SPECIFIC OPTIONS
-      cutout: "60%", // This creates the donut hole - adjust percentage for thicker/thinner donut
+      cutout: "60%",
       interaction: {
         mode: "nearest" as const,
         intersect: true,
@@ -4463,13 +4591,30 @@ export default function FormAnalyticsDashboard() {
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-primary-900 dark:text-white">
-                  Overall Response Quality
+                  Overall Inspection Trend
                 </h2>
                 <p className="text-[10px] sm:text-xs text-primary-500 dark:text-primary-400">
-                  {complianceLabels.yes}/{complianceLabels.no}/{complianceLabels.na} Distribution
+                  {selectedInspectorForTrend === "Overall" ? "Accepted/Rejected/Rework Distribution" : `Inspector: ${selectedInspectorForTrend}`}
                 </p>
               </div>
             </div>
+
+            {uniqueInspectors.length > 0 && (
+              <select
+                value={selectedInspectorForTrend}
+                onChange={(e) => setSelectedInspectorForTrend(e.target.value)}
+                className="text-[10px] font-bold bg-white dark:bg-gray-900 text-primary-700 dark:text-primary-300 border border-gray-200 dark:border-gray-700 rounded-lg px-2 py-1.5 outline-none focus:ring-2 focus:ring-purple-500/50 shadow-sm"
+              >
+                <option value="Overall">Overall View</option>
+                <optgroup label="By Inspector">
+                  {uniqueInspectors.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            )}
           </div>
         </div>
 
@@ -4479,10 +4624,10 @@ export default function FormAnalyticsDashboard() {
               <div className="text-center p-4">
                 <PieChart className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
                 <p className="text-primary-500 dark:text-primary-400 font-medium text-sm">
-                  No quality data available
+                  No inspection data available
                 </p>
                 <p className="text-[10px] text-primary-400 dark:text-primary-500 mt-1">
-                  Will appear when sections have {complianceLabels.yes}/{complianceLabels.no}/{complianceLabels.na} questions
+                  Will appear when inspection responses are recorded
                 </p>
               </div>
             </div>
@@ -4494,42 +4639,55 @@ export default function FormAnalyticsDashboard() {
               </div>
 
               {/* Stats summary */}
-              <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-4">
-                {/* Yes */}
+              <div className="mt-4 grid grid-cols-4 gap-1 sm:gap-2">
+                {/* Direct Ok */}
                 <div className="text-center p-1 bg-green-50/50 dark:bg-green-900/10 rounded-lg">
-                  <div className="text-xs sm:text-sm font-bold text-green-600 dark:text-green-400">
-                    {totalPieChartData.yes}%
+                  <div className="text-[10px] sm:text-xs font-bold text-green-600 dark:text-green-400">
+                    {totalPieChartData.directOk}%
                   </div>
-                  <div className="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">
-                    {complianceLabels.yes}
+                  <div className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate">
+                    Direct Ok
                   </div>
-                  <div className="text-[10px] text-gray-600 dark:text-gray-500">
-                    ({totalPieChartData.counts.yes})
+                  <div className="text-[8px] text-gray-600 dark:text-gray-500">
+                    ({totalPieChartData.counts.directOk})
                   </div>
                 </div>
 
-                {/* No */}
+                {/* Rework Completed */}
+                <div className="text-center p-1 bg-blue-50/50 dark:bg-blue-900/10 rounded-lg">
+                  <div className="text-[10px] sm:text-xs font-bold text-blue-600 dark:text-blue-400">
+                    {totalPieChartData.reworkCompleted}%
+                  </div>
+                  <div className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate">
+                    Rework Comp
+                  </div>
+                  <div className="text-[8px] text-gray-600 dark:text-gray-500">
+                    ({totalPieChartData.counts.reworkCompleted})
+                  </div>
+                </div>
+
+                {/* Rejected */}
                 <div className="text-center p-1 bg-red-50/50 dark:bg-red-900/10 rounded-lg">
-                  <div className="text-xs sm:text-sm font-bold text-red-600 dark:text-red-400">
+                  <div className="text-[10px] sm:text-xs font-bold text-red-600 dark:text-red-400">
                     {totalPieChartData.no}%
                   </div>
-                  <div className="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">
-                    {complianceLabels.no}
+                  <div className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate">
+                    Rejected
                   </div>
-                  <div className="text-[10px] text-gray-600 dark:text-gray-500">
+                  <div className="text-[8px] text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.no})
                   </div>
                 </div>
 
-                {/* N/A */}
-                <div className="text-center p-1 bg-gray-50/50 dark:bg-gray-900/10 rounded-lg">
-                  <div className="text-xs sm:text-sm font-bold text-gray-600 dark:text-gray-400">
+                {/* Ongoing Rework */}
+                <div className="text-center p-1 bg-amber-50/50 dark:bg-amber-900/10 rounded-lg">
+                  <div className="text-[10px] sm:text-xs font-bold text-amber-600 dark:text-amber-400">
                     {totalPieChartData.na}%
                   </div>
-                  <div className="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate">
-                    {complianceLabels.na}
+                  <div className="text-[9px] font-medium text-gray-700 dark:text-gray-300 truncate">
+                    Rework
                   </div>
-                  <div className="text-[10px] text-gray-600 dark:text-gray-500">
+                  <div className="text-[8px] text-gray-600 dark:text-gray-500">
                     ({totalPieChartData.counts.na})
                   </div>
                 </div>
@@ -4687,7 +4845,7 @@ export default function FormAnalyticsDashboard() {
 
     return (
       <div id="defect-distribution-chart" className="p-4 sm:p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
+        <div data-pdf-hide="true" className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6">
           <div className="flex items-center">
             <div className="p-2 bg-gradient-to-br from-red-600 to-slate-700 rounded-lg mr-2">
               <BarChart3 className="w-4 h-4 text-white" />
@@ -4915,7 +5073,7 @@ export default function FormAnalyticsDashboard() {
 
     return (
       <div id="performance-trend-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div data-pdf-hide="true" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center">
             <div className="p-2 bg-gradient-to-br from-slate-700 to-red-600 rounded-lg mr-2">
               <TrendingUp className="w-4 h-4 text-white" />
@@ -5068,6 +5226,14 @@ export default function FormAnalyticsDashboard() {
           stack: "stack1",
         },
         {
+          label: "Rework Completed",
+          data: timeData.map((s) => s.reworkCompletedCount),
+          backgroundColor: "rgba(59, 130, 246, 0.7)", // Blue-500
+          borderColor: "rgb(29, 78, 216)", // Blue-700
+          borderWidth: 1,
+          stack: "stack1",
+        },
+        {
           label: "Rejected",
           data: timeData.map((s) => s.rejectedCount),
           backgroundColor: "rgba(239, 68, 68, 0.7)", // Red-500
@@ -5142,7 +5308,7 @@ export default function FormAnalyticsDashboard() {
 
     return (
       <div id="inspection-status-distribution-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div data-pdf-hide="true" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center">
             <div className={`p-2 bg-gradient-to-br from-blue-600 to-indigo-800 rounded-lg mr-2`}>
               <BarChart3 className="w-4 h-4 text-white" />
@@ -5234,7 +5400,7 @@ export default function FormAnalyticsDashboard() {
 
     return (
       <div id="status-trends-rework-chart" className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div data-pdf-hide="true" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div className="flex items-center">
             <div className={`p-2 bg-gradient-to-br from-purple-600 to-indigo-800 rounded-lg mr-2`}>
               <TrendingUp className="w-4 h-4 text-white" />
@@ -5302,44 +5468,6 @@ export default function FormAnalyticsDashboard() {
       .filter((section) => section.stats.questionsDetail.length > 0); // Only include sections with questions
   };
 
-  const inspectionStats = useMemo(() => {
-    let accepted = 0;
-    let rejected = 0;
-    let reworked = 0;
-
-    filteredResponses.forEach((response) => {
-      // Find the inspection status from answers
-      if (!response.answers) return;
-
-      Object.values(response.answers).forEach((val) => {
-        if (val && typeof val === "object" && val.status) {
-          const status = String(val.status).toLowerCase().trim();
-          if (
-            status === "accepted" ||
-            status === "verified" ||
-            status === "direct ok" ||
-            status === "rework accepted" ||
-            status === "rework completed" ||
-            status === "ok" ||
-            status === "pass" ||
-            status === "yes" ||
-            status === "verified ok"
-          )
-            accepted++;
-          else if (status === "rejected" || status === "fail" || status === "no") rejected++;
-          else if (
-            status === "rework" ||
-            status === "reworked" ||
-            status.includes("re-rework")
-          )
-            reworked++;
-        }
-      });
-    });
-
-    return { accepted, rejected, reworked };
-  }, [filteredResponses]);
-
   const fullAnalyticsData = useMemo(() => {
     return {
       total: analytics.total,
@@ -5352,10 +5480,11 @@ export default function FormAnalyticsDashboard() {
       sectionAnalyticsData: getSectionAnalyticsData(),
       inspectorSummary: inspectorSummary,
       summaryStatuses: summaryStatuses,
+      performanceTableData: performanceTableData,
       defectStartDate: dateFilter.startDate,
       defectEndDate: dateFilter.endDate
     };
-  }, [analytics, inspectionStats, sectionSummaryRows, totalPieChartData, inspectorSummary, summaryStatuses, dateFilter.startDate, dateFilter.endDate, form, responses]);
+  }, [analytics, inspectionStats, sectionSummaryRows, totalPieChartData, inspectorSummary, summaryStatuses, performanceTableData, dateFilter.startDate, dateFilter.endDate, form, responses]);
 
   const handleExportToPDF = async () => {
     try {
@@ -5767,6 +5896,334 @@ export default function FormAnalyticsDashboard() {
 
 
 
+  const toggleFormExpansion = (formTitle: string) => {
+    setExpandedInspectorForms(prev => {
+      const next = new Set(prev);
+      if (next.has(formTitle)) {
+        next.delete(formTitle);
+      } else {
+        next.add(formTitle);
+      }
+      return next;
+    });
+  };
+
+  const renderSummaryTable = () => {
+    if (summaryLoading) {
+      return (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-500 text-sm">Loading summary...</p>
+        </div>
+      );
+    }
+
+    if (groupedInspectorSummary.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="mt-8 pt-8 border-t border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-2 h-8 bg-blue-600 rounded-full shadow-sm shadow-blue-500/20"></div>
+          <div>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white leading-none mb-1">
+              Inspection Summary
+            </h3>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Real-time inspection data</p>
+          </div>
+        </div>
+
+        <div className="relative bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-md sticky top-0 z-10 text-gray-500 dark:text-gray-400 uppercase text-[10px] font-black tracking-[0.15em]">
+                <tr>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">Date</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">Shift</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">QC Inspector</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">Total</th>
+                  {/* Dynamic Status Columns */}
+                  {summaryStatuses.map((status) => (
+                    <th
+                      key={status}
+                      className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center"
+                    >
+                      {status}
+                    </th>
+                  ))}
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                {groupedInspectorSummary.map((group, groupIdx) => {
+                  const isExpanded = expandedInspectorForms.has(group.formTitle);
+                  // Collect all inspectors for this form
+                  const inspectors = Array.from(new Set(group.subItems.map((i: any) => i.qcInspector)));
+                  
+                  return (
+                    <React.Fragment key={groupIdx}>
+                      {/* Main Group Row */}
+                      <tr 
+                        className={`transition-colors cursor-pointer ${isExpanded ? 'bg-blue-50/50 dark:bg-blue-900/20' : 'hover:bg-blue-50/30 dark:hover:bg-blue-900/10'}`}
+                        onClick={() => toggleFormExpansion(group.formTitle)}
+                      >
+                        <td className="px-4 sm:px-6 py-5 text-gray-400 whitespace-nowrap text-xs">
+                          {isExpanded ? '—' : (
+                            group.subItems.length > 1 
+                              ? `${new Date(Math.min(...group.subItems.map((i: any) => new Date(i.date).getTime()))).toLocaleDateString()} - ...`
+                              : new Date(group.subItems[0].date).toLocaleDateString()
+                          )}
+                        </td>
+                        <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
+                          {!isExpanded && (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
+                              {Array.from(new Set(group.subItems.map((i: any) => i.shift || "N/A"))).join(', ')}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
+                          <div className="flex items-center -space-x-2">
+                            {inspectors.slice(0, 3).map((inspector: any, i) => (
+                              <div 
+                                key={i}
+                                className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 border-2 border-white dark:border-gray-800 flex items-center justify-center text-blue-700 dark:text-blue-300 font-black text-[10px] z-[i]"
+                                title={inspector}
+                              >
+                                {inspector?.split(' ').map((n: string) => n[0]).join('')}
+                              </div>
+                            ))}
+                            {inspectors.length > 3 && (
+                              <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 border-2 border-white dark:border-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 font-bold text-[10px] z-10">
+                                +{inspectors.length - 3}
+                              </div>
+                            )}
+                            {inspectors.length <= 1 && inspectors[0] && (
+                               <span className="ml-3 font-bold text-gray-700 dark:text-gray-200 text-xs">{inspectors[0]}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 sm:px-6 py-5 text-center">
+                          <span className="text-base font-black text-gray-900 dark:text-white tabular-nums">
+                            {group.totalInspection}
+                          </span>
+                        </td>
+                        {/* Dynamic Status Cells */}
+                        {summaryStatuses.map((status) => {
+                          const count = group.statusCounts?.[status] || 0;
+                          const isZero = count === 0;
+                          return (
+                            <td
+                              key={status}
+                              className={`px-4 sm:px-6 py-5 text-center font-black tabular-nums transition-opacity ${isZero ? 'opacity-20 text-gray-400' : 
+                                status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-emerald-600 dark:text-emerald-400' :
+                                status.startsWith('Rework') ? 'text-amber-600 dark:text-amber-400' :
+                                status === 'Rejected' ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'
+                              }`}
+                            >
+                              {count}
+                            </td>
+                          );
+                        })}
+                        <td className="px-4 sm:px-6 py-5 text-center">
+                           <button className="p-2 hover:bg-white/50 dark:hover:bg-white/10 rounded-full transition-colors">
+                             {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                           </button>
+                        </td>
+                      </tr>
+
+                      {/* Sub Items (QC Inspectors for this Form) */}
+                      {isExpanded && group.subItems.map((row: any, subIdx: number) => (
+                        <tr key={`${groupIdx}-${subIdx}`} className="bg-gray-50/30 dark:bg-gray-900/20 border-l-4 border-l-blue-500">
+                          <td className="px-4 sm:px-6 py-4 text-gray-600 dark:text-gray-400 whitespace-nowrap tabular-nums font-medium text-xs italic">
+                            {new Date(row.date).toLocaleDateString()}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400">
+                              {row.shift || "N/A"}
+                            </span>
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap pl-10">
+                            <div className="flex items-center gap-3">
+                              <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-[8px]">
+                                {row.qcInspector?.split(' ').map((n: string) => n[0]).join('')}
+                              </div>
+                              <span className="font-bold text-gray-600 dark:text-gray-300 text-xs">{row.qcInspector}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 text-center">
+                            <span className="text-sm font-bold text-gray-700 dark:text-gray-200 tabular-nums">
+                              {row.totalInspection}
+                            </span>
+                          </td>
+                          {summaryStatuses.map((status) => {
+                            const count = row.statusCounts?.[status] || 0;
+                            const isZero = count === 0;
+                            return (
+                              <td
+                                key={status}
+                                className={`px-4 sm:px-6 py-4 text-center font-bold text-xs tabular-nums ${isZero ? 'opacity-10 text-gray-400' : 'opacity-70'}`}
+                              >
+                                {count}
+                              </td>
+                            );
+                          })}
+                          <td></td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderPerformanceTable = () => {
+    if (user?.role !== 'admin' && user?.role !== 'superadmin') return null;
+
+    if (performanceTableLoading) {
+      return (
+        <div className="mt-12 text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-500 text-sm">Loading performance data...</p>
+        </div>
+      );
+    }
+
+    if (performanceTableData.length === 0) return null;
+
+    // Pagination logic
+    const totalPerformanceItems = performanceTableData.length;
+    const totalPerformancePages = Math.ceil(totalPerformanceItems / performancePageSize);
+    const startIndex = (performancePage - 1) * performancePageSize;
+    const endIndex = startIndex + performancePageSize;
+    const paginatedPerformance = performanceTableData.slice(startIndex, endIndex);
+
+    return (
+      <div className="mt-12 border-t border-gray-100 dark:border-gray-700 pt-8">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-2 h-8 bg-purple-600 rounded-full shadow-sm shadow-purple-500/20"></div>
+          <div>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white leading-none mb-1">
+              Performance Table
+            </h3>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Form-specific inspector performance</p>
+          </div>
+        </div>
+
+        <div className="relative bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-md sticky top-0 z-10 text-gray-500 dark:text-gray-400 uppercase text-[10px] font-black tracking-[0.15em]">
+                <tr>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">User Name</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">Total Submitted</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-blue-600">Dispatched</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">Total Reviewed</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-green-600">Accepted</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-red-600">Rejected</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-orange-600">Reworked</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">Performance Score</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                {paginatedPerformance.map((row, idx) => (
+                  <tr key={idx} className="hover:bg-purple-50/30 dark:hover:bg-purple-900/10 transition-colors">
+                    <td className="px-4 sm:px-6 py-5 font-bold text-gray-900 dark:text-white whitespace-nowrap">{row.name}</td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center tabular-nums">{row.totalSubmitted}</td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-blue-600 dark:text-blue-400 tabular-nums">{row.dispatched || 0}</td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center tabular-nums">{row.totalReviewed}</td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-green-600 tabular-nums">{row.accepted}</td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-red-600 tabular-nums">{row.rejected}</td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-orange-600 tabular-nums">{row.rework}</td>
+                    <td className="px-4 sm:px-6 py-5 text-center">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black tabular-nums shadow-sm ${
+                        row.performanceScore >= 80 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' :
+                        row.performanceScore >= 50 ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400' :
+                        'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+                      }`}>
+                        {row.performanceScore}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPerformancePages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 bg-gray-50/50 dark:bg-gray-900/50 border-t border-gray-50 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Show</label>
+                <select
+                  value={performancePageSize}
+                  onChange={(e) => { setPerformancePageSize(Number(e.target.value)); setPerformancePage(1); }}
+                  className="px-3 py-1.5 text-xs font-bold border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all shadow-sm"
+                >
+                  {[5, 10, 20, 50].map(size => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  {startIndex + 1}-{Math.min(endIndex, totalPerformanceItems)} of {totalPerformanceItems}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPerformancePage(prev => Math.max(1, prev - 1))}
+                  disabled={performancePage === 1}
+                  className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPerformancePages }, (_, i) => i + 1)
+                    .filter(num => 
+                      totalPerformancePages <= 5 || 
+                      Math.abs(num - performancePage) <= 1 || 
+                      num === 1 || 
+                      num === totalPerformancePages
+                    )
+                    .map((pageNum, idx, arr) => (
+                      <React.Fragment key={pageNum}>
+                        {idx > 0 && arr[idx-1] !== pageNum - 1 && (
+                          <span className="text-gray-300 mx-1">...</span>
+                        )}
+                        <button
+                          onClick={() => setPerformancePage(pageNum)}
+                          className={`min-w-[32px] h-8 text-[10px] font-black rounded-xl transition-all ${
+                            performancePage === pageNum
+                              ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
+                              : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                </div>
+
+                <button
+                  onClick={() => setPerformancePage(prev => Math.min(totalPerformancePages, prev + 1))}
+                  disabled={performancePage === totalPerformancePages}
+                  className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -6113,15 +6570,16 @@ export default function FormAnalyticsDashboard() {
           </div>
 
           {/* Question Distribution Chart */}
-          {questionPerformanceStats.length > 0 && (
+          {(questionPerformanceStats.length > 0 || trendChartResponses.length > 0) && (
             <div className="w-full" id="question-distribution-card">
               <div className="w-full space-y-6">
                 <InspectionStatusLineChart />
                 <QuestionStatusDistributionChart />
                 <TimeBasedPerformanceGraph />
                 <DirectAcceptedPerformanceGraph />
+                {renderSummaryTable()}
+                {renderPerformanceTable()}
                 <InspectorPerformanceChart />
-
               </div>
             </div>
           )}

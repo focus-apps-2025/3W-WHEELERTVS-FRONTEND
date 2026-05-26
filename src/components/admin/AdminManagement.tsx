@@ -851,7 +851,7 @@ export default function AdminManagement() {
                         </div>
                       ) : (
                         <>
-                          <label className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 text-sm font-semibold cursor-pointer transition shadow-sm">
+                          <label className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 text-sm font-semibold cursor-pointer transition shadow-sm">
                             <Upload className="w-4 h-4" />
                             <span>Upload Logo</span>
                             <input
@@ -893,7 +893,7 @@ export default function AdminManagement() {
                 {/* Add Admin Modal */}
                 {showAddAdminModal && (
                   <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
-                    <div className="bg-white mt-12 dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-auto">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-4xl w-full my-auto">
                       <div className="sticky top-0 bg-primary-600 px-4 sm:px-4 py-3 flex items-center justify-between rounded-t-2xl z-10">
                         <h2 className="text-xl sm:text-2xl font-bold text-white">
                           Add New User
@@ -911,11 +911,13 @@ export default function AdminManagement() {
                           <X className="w-6 h-6" />
                         </button>
                       </div>
-                      <form className="space-y-4 sm:space-y-6 p-4 sm:p-8" onSubmit={handleCreate}>
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                            Full Name
-                          </label>
+                      <form className="p-4 sm:p-6" onSubmit={handleCreate}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 items-start">
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                Full Name
+                              </label>
                           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
                             <input
                               name="firstName"
@@ -923,7 +925,7 @@ export default function AdminManagement() {
                               onChange={handleInputChange}
                               required
                               placeholder="First name"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                             />
                             <input
                               name="lastName"
@@ -931,13 +933,13 @@ export default function AdminManagement() {
                               onChange={handleInputChange}
                               required
                               placeholder="Last name"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                             />
                           </div>
                         </div>
 
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
                             Contact Information
                           </label>
                           <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
@@ -948,7 +950,7 @@ export default function AdminManagement() {
                               onChange={handleInputChange}
                               required
                               placeholder="Email address"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                             />
                             <input
                               name="username"
@@ -956,12 +958,12 @@ export default function AdminManagement() {
                               onChange={handleInputChange}
                               required
                               placeholder="Username"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                             />
                           </div>
 
                           <div className="mt-4">
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
                               Mobile Number *
                             </label>
                             <div className="flex gap-2">
@@ -1047,7 +1049,7 @@ export default function AdminManagement() {
                         </div>
 
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
                             Temporary Password
                           </label>
                           <div className="relative">
@@ -1062,7 +1064,7 @@ export default function AdminManagement() {
                               onChange={handleInputChange}
                               required
                               placeholder="Enter temporary password"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-12"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-12"
                             />
                             <button
                               type="button"
@@ -1077,9 +1079,11 @@ export default function AdminManagement() {
                             </button>
                           </div>
                         </div>
+                      </div>
 
+                      <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
                             User Role
                           </label>
                           <select
@@ -1093,7 +1097,7 @@ export default function AdminManagement() {
                                   | "inspector",
                               }))
                             }
-                            className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                            className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                           >
                             <option value="subadmin">Subadmin</option>
                             <option value="inspector">Inspector</option>
@@ -1107,7 +1111,7 @@ export default function AdminManagement() {
 
                         {form.role === "inspector" && (
                           <div>
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
                               Access Via
                             </label>
                             <select
@@ -1122,7 +1126,7 @@ export default function AdminManagement() {
                                     | "both",
                                 }))
                               }
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                             >
                               <option value="both">
                                 Both (Website + Mobile)
@@ -1144,7 +1148,7 @@ export default function AdminManagement() {
                             {MODULE_OPTIONS.map((option) => (
                               <label
                                 key={option.key}
-                                className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-3 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer transition"
+                                className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer transition"
                               >
                                 <input
                                   type="checkbox"
@@ -1178,7 +1182,9 @@ export default function AdminManagement() {
                             )}
                           </button>
                         </div>
-                      </form>
+                      </div>
+                    </div>
+                  </form>
                     </div>
                   </div>
                 )}
@@ -1615,8 +1621,8 @@ export default function AdminManagement() {
                 {/* Edit Admin Modal */}
                 {editingForm && (
                   <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full my-auto">
-                      <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-8 py-4 sm:py-6 flex items-center justify-between rounded-t-2xl z-10">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-4xl w-full my-auto">
+                      <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 sm:px-6 py-3 flex items-center justify-between rounded-t-2xl z-10">
                         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100">
                           Edit User
                         </h2>
@@ -1629,228 +1635,234 @@ export default function AdminManagement() {
                       </div>
 
                       <form
-                        className="space-y-4 sm:space-y-6 p-4 sm:p-8"
+                        className="p-4 sm:p-8"
                         onSubmit={(e) => {
                           e.preventDefault();
                           handleSaveAdminChanges();
                         }}
                       >
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                            Full Name
-                          </label>
-                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                            <input
-                              name="firstName"
-                              value={editingForm.firstName}
-                              onChange={handleEditInputChange}
-                              required
-                              placeholder="First name"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                            />
-                            <input
-                              name="lastName"
-                              value={editingForm.lastName}
-                              onChange={handleEditInputChange}
-                              required
-                              placeholder="Last name"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                            Contact Information
-                          </label>
-                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                            <input
-                              name="email"
-                              type="email"
-                              value={editingForm.email}
-                              onChange={handleEditInputChange}
-                              required
-                              placeholder="Email address"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                            />
-                            <input
-                              name="username"
-                              value={editingForm.username}
-                              onChange={handleEditInputChange}
-                              required
-                              placeholder="Username"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                            Mobile Number
-                          </label>
-                          <div className="relative">
-                            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                            <input
-                              name="mobile"
-                              type="tel"
-                              value={editingForm.mobile}
-                              onChange={handleEditInputChange}
-                              placeholder="Enter mobile number"
-                              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-sm"
-                            />
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                            Password
-                          </label>
-                          <div className="relative">
-                            <input
-                              name="password"
-                              type={
-                                viewPasswordStates[editingForm.adminId]
-                                  ? "text"
-                                  : "password"
-                              }
-                              value={editingForm.password}
-                              onChange={handleEditInputChange}
-                              placeholder="New password (leave blank to keep current)"
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-12"
-                            />
-                            <button
-                              type="button"
-                              onClick={() =>
-                                toggleViewPassword(editingForm.adminId)
-                              }
-                              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
-                            >
-                              {viewPasswordStates[editingForm.adminId] ? (
-                                <EyeOff className="w-5 h-5" />
-                              ) : (
-                                <Eye className="w-5 h-5" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                            User Role
-                          </label>
-                          <select
-                            name="role"
-                            value={editingForm.role}
-                            onChange={(e) =>
-                              setEditingForm((prev) =>
-                                prev
-                                  ? {
-                                      ...prev,
-                                      role: e.target.value as
-                                        | "subadmin"
-                                        | "inspector",
-                                    }
-                                  : null,
-                              )
-                            }
-                            className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                          >
-                            <option value="subadmin">Subadmin</option>
-                            <option value="inspector">Inspector</option>
-                          </select>
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            Inspector can view forms, fill forms, and access
-                            analytics (all forms). Subadmin has full access with
-                            permissions.
-                          </p>
-                        </div>
-
-                        {editingForm.role === "inspector" && (
-                          <div>
-                            <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
-                              Access Via
-                            </label>
-                            <select
-                              name="accessType"
-                              value={editingForm.accessType}
-                              onChange={(e) =>
-                                setEditingForm((prev) =>
-                                  prev
-                                    ? {
-                                        ...prev,
-                                        accessType: e.target.value as
-                                          | "website"
-                                          | "mobile"
-                                          | "both",
-                                      }
-                                    : null,
-                                )
-                              }
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                            >
-                              <option value="both">
-                                Both (Website + Mobile)
-                              </option>
-                              <option value="website">Website Only</option>
-                              <option value="mobile">Mobile App Only</option>
-                            </select>
-                          </div>
-                        )}
-
-                        <div>
-                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                            Module Access
-                          </p>
-                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                            {MODULE_OPTIONS.map((option) => (
-                              <label
-                                key={option.key}
-                                className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-600 px-4 py-3 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer transition"
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="w-5 h-5 rounded border-gray-300 dark:border-gray-500 text-blue-600 dark:text-blue-500 focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                                  checked={editingForm.permissions.has(
-                                    option.key,
-                                  )}
-                                  onChange={() =>
-                                    handleEditPermissionToggle(option.key)
-                                  }
-                                />
-                                <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                                  {option.label}
-                                </span>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 items-start">
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                Full Name
                               </label>
-                            ))}
-                          </div>
-                        </div>
+                              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                                <input
+                                  name="firstName"
+                                  value={editingForm.firstName}
+                                  onChange={handleEditInputChange}
+                                  required
+                                  placeholder="First name"
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                />
+                                <input
+                                  name="lastName"
+                                  value={editingForm.lastName}
+                                  onChange={handleEditInputChange}
+                                  required
+                                  placeholder="Last name"
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                />
+                              </div>
+                            </div>
 
-                        <div className="pt-6 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-3">
-                          <button
-                            type="submit"
-                            disabled={updatingId === editingForm.adminId}
-                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-60 transition w-full sm:w-auto"
-                          >
-                            {updatingId === editingForm.adminId ? (
-                              <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                Saving...
-                              </>
-                            ) : (
-                              <>
-                                <Check className="w-4 h-4" />
-                                Save Changes
-                              </>
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                Contact Information
+                              </label>
+                              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                                <input
+                                  name="email"
+                                  type="email"
+                                  value={editingForm.email}
+                                  onChange={handleEditInputChange}
+                                  required
+                                  placeholder="Email address"
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                />
+                                <input
+                                  name="username"
+                                  value={editingForm.username}
+                                  onChange={handleEditInputChange}
+                                  required
+                                  placeholder="Username"
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                Mobile Number
+                              </label>
+                              <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                  name="mobile"
+                                  type="tel"
+                                  value={editingForm.mobile}
+                                  onChange={handleEditInputChange}
+                                  placeholder="Enter mobile number"
+                                  className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-sm"
+                                />
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                Password
+                              </label>
+                              <div className="relative">
+                                <input
+                                  name="password"
+                                  type={
+                                    viewPasswordStates[editingForm.adminId]
+                                      ? "text"
+                                      : "password"
+                                  }
+                                  value={editingForm.password}
+                                  onChange={handleEditInputChange}
+                                  placeholder="New password (leave blank to keep current)"
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-12"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    toggleViewPassword(editingForm.adminId)
+                                  }
+                                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+                                >
+                                  {viewPasswordStates[editingForm.adminId] ? (
+                                    <EyeOff className="w-5 h-5" />
+                                  ) : (
+                                    <Eye className="w-5 h-5" />
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                User Role
+                              </label>
+                              <select
+                                name="role"
+                                value={editingForm.role}
+                                onChange={(e) =>
+                                  setEditingForm((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          role: e.target.value as
+                                            | "subadmin"
+                                            | "inspector",
+                                        }
+                                      : null,
+                                  )
+                                }
+                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                              >
+                                <option value="subadmin">Subadmin</option>
+                                <option value="inspector">Inspector</option>
+                              </select>
+                              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Inspector can view forms, fill forms, and access
+                                analytics (all forms). Subadmin has full access with
+                                permissions.
+                              </p>
+                            </div>
+
+                            {editingForm.role === "inspector" && (
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                  Access Via
+                                </label>
+                                <select
+                                  name="accessType"
+                                  value={editingForm.accessType}
+                                  onChange={(e) =>
+                                    setEditingForm((prev) =>
+                                      prev
+                                        ? {
+                                            ...prev,
+                                            accessType: e.target.value as
+                                              | "website"
+                                              | "mobile"
+                                              | "both",
+                                          }
+                                        : null,
+                                    )
+                                  }
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                >
+                                  <option value="both">
+                                    Both (Website + Mobile)
+                                  </option>
+                                  <option value="website">Website Only</option>
+                                  <option value="mobile">Mobile App Only</option>
+                                </select>
+                              </div>
                             )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleCancelEdit}
-                            disabled={updatingId === editingForm.adminId}
-                            className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 transition w-full sm:w-auto"
-                          >
-                            Cancel
-                          </button>
+
+                            <div>
+                              <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                                Module Access
+                              </p>
+                              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                                {MODULE_OPTIONS.map((option) => (
+                                  <label
+                                    key={option.key}
+                                    className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 cursor-pointer transition"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="w-5 h-5 rounded border-gray-300 dark:border-gray-500 text-blue-600 dark:text-blue-500 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                      checked={editingForm.permissions.has(
+                                        option.key,
+                                      )}
+                                      onChange={() =>
+                                        handleEditPermissionToggle(option.key)
+                                      }
+                                    />
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                                      {option.label}
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-2">
+                              <button
+                                type="submit"
+                                disabled={updatingId === editingForm.adminId}
+                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-60 transition w-full sm:w-auto"
+                              >
+                                {updatingId === editingForm.adminId ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-4 h-4" />
+                                    Save Changes
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleCancelEdit}
+                                disabled={updatingId === editingForm.adminId}
+                                className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 transition w-full sm:w-auto"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </form>
                     </div>
@@ -1879,7 +1891,7 @@ export default function AdminManagement() {
                               handleDeactivateAdmin(deleteConfirmAdminId)
                             }
                             disabled={updatingId === deleteConfirmAdminId}
-                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 text-sm font-semibold disabled:opacity-60 transition"
+                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-3 py-2 text-sm font-semibold disabled:opacity-60 transition"
                           >
                             {updatingId === deleteConfirmAdminId ? (
                               <>
@@ -1893,7 +1905,7 @@ export default function AdminManagement() {
                           <button
                             onClick={() => setDeleteConfirmAdminId(null)}
                             disabled={updatingId === deleteConfirmAdminId}
-                            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 disabled:opacity-60 transition"
+                            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 disabled:opacity-60 transition"
                           >
                             Cancel
                           </button>

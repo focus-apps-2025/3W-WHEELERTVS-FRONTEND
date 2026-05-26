@@ -12,16 +12,19 @@ async function captureChartAsImage(chartElementId: string): Promise<string> {
 
   try {
     // Wait for any animations to settle - adjusted based on chart type
-    const waitTime = chartElementId.includes('defect') || chartElementId.includes('trend') ? 1500 : 800;
+    // Increased wait times significantly to ensure trend data is rendered
+    const waitTime = chartElementId.includes('trend') ? 2500 : 1200;
     await new Promise(resolve => setTimeout(resolve, waitTime));
     
     // Get actual dimensions
     const rect = chartElement.getBoundingClientRect();
-    const width = rect.width || chartElement.offsetWidth || 1200;
+    // Increase capture width for bar charts to ensure all content is visible
+    const isBarChart = chartElementId.includes('defect') || chartElementId.includes('distribution');
+    const width = isBarChart ? Math.max(1400, rect.width) : (rect.width || chartElement.offsetWidth || 1200);
     const height = rect.height || chartElement.offsetHeight || 800;
 
     const canvas = await html2canvas(chartElement, {
-      scale: 2, // Reduced scale to keep size manageable while maintaining quality
+      scale: 2, 
       logging: false,
       useCORS: true,
       allowTaint: true,
@@ -35,11 +38,15 @@ async function captureChartAsImage(chartElementId: string): Promise<string> {
           clonedElement.style.display = 'block';
           clonedElement.style.opacity = '1';
           clonedElement.style.background = '#ffffff';
-          clonedElement.style.padding = '10px';
+          clonedElement.style.padding = '20px';
+          // Remove internal UI borders/shadows so they don't look messy in PDF
+          clonedElement.style.border = 'none';
+          clonedElement.style.boxShadow = 'none';
+          clonedElement.style.borderRadius = '0';
           
           // Force layout refresh in clone
-          if (chartElementId === 'defect-distribution-chart') {
-            clonedElement.style.width = '1200px'; // Set a fixed wide width for Bar charts in PDF
+          if (isBarChart) {
+            clonedElement.style.width = `${width}px`; 
             clonedElement.style.height = 'auto';
             clonedElement.style.minHeight = '500px';
           }
@@ -53,6 +60,7 @@ async function captureChartAsImage(chartElementId: string): Promise<string> {
               -webkit-transition: none !important;
               -webkit-animation: none !important;
             }
+            [data-pdf-hide="true"] { display: none !important; }
             .bg-gradient-to-r { background-image: none !important; }
             .from-amber-400 { background-color: #fbbf24 !important; }
             .to-amber-500 { background-color: #f59e0b !important; }
@@ -152,23 +160,21 @@ function generateInspectionSummaryTable(summary: any[], statuses: string[]): str
     <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #e5e7eb; font-size: 8px; margin-top: 10px;">
       <thead>
         <tr style="background: #1e3a8a;">
-          <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">Tenant</th>
           <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">Date</th>
+          <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">Shift</th>
           <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">QC Inspector</th>
-          <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">Form Title</th>
-          <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">Chassis no</th>
           <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Total</th>
           ${statuses.map(status => `<th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">${status}</th>`).join('')}
+          <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Dispatched</th>
+          <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Actions</th>
         </tr>
       </thead>
       <tbody>
         ${summary.map((row, index) => `
           <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
-            <td style="padding: 5px; font-weight: 700; border: 1px solid #e5e7eb;">${row.tenantName || 'N/A'}</td>
             <td style="padding: 5px; border: 1px solid #e5e7eb;">${row.date || 'N/A'}</td>
+            <td style="padding: 5px; border: 1px solid #e5e7eb;">${row.shift || 'N/A'}</td>
             <td style="padding: 5px; border: 1px solid #e5e7eb;">${row.qcInspector || 'N/A'}</td>
-            <td style="padding: 5px; border: 1px solid #e5e7eb;">${row.formTitle || '-'}</td>
-            <td style="padding: 5px; border: 1px solid #e5e7eb;">${row.chassisNumber || row.chassisNo || '-'}</td>
             <td style="padding: 5px; text-align: center; font-weight: 700; border: 1px solid #e5e7eb;">${row.totalInspection || 0}</td>
             ${statuses.map(status => {
               const count = row.statusCounts?.[status] || 0;
@@ -178,6 +184,8 @@ function generateInspectionSummaryTable(summary: any[], statuses: string[]): str
               else if (status === 'Rejected') color = '#ef4444';
               return `<td style="padding: 5px; text-align: center; font-weight: 700; color: ${color}; border: 1px solid #e5e7eb;">${count}</td>`;
             }).join('')}
+            <td style="padding: 5px; text-align: center; font-weight: 700; border: 1px solid #e5e7eb;">${row.dispatched || 0}</td>
+            <td style="padding: 5px; text-align: center; border: 1px solid #e5e7eb;">-</td>
           </tr>
         `).join('')}
       </tbody>
@@ -186,7 +194,7 @@ function generateInspectionSummaryTable(summary: any[], statuses: string[]): str
 }
 
 // Generate pie chart SVG for overall quality
-function generatePieChartSVG(yesPercent: number, noPercent: number, naPercent: number, counts: any): string {
+function generatePieChartSVG(directPercent: number, reworkCompPercent: number, noPercent: number, naPercent: number, counts: any): string {
   const size = 120;
   const radius = 45;
   const strokeWidth = 20;
@@ -203,13 +211,16 @@ function generatePieChartSVG(yesPercent: number, noPercent: number, naPercent: n
     return segment;
   };
 
+  const totalSuccess = directPercent + reworkCompPercent;
+
   return `
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
       <circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="none" stroke="#f1f5f9" stroke-width="${strokeWidth}" />
       ${createSegment(naPercent, "#f59e0b")}
       ${createSegment(noPercent, "#ef4444")}
-      ${createSegment(yesPercent, "#10b981")}
-      <text x="50%" y="50%" text-anchor="middle" dy=".3em" font-size="12" font-weight="900" fill="#1e3a8a">${yesPercent}%</text>
+      ${createSegment(reworkCompPercent, "#3b82f6")}
+      ${createSegment(directPercent, "#10b981")}
+      <text x="50%" y="50%" text-anchor="middle" dy=".3em" font-size="12" font-weight="900" fill="#1e3a8a">${Math.round(totalSuccess)}%</text>
     </svg>
   `;
 }
@@ -230,11 +241,52 @@ async function getLogoAsBase64(): Promise<string> {
   return '';
 }
 
+// Generate Performance Table HTML
+function generatePerformanceTableHTML(data: any[]): string {
+  if (!data || !data.length) return '';
+
+  return `
+    <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #e5e7eb; font-size: 8px; margin-top: 10px;">
+      <thead>
+        <tr style="background: #1e3a8a;">
+          <th style="padding: 6px; text-align: left; color: white; border: 1px solid #374151;">User Name</th>
+          <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Total Submitted</th>
+          <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Dispatched</th>
+          <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Total Reviewed</th>
+          <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Accepted</th>
+          <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Rejected</th>
+          <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Reworked</th>
+          <th style="padding: 6px; text-align: center; color: white; border: 1px solid #374151;">Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${data.map((row, index) => `
+          <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8fafc'};">
+            <td style="padding: 5px; font-weight: 700; border: 1px solid #e5e7eb;">${row.name || 'N/A'}</td>
+            <td style="padding: 5px; text-align: center; border: 1px solid #e5e7eb;">${row.totalSubmitted || 0}</td>
+            <td style="padding: 5px; text-align: center; color: #3b82f6; font-weight: 700; border: 1px solid #e5e7eb;">${row.dispatched || 0}</td>
+            <td style="padding: 5px; text-align: center; border: 1px solid #e5e7eb;">${row.totalReviewed || 0}</td>
+            <td style="padding: 5px; text-align: center; color: #10b981; font-weight: 700; border: 1px solid #e5e7eb;">${row.accepted || 0}</td>
+            <td style="padding: 5px; text-align: center; color: #ef4444; font-weight: 700; border: 1px solid #e5e7eb;">${row.rejected || 0}</td>
+            <td style="padding: 5px; text-align: center; color: #f59e0b; font-weight: 700; border: 1px solid #e5e7eb;">${row.rework || 0}</td>
+            <td style="padding: 5px; text-align: center; border: 1px solid #e5e7eb;">
+              <span style="padding: 2px 6px; border-radius: 10px; background: ${row.performanceScore >= 80 ? '#dcfce7' : row.performanceScore >= 50 ? '#fef9c3' : '#fee2e2'}; color: ${row.performanceScore >= 80 ? '#166534' : row.performanceScore >= 50 ? '#854d0e' : '#991b1b'}; font-weight: 800;">
+                ${row.performanceScore}%
+              </span>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
 export function generateAnalyticsHTML(options: any, logoBase64: string): string {
   const {
     formTitle, generatedDate, totalPieChartData,
     inspectorSummary, summaryStatuses, inspectionStats,
-    sectionSummaryRows, sectionAnalyticsData, chartImages, includeSectionAnalytics
+    sectionSummaryRows, sectionAnalyticsData, chartImages, includeSectionAnalytics,
+    performanceTableData
   } = options;
 
   // Use dates from options or fallback
@@ -242,12 +294,14 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
   const defectEndDate = options.defectEndDate || '';
 
   // Ensure we have some counts even if inspectionStats is mostly zeros
-  const finalAccepted = (inspectionStats?.accepted || 0) || (totalPieChartData.counts?.yes || 0);
+  const finalDirect = (inspectionStats?.accepted || 0) || (totalPieChartData.counts?.directOk || 0);
+  const finalReworkCompleted = (inspectionStats?.reworkCompleted || 0) || (totalPieChartData.counts?.reworkCompleted || 0);
   const finalRejected = (inspectionStats?.rejected || 0) || (totalPieChartData.counts?.no || 0);
   const finalRework = (inspectionStats?.reworked || 0) || (totalPieChartData.counts?.na || 0);
   
-  const totalStats = finalAccepted + finalRejected + finalRework;
-  const acceptedPercent = totalStats > 0 ? Math.round((finalAccepted / totalStats) * 100) : (totalPieChartData.yes || 0);
+  const totalStats = finalDirect + finalReworkCompleted + finalRejected + finalRework;
+  const directPercent = totalStats > 0 ? Math.round((finalDirect / totalStats) * 100) : (totalPieChartData.directOk || 0);
+  const reworkCompletedPercent = totalStats > 0 ? Math.round((finalReworkCompleted / totalStats) * 100) : (totalPieChartData.reworkCompleted || 0);
   const rejectedPercent = totalStats > 0 ? Math.round((finalRejected / totalStats) * 100) : (totalPieChartData.no || 0);
   const reworkedPercent = totalStats > 0 ? Math.round((finalRework / totalStats) * 100) : (totalPieChartData.na || 0);
 
@@ -272,19 +326,26 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
     <head>
       <meta charset="UTF-8">
       <style>
-        @page { size: A4; margin: 0; }
-        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; margin: 0; padding: 0; color: #1f2937; line-height: 1.4; background: #f3f4f6; }
-        .container { width: 100%; max-width: 800px; margin: 0 auto; padding: 20px; background: white; min-height: 100vh; box-sizing: border-box; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 3px solid #1e3a8a; }
+        @page { 
+          size: A4; 
+          margin: 15mm 10mm;
+        }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; margin: 0; padding: 0; color: #1f2937; line-height: 1.4; background: #ffffff; }
+        .container { width: 100%; max-width: 850px; margin: 0 auto; padding: 0; background: white; }
+        
+        /* New helper for page headers/footers spacing */
+        .pdf-page-content { padding: 10px 0; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px solid #1e3a8a; }
         .header h1 { font-size: 20px; font-weight: 900; color: #1e3a8a; margin: 0; letter-spacing: -0.5px; }
         .header p { font-size: 10px; color: #64748b; margin: 4px 0 0 0; font-weight: 600; text-transform: uppercase; }
         .logo-img { width: 140px; height: 40px; object-fit: contain; }
         
         .section-header { margin: 25px 0 15px 0; padding: 8px 12px; background: #1e3a8a; color: white; border-radius: 4px; font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; }
         
-        .chart-full { width: 100%; background: white; padding: 20px; border-radius: 8px; border: 1.5px solid #e5e7eb; margin-bottom: 25px; page-break-inside: avoid; box-sizing: border-box; }
-        .chart-main-title { font-size: 14px; font-weight: 900; color: #1e3a8a; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-        .chart-sub-title { font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 20px; text-transform: none; border-bottom: 1px solid #f1f5f9; padding-bottom: 8px; }
+        .chart-full { width: 100%; background: white; padding: 25px; border-radius: 12px; border: 1.5px solid #e5e7eb; margin-bottom: 25px; page-break-inside: avoid; box-sizing: border-box; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .chart-main-title { font-size: 16px; font-weight: 900; color: #1e3a8a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; border-left: 4px solid #1e3a8a; padding-left: 10px; }
+        .chart-sub-title { font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 25px; text-transform: none; border-bottom: 1px solid #f1f5f9; padding-bottom: 10px; margin-left: 14px; }
         
         .stats-grid { display: flex; gap: 25px; align-items: center; justify-content: center; }
         .stat-item { text-align: center; }
@@ -296,6 +357,18 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
         th { background: #1e3a8a; color: white; padding: 8px; text-align: left; font-weight: 700; border: 1px solid #374151; }
         td { padding: 7px; border: 1px solid #e5e7eb; }
         .table-title { font-size: 14px; font-weight: 800; color: #1e3a8a; margin: 20px 0 10px 0; text-transform: uppercase; }
+        
+        /* Footer styling */
+        .footer { 
+          margin-top: 30px; 
+          padding-top: 10px; 
+          border-top: 1px solid #e5e7eb; 
+          text-align: center; 
+          font-size: 8px; 
+          color: #94a3b8; 
+          text-transform: uppercase;
+          font-weight: 700;
+        }
       </style>
     </head>
     <body>
@@ -310,15 +383,19 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
         
         <!-- Overall Quality Distribution -->
         <div class="chart-full">
-          <div class="chart-main-title">Overall Response Quality</div>
+          <div class="chart-main-title">Overall Inspection Trend</div>
           <div class="chart-sub-title">Accepted/Rejected/Rework Distribution</div>
           
           <div style="display: flex; align-items: center; justify-content: center; gap: 40px; padding: 10px;">
-            ${generatePieChartSVG(acceptedPercent, rejectedPercent, reworkedPercent, {})}
-            <div class="stats-grid">
+            ${generatePieChartSVG(directPercent, reworkCompletedPercent, rejectedPercent, reworkedPercent, {})}
+            <div class="stats-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
               <div class="stat-item">
-                <div class="stat-value" style="color: #10b981;">${acceptedPercent}%</div>
-                <div class="stat-label">Accepted (${finalAccepted})</div>
+                <div class="stat-value" style="color: #10b981;">${directPercent}%</div>
+                <div class="stat-label">Direct Ok (${finalDirect})</div>
+              </div>
+              <div class="stat-item">
+                <div class="stat-value" style="color: #3b82f6;">${reworkCompletedPercent}%</div>
+                <div class="stat-label">Rework Comp (${finalReworkCompleted})</div>
               </div>
               <div class="stat-item">
                 <div class="stat-value" style="color: #ef4444;">${rejectedPercent}%</div>
@@ -326,7 +403,7 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
               </div>
               <div class="stat-item">
                 <div class="stat-value" style="color: #f59e0b;">${reworkedPercent}%</div>
-                <div class="stat-label">Rework (${finalRework})</div>
+                <div class="stat-label">Ongoing Rework (${finalRework})</div>
               </div>
             </div>
           </div>
@@ -337,7 +414,7 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
           <div class="chart-main-title">Performance Trend</div>
           <div class="chart-sub-title">Total responses received vs total rework received over time (Response-wise)</div>
           ${chartImages['performance-trend-chart'] ? `
-            <img src="${chartImages['performance-trend-chart']}" style="width: 100%; max-height: 300px; object-fit: contain;" />
+            <img src="${chartImages['performance-trend-chart']}" style="width: 100%; object-fit: contain; margin-top: 10px;" />
           ` : '<p style="color: #9ca3af; font-size: 10px; padding: 40px; text-align: center;">Trend data not available</p>'}
         </div>
 
@@ -346,7 +423,7 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
           <div class="chart-main-title">Inspection Status Trend</div>
           <div class="chart-sub-title">Daily distribution of inspection outcomes (100% stacked)</div>
           ${chartImages['inspection-status-distribution-chart'] ? `
-            <img src="${chartImages['inspection-status-distribution-chart']}" style="width: 100%; max-height: 300px; object-fit: contain;" />
+            <img src="${chartImages['inspection-status-distribution-chart']}" style="width: 100%; object-fit: contain; margin-top: 10px;" />
           ` : '<p style="color: #9ca3af; font-size: 10px; padding: 40px; text-align: center;">Status distribution data not available</p>'}
         </div>
 
@@ -356,7 +433,7 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
             <div class="chart-main-title">Inspection Status Trends For REWORK</div>
             <div class="chart-sub-title">Daily trends of inspection outcomes (line chart)</div>
             ${chartImages['status-trends-rework-chart'] ? `
-              <img src="${chartImages['status-trends-rework-chart']}" style="width: 100%; max-height: 300px; object-fit: contain;" />
+              <img src="${chartImages['status-trends-rework-chart']}" style="width: 100%; object-fit: contain; margin-top: 10px;" />
             ` : '<p style="color: #9ca3af; font-size: 10px; padding: 40px; text-align: center;">Trend data not available</p>'}
           </div>
 
@@ -365,14 +442,25 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
             <div class="chart-main-title">Defect Distribution</div>
             <div class="chart-sub-title">Rejected & Rework volume${dateRangeStr}</div>
             ${chartImages['defect-distribution-chart'] ? `
-              <img src="${chartImages['defect-distribution-chart']}" style="width: 100%; max-height: 800px; object-fit: contain;" />
+              <img src="${chartImages['defect-distribution-chart']}" style="width: 100%; object-fit: contain; margin-top: 10px;" />
             ` : '<div style="padding: 60px; color: #9ca3af; font-size: 11px; font-style: italic; text-align: center;">Defect distribution chart not available.</div>'}
           </div>
           
           ${inspectorSummary && inspectorSummary.length > 0 ? `
-            <div class="table-title">Inspector Performance Summary</div>
+            <div class="table-title">Inspection Summary</div>
+            <div style="font-size: 8px; font-weight: 700; color: #64748b; margin-top: -8px; margin-bottom: 8px; text-transform: uppercase;">Real-time inspection data</div>
             ${generateInspectionSummaryTable(inspectorSummary, summaryStatuses)}
           ` : ''}
+
+          ${performanceTableData && performanceTableData.length > 0 ? `
+            <div class="table-title" style="margin-top: 30px;">Performance Table</div>
+            <div style="font-size: 8px; font-weight: 700; color: #64748b; margin-top: -8px; margin-bottom: 8px; text-transform: uppercase;">Form-specific inspector performance</div>
+            ${generatePerformanceTableHTML(performanceTableData)}
+          ` : ''}
+
+          <div class="footer">
+            Analytics Report - ${formTitle} | Generated on ${generatedDate} | 3W-WHEELER TVS
+          </div>
         </div>
 
         ${includeSectionAnalytics ? `
@@ -418,6 +506,9 @@ export function generateAnalyticsHTML(options: any, logoBase64: string): string 
               </tbody>
             </table>
           `).join('')}
+          <div class="footer">
+            Section Analysis - ${formTitle} | 3W-WHEELER TVS
+          </div>
         ` : ''}
       </div>
     </body>
@@ -430,19 +521,23 @@ export async function captureAnalyticsCharts(chartElementIds: string[]): Promise
   const originalScrollPos = window.scrollY;
 
   // Wake-up scroll: quickly scroll to bottom and back to trigger lazy rendering
+  // Increased wait times for reliable chart initialization
   window.scrollTo(0, document.body.scrollHeight);
-  await new Promise(resolve => setTimeout(resolve, 300));
+  await new Promise(resolve => setTimeout(resolve, 800));
   window.scrollTo(0, originalScrollPos);
-  await new Promise(resolve => setTimeout(resolve, 200));
+  await new Promise(resolve => setTimeout(resolve, 500));
 
   for (const id of chartElementIds) {
     const el = document.getElementById(id);
     if (el) {
+      // Ensure element is visible in viewport before capture
       el.scrollIntoView({ block: 'center', behavior: 'auto' });
+      // Small pause after scroll for any layout shifts
+      await new Promise(resolve => setTimeout(resolve, 200));
       chartImages[id] = await captureChartAsImage(id);
-      window.scrollTo(0, originalScrollPos);
     } else {
-      chartImages[id] = await captureChartAsImage(id);
+      console.warn(`Chart ID not found in DOM during export: ${id}`);
+      chartImages[id] = '';
     }
   }
 
@@ -508,6 +603,7 @@ export async function exportDashboardToPDF(formTitle: string, analyticsData: any
       sectionAnalyticsData: analyticsData.sectionAnalyticsData,
       inspectorSummary: analyticsData.inspectorSummary,
       summaryStatuses: analyticsData.summaryStatuses,
+      performanceTableData: analyticsData.performanceTableData,
       inspectionStats: analyticsData.inspectionStats,
       defectStartDate: analyticsData.defectStartDate,
       defectEndDate: analyticsData.defectEndDate,
