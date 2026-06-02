@@ -764,7 +764,7 @@ export default function FormsAnalytics() {
     };
   }, [openMenuId]);
 
-  if (loading || responsesLoading) {
+  if (loading) {
     return (
       <div className="p-6">
         <div className="text-center py-12">

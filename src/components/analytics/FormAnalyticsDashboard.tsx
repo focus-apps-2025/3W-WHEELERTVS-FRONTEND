@@ -2690,9 +2690,42 @@ export default function FormAnalyticsDashboard() {
     }
   }, [user, id]);
 
+  const filteredInspectorSummary = useMemo(() => {
+    let result = [...inspectorSummary];
+
+    if (dateFilter.startDate || dateFilter.endDate) {
+      result = result.filter((item) => {
+        if (!item.date) return true;
+        try {
+          const d = new Date(item.date);
+          if (isNaN(d.getTime())) return true;
+          const itemDate = d.toISOString().split('T')[0];
+          if (dateFilter.startDate && dateFilter.endDate) {
+            return itemDate >= dateFilter.startDate && itemDate <= dateFilter.endDate;
+          } else if (dateFilter.startDate) {
+            return itemDate >= dateFilter.startDate;
+          } else if (dateFilter.endDate) {
+            return itemDate <= dateFilter.endDate;
+          }
+        } catch (e) {
+          return true;
+        }
+        return true;
+      });
+    }
+
+    if (selectedInspectorForTrend !== "Overall") {
+      result = result.filter(
+        (item) => item.qcInspector === selectedInspectorForTrend || item.submittedBy === selectedInspectorForTrend
+      );
+    }
+
+    return result;
+  }, [inspectorSummary, dateFilter.startDate, dateFilter.endDate, selectedInspectorForTrend]);
+
   const groupedInspectorSummary = useMemo(() => {
     const groups: Record<string, any> = {};
-    inspectorSummary.forEach(item => {
+    filteredInspectorSummary.forEach(item => {
       const title = item.formTitle || "N/A";
       if (!groups[title]) {
         groups[title] = {
@@ -2710,7 +2743,7 @@ export default function FormAnalyticsDashboard() {
       groups[title].subItems.push(item);
     });
     return Object.values(groups);
-  }, [inspectorSummary]);
+  }, [filteredInspectorSummary]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -3140,8 +3173,15 @@ export default function FormAnalyticsDashboard() {
       });
     }
 
+    // 2. Global Inspector Filter
+    if (selectedInspectorForTrend !== "Overall") {
+      result = result.filter(
+        (response) => response.submittedBy === selectedInspectorForTrend
+      );
+    }
+
     return result;
-  }, [baseFilteredResponses, dateFilter]);
+  }, [baseFilteredResponses, dateFilter, selectedInspectorForTrend]);
 
   // Find the primary chassis question to identify unique items/vehicles
   const chassisQuestionId = useMemo(() => {
@@ -4325,7 +4365,7 @@ export default function FormAnalyticsDashboard() {
     const inspectors = new Set<string>();
 
     // From Responses
-    filteredResponses.forEach((r) => {
+    baseFilteredResponses.forEach((r) => {
       if (r.submittedBy) inspectors.add(r.submittedBy);
     });
 
@@ -4341,7 +4381,7 @@ export default function FormAnalyticsDashboard() {
     });
 
     return Array.from(inspectors).sort();
-  }, [filteredResponses, inspectorSummary, allInspectors]);
+  }, [baseFilteredResponses, inspectorSummary, allInspectors]);
 
   const inspectionStats = useMemo(() => {
     let accepted = 0;
@@ -4350,14 +4390,6 @@ export default function FormAnalyticsDashboard() {
     let reworkCompleted = 0;
 
     filteredResponses.forEach((response) => {
-      // If an inspector is selected, ensure the response matches that inspector
-      if (selectedInspectorForTrend !== "Overall") {
-        const inspectorName = response.submittedBy;
-        if (inspectorName !== selectedInspectorForTrend) {
-          return;
-        }
-      }
-
       const status = responseStatuses[response.id];
       if (status === "Direct Ok" || status === "Accepted") {
         accepted++;
@@ -4371,7 +4403,7 @@ export default function FormAnalyticsDashboard() {
     });
 
     return { accepted, rejected, reworked, reworkCompleted };
-  }, [filteredResponses, responseStatuses, selectedInspectorForTrend]);
+  }, [filteredResponses, responseStatuses]);
 
   const totalPieChartData = useMemo(() => {
     const directOk = inspectionStats.accepted;
@@ -5478,7 +5510,7 @@ export default function FormAnalyticsDashboard() {
       sectionSummaryRows: sectionSummaryRows,
       totalPieChartData: totalPieChartData,
       sectionAnalyticsData: getSectionAnalyticsData(),
-      inspectorSummary: inspectorSummary,
+      inspectorSummary: filteredInspectorSummary,
       summaryStatuses: summaryStatuses,
       performanceTableData: performanceTableData,
       defectStartDate: dateFilter.startDate,
@@ -5930,7 +5962,16 @@ export default function FormAnalyticsDashboard() {
             <h3 className="text-xl font-black text-gray-900 dark:text-white leading-none mb-1">
               Inspection Summary
             </h3>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Real-time inspection data</p>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+              Real-time inspection data
+              {dateFilter.startDate && dateFilter.endDate 
+                ? ` (${new Date(dateFilter.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${new Date(dateFilter.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
+                : dateFilter.startDate 
+                  ? ` (From ${new Date(dateFilter.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
+                  : dateFilter.endDate 
+                    ? ` (Until ${new Date(dateFilter.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})`
+                    : ""}
+            </p>
           </div>
         </div>
 

@@ -39,6 +39,158 @@ interface TenantStats {
   performanceScore: number;
 }
 
+  const MyReviewBreakdownChart = ({ myReviewStats }: { myReviewStats: any }) => {
+    if (!myReviewStats) return null;
+
+    const data = {
+      labels: ["Accepted", "Rejected", "Rework"],
+      datasets: [
+        {
+          data: [
+            myReviewStats.accepted,
+            myReviewStats.rejected,
+            myReviewStats.rework,
+          ],
+          backgroundColor: ["#22c55e", "#ef4444", "#f59e0b"],
+          hoverBackgroundColor: ["#16a34a", "#dc2626", "#d97706"],
+          borderWidth: 0,
+        },
+      ],
+    };
+
+    const options = {
+      cutout: "70%",
+      plugins: {
+      legend: {
+        display: false,
+      },
+        tooltip: {
+          callbacks: {
+            label: (context: any) => {
+              const value = context.raw;
+              const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
+              const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+              return `${context.label}: ${value} (${percentage}%)`;
+            },
+          },
+        },
+        datalabels:{
+          display:false,
+        }
+      },
+      maintainAspectRatio: false,
+    };
+
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm mb-8">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+          <Smile className="w-5 h-5 text-indigo-500" />
+          My Review Performance Breakdown
+        </h3>
+
+        <div className="flex flex-col lg:flex-row items-center gap-8">
+          <div className="relative w-full max-w-[280px] aspect-square sm:w-72 sm:h-72 flex-shrink-0">
+
+            <Doughnut data={data} options={options} />
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+              <span className="text-3xl font-black text-gray-900 dark:text-white">
+                {myReviewStats.reviewed}
+              </span>
+              <span className="text-[15px] font-bold text-gray-400 uppercase tracking-widest blend-in">
+                Performance
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col flex-1 gap-8">
+            <div className="flex justify-center lg:justify-start gap-6">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#22c55e]"></div>
+                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Accepted</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
+                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Rejected</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full bg-[#f59e0b]"></div>
+                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Rework</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800/30">
+              <p className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-wider mb-1">Accepted</p>
+              <p className="text-2xl font-black text-green-700 dark:text-green-300">{myReviewStats.accepted}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <div className="flex-1 h-1 bg-green-200 dark:bg-green-900 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-green-500"
+                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.accepted / myReviewStats.reviewed) * 100 : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-[20px] font-bold text-green-600/70 dark:text-green-400/70">
+                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.accepted / myReviewStats.reviewed) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/30">
+              <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Rejected</p>
+              <p className="text-2xl font-black text-red-700 dark:text-red-300">{myReviewStats.rejected}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <div className="flex-1 h-1 bg-red-200 dark:bg-red-900 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-red-500"
+                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.rejected / myReviewStats.reviewed) * 100 : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-[20px] font-bold text-red-600/70 dark:text-red-400/70">
+                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.rejected / myReviewStats.reviewed) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/30">
+              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">Rework</p>
+              <p className="text-2xl font-black text-amber-700 dark:text-amber-300">{myReviewStats.rework}</p>
+              <div className="flex items-center gap-1 mt-1">
+                <div className="flex-1 h-1 bg-amber-200 dark:bg-amber-900 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500"
+                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.rework / myReviewStats.reviewed) * 100 : 0}%` }}
+                  ></div>
+                </div>
+                <span className="text-[20px] font-bold text-amber-600/70 dark:text-amber-400/70">
+                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.rework / myReviewStats.reviewed) * 100) : 0}%
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Current Performance Score</p>
+            <div className="flex items-center gap-2">
+              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{myReviewStats.performanceScore}%</p>
+              <div className={`w-2 h-2 rounded-full ${myReviewStats.performanceScore >= 80 ? 'bg-green-500' : myReviewStats.performanceScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}></div>
+            </div>
+          </div>
+          <div className="flex gap-8">
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Reviews</p>
+              <p className="text-2xl font-black text-gray-900 dark:text-white">{myReviewStats.reviewed}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Submissions</p>
+              <p className="text-2xl font-black text-gray-900 dark:text-white">{myReviewStats.totalResponses}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
 export default function DashboardNew() {
   const navigate = useNavigate();
   const { user, tenant: currentTenant } = useAuth();
@@ -68,8 +220,14 @@ export default function DashboardNew() {
   const [inspectorSummary, setInspectorSummary] = useState<any[]>([]);
   const [summaryStatuses, setSummaryStatuses] = useState<string[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
-  const [summaryStartDate, setSummaryStartDate] = useState("");
-  const [summaryEndDate, setSummaryEndDate] = useState("");
+  const [summaryStartDate, setSummaryStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split("T")[0];
+  });
+  const [summaryEndDate, setSummaryEndDate] = useState(() => {
+    return new Date().toISOString().split("T")[0];
+  });
    const [myReviewStats, setMyReviewStats] = useState<any>(null);
    const [myReviewStatsLoading, setMyReviewStatsLoading] = useState(false);
    const [performanceTableData, setPerformanceTableData] = useState<any[]>([]);
@@ -285,7 +443,6 @@ export default function DashboardNew() {
   }, [user]);
 
   // Fetch performance table data
-// Update the fetchPerformanceTable function to include dispatch values
 useEffect(() => {
   const fetchPerformanceTable = async () => {
     if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) return;
@@ -297,28 +454,10 @@ useEffect(() => {
         endDate: summaryEndDate
       });
       if (response.success) {
-        // Get the inspection summary data to map dispatch values
-        let inspectionData: any[] = [];
-        try {
-          let url = "/analytics/inspector-summary";
-          const params = new URLSearchParams();
-          if (summaryStartDate) params.append("startDate", summaryStartDate);
-          if (summaryEndDate) params.append("endDate", summaryEndDate);
-          const queryString = params.toString();
-          if (queryString) url += `?${queryString}`;
-          
-          const inspectionResponse = await apiClient.get<any>(url);
-          if (inspectionResponse.data) {
-            inspectionData = inspectionResponse.data.summary || [];
-          }
-        } catch (error) {
-          console.error("Error fetching inspection summary for dispatch mapping:", error);
-        }
-
         // Create a map of user to dispatch count from inspection summary
         const dispatchMap = new Map<string, number>();
         
-        inspectionData.forEach((item: any) => {
+        inspectorSummary.forEach((item: any) => {
           const userName = item.qcInspector;
           if (userName && item.statusCounts?.Dispatched) {
             const currentCount = dispatchMap.get(userName) || 0;
@@ -341,8 +480,11 @@ useEffect(() => {
     }
   };
 
-  fetchPerformanceTable();
-}, [user, summaryStartDate, summaryEndDate]);
+  // Only run when summary loading is done so we have the latest inspectorSummary
+  if (!summaryLoading) {
+    fetchPerformanceTable();
+  }
+}, [user, summaryStartDate, summaryEndDate, inspectorSummary, summaryLoading]);
   // Calculate tenant statistics
   useEffect(() => {
     if (formsData?.forms && responsesData?.responses && tenants.length > 0) {
@@ -751,7 +893,7 @@ useEffect(() => {
     console.log("Filtered forms:", filteredForms.length);
     console.log("Selected tenant:", selectedTenant);
 
-    if (formsLoading || responsesLoading) {
+    if (formsLoading) {
       return (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
@@ -1424,157 +1566,6 @@ useEffect(() => {
     return viewMode === "forms";
   };
 
-  const MyReviewBreakdownChart = () => {
-    if (!myReviewStats) return null;
-
-    const data = {
-      labels: ["Accepted", "Rejected", "Rework"],
-      datasets: [
-        {
-          data: [
-            myReviewStats.accepted,
-            myReviewStats.rejected,
-            myReviewStats.rework,
-          ],
-          backgroundColor: ["#22c55e", "#ef4444", "#f59e0b"],
-          hoverBackgroundColor: ["#16a34a", "#dc2626", "#d97706"],
-          borderWidth: 0,
-        },
-      ],
-    };
-
-    const options = {
-      cutout: "70%",
-      plugins: {
-      legend: {
-        display: false,
-      },
-        tooltip: {
-          callbacks: {
-            label: (context: any) => {
-              const value = context.raw;
-              const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-              const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-              return `${context.label}: ${value} (${percentage}%)`;
-            },
-          },
-        },
-        datalabels:{
-          display:false,
-        }
-      },
-      maintainAspectRatio: false,
-    };
-
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm mb-8">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-          <Smile className="w-5 h-5 text-indigo-500" />
-          My Review Performance Breakdown
-        </h3>
-
-        <div className="flex flex-col lg:flex-row items-center gap-8">
-          <div className="relative w-full max-w-[280px] aspect-square sm:w-72 sm:h-72 flex-shrink-0">
-
-            <Doughnut data={data} options={options} />
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-3xl font-black text-gray-900 dark:text-white">
-                {myReviewStats.reviewed}
-              </span>
-              <span className="text-[15px] font-bold text-gray-400 uppercase tracking-widest blend-in">
-                Total Reviews
-              </span>
-            </div>
-          </div>
-
-          <div className="flex flex-col flex-1 gap-8">
-            <div className="flex justify-center lg:justify-start gap-6">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#22c55e]"></div>
-                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Accepted</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
-                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Rejected</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#f59e0b]"></div>
-                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Rework</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-            <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800/30">
-              <p className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-wider mb-1">Accepted</p>
-              <p className="text-2xl font-black text-green-700 dark:text-green-300">{myReviewStats.accepted}</p>
-              <div className="flex items-center gap-1 mt-1">
-                <div className="flex-1 h-1 bg-green-200 dark:bg-green-900 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-green-500"
-                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.accepted / myReviewStats.reviewed) * 100 : 0}%` }}
-                  ></div>
-                </div>
-                <span className="text-[20px] font-bold text-green-600/70 dark:text-green-400/70">
-                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.accepted / myReviewStats.reviewed) * 100) : 0}%
-                </span>
-              </div>
-            </div>
-            <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/30">
-              <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Rejected</p>
-              <p className="text-2xl font-black text-red-700 dark:text-red-300">{myReviewStats.rejected}</p>
-              <div className="flex items-center gap-1 mt-1">
-                <div className="flex-1 h-1 bg-red-200 dark:bg-red-900 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-red-500"
-                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.rejected / myReviewStats.reviewed) * 100 : 0}%` }}
-                  ></div>
-                </div>
-                <span className="text-[20px] font-bold text-red-600/70 dark:text-red-400/70">
-                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.rejected / myReviewStats.reviewed) * 100) : 0}%
-                </span>
-              </div>
-            </div>
-            <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/30">
-              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">Rework</p>
-              <p className="text-2xl font-black text-amber-700 dark:text-amber-300">{myReviewStats.rework}</p>
-              <div className="flex items-center gap-1 mt-1">
-                <div className="flex-1 h-1 bg-amber-200 dark:bg-amber-900 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-amber-500"
-                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.rework / myReviewStats.reviewed) * 100 : 0}%` }}
-                  ></div>
-                </div>
-                <span className="text-[20px] font-bold text-amber-600/70 dark:text-amber-400/70">
-                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.rework / myReviewStats.reviewed) * 100) : 0}%
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Current Performance Score</p>
-            <div className="flex items-center gap-2">
-              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{myReviewStats.performanceScore}%</p>
-              <div className={`w-2 h-2 rounded-full ${myReviewStats.performanceScore >= 80 ? 'bg-green-500' : myReviewStats.performanceScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}></div>
-            </div>
-          </div>
-          <div className="flex gap-8">
-            <div className="text-right">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Reviews</p>
-              <p className="text-2xl font-black text-gray-900 dark:text-white">{myReviewStats.reviewed}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Submissions</p>
-              <p className="text-2xl font-black text-gray-900 dark:text-white">{myReviewStats.totalResponses}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8">
@@ -1716,7 +1707,7 @@ useEffect(() => {
             )}
 
            {/* New Review Breakdown Chart - Show for all users when data is available */}
-           {!isSuperAdmin && <MyReviewBreakdownChart />}
+           {!isSuperAdmin && <MyReviewBreakdownChart myReviewStats={myReviewStats} />}
         </div>
 
         {/* Debug Info - Remove in production 

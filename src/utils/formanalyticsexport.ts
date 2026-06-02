@@ -84,6 +84,25 @@ function generateSectionPerformanceTable(sectionSummaryRows: any[]): string {
     return '<div style="text-align: center; padding: 10px; color: #6b7280; font-style: italic; font-size: 10px;">No section data available</div>';
   }
 
+  let totalQuestions = 0;
+  let totalYes = 0;
+  let totalNo = 0;
+  let totalNA = 0;
+
+  sectionSummaryRows.forEach((row) => {
+    totalQuestions += row.total || 0;
+    totalYes += (row.total * (row.yesPercent || 0)) / 100;
+    totalNo += (row.total * (row.noPercent || 0)) / 100;
+    totalNA += (row.total * (row.naPercent || 0)) / 100;
+  });
+
+  const overallYesPercent =
+    totalQuestions > 0 ? (totalYes / totalQuestions) * 100 : 0;
+  const overallNoPercent =
+    totalQuestions > 0 ? (totalNo / totalQuestions) * 100 : 0;
+  const overallNaPercent =
+    totalQuestions > 0 ? (totalNA / totalQuestions) * 100 : 0;
+
   const generateTableBarChart = (
     yesPercent: number,
     noPercent: number,
@@ -127,6 +146,13 @@ function generateSectionPerformanceTable(sectionSummaryRows: any[]): string {
         `,
           )
           .join("")}
+        <tr style="background-color: #f1f5f9; font-weight: 800; border-top: 1.5px solid #94a3b8;">
+          <td style="padding: 4px 5px; text-align: right; border: 1px solid #e5e7eb; color: #1e3a8a;">TOTAL</td>
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb; color: #1e3a8a;">${totalQuestions}</td>
+          <td style="padding: 4px 5px; text-align: center; color: #059669; font-weight: 800; border: 1px solid #e5e7eb;">${overallYesPercent.toFixed(1)}%</td>
+          <td style="padding: 4px 5px; text-align: center; color: #dc2626; font-weight: 800; border: 1px solid #e5e7eb;">${overallNoPercent.toFixed(1)}%</td>
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb;">${generateTableBarChart(overallYesPercent, overallNoPercent, overallNaPercent)}</td>
+        </tr>
       </tbody>
     </table>
   `;
@@ -138,6 +164,22 @@ function generateInspectionSummaryTable(
   statuses: string[],
 ): string {
   if (!summary || !summary.length) return "";
+
+  let grandTotalInspection = 0;
+  let grandTotalDispatched = 0;
+  const statusTotals: Record<string, number> = {};
+  statuses.forEach((s) => {
+    statusTotals[s] = 0;
+  });
+
+  summary.forEach((row) => {
+    grandTotalInspection += row.totalInspection || 0;
+    grandTotalDispatched += row.dispatched || 0;
+    statuses.forEach((s) => {
+      statusTotals[s] += row.statusCounts?.[s] || 0;
+    });
+  });
+
   return `
     <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #e5e7eb; font-size: 7.5px;">
       <thead>
@@ -148,7 +190,6 @@ function generateInspectionSummaryTable(
           <th style="padding: 4px 5px; text-align: center; color: white; border: 1px solid #374151;">Total</th>
           ${statuses.map((status) => `<th style="padding: 4px 5px; text-align: center; color: white; border: 1px solid #374151;">${status}</th>`).join("")}
           <th style="padding: 4px 5px; text-align: center; color: white; border: 1px solid #374151;">Dispatched</th>
-          <th style="padding: 4px 5px; text-align: center; color: white; border: 1px solid #374151;">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -156,7 +197,7 @@ function generateInspectionSummaryTable(
           .map(
             (row, index) => `
           <tr style="background-color: ${index % 2 === 0 ? "#ffffff" : "#f8fafc"};">
-            <td style="padding: 3px 5px; border: 1px solid #e5e7eb;">${row.date || "N/A"}</td>
+            <td style="padding: 3px 5px; border: 1px solid #e5e7eb;">${row.date ? new Date(row.date).toLocaleDateString() : "N/A"}</td>
             <td style="padding: 3px 5px; border: 1px solid #e5e7eb;">${row.shift || "N/A"}</td>
             <td style="padding: 3px 5px; border: 1px solid #e5e7eb;">${row.qcInspector || "N/A"}</td>
             <td style="padding: 3px 5px; text-align: center; font-weight: 700; border: 1px solid #e5e7eb;">${row.totalInspection || 0}</td>
@@ -172,11 +213,26 @@ function generateInspectionSummaryTable(
               })
               .join("")}
             <td style="padding: 3px 5px; text-align: center; font-weight: 700; border: 1px solid #e5e7eb;">${row.dispatched || 0}</td>
-            <td style="padding: 3px 5px; text-align: center; border: 1px solid #e5e7eb;">-</td>
           </tr>
         `,
           )
           .join("")}
+        <tr style="background-color: #f1f5f9; font-weight: 800; border-top: 1.5px solid #94a3b8;">
+          <td colspan="3" style="padding: 4px 5px; text-align: right; border: 1px solid #e5e7eb; color: #1e3a8a;">TOTAL</td>
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb; color: #1e3a8a;">${grandTotalInspection}</td>
+          ${statuses
+            .map((status) => {
+              const count = statusTotals[status] || 0;
+              let color = "#3b82f6";
+              if (status === "Direct Ok" || status === "Rework Accepted")
+                color = "#10b981";
+              else if (status.startsWith("Rework")) color = "#f59e0b";
+              else if (status === "Rejected") color = "#ef4444";
+              return `<td style="padding: 4px 5px; text-align: center; font-weight: 800; color: ${color}; border: 1px solid #e5e7eb;">${count}</td>`;
+            })
+            .join("")}
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb; color: #1e3a8a;">${grandTotalDispatched}</td>
+        </tr>
       </tbody>
     </table>
   `;
@@ -239,6 +295,23 @@ async function getLogoAsBase64(): Promise<string> {
 // Generate Performance Table HTML
 function generatePerformanceTableHTML(data: any[]): string {
   if (!data || !data.length) return "";
+
+  let totalSubmitted = 0;
+  let totalDispatched = 0;
+  let totalReviewed = 0;
+  let totalAccepted = 0;
+  let totalRejected = 0;
+  let totalRework = 0;
+
+  data.forEach((row) => {
+    totalSubmitted += row.totalSubmitted || 0;
+    totalDispatched += row.dispatched || 0;
+    totalReviewed += row.totalReviewed || 0;
+    totalAccepted += row.accepted || 0;
+    totalRejected += row.rejected || 0;
+    totalRework += row.rework || 0;
+  });
+
   return `
     <table style="width: 100%; border-collapse: collapse; border: 1.5px solid #e5e7eb; font-size: 7.5px;">
       <thead>
@@ -274,6 +347,16 @@ function generatePerformanceTableHTML(data: any[]): string {
         `,
           )
           .join("")}
+        <tr style="background-color: #f1f5f9; font-weight: 800; border-top: 1.5px solid #94a3b8;">
+          <td style="padding: 4px 5px; text-align: right; border: 1px solid #e5e7eb; color: #1e3a8a;">TOTAL</td>
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb; color: #1e3a8a;">${totalSubmitted}</td>
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb; color: #3b82f6;">${totalDispatched}</td>
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb; color: #1e3a8a;">${totalReviewed}</td>
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb; color: #10b981;">${totalAccepted}</td>
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb; color: #ef4444;">${totalRejected}</td>
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb; color: #f59e0b;">${totalRework}</td>
+          <td style="padding: 4px 5px; text-align: center; border: 1px solid #e5e7eb;">-</td>
+        </tr>
       </tbody>
     </table>
   `;
@@ -347,6 +430,10 @@ export function generateAnalyticsHTML(
   const dateRangeStr =
     defectStartDate && defectEndDate
       ? ` (${formatDate(defectStartDate)} - ${formatDate(defectEndDate)})`
+      : defectStartDate
+      ? ` (From ${formatDate(defectStartDate)})`
+      : defectEndDate
+      ? ` (Until ${formatDate(defectEndDate)})`
       : "";
 
   // Natural-flow chart image: full width, auto height — PDF engine decides page breaks
@@ -556,6 +643,7 @@ export function generateAnalyticsHTML(
           inspectorSummary && inspectorSummary.length > 0
             ? `
           <div class="table-title">Inspection Summary</div>
+          <div class="table-subtitle">Real-time inspection data${dateRangeStr}</div>
           <div class="table-subtitle">Real-time inspection data</div>
           ${generateInspectionSummaryTable(inspectorSummary, summaryStatuses)}
         `
