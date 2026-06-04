@@ -181,7 +181,7 @@ const ZoneOut: React.FC<ZoneOutProps> = ({
                 {/* Evidence Upload */}
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-tight">
-                    <Upload className="w-3 h-3" /> Evidence Photo
+                    <Upload className="w-3 h-3" /> Evidence Photo <span className="text-red-500">*</span>
                   </label>
                   <div className="h-[80px]">
                     {evidenceUrl ? (
@@ -244,6 +244,9 @@ const ZoneOut: React.FC<ZoneOutProps> = ({
                       </div>
                     )}
                   </div>
+                  {statusValue && !evidenceUrl && (
+                    <p className="text-[10px] text-red-500 font-medium">Evidence photo is required.</p>
+                  )}
                 </div>
               </div>
             </div>
