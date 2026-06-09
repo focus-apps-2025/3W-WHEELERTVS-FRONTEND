@@ -842,6 +842,17 @@ class ApiClient {
     return this.request<any>("/analytics/dashboard");
   }
 
+  async getOverallAnalytics(options?: { startDate?: string; endDate?: string; formIds?: string[] }) {
+    const params = new URLSearchParams();
+    if (options?.startDate) params.append("startDate", options.startDate);
+    if (options?.endDate) params.append("endDate", options.endDate);
+    if (options?.formIds && options.formIds.length > 0) {
+      params.append("formIds", options.formIds.join(","));
+    }
+    const query = params.toString() ? `?${params.toString()}` : "";
+    return this.request<any>(`/analytics/overall${query}`);
+  }
+
   async getFormAnalytics(formId: string) {
     return this.request<any>(`/analytics/form/${formId}`);
   }

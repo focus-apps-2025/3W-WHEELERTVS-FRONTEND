@@ -33,7 +33,9 @@ import PreviewFormWrapper from "./components/PreviewFormWrapper";
 import FormResponses from "./components/FormResponses";
 import FormUploadsView from "./components/analytics/FormUploadsView";
 import AllResponses from "./components/AllResponses";
+import EditResponsePage from "./components/EditResponsePage";
 import DashboardNew from "./components/DashboardNew";
+import Overall from "./components/Overall";
 import CustomerViewCarousel from "./components/CustomerViewCarousel";
 import TenantManagement from "./components/superadmin/TenantManagement";
 import GlobalFormManagement from "./components/superadmin/GlobalFormManagement";
@@ -257,6 +259,10 @@ const router = createBrowserRouter(
           }),
         },
         {
+          path: "/overall",
+          element: withAuthenticatedLayout(<Overall />),
+        },
+        {
           path: "/forms/analytics",
           element: withAccessControl(<FormsAnalytics />, {
             requiredPermission: ROUTE_PERMISSIONS.ANALYTICS,
@@ -323,6 +329,12 @@ const router = createBrowserRouter(
         {
           path: "/responses/all",
           element: withAccessControl(<AllResponses />, {
+            requiredPermission: ROUTE_PERMISSIONS.CUSTOMER_REQUESTS,
+          }),
+        },
+        {
+          path: "/responses/:id/edit",
+          element: withAccessControl(<EditResponsePage />, {
             requiredPermission: ROUTE_PERMISSIONS.CUSTOMER_REQUESTS,
           }),
         },

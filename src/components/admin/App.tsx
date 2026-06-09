@@ -27,6 +27,7 @@ import PreviewFormWrapper from "./components/PreviewFormWrapper";
 import FormResponses from "./components/FormResponses";
 import FormUploadsView from "./components/analytics/FormUploadsView";
 import AllResponses from "./components/AllResponses";
+import EditResponsePage from "./components/EditResponsePage";
 import DashboardNew from "./components/DashboardNew";
 import CustomerViewCarousel from "./components/CustomerViewCarousel";
 import TenantManagement from "./components/superadmin/TenantManagement";

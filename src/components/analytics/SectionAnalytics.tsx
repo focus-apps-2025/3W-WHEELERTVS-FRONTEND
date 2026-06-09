@@ -124,6 +124,7 @@ interface SectionAnalyticsProps {
     no: string;
     na: string;
   };
+  isOverall?: boolean;
 }
 interface QuestionDetailsModalProps {
   question: any;
@@ -667,8 +668,21 @@ export default function SectionAnalytics({
   responses,
   openSectionId,
   complianceLabels = { yes: "Yes", no: "No", na: "N/A" },
+  isOverall = false,
 }: SectionAnalyticsProps) {
-  const sections: Section[] = question.sections || [];
+  const originalSections: Section[] = question.sections || [];
+
+  const sections: Section[] = useMemo(() => {
+    if (!isOverall) return originalSections;
+
+    return [{
+      id: "overall-aggregated-section",
+      title: "Overall Analytics",
+      description: "Aggregated metrics across all sections",
+      questions: originalSections.flatMap((s: Section) => s.questions || [])
+    }];
+  }, [originalSections, isOverall]);
+
   const [selectedQuestion, setSelectedQuestion] = useState<{
     question: any;
     sectionTitle: string;
@@ -955,6 +969,12 @@ export default function SectionAnalytics({
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (isOverall) {
+      setExpandedSections({ "overall-aggregated-section": true });
+    }
+  }, [isOverall]);
+
+  useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
         dropdownRef.current &&
@@ -1146,6 +1166,7 @@ export default function SectionAnalytics({
         </div>
       </div> */}
 
+    {!isOverall && (
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -1212,9 +1233,11 @@ export default function SectionAnalytics({
           </div>
         )}
       </div>
+    )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-2">
+  <div className={`grid grid-cols-1 md:grid-cols-2 ${isOverall ? 'lg:grid-cols-5' : 'lg:grid-cols-6'} gap-2`}>
         {/* Total Sections: Count of all form sections being displayed */}
+    {!isOverall && (
         <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-lg p-3 border border-blue-200 dark:border-blue-700/50 shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
@@ -1229,6 +1252,7 @@ export default function SectionAnalytics({
             Total sections
           </p>
         </div>
+    )}
 
         {/* Total Main Questions: Aggregate count of all primary questions across selected sections */}
         <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 rounded-lg p-3 border border-green-200 dark:border-green-700/50 shadow-sm">

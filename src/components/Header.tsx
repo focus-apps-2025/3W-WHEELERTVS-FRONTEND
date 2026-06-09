@@ -101,6 +101,12 @@ export default function Header() {
       description: "View system overview and statistics",
     },
     {
+      title: "Overall",
+      icon: BarChart2,
+      path: "/overall",
+      description: "View overall statistics",
+    },
+    {
       title: "Tenant Management",
       icon: Building2,
       path: "/superadmin/tenants",
@@ -142,6 +148,12 @@ export default function Header() {
       description: "View shop analytics and service statistics",
       permission: MODULE_PERMISSIONS.DASHBOARD,
       roles: ["admin", "inspector", "subadmin"],
+    },
+    {
+      title: "Overall",
+      icon: BarChart2,
+      path: "/overall",
+      description: "View overall statistics",
     },
     {
       title: "Service Analytics",

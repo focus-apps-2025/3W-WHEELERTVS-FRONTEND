@@ -3298,17 +3298,17 @@ function generateGaugeSVG(score: number): string {
   const centerY = size / 2 + 20;
   const circumference = Math.PI * radius; // Half circle
 
-  // Gauge sections (Red, Orange, Green)
-  const redEnd = 70; // 0-70%
-  const orangeEnd = 90; // 70-90%
-  const greenEnd = 100; // 90-100%
-
-  const redDash = (redEnd / 100) * circumference;
-  const orangeDash = ((orangeEnd - redEnd) / 100) * circumference;
-  const greenDash = ((greenEnd - orangeEnd) / 100) * circumference;
+  let color = "#ef4444"; // Red
+  if (score >= 75) {
+    color = "#22c55e"; // Green
+  } else if (score >= 25) {
+    color = "#f97316"; // Orange
+  }
 
   // Needle angle: 0 to 180 degrees
-  const needleAngle = (score / 100) * 180;
+  const displayScore = Math.min(Math.max(score, 0), 100);
+  const scoreDash = (displayScore / 100) * circumference;
+  const needleAngle = (displayScore / 100) * 180;
 
   // Use the same path for all segments to ensure consistent layout
   const fullPath = `M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`;
@@ -3328,20 +3328,10 @@ function generateGaugeSVG(score: number): string {
       <path d="${fullPath}" 
             fill="none" stroke="#f1f5f9" stroke-width="${strokeWidth}" stroke-linecap="round" />
       
-      <!-- Red Zone (0-70%) -->
+      <!-- Score Arc -->
       <path d="${fullPath}" 
-            fill="none" stroke="#ef4444" stroke-width="${strokeWidth}" 
-            stroke-dasharray="${redDash} ${circumference}" />
-
-      <!-- Orange Zone (70-90%) -->
-      <path d="${fullPath}" 
-            fill="none" stroke="#f97316" stroke-width="${strokeWidth}" 
-            stroke-dasharray="${orangeDash} ${circumference}" stroke-dashoffset="-${redDash}" />
-
-      <!-- Green Zone (90-100%) -->
-      <path d="${fullPath}" 
-            fill="none" stroke="#22c55e" stroke-width="${strokeWidth}" 
-            stroke-dasharray="${greenDash} ${circumference}" stroke-dashoffset="-${redDash + orangeDash}" />
+            fill="none" stroke="${color}" stroke-width="${strokeWidth}" stroke-linecap="round"
+            stroke-dasharray="${scoreDash} ${circumference}" />
 
       <!-- Needle -->
       <g transform="rotate(${needleAngle} ${centerX} ${centerY})">
@@ -3351,7 +3341,7 @@ function generateGaugeSVG(score: number): string {
       </g>
 
       <!-- Score Text inside Gauge -->
-      <text x="${centerX}" y="${centerY - 10}" text-anchor="middle" font-size="20" font-weight="800" fill="#1e293b">${score.toFixed(1)}%</text>
+      <text x="${centerX}" y="${centerY - 10}" text-anchor="middle" font-size="20" font-weight="800" fill="${color}">${score.toFixed(1)}%</text>
 
       <!-- Labels -->
       <text x="${centerX - radius}" y="${centerY + 15}" text-anchor="middle" font-size="10" fill="#64748b" font-weight="bold">0%</text>
@@ -3476,9 +3466,9 @@ function generateScoreSection(sectionStats: any[], form?: any): string {
 
   // Dynamic color for Overall Score text
   let scoreColor = "#f59e0b"; // Default Orange
-  if (overallScore >= 90) {
+  if (overallScore >= 75) {
     scoreColor = "#16a34a"; // Green
-  } else if (overallScore < 70) {
+  } else if (overallScore < 25) {
     scoreColor = "#dc2626"; // Red
   }
 
@@ -3495,7 +3485,7 @@ function generateScoreSection(sectionStats: any[], form?: any): string {
         <div style="display: flex; align-items: center; justify-content: center; gap: 40px; margin-bottom: 20px; border-bottom: 1px solid #f1f5f9; padding-bottom: 15px;">
           <div style="flex: 1; text-align: center;">
             <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 8px; text-transform: uppercase;">SURVEY SCORE</div>
-            ${generateGaugeSVG(yesPercentage)}
+            ${generateGaugeSVG(overallScore)}
           </div>
           <div style="flex: 1; text-align: center;">
             <div style="font-size: 58px; font-weight: 800; color: ${scoreColor}; line-height: 1;">${overallScore.toFixed(1)}%</div>
@@ -4876,13 +4866,10 @@ function generateFirstPageHTML(
   // Performance logic
   let performance = "AVERAGE";
   let perfColor = "#f97316"; // Orange
-  if (score >= 95) {
+  if (score >= 75) {
     performance = "EXCELLENT";
     perfColor = "#16a34a"; // Green
-  } else if (score >= 90) {
-    performance = "VERY GOOD";
-    perfColor = "#22c55e"; // Light Green
-  } else if (score >= 85) {
+  } else if (score >= 25) {
     performance = "AVERAGE";
     perfColor = "#f97316"; // Orange
   } else {
@@ -4893,7 +4880,7 @@ function generateFirstPageHTML(
   // Smiley SVG based on score
   let smileySVG = "";
 
-  if (score >= 90) {
+  if (score >= 75) {
     // Happy
     smileySVG = `
       <svg width="200" height="200" viewBox="0 0 200 200">
@@ -4909,7 +4896,7 @@ function generateFirstPageHTML(
         <path d="M 60 130 Q 100 180 140 130" stroke="#000" stroke-width="8" fill="none" stroke-linecap="round"/>
       </svg>
     `;
-  } else if (score >= 80) {
+  } else if (score >= 25) {
     // Neutral (as in image)
     smileySVG = `
       <svg width="200" height="200" viewBox="0 0 200 200">
