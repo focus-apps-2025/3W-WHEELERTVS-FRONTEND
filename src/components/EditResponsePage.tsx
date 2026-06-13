@@ -28,27 +28,16 @@ function computeYesNoScore(answers: Record<string, any>, form: any): number {
   return total ? Math.round((yes / total) * 100) : 0;
 }
 
-// ── flatten ALL questions (top-level + follow-ups) recursively ───────────────
-function flattenQuestions(questions: any[]): any[] {
-  const result: any[] = [];
-  for (const q of questions || []) {
-    result.push(q);
-    if (q.followUpQuestions?.length) {
-      result.push(...flattenQuestions(q.followUpQuestions));
-    }
-  }
-  return result;
-}
-
-function getAllFormQuestions(form: any): any[] {
+// ── get questions by section (keep hierarchy) ────────────────────────────────
+function getFormQuestionsBySection(form: any): any[] {
   const all: any[] = [];
   for (const section of form?.sections || []) {
-    all.push(...flattenQuestions(section.questions || []));
+    all.push(...(section.questions || []));
     for (const sub of section.subsections || []) {
-      all.push(...flattenQuestions(sub.questions || []));
+      all.push(...(sub.questions || []));
     }
   }
-  all.push(...flattenQuestions(form?.followUpQuestions || []));
+  all.push(...(form?.followUpQuestions || []));
   return all;
 }
 
@@ -103,11 +92,12 @@ export default function EditResponsePage() {
     const fetchData = async () => {
       try {
         if (!id) return;
-        const resp = await apiClient.getResponse(id);
+        const respWrapper = await apiClient.getResponse(id);
+        const resp = respWrapper.response;
         setResponse(resp as any);
-        setAnswers(resp.answers || {});
+        setAnswers(resp?.answers || {});
 
-        const formIdentifier = resp.questionId || resp.formId;
+        const formIdentifier = resp?.questionId || resp?.formId;
         if (!formIdentifier)
           throw new Error("Missing form identifier for response");
 
@@ -164,38 +154,147 @@ export default function EditResponsePage() {
     );
   }
 
-  // ── build visible question list ─────────────────────────────────────────────
-  const allQuestions = getAllFormQuestions(form);
+  // ── build visible question list with hierarchy ────────────────────────────
+  const topLevelQuestions = getFormQuestionsBySection(form);
 
-  const visibleQuestions = questionLogic
-    ? questionLogic.getOrderedVisibleQuestions(allQuestions, answers)
-    : allQuestions.filter((q) => isQuestionVisible(q, answers));
+  // Render question with follow-ups
+  const renderQuestionWithFollowUps = (
+    q: any,
+    depth: number = 0,
+  ): React.ReactNode => {
+    const qId: string = q.id ?? q._id;
+    const isVisible = isQuestionVisible(q, answers);
+
+    if (!isVisible) return null;
+
+    const followUps = (q.followUpQuestions || []).filter((fq: any) =>
+      isQuestionVisible(fq, answers),
+    );
+
+    return (
+      <div key={qId} className="space-y-4">
+        {/* Main question */}
+        <div
+          className={
+            depth > 0
+              ? "pl-6 border-l-4 border-blue-300 dark:border-blue-600 py-3 rounded"
+              : ""
+          }
+        >
+          <QuestionRenderer
+            question={q}
+            value={answers[qId]}
+            trackingValue={answers[`${qId}_tracking`]}
+            onChange={(value) => handleAnswer(qId, value)}
+            onTrackingChange={(value) => handleTrackingAnswer(qId, value)}
+            isFollowUp={depth > 0}
+          />
+        </div>
+
+        {/* Follow-up questions */}
+        {followUps.length > 0 && (
+          <div className="space-y-3">
+            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide pl-6">
+              Follow-up Questions
+            </div>
+            <div className="space-y-3">
+              {followUps.map((fq: any) => (
+                <div key={fq.id ?? fq._id} className="ml-2">
+                  {renderQuestionWithFollowUps(fq, depth + 1)}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // ── render ──────────────────────────────────────────────────────────────────
   return (
-    // Full-screen overlay backdrop
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 overflow-y-auto py-6 px-4">
-      {/* Modal panel — wide & tall */}
-      <div className="w-full max-w-5xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col">
-        {/* ── Header ── */}
-        <div className="sticky top-0 z-10 px-8 py-5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-t-xl flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Edit Response
-            </h2>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      {/* Navigation Bar */}
+      <div className="sticky top-0 z-40 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="inline-flex items-center justify-center p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
+                aria-label="Go back"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Edit Response
+                </h1>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Review and update your answers
+                </p>
+              </div>
+            </div>
+            <div className="hidden sm:flex items-center space-x-3">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
           </div>
-          <div className="flex items-center space-x-3">
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <form onSubmit={handleSubmit} className="space-y-0">
+          {/* Questions Container */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+            {topLevelQuestions.length === 0 ? (
+              <div className="p-12 text-center">
+                <p className="text-gray-500 dark:text-gray-400 text-lg">
+                  No questions found for this form.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                {topLevelQuestions.map((q, idx) => (
+                  <div
+                    key={q.id ?? q._id}
+                    className="p-6 sm:p-8 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  >
+                    <div className="flex items-start space-x-4">
+                      <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 font-semibold text-sm">
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        {renderQuestionWithFollowUps(q, 0)}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Mobile Action Buttons */}
+          <div className="sm:hidden mt-6 flex gap-3">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+              className="flex-1 px-4 py-3 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 transition-colors"
             >
               Cancel
             </button>
@@ -203,68 +302,43 @@ export default function EditResponsePage() {
               type="button"
               onClick={handleSubmit}
               disabled={saving}
-              className="flex items-center px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? "Saving…" : "Save Changes"}
+              <Save className="w-4 h-4" />
+              {saving ? "Saving…" : "Save"}
             </button>
+          </div>
+        </form>
+
+        {/* Sticky Action Bar at Bottom (Desktop) */}
+        <div className="hidden sm:block fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
+              {saving && "Saving your changes..."}
+            </p>
+            <div className="flex items-center space-x-3">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={saving}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Save className="w-4 h-4" />
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* ── Body ── */}
-        <form
-          onSubmit={handleSubmit}
-          className="p-8 space-y-8 overflow-y-auto flex-1"
-        >
-          {visibleQuestions.length === 0 && (
-            <p className="text-center text-gray-500 dark:text-gray-400 py-12">
-              No questions found for this form.
-            </p>
-          )}
-
-          {visibleQuestions.map((q) => {
-            const qId: string = q.id ?? q._id;
-            return (
-              <div
-                key={qId}
-                // indent follow-up questions visually
-                className={
-                  q.parentId || q.parent_id || q.parentQuestionId
-                    ? "pl-6 border-l-2 border-blue-200 dark:border-blue-700"
-                    : ""
-                }
-              >
-                <QuestionRenderer
-                  question={q}
-                  value={answers[qId]}
-                  trackingValue={answers[`${qId}_tracking`]}
-                  onChange={(value) => handleAnswer(qId, value)}
-                  onTrackingChange={(value) => handleTrackingAnswer(qId, value)}
-                />
-              </div>
-            );
-          })}
-        </form>
-
-        {/* ── Sticky footer (repeat save on long forms) ── */}
-        <div className="sticky bottom-0 px-8 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-b-xl flex justify-end space-x-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            disabled={saving}
-            className="flex items-center px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
-        </div>
+        {/* Bottom spacing for sticky footer */}
+        <div className="hidden sm:block h-24" />
       </div>
     </div>
   );

@@ -246,21 +246,25 @@ const renderAnswerHTML = (value: any, color: string = "#1f2937"): string => {
 
     return `
       <div style="text-align: left; font-size: 10px; color: #374151; background: #f8fafc; padding: 6px; border-radius: 4px; border: 1px solid #e2e8f0; min-width: 140px; overflow-wrap: break-word; word-wrap: break-word; word-break: break-word;">
-        ${entries.map(([key, val]) => {
-          const displayKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-          let displayVal = String(val);
-          
-          if (isImageUrl(displayVal)) {
-            displayVal = `<img src="${displayVal}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; display: block; margin-top: 4px;">`;
-          }
+        ${entries
+          .map(([key, val]) => {
+            const displayKey = key
+              .replace(/([A-Z])/g, " $1")
+              .replace(/^./, (str) => str.toUpperCase());
+            let displayVal = String(val);
 
-          return `
+            if (isImageUrl(displayVal)) {
+              displayVal = `<img src="${displayVal}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 4px; display: block; margin-top: 4px;">`;
+            }
+
+            return `
             <div style="margin-bottom: 4px; line-height: 1.2;">
               <span style="font-weight: 700; color: #4b5563; font-size: 9px; text-transform: uppercase;">${displayKey}:</span>
               <span style="font-weight: 600; color: #1f2937;">${displayVal}</span>
             </div>
           `;
-        }).join("")}
+          })
+          .join("")}
       </div>`;
   }
 
@@ -1747,15 +1751,15 @@ function generateResponsesViewAnalysis(
   let html = `
     <div style="background-color: #ffffff; width: 100%; border: 1px solid #e2e8f0; overflow: hidden;">
       <!-- Main Header -->
-      <div style="background-color: #1e3a8a; padding: 20px; display: flex; justify-content: space-between; align-items: center;">
+      <div style="background-color: #1e3a8a; padding: 12px; display: flex; justify-content: space-between; align-items: center;">
         <div style="flex: 1;">
-          <h1 style="font-size: 24px; font-weight: 700; text-transform: uppercase; color: #ffffff; margin: 0; letter-spacing: 1px;">
+          <h1 style="font-size: 18px; font-weight: 700; text-transform: uppercase; color: #ffffff; margin: 0; letter-spacing: 1px;">
             ${form?.title || "Mystery Shop Checklist"}
           </h1>
           ${
             form?.description
               ? `
-            <p style="color: #dbeafe; font-size: 14px; margin-top: 5px; font-style: italic; opacity: 0.9; margin-bottom: 0;">
+            <p style="color: #dbeafe; font-size: 11px; margin-top: 3px; font-style: italic; opacity: 0.9; margin-bottom: 0;">
               ${form.description}
             </p>
           `
@@ -1776,6 +1780,8 @@ function generateResponsesViewAnalysis(
       <!-- Sections -->
   `;
 
+  let isFirstSection = true;
+
   form.sections?.forEach((section: any) => {
     const sectionQuestions = getSectionQuestionsWithFollowUps(section.id);
     if (sectionQuestions.length === 0) return;
@@ -1790,71 +1796,80 @@ function generateResponsesViewAnalysis(
     const scoringTotal = stats.yes + stats.no + stats.correct + stats.wrong;
     const totalSuccess = stats.yes + stats.correct;
     const score =
-      scoringTotal > 0 ? ((totalSuccess / scoringTotal) * 100).toFixed(2) : "0.00";
+      scoringTotal > 0
+        ? ((totalSuccess / scoringTotal) * 100).toFixed(2)
+        : "0.00";
 
     html += `
       <div style="margin-bottom: 0;">
-        <!-- Section Header -->
-        <div style="background-color: #1e3a8a; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #3b82f6;">
-          <h3 style="font-size: 14px; font-weight: 700; text-transform: uppercase; color: #ffffff; margin: 0; letter-spacing: 0.5px;">
+        <div style="background-color: #1e3a8a; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #3b82f6; page-break-after: avoid; break-after: avoid; page-break-inside: avoid;">
+          <h3 style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #ffffff; margin: 0; letter-spacing: 0.5px;">
             ${section.title}
           </h3>
-          <div style="font-size: 14px; font-weight: 900; color: #ffffff;">
+          <div style="font-size: 11px; font-weight: 900; color: #ffffff;">
             ${score}% (${totalSuccess} / ${scoringTotal})
           </div>
         </div>
-
-        <!-- Questions -->
-        <div style="border-bottom: 1px solid #e2e8f0;">
     `;
 
     sectionQuestions.forEach((q: any, qIdx: number) => {
       const answer = q.answer;
 
+      // Check if this question or its follow-ups contain an image;
+      // large image blocks shouldn't force a whole-block page jump (avoids big empty gaps)
+      const hasImage = (() => {
+        const checkVal = (val: any): boolean => {
+          if (!val) return false;
+          if (typeof val === "string") return isImageUrl(val);
+          if (typeof val === "object") {
+            const candidates = [
+              val.url,
+              val.answer,
+              val.fileUrl,
+              val.file,
+              val.imageUrl,
+            ];
+            return candidates.some(
+              (c) => typeof c === "string" && isImageUrl(c),
+            );
+          }
+          return false;
+        };
+        if (checkVal(answer)) return true;
+        return (q.followUpQuestions || []).some((fu: any) =>
+          checkVal(fu.answer),
+        );
+      })();
+
+      const questionPageBreakStyle = hasImage
+        ? ""
+        : "page-break-inside: avoid; break-inside: avoid;";
+
       html += `
-        <div style="padding: 15px; border-bottom: 1px solid #f1f5f9;">
-          <div style="display: flex; justify-content: space-between; gap: 15px; margin-bottom: 8px;">
+        <div style="padding: 8px 10px; border-bottom: 1px solid #f1f5f9; ${questionPageBreakStyle}">
+          <div style="display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px;">
             <div style="display: flex; gap: 12px;">
-              <span style="font-size: 14px; font-weight: 700; color: #111827; flex-shrink: 0;">${qIdx + 1}.</span>
-              <div style="display: flex; flex-direction: column; gap: 8px; flex: 1;">
+              <span style="font-size: 11px; font-weight: 700; color: #111827; flex-shrink: 0;">${qIdx + 1}.</span>
+              <div style="display: flex; flex-direction: column; gap: 4px; flex: 1;">
                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-                  ${
-                    q.subParam1
-                      ? `
-                    <span style="font-size: 10px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 0.5px; background-color: #eff6ff; padding: 2px 6px; border-radius: 4px; display: inline-block;">
-                      ${q.subParam1}
-                    </span>
-                  `
-                      : ""
-                  }
-                  <div style="font-size: 14px; font-weight: 700; color: #1f2937;">
+                  <div style="font-size: 11px; font-weight: 700; color: #1f2937;">
                     ${q.title}
                   </div>
                 </div>
-                ${
-                  q.description || q.instructions
-                    ? `
-                  <div style="font-size: 11px; color: #6b7280; line-height: 1.4; background-color: #f8fafc; padding: 6px 10px; border-radius: 4px; border-left: 2px solid #60a5fa; width: fit-content; max-width: 100%;">
-                    ${q.description ? `<div style="margin-bottom: 2px;">${q.description}</div>` : ""}
-                    ${q.instructions ? `<div style="font-weight: 500; font-style: italic; font-size: 10px; opacity: 0.8;">${q.instructions}</div>` : ""}
-                  </div>
-                `
-                    : ""
-                }
               </div>
             </div>
           </div>
 
-          <div style="margin-left: 30px;">
-            <div style="font-size: 14px; font-weight: 500; color: #4b5563;">
+          <div style="margin-left: 20px;">
+            <div style="font-size: 10px; font-weight: 500; color: #4b5563;">
               ${(() => {
                 const trackingValue = response.answers?.[`${q.id}_tracking`];
 
                 const renderTracking = (val: any) => {
                   if (!val) return "";
                   return `
-                    <div style="font-size: 11px; color: #1d4ed8; background-color: #eff6ff; padding: 8px 12px; border-radius: 8px; border-left: 4px solid #3b82f6; font-weight: 500; font-style: italic; margin-top: 8px;">
-                      <span style="font-weight: 700; text-transform: uppercase; font-size: 9px; display: block; margin-bottom: 4px; font-style: normal; opacity: 0.7;">Tracking:</span>
+                    <div style="font-size: 9px; color: #1d4ed8; background-color: #eff6ff; padding: 5px 8px; border-radius: 6px; border-left: 3px solid #3b82f6; font-weight: 500; font-style: italic; margin-top: 5px;">
+                      <span style="font-weight: 700; text-transform: uppercase; font-size: 8px; display: block; margin-bottom: 2px; font-style: normal; opacity: 0.7;">Tracking:</span>
                       ${String(val)}
                     </div>
                   `;
@@ -1875,8 +1890,8 @@ function generateResponsesViewAnalysis(
                         ${
                           remark
                             ? `
-                          <div style="font-size: 12px; color: #b45309; background-color: #fffbeb; padding: 8px 12px; border-radius: 8px; border-left: 4px solid #fbbf24; font-weight: 500; font-style: italic; margin-top: 8px;">
-                            <span style="font-weight: 700; text-transform: uppercase; font-size: 10px; display: block; margin-bottom: 4px; font-style: normal; opacity: 0.7;">Remark:</span>
+                          <div style="font-size: 9px; color: #b45309; background-color: #fffbeb; padding: 5px 8px; border-radius: 6px; border-left: 3px solid #fbbf24; font-weight: 500; font-style: italic; margin-top: 5px;">
+                            <span style="font-weight: 700; text-transform: uppercase; font-size: 8px; display: block; margin-bottom: 2px; font-style: normal; opacity: 0.7;">Remark:</span>
                             "${remark}"
                           </div>
                         `
@@ -1905,31 +1920,71 @@ function generateResponsesViewAnalysis(
                 const fuTracking = response.answers?.[`${fu.id}_tracking`];
                 if (!fuAns && !fuTracking) return "";
 
+                // Resolve raw value for image detection (needed before deciding wrapper break style)
+                let rawValCheck: any = fuAns;
+                if (typeof fuAns === "object" && fuAns !== null) {
+                  rawValCheck =
+                    fuAns.url ||
+                    fuAns.answer ||
+                    fuAns.fileUrl ||
+                    fuAns.file ||
+                    fuAns.imageUrl ||
+                    fuAns;
+                }
+                const fuHasImage =
+                  typeof rawValCheck === "string" && isImageUrl(rawValCheck);
+
                 return `
-                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #f1f5f9;">
+                <div style="margin-top: 6px; padding-top: 6px; border-top: 1px solid #f1f5f9; ${fuHasImage ? "page-break-inside: avoid; break-inside: avoid;" : ""}">
                   <div style="display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px;">
-                    ${
-                      fu.subParam1
-                        ? `
-                      <span style="font-size: 9px; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 0.2px; width: fit-content;">
-                        ${fu.subParam1}
-                      </span>
-                    `
-                        : ""
-                    }
-                    <div style="font-size: 12px; font-weight: 700; color: #9ca3af; text-transform: uppercase;">${fu.title}:</div>
+                    <div style="font-size: 9px; font-weight: 700; color: #9ca3af; text-transform: uppercase;">${fu.title}</div>
                   </div>
-                  <div style="font-size: 14px; color: #374151; font-style: italic;">
+                  <div style="font-size: 10px; color: #374151;">
                     ${(() => {
                       const renderFuTracking = (val: any) => {
                         if (!val) return "";
                         return `
-                        <div style="font-size: 11px; color: #1d4ed8; background-color: #eff6ff; padding: 6px 10px; border-radius: 4px; border-left: 3px solid #3b82f6; font-weight: 500; font-style: italic; margin-top: 4px;">
-                          <span style="font-weight: 700; text-transform: uppercase; font-size: 9px; margin-right: 5px; font-style: normal;">Tracking:</span>
+                        <div style="font-size: 9px; color: #1d4ed8; background-color: #eff6ff; padding: 4px 6px; border-radius: 4px; border-left: 3px solid #3b82f6; font-weight: 500; font-style: italic; margin-top: 3px;">
+                          <span style="font-weight: 700; text-transform: uppercase; font-size: 8px; margin-right: 4px; font-style: normal;">Tracking:</span>
                           ${String(val)}
                         </div>
                       `;
                       };
+
+                      // Resolve raw value for image detection
+                      let rawVal: any = fuAns;
+                      if (typeof fuAns === "object" && fuAns !== null) {
+                        rawVal =
+                          fuAns.url ||
+                          fuAns.answer ||
+                          fuAns.fileUrl ||
+                          fuAns.file ||
+                          fuAns.imageUrl ||
+                          fuAns;
+                      }
+
+                      if (typeof rawVal === "string" && isImageUrl(rawVal)) {
+                        const remark =
+                          typeof fuAns === "object" && fuAns !== null
+                            ? fuAns.remark ||
+                              fuAns.remarks ||
+                              fuAns.comment ||
+                              fuAns.notes
+                            : null;
+                        return `
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                          <div style="width: 120px; height: 120px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; background-color: #ffffff;">
+                            <img src="${rawVal}" style="width: 100%; height: 100%; object-fit: cover;">
+                          </div>
+                          ${
+                            remark
+                              ? `<div style="font-size: 9px; color: #b45309; background-color: #fffbeb; padding: 4px 6px; border-radius: 4px; border-left: 3px solid #fbbf24; font-style: italic;">"${remark}"</div>`
+                              : ""
+                          }
+                          ${renderFuTracking(fuTracking)}
+                        </div>
+                      `;
+                      }
 
                       if (typeof fuAns === "object" && fuAns !== null) {
                         const display =
@@ -1937,13 +1992,16 @@ function generateResponsesViewAnalysis(
                             ? String(fuAns.answer)
                             : fuAns.status || JSON.stringify(fuAns);
                         const remark =
-                          fuAns.remark || fuAns.remarks || fuAns.comment || fuAns.notes;
+                          fuAns.remark ||
+                          fuAns.remarks ||
+                          fuAns.comment ||
+                          fuAns.notes;
                         return `
-                        <div style="display: flex; flex-direction: column;">
+                        <div style="display: flex; flex-direction: column; font-style: italic;">
                           <div>${display}</div>
                           ${
                             remark
-                              ? `<div style="font-size: 11px; color: #b45309; background-color: #fffbeb; padding: 6px 10px; border-radius: 4px; border-left: 3px solid #fbbf24; font-style: italic; margin-top: 4px;">"${remark}"</div>`
+                              ? `<div style="font-size: 9px; color: #b45309; background-color: #fffbeb; padding: 4px 6px; border-radius: 4px; border-left: 3px solid #fbbf24; font-style: italic; margin-top: 4px;">"${remark}"</div>`
                               : ""
                           }
                           ${renderFuTracking(fuTracking)}
@@ -1951,7 +2009,7 @@ function generateResponsesViewAnalysis(
                       `;
                       }
                       return `
-                      <div style="display: flex; flex-direction: column;">
+                      <div style="display: flex; flex-direction: column; font-style: italic;">
                         ${fuAns ? `<div>${String(fuAns)}</div>` : ""}
                         ${renderFuTracking(fuTracking)}
                       </div>
@@ -1968,104 +2026,102 @@ function generateResponsesViewAnalysis(
     });
 
     html += `
-        </div>
-
-        <!-- Evidence & Remarks Grid -->
-        ${(() => {
-          const images: string[] = [];
-          const remarks: Array<{ title: string; answer: string; subParam?: string }> =
-            [];
-
-          const collectImages = (obj: any) => {
-            if (!obj) return;
-            if (typeof obj === "string" && isImageUrl(obj)) {
-              images.push(obj);
-            } else if (Array.isArray(obj)) {
-              obj.forEach(collectImages);
-            } else if (typeof obj === "object") {
-              if (obj.url && isImageUrl(String(obj.url))) images.push(String(obj.url));
-              if (obj.answer && isImageUrl(String(obj.answer)))
-                images.push(String(obj.answer));
-              Object.values(obj).forEach(collectImages);
-            }
-          };
-
-          sectionQuestions.forEach((q: any) => {
-            collectImages(q.answer);
-            q.followUpQuestions?.forEach((fu: any) => {
-              collectImages(fu.answer);
-              if (
-                fu.answer &&
-                typeof fu.answer !== "object" &&
-                !isImageUrl(String(fu.answer))
-              ) {
-                const strVal = String(fu.answer);
-                if (
-                  strVal &&
-                  strVal.toLowerCase() !== "n/a" &&
-                  strVal.length > 1
-                ) {
-                  remarks.push({
-                    title: fu.title,
-                    answer: strVal,
-                    subParam: fu.subParam1,
-                  });
-                }
-              }
-            });
-          });
-
-          if (images.length === 0 && remarks.length === 0) return "";
-
-          let evidenceHtml = `
-            <div style="padding: 15px; background-color: #f8fafc;">
-          `;
-
-          if (images.length > 0) {
-            evidenceHtml += `
-              <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
-                ${images
-                  .map(
-                    (img) => `
-                  <div style="width: 120px; height: 120px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; background-color: #ffffff;">
-                    <img src="${img}" style="width: 100%; height: 100%; object-fit: cover;">
-                  </div>
-                `,
-                  )
-                  .join("")}
-              </div>
-            `;
-          }
-
-          if (remarks.length > 0) {
-            evidenceHtml += `
-              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-                ${remarks
-                  .map(
-                    (rem) => `
-                  <div style="background-color: #ffffff; padding: 12px; border-radius: 12px; border: 1px solid #e2e8f0;">
-                    <div style="margin-bottom: 8px;">
-                      ${
-                        rem.subParam
-                          ? `<span style="font-size: 9px; font-weight: 700; color: #2563eb; text-transform: uppercase; background-color: #eff6ff; padding: 2px 6px; border-radius: 4px;">${rem.subParam}</span>`
-                          : ""
-                      }
-                      <div style="font-size: 10px; font-weight: 700; color: #6b7280; text-transform: uppercase; margin-top: 4px;">${rem.title}</div>
-                    </div>
-                    <div style="font-size: 13px; color: #1f2937; font-weight: 500; font-style: italic;">"${rem.answer}"</div>
-                  </div>
-                `,
-                  )
-                  .join("")}
-              </div>
-            `;
-          }
-
-          evidenceHtml += `</div>`;
-          return evidenceHtml;
-        })()}
       </div>
     `;
+
+    if (isFirstSection) {
+      // Overall Yes/No donut chart, shown above the breakdown table
+      const overallYes = sectionStatsList.reduce(
+        (sum, s) => sum + (s.yes || 0) + (s.correct || 0),
+        0,
+      );
+      const overallNo = sectionStatsList.reduce(
+        (sum, s) => sum + (s.no || 0) + (s.wrong || 0),
+        0,
+      );
+
+      html += `
+        <div style="padding: 10px; background-color: #ffffff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: center; gap: 30px; page-break-inside: avoid; break-inside: avoid;">
+          ${generateDonutChartSVG(overallYes, overallNo)}
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; border-radius: 2px; background: #10b981;"></div>
+              <span style="font-size: 11px; color: #374151; font-weight: 600;">${complianceLabels.yes}: ${overallYes}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div style="width: 12px; height: 12px; border-radius: 2px; background: #ef4444;"></div>
+              <span style="font-size: 11px; color: #374151; font-weight: 600;">${complianceLabels.no}: ${overallNo}</span>
+            </div>
+            <div style="font-size: 9px; color: #6b7280; margin-top: 2px;">Total Evaluated: ${overallYes + overallNo}</div>
+          </div>
+        </div>
+      `;
+
+      // Section-wise Breakdown table, shown right after section 1
+      html += `
+        <div style="padding: 10px; background-color: #f8fafc; border-bottom: 1px solid #e2e8f0; page-break-inside: avoid; break-inside: avoid;">
+          <h3 style="font-size: 12px; font-weight: 700; color: #1e3a8a; margin: 0 0 1px 0; text-transform: uppercase; letter-spacing: 0.5px;">
+            Section-wise Breakdown
+          </h3>
+          <p style="font-size: 9px; color: #6b7280; margin: 0 0 6px 0;">
+            Detailed performance analysis by section
+          </p>
+          <table style="width: 100%; border-collapse: collapse; font-size: 9px;">
+            <thead>
+              <tr style="background: #1e3a8a;">
+                <th style="padding: 4px 6px; text-align: left; color: #ffffff; font-weight: 700; text-transform: uppercase; font-size: 8px; border: 1px solid #1e3a8a;">Section</th>
+                <th style="padding: 4px 6px; text-align: center; color: #ffffff; font-weight: 700; text-transform: uppercase; font-size: 8px; border: 1px solid #1e3a8a;">${complianceLabels.yes}</th>
+                <th style="padding: 4px 6px; text-align: center; color: #ffffff; font-weight: 700; text-transform: uppercase; font-size: 8px; border: 1px solid #1e3a8a;">${complianceLabels.no}</th>
+                <th style="padding: 4px 6px; text-align: center; color: #ffffff; font-weight: 700; text-transform: uppercase; font-size: 8px; border: 1px solid #1e3a8a;">Total</th>
+                <th style="padding: 4px 6px; text-align: center; color: #ffffff; font-weight: 700; text-transform: uppercase; font-size: 8px; border: 1px solid #1e3a8a;">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${form.sections
+                .map((s: any) => {
+                  const sQuestions = getSectionQuestionsWithFollowUps(s.id);
+                  if (sQuestions.length === 0) return "";
+
+                  const sStats = sectionStatsList.find(
+                    (st) => st.id === s.id,
+                  ) || {
+                    yes: 0,
+                    no: 0,
+                    correct: 0,
+                    wrong: 0,
+                    total: 0,
+                  };
+                  const sScoringTotal =
+                    sStats.yes + sStats.no + sStats.correct + sStats.wrong;
+                  const sSuccess = sStats.yes + sStats.correct;
+                  const sScore =
+                    sScoringTotal > 0
+                      ? ((sSuccess / sScoringTotal) * 100).toFixed(2)
+                      : "0.00";
+                  const scoreColor =
+                    parseFloat(sScore) >= 80
+                      ? "#10b981"
+                      : parseFloat(sScore) >= 50
+                        ? "#f59e0b"
+                        : "#ef4444";
+
+                  return `
+                    <tr>
+                      <td style="padding: 4px 6px; border: 1px solid #e2e8f0; font-weight: 600; color: #374151;">${s.title}</td>
+                      <td style="padding: 4px 6px; border: 1px solid #e2e8f0; text-align: center; color: #10b981; font-weight: 600;">${sStats.yes + sStats.correct}</td>
+                      <td style="padding: 4px 6px; border: 1px solid #e2e8f0; text-align: center; color: #ef4444; font-weight: 600;">${sStats.no + sStats.wrong}</td>
+                      <td style="padding: 4px 6px; border: 1px solid #e2e8f0; text-align: center; color: #374151;">${sScoringTotal}</td>
+                      <td style="padding: 4px 6px; border: 1px solid #e2e8f0; text-align: center; font-weight: 700; color: ${scoreColor};">${sScore}%</td>
+                    </tr>
+                  `;
+                })
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      `;
+      isFirstSection = false;
+    }
   });
 
   html += `</div>`;
@@ -3290,6 +3346,46 @@ function generatePieChartSVG(
     `;
 }
 
+function generateDonutChartSVG(yes: number, no: number): string {
+  const size = 140;
+  const radius = 50;
+  const strokeWidth = 18;
+  const centerX = size / 2;
+  const centerY = size / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  const total = yes + no;
+  const yesPct = total > 0 ? (yes / total) * 100 : 0;
+  const noPct = total > 0 ? (no / total) * 100 : 0;
+
+  const yesDash = (yesPct / 100) * circumference;
+  const noDash = (noPct / 100) * circumference;
+
+  const yesColor = "#10b981";
+  const noColor = "#ef4444";
+
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" style="display: block; margin: 0 auto;">
+      <!-- Background Track -->
+      <circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="none" stroke="#f1f5f9" stroke-width="${strokeWidth}" />
+
+      <!-- No Arc -->
+      <circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="none" stroke="${noColor}" stroke-width="${strokeWidth}"
+              stroke-dasharray="${noDash} ${circumference}" stroke-dashoffset="0"
+              transform="rotate(-90 ${centerX} ${centerY})" stroke-linecap="round" />
+
+      <!-- Yes Arc -->
+      <circle cx="${centerX}" cy="${centerY}" r="${radius}" fill="none" stroke="${yesColor}" stroke-width="${strokeWidth}"
+              stroke-dasharray="${yesDash} ${circumference}" stroke-dashoffset="-${noDash}"
+              transform="rotate(-90 ${centerX} ${centerY})" stroke-linecap="round" />
+
+      <!-- Center Text -->
+      <text x="${centerX}" y="${centerY - 4}" text-anchor="middle" font-size="20" font-weight="800" fill="#1e3a8a">${yesPct.toFixed(1)}%</text>
+      <text x="${centerX}" y="${centerY + 14}" text-anchor="middle" font-size="9" fill="#64748b" font-weight="600">OVERALL</text>
+    </svg>
+  `;
+}
+
 function generateGaugeSVG(score: number): string {
   const size = 180;
   const radius = 70;
@@ -3383,7 +3479,10 @@ function generateFirstSectionContent(form: any, response: any): string {
   const leftColumnQuestions = questions.slice(0, midPoint);
   const rightColumnQuestions = questions.slice(midPoint);
 
-  const maxRows = Math.max(leftColumnQuestions.length, rightColumnQuestions.length);
+  const maxRows = Math.max(
+    leftColumnQuestions.length,
+    rightColumnQuestions.length,
+  );
 
   for (let i = 0; i < maxRows; i++) {
     const leftQuestion = leftColumnQuestions[i];
@@ -3449,11 +3548,11 @@ function generateScoreSection(sectionStats: any[], form?: any): string {
 
   // Calculate score excluding N/A from denominator for better accuracy
   const scoringTotal = totalYes + totalNo + totalAccuracy;
-  
+
   const yesPercentage =
-    (totalYes + totalNo) > 0 ? (totalYes / (totalYes + totalNo)) * 100 : 0;
+    totalYes + totalNo > 0 ? (totalYes / (totalYes + totalNo)) * 100 : 0;
   const noPercentage =
-    (totalYes + totalNo) > 0 ? (totalNo / (totalYes + totalNo)) * 100 : 0;
+    totalYes + totalNo > 0 ? (totalNo / (totalYes + totalNo)) * 100 : 0;
   const naPercentage =
     totalCompliance > 0 ? (totalNA / totalCompliance) * 100 : 0;
 
@@ -3462,7 +3561,8 @@ function generateScoreSection(sectionStats: any[], form?: any): string {
   const wrongPercentage =
     totalAccuracy > 0 ? (totalWrong / totalAccuracy) * 100 : 0;
 
-  const overallScore = scoringTotal > 0 ? ((totalYes + totalCorrect) / scoringTotal) * 100 : 0;
+  const overallScore =
+    scoringTotal > 0 ? ((totalYes + totalCorrect) / scoringTotal) * 100 : 0;
 
   // Dynamic color for Overall Score text
   let scoreColor = "#f59e0b"; // Default Orange
@@ -3502,21 +3602,21 @@ function generateScoreSection(sectionStats: any[], form?: any): string {
             <div style="background: #fff; padding: 10px; border-radius: 6px; border-left: 4px solid #22c55e; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
               <div style="font-size: 18px; font-weight: 800; color: #166534;">${totalYes + totalCorrect}</div>
               <div style="font-size: 10px; color: #475569; font-weight: 700; text-transform: uppercase;">Accepted</div>
-              <div style="font-size: 11px; font-weight: 700; color: #16a34a; margin-top: 2px;">${(( (totalYes + totalCorrect) / (grandTotal || 1) ) * 100).toFixed(1)}%</div>
+              <div style="font-size: 11px; font-weight: 700; color: #16a34a; margin-top: 2px;">${(((totalYes + totalCorrect) / (grandTotal || 1)) * 100).toFixed(1)}%</div>
             </div>
 
             <!-- Rejected Card -->
             <div style="background: #fff; padding: 10px; border-radius: 6px; border-left: 4px solid #ef4444; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
               <div style="font-size: 18px; font-weight: 800; color: #991b1b;">${totalNo + totalWrong}</div>
               <div style="font-size: 10px; color: #475569; font-weight: 700; text-transform: uppercase;">Rejected</div>
-              <div style="font-size: 11px; font-weight: 700; color: #dc2626; margin-top: 2px;">${(( (totalNo + totalWrong) / (grandTotal || 1) ) * 100).toFixed(1)}%</div>
+              <div style="font-size: 11px; font-weight: 700; color: #dc2626; margin-top: 2px;">${(((totalNo + totalWrong) / (grandTotal || 1)) * 100).toFixed(1)}%</div>
             </div>
 
             <!-- Rework Card -->
             <div style="background: #fff; padding: 10px; border-radius: 6px; border-left: 4px solid #94a3b8; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
               <div style="font-size: 18px; font-weight: 800; color: #1e3a8a;">${totalNA}</div>
               <div style="font-size: 10px; color: #475569; font-weight: 700; text-transform: uppercase;">Rework</div>
-              <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 2px;">${(( totalNA / (grandTotal || 1) ) * 100).toFixed(1)}%</div>
+              <div style="font-size: 11px; font-weight: 700; color: #64748b; margin-top: 2px;">${((totalNA / (grandTotal || 1)) * 100).toFixed(1)}%</div>
             </div>
           </div>
 
@@ -3548,9 +3648,15 @@ function generateSectionSummaryBarSVG(scored: number, missing: number): string {
 function generateSectionSummary(sectionStats: any[]): string {
   const totalYes = sectionStats.reduce((sum, stat) => sum + (stat.yes || 0), 0);
   const totalNo = sectionStats.reduce((sum, stat) => sum + (stat.no || 0), 0);
-  const totalCorrect = sectionStats.reduce((sum, stat) => sum + (stat.correct || 0), 0);
-  const totalWrong = sectionStats.reduce((sum, stat) => sum + (stat.wrong || 0), 0);
-  
+  const totalCorrect = sectionStats.reduce(
+    (sum, stat) => sum + (stat.correct || 0),
+    0,
+  );
+  const totalWrong = sectionStats.reduce(
+    (sum, stat) => sum + (stat.wrong || 0),
+    0,
+  );
+
   const totalScored = totalYes + totalCorrect;
   const totalMissing = totalNo + totalWrong;
   const totalTotal = totalScored + totalMissing;
@@ -3577,14 +3683,15 @@ function generateSectionSummary(sectionStats: any[]): string {
             </tr>
           </thead>
           <tbody>
-            ${sectionStats.map((stat, i) => {
-              const scored = (stat.yes || 0) + (stat.correct || 0);
-              const missing = (stat.no || 0) + (stat.wrong || 0);
-              const total = scored + missing;
-              const pct = total > 0 ? (scored / total) * 100 : 0;
-              const missingPct = 100 - pct;
-              
-              return `
+            ${sectionStats
+              .map((stat, i) => {
+                const scored = (stat.yes || 0) + (stat.correct || 0);
+                const missing = (stat.no || 0) + (stat.wrong || 0);
+                const total = scored + missing;
+                const pct = total > 0 ? (scored / total) * 100 : 0;
+                const missingPct = 100 - pct;
+
+                return `
                 <tr style="border-bottom: 1px solid #f1f5f9; background: ${i % 2 === 0 ? "#fff" : "#fcfcfc"};">
                   <td style="padding: 8px 15px; font-weight: 700; color: #1e3a8a; font-size: 10px; text-transform: uppercase;">${stat.title}</td>
                   <td style="padding: 8px 15px;">
@@ -3595,7 +3702,8 @@ function generateSectionSummary(sectionStats: any[]): string {
                   <td style="padding: 8px 15px; text-align: center; color: #94a3b8;">-</td>
                 </tr>
               `;
-            }).join("")}
+              })
+              .join("")}
             <tr style="background: #f8fafc; border-top: 2px solid #e2e8f0; font-weight: 800;">
               <td style="padding: 10px 15px; color: #1e293b; text-transform: uppercase;">TOTAL</td>
               <td style="padding: 10px 15px;">

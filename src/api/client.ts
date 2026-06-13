@@ -13,8 +13,7 @@ const API_BASE_URL = (() => {
     : "https://3wheelertvsbackend.focusengineeringapp.com/api";
 
   console.log(
-    `🔗 API Base URL: ${baseUrl} (Environment: ${
-      isLocal ? "Local" : "Production"
+    `🔗 API Base URL: ${baseUrl} (Environment: ${isLocal ? "Local" : "Production"
     })`,
   );
   return baseUrl;
@@ -1619,9 +1618,8 @@ class ApiClient {
       query.set("formId", params.formId);
     }
 
-    const endpoint = `/parameters${
-      query.toString() ? `?${query.toString()}` : ""
-    }`;
+    const endpoint = `/parameters${query.toString() ? `?${query.toString()}` : ""
+      }`;
 
     return this.request<{ parameters: any[] }>(endpoint);
   }
@@ -1705,8 +1703,8 @@ class ApiClient {
         console.error("API Error Response:", errorData);
         throw new Error(
           errorData.details ||
-            errorData.error ||
-            `PDF generation failed: ${response.statusText}`,
+          errorData.error ||
+          `PDF generation failed: ${response.statusText}`,
         );
       }
 
@@ -1720,7 +1718,53 @@ class ApiClient {
       throw error;
     }
   }
+  // Add this new method to your client class
+  async generateOverallPDF(options: {
+    htmlContent: string;
+    filename?: string;
+  }): Promise<Blob> {
+    const url = `${this.baseUrl}/pdf/generate-overall`;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
 
+    if (this.token) {
+      headers.Authorization = `Bearer ${this.token}`;
+    }
+
+    const requestBody = {
+      htmlContent: options.htmlContent,
+      filename: options.filename || "overall-report.pdf",
+    };
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.details || errorData.error || `PDF generation failed: ${response.statusText}`
+        );
+      }
+
+      return response.blob();
+    } catch (error: any) {
+      if (error.name === "AbortError") {
+        throw new Error("PDF generation timed out (120s).");
+      }
+      throw error;
+    }
+  }
   // Form Invite Management
   async uploadInvites(formId: string, formData: FormData) {
     const url = `${this.baseUrl}/forms/${formId}/invites/upload`;
@@ -1809,9 +1853,8 @@ class ApiClient {
       });
     }
 
-    const endpoint = `/forms/${formId}/invites${
-      query.toString() ? `?${query.toString()}` : ""
-    }`;
+    const endpoint = `/forms/${formId}/invites${query.toString() ? `?${query.toString()}` : ""
+      }`;
     const url = `${this.baseUrl}${endpoint}`;
 
     const headers: Record<string, string> = {
@@ -2167,7 +2210,7 @@ class ApiClient {
     if (params?.limit) query.set("limit", params.limit.toString());
     return this.request<{ data: any }>(
       "/hr/attendance/my-history" +
-        (query.toString() ? `?${query.toString()}` : ""),
+      (query.toString() ? `?${query.toString()}` : ""),
     );
   }
 

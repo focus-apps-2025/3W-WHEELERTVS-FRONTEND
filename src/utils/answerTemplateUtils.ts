@@ -59,7 +59,8 @@ export function isImageUrl(url: string): boolean {
     trimmed.includes("imgur.com") ||
     trimmed.includes("cloudinary.com") ||
     trimmed.includes("s3.amazonaws.com") ||
-    trimmed.includes("cdn.")
+    trimmed.includes("cdn.") ||
+    trimmed.includes("cloudfront.net")
   ) {
     return true;
   }

@@ -6215,6 +6215,11 @@ export default function FormAnalyticsDashboard() {
     navigate(`/responses/${responseId}`);
   };
 
+  const handleEditResponse = (response: Response) => {
+    const responseId = response.id || response._id;
+    navigate(`/responses/${responseId}/edit-form`);
+  };
+
   const handleOpenModal = async (response: Response) => {
     try {
       const formIdentifier = response.questionId;
@@ -8917,7 +8922,7 @@ export default function FormAnalyticsDashboard() {
                                                     <>
                                                       <button
                                                         onClick={() =>
-                                                          handleEditStart(
+                                                          handleEditResponse(
                                                             response,
                                                           )
                                                         }
@@ -10351,7 +10356,7 @@ export default function FormAnalyticsDashboard() {
                       isActualOwnTenant && (
                         <button
                           onClick={() => {
-                            handleEditStart(actionResponse);
+                            handleEditResponse(actionResponse);
                             setShowActionMenuModal(false);
                           }}
                           className="w-full flex items-center gap-3 p-3.5 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-gray-700 dark:text-gray-200 rounded-xl transition-colors font-semibold text-sm"

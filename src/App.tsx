@@ -34,6 +34,7 @@ import FormResponses from "./components/FormResponses";
 import FormUploadsView from "./components/analytics/FormUploadsView";
 import AllResponses from "./components/AllResponses";
 import EditResponsePage from "./components/EditResponsePage";
+import EditResponseFormPage from "./pages/EditResponseFormPage";
 import DashboardNew from "./components/DashboardNew";
 import Overall from "./components/Overall";
 import CustomerViewCarousel from "./components/CustomerViewCarousel";
@@ -82,10 +83,12 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   // If user is a guest (guest token exists), and trying to access any private route
   // (Note: analytics route uses FlexibleAnalyticsRoute, not PrivateRoute directly)
   const isGuest = !!localStorage.getItem("guest_auth_token");
-  
+
   if (isGuest && !isAuthenticated) {
     const guestFormId = localStorage.getItem("guest_form_id");
-    return <Navigate to={`/forms/${guestFormId}/analytics?guest=true`} replace />;
+    return (
+      <Navigate to={`/forms/${guestFormId}/analytics?guest=true`} replace />
+    );
   }
 
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
@@ -98,7 +101,10 @@ function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
 
   const isGuest = useMemo(() => {
     const searchParams = new URLSearchParams(location.search);
-    return searchParams.get("guest") === "true" || !!localStorage.getItem("guest_auth_token");
+    return (
+      searchParams.get("guest") === "true" ||
+      !!localStorage.getItem("guest_auth_token")
+    );
   }, [location.search]);
 
   return (
@@ -222,7 +228,9 @@ function FlexibleAnalyticsRoute({ children }: { children: React.ReactNode }) {
       return <>{children}</>;
     }
     // Otherwise redirect to their assigned analytics page
-    return <Navigate to={`/forms/${guestFormId}/analytics?guest=true`} replace />;
+    return (
+      <Navigate to={`/forms/${guestFormId}/analytics?guest=true`} replace />
+    );
   }
 
   return <Navigate to="/login" replace />;
@@ -242,7 +250,10 @@ const router = createBrowserRouter(
       children: [
         { path: "/login", element: <LoginPage /> },
         { path: "/signup", element: <SignupPage /> },
-        { path: "/forms/:id/analytics/login", element: <GuestAnalyticsLogin /> },
+        {
+          path: "/forms/:id/analytics/login",
+          element: <GuestAnalyticsLogin />,
+        },
         { path: "/", element: <RootRedirect /> },
         { path: "/forms/preview", element: <FormsPreview /> },
         { path: "/api-test", element: <TestAPI /> },
@@ -329,6 +340,12 @@ const router = createBrowserRouter(
         {
           path: "/responses/all",
           element: withAccessControl(<AllResponses />, {
+            requiredPermission: ROUTE_PERMISSIONS.CUSTOMER_REQUESTS,
+          }),
+        },
+        {
+          path: "/responses/:responseId/edit-form",
+          element: withAccessControl(<EditResponseFormPage />, {
             requiredPermission: ROUTE_PERMISSIONS.CUSTOMER_REQUESTS,
           }),
         },

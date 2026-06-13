@@ -272,18 +272,36 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
     const defaultLabels = { yes: "Yes", no: "No", na: "N/A", correct: "Correct", wrong: "Wrong" };
     let labels = { ...defaultLabels };
 
-    // Check if any question in the form is a zone/chassis type
-    const hasSpecialTypes = form?.sections?.some((s) =>
-      s.questions?.some((q: any) =>
-        [
-          "chassis-with-zone",
-          "zone-in",
-          "zone-out",
-          "chassis-without-zone",
-          "chassisNumber",
-        ].includes(q.type),
-      ),
-    );
+    // Check form title for inspection keywords
+    let hasSpecialTypes = false;
+    if (
+      form?.title?.toLowerCase().includes("inspection") ||
+      form?.title?.toLowerCase().includes("chassis") ||
+      form?.title?.toLowerCase().includes("pdi") ||
+      form?.title?.toLowerCase().includes("rework") ||
+      form?.title?.toLowerCase().includes("accepted") ||
+      form?.title?.toLowerCase().includes("rejected") ||
+      form?.title?.toLowerCase().includes("verified")
+    ) {
+      hasSpecialTypes = true;
+    }
+
+    if (!hasSpecialTypes) {
+      hasSpecialTypes = form?.sections?.some((s) =>
+        s.questions?.some((q: any) =>
+          [
+            "chassis-with-zone",
+            "zone-in",
+            "zone-out",
+            "chassis-without-zone",
+            "chassisNumber",
+            "chassisWithZone",
+            "chassisWithoutZone",
+            "chassis"
+          ].includes(q.type) || q.text?.toLowerCase().includes("chassis"),
+        ),
+      ) || false;
+    }
 
     if (hasSpecialTypes) {
       return { yes: "Accepted", no: "Rejected", na: "Rework", correct: "Accepted", wrong: "Rejected" };
@@ -727,8 +745,8 @@ const handleBulkDownloadZip = async () => {
       if (!question) {
         return;
       }
-      const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale", "chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"];
-      if (supportedTypes.includes(question.type) && question.id) {
+      const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale", "chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out", "chassisWithZone", "chassisWithoutZone", "chassis"];
+      if ((supportedTypes.includes(question.type) || question.text?.toLowerCase().includes("chassis")) && question.id) {
         ids.add(question.id);
       }
       question.followUpQuestions?.forEach(processQuestion);
@@ -1089,7 +1107,26 @@ const handleBulkDownloadZip = async () => {
                   if (isImageUrl(textVal)) {
                     return <ImageLink text={textVal} />;
                   }
-                  return textVal;
+
+                  const urlRegex = /(https?:\/\/[^\s]+)/g;
+                  if (urlRegex.test(textVal)) {
+                    const parts = textVal.split(urlRegex);
+                    return (
+                      <div className="flex flex-col gap-2">
+                        {parts.map((part, i) => {
+                          if (part.match(urlRegex)) {
+                            if (isImageUrl(part)) {
+                              return <ImageLink key={i} text={part} />;
+                            }
+                            return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{part}</a>;
+                          }
+                          return part ? <span key={i} className="whitespace-pre-wrap">{part}</span> : null;
+                        })}
+                      </div>
+                    );
+                  }
+
+                  return <span className="whitespace-pre-wrap">{textVal}</span>;
                 };
                 return renderInnerValue(value);
               })()}
@@ -1138,13 +1175,13 @@ const handleBulkDownloadZip = async () => {
           if (!question) {
             return;
           }
-          const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale", "chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"];
-          if (!supportedTypes.includes(question.type) || !question.id) {
+          const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale", "chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out", "chassisWithZone", "chassisWithoutZone", "chassis"];
+          if ((!supportedTypes.includes(question.type) && !question.text?.toLowerCase().includes("chassis")) || !question.id) {
             question.followUpQuestions?.forEach(processQuestion);
             return;
           }
 
-          const isCompliance = question.type === "yesNoNA" || ["chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"].includes(question.type);
+          const isCompliance = question.type === "yesNoNA" || ["chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out", "chassisWithZone", "chassisWithoutZone", "chassis"].includes(question.type) || question.text?.toLowerCase().includes("chassis");
           const isAccuracy = !isCompliance;
 
           if (isCompliance) {
@@ -1222,18 +1259,26 @@ const handleBulkDownloadZip = async () => {
             }
           } else if (isCompliance) {
             // Special logic for chassis/zone types within compliance
-            if (["chassis-with-zone", "zone-in", "zone-out", "chassis-without-zone"].includes(question.type)) {
+            if (["chassis-with-zone", "zone-in", "zone-out", "chassis-without-zone", "chassisWithZone", "chassisWithoutZone", "chassis"].includes(question.type) || question.text?.toLowerCase().includes("chassis")) {
               if (rawValue && typeof rawValue === 'object') {
                 const hasDefects = rawValue.status === 'Rejected' || 
                                  (rawValue.zonesData && Object.keys(rawValue.zonesData).length > 0) ||
                                  (rawValue.categories && Object.keys(rawValue.categories).length > 0);
                 if (hasDefects) {
-                  counts.no = 1;
+                  counts.no += 1;
                 } else {
-                  counts.yes = 1;
+                  counts.yes += 1;
                 }
               } else {
-                counts.yes = 1;
+                // If it's a string, check if it's "rejected"
+                const answerStr = String(rawValue).toLowerCase().trim();
+                if (answerStr === "rejected" || answerStr === "rework" || answerStr.includes("re-rework")) {
+                  counts.no += 1;
+                } else if (answerStr === "accepted" || answerStr === "verified" || answerStr === "rework completed") {
+                  counts.yes += 1;
+                } else {
+                  counts.yes += 1; // Default fallback for chassis text
+                }
               }
             } else {
               const yesLabel = question.options?.[0]?.toLowerCase() || "yes";
@@ -1241,18 +1286,18 @@ const handleBulkDownloadZip = async () => {
               const naLabel = question.options?.[2]?.toLowerCase() || "n/a";
 
               if (normalizedValues.includes(yesLabel)) {
-                counts.yes = 1;
+                counts.yes += 1;
               } else if (normalizedValues.includes(noLabel)) {
-                counts.no = 1;
+                counts.no += 1;
               } else if (
                 normalizedValues.includes(naLabel) ||
                 normalizedValues.includes("n/a") ||
                 normalizedValues.includes("na") ||
                 normalizedValues.includes("not applicable")
               ) {
-                counts.na = 1;
+                counts.na += 1;
               } else {
-                counts.yes = 1;
+                counts.yes += 1;
               }
             }
           }
@@ -1306,12 +1351,12 @@ const handleBulkDownloadZip = async () => {
     const processQuestion = (question: any) => {
       if (!question) return;
 
-      const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale", "chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"];
-      if (supportedTypes.includes(question.type) && question.id) {
+      const supportedTypes = ["yesNoNA", "radio", "checkbox", "select", "search-select", "radio-image", "rating", "scale", "chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out", "chassisWithZone", "chassisWithoutZone", "chassis"];
+      if ((supportedTypes.includes(question.type) || question.text?.toLowerCase().includes("chassis")) && question.id) {
         const rawValue = response.answers?.[question.id];
         const normalizedValues = extractYesNoValues(rawValue);
         const counts = { yes: 0, no: 0, na: 0, total: 1, correct: 0, wrong: 0, answeredCount: 0 };
-        const isCompliance = question.type === "yesNoNA" || ["chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out"].includes(question.type);
+        const isCompliance = question.type === "yesNoNA" || ["chassisNumber", "chassis-with-zone", "chassis-without-zone", "zone-in", "zone-out", "chassisWithZone", "chassisWithoutZone", "chassis"].includes(question.type) || question.text?.toLowerCase().includes("chassis");
         const isAccuracy = !isCompliance;
 
         const hasValue = rawValue !== null && rawValue !== undefined && rawValue !== "" && 
@@ -1357,12 +1402,17 @@ const handleBulkDownloadZip = async () => {
                 isCorrect = true;
 
                 // Special logic for chassis/zone types: if rejected or has defects, it's "Wrong"
-                if (["chassis-with-zone", "zone-in", "zone-out", "chassis-without-zone"].includes(question.type)) {
+                if (["chassis-with-zone", "zone-in", "zone-out", "chassis-without-zone", "chassisWithZone", "chassisWithoutZone", "chassis"].includes(question.type) || question.text?.toLowerCase().includes("chassis")) {
                   if (rawValue && typeof rawValue === 'object') {
                     const hasDefects = rawValue.status === 'Rejected' || 
                                      (rawValue.zonesData && Object.keys(rawValue.zonesData).length > 0) ||
                                      (rawValue.categories && Object.keys(rawValue.categories).length > 0);
                     if (hasDefects) {
+                      isCorrect = false;
+                    }
+                  } else {
+                    const answerStr = String(rawValue).toLowerCase().trim();
+                    if (answerStr === "rejected" || answerStr === "rework" || answerStr.includes("re-rework")) {
                       isCorrect = false;
                     }
                   }
@@ -1376,23 +1426,45 @@ const handleBulkDownloadZip = async () => {
               }
             }
           } else if (isCompliance) {
-            const yesLabel = question.options?.[0]?.toLowerCase() || "yes";
-            const noLabel = question.options?.[1]?.toLowerCase() || "no";
-            const naLabel = question.options?.[2]?.toLowerCase() || "n/a";
-
-            if (normalizedValues.includes(yesLabel)) {
-              counts.yes = 1;
-            } else if (normalizedValues.includes(noLabel)) {
-              counts.no = 1;
-            } else if (
-              normalizedValues.includes(naLabel) ||
-              normalizedValues.includes("n/a") ||
-              normalizedValues.includes("na") ||
-              normalizedValues.includes("not applicable")
-            ) {
-              counts.na = 1;
+            if (["chassis-with-zone", "zone-in", "zone-out", "chassis-without-zone", "chassisWithZone", "chassisWithoutZone", "chassis"].includes(question.type) || question.text?.toLowerCase().includes("chassis")) {
+              if (rawValue && typeof rawValue === 'object') {
+                const hasDefects = rawValue.status === 'Rejected' || 
+                                 (rawValue.zonesData && Object.keys(rawValue.zonesData).length > 0) ||
+                                 (rawValue.categories && Object.keys(rawValue.categories).length > 0);
+                if (hasDefects) {
+                  counts.no = 1;
+                } else {
+                  counts.yes = 1;
+                }
+              } else {
+                const answerStr = String(rawValue).toLowerCase().trim();
+                if (answerStr === "rejected" || answerStr === "rework" || answerStr.includes("re-rework")) {
+                  counts.no = 1;
+                } else if (answerStr === "accepted" || answerStr === "verified" || answerStr === "rework completed") {
+                  counts.yes = 1;
+                } else {
+                  counts.yes = 1;
+                }
+              }
             } else {
-              counts.yes = 1;
+              const yesLabel = question.options?.[0]?.toLowerCase() || "yes";
+              const noLabel = question.options?.[1]?.toLowerCase() || "no";
+              const naLabel = question.options?.[2]?.toLowerCase() || "n/a";
+
+              if (normalizedValues.includes(yesLabel)) {
+                counts.yes = 1;
+              } else if (normalizedValues.includes(noLabel)) {
+                counts.no = 1;
+              } else if (
+                normalizedValues.includes(naLabel) ||
+                normalizedValues.includes("n/a") ||
+                normalizedValues.includes("na") ||
+                normalizedValues.includes("not applicable")
+              ) {
+                counts.na = 1;
+              } else {
+                counts.yes = 1;
+              }
             }
           }
         }
@@ -1544,8 +1616,21 @@ const handleBulkDownloadZip = async () => {
         ...(followUpMap.get(question.id) || []),
       ];
 
-      // Show question if it has an answer OR has follow-ups
-      if ((answers !== undefined && answers !== null && answers !== "") || followUpQuestionsForThis.length > 0) {
+      const checkHasAnswer = (val: any) => {
+        if (val === undefined || val === null || val === "") return false;
+        if (Array.isArray(val)) return val.length > 0;
+        if (typeof val === 'object') return Object.keys(val).length > 0;
+        return true;
+      };
+
+      const hasMainAnswer = checkHasAnswer(answers);
+      const hasFollowUpAnswer = followUpQuestionsForThis.some((fq: any) => {
+        const ans = response.answers?.[fq.id || fq._id];
+        return checkHasAnswer(ans);
+      });
+
+      // Show question if it has an answer OR has an answered follow-up
+      if (hasMainAnswer || hasFollowUpAnswer) {
         const mainQuestion = {
           id: question.id,
           title: question.title || question.label || question.text,
@@ -1594,7 +1679,7 @@ const handleBulkDownloadZip = async () => {
       {
         label: complianceLabels.correct,
         data: filteredSectionStats.map((stat) =>
-          calculatePercentage(stat.correct, stat.total)
+          calculatePercentage(stat.correct, stat.correct + stat.wrong)
         ),
         borderColor: "#10b981",
         backgroundColor: "rgba(16, 185, 129, 0.25)",
@@ -1609,7 +1694,7 @@ const handleBulkDownloadZip = async () => {
       {
         label: complianceLabels.wrong,
         data: filteredSectionStats.map((stat) =>
-          calculatePercentage(stat.wrong, stat.total)
+          calculatePercentage(stat.wrong, stat.correct + stat.wrong)
         ),
         borderColor: "#ef4444",
         backgroundColor: "rgba(239, 68, 68, 0.25)",
@@ -1624,7 +1709,7 @@ const handleBulkDownloadZip = async () => {
       {
         label: complianceLabels.yes,
         data: filteredSectionStats.map((stat) =>
-          calculatePercentage(stat.yes, stat.total)
+          calculatePercentage(stat.yes, stat.yes + stat.no + stat.na)
         ),
         borderColor: "#1d4ed8",
         backgroundColor: "rgba(29, 78, 216, 0.25)",
@@ -1639,7 +1724,7 @@ const handleBulkDownloadZip = async () => {
       {
         label: complianceLabels.no,
         data: filteredSectionStats.map((stat) =>
-          calculatePercentage(stat.no, stat.total)
+          calculatePercentage(stat.no, stat.yes + stat.no + stat.na)
         ),
         borderColor: "#3b82f6",
         backgroundColor: "rgba(59, 130, 246, 0.25)",
@@ -1657,7 +1742,7 @@ const handleBulkDownloadZip = async () => {
       datasets.push({
         label: complianceLabels.na,
         data: filteredSectionStats.map((stat) =>
-          calculatePercentage(stat.na, stat.total)
+          calculatePercentage(stat.na, stat.yes + stat.no + stat.na)
         ),
         borderColor: "#93c5fd",
         backgroundColor: "rgba(147, 197, 253, 0.25)",
@@ -1750,11 +1835,14 @@ const handleBulkDownloadZip = async () => {
   const sectionSummaryRows = useMemo(
     () =>
       filteredSectionStats.map((stat) => {
-        const yesPercent = stat.total ? (stat.yes / stat.total) * 100 : 0;
-        const noPercent = stat.total ? (stat.no / stat.total) * 100 : 0;
-        const naPercent = stat.total ? (stat.na / stat.total) * 100 : 0;
-        const correctPercent = stat.total ? (stat.correct / stat.total) * 100 : 0;
-        const wrongPercent = stat.total ? (stat.wrong / stat.total) * 100 : 0;
+        const complianceTotal = stat.yes + stat.no + stat.na;
+        const accuracyTotal = stat.correct + stat.wrong;
+
+        const yesPercent = complianceTotal > 0 ? (stat.yes / complianceTotal) * 100 : 0;
+        const noPercent = complianceTotal > 0 ? (stat.no / complianceTotal) * 100 : 0;
+        const naPercent = complianceTotal > 0 ? (stat.na / complianceTotal) * 100 : 0;
+        const correctPercent = accuracyTotal > 0 ? (stat.correct / accuracyTotal) * 100 : 0;
+        const wrongPercent = accuracyTotal > 0 ? (stat.wrong / accuracyTotal) * 100 : 0;
         
         return {
           id: stat.id,
@@ -1822,11 +1910,30 @@ const handleBulkDownloadZip = async () => {
                         key={idx}
                         className="text-primary-700 dark:text-gray-200"
                       >
-                        {isImageUrl(typeof v === 'object' && v !== null && v.url ? String(v.url) : String(v)) ? (
-                          <ImageLink text={typeof v === 'object' && v !== null && v.url ? String(v.url) : String(v)} />
-                        ) : (
-                          String(v)
-                        )}
+                        {(() => {
+                          const vText = typeof v === 'object' && v !== null && v.url ? String(v.url) : String(v);
+                          if (isImageUrl(vText)) {
+                            return <ImageLink text={vText} showImage={true} />;
+                          }
+                          const urlRegex = /(https?:\/\/[^\s]+)/g;
+                          if (urlRegex.test(vText)) {
+                            const parts = vText.split(urlRegex);
+                            return (
+                              <div className="flex flex-col gap-2">
+                                {parts.map((part, pi) => {
+                                  if (part.match(urlRegex)) {
+                                    if (isImageUrl(part)) {
+                                      return <ImageLink key={pi} text={part} showImage={true} />;
+                                    }
+                                    return <a key={pi} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{part}</a>;
+                                  }
+                                  return part ? <span key={pi} className="whitespace-pre-wrap">{part}</span> : null;
+                                })}
+                              </div>
+                            );
+                          }
+                          return <span className="whitespace-pre-wrap">{vText}</span>;
+                        })()}
                       </div>
                     ))}
                   </div>
@@ -1841,16 +1948,58 @@ const handleBulkDownloadZip = async () => {
                             <span className="text-[10px] font-bold opacity-70 uppercase tracking-tighter text-primary-600 dark:text-primary-400">
                               {k}
                             </span>
-                            {isImageUrl(typeof v === 'object' && v !== null && (v as any).url ? String((v as any).url) : String(v)) ? (
-                              <ImageLink text={typeof v === 'object' && v !== null && (v as any).url ? String((v as any).url) : String(v)} />
-                            ) : (
-                              String(v)
-                            )}
+                            {(() => {
+                              const vText = typeof v === 'object' && v !== null && (v as any).url ? String((v as any).url) : String(v);
+                              if (isImageUrl(vText)) {
+                                return <ImageLink text={vText} showImage={true} />;
+                              }
+                              const urlRegex = /(https?:\/\/[^\s]+)/g;
+                              if (urlRegex.test(vText)) {
+                                const parts = vText.split(urlRegex);
+                                return (
+                                  <div className="flex flex-col gap-2">
+                                    {parts.map((part, pi) => {
+                                      if (part.match(urlRegex)) {
+                                        if (isImageUrl(part)) {
+                                          return <ImageLink key={pi} text={part} showImage={true} />;
+                                        }
+                                        return <a key={pi} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{part}</a>;
+                                      }
+                                      return part ? <span key={pi} className="whitespace-pre-wrap">{part}</span> : null;
+                                    })}
+                                  </div>
+                                );
+                              }
+                              return <span className="whitespace-pre-wrap">{vText}</span>;
+                            })()}
                           </div>
                         ))}
                       </div>
                     ) : (
-                      String(value)
+                      (() => {
+                        const valText = String(value);
+                        if (isImageUrl(valText)) {
+                          return <ImageLink text={valText} showImage={true} />;
+                        }
+                        const urlRegex = /(https?:\/\/[^\s]+)/g;
+                        if (urlRegex.test(valText)) {
+                          const parts = valText.split(urlRegex);
+                          return (
+                            <div className="flex flex-col gap-2">
+                              {parts.map((part, pi) => {
+                                if (part.match(urlRegex)) {
+                                  if (isImageUrl(part)) {
+                                    return <ImageLink key={pi} text={part} showImage={true} />;
+                                  }
+                                  return <a key={pi} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{part}</a>;
+                                }
+                                return part ? <span key={pi} className="whitespace-pre-wrap">{part}</span> : null;
+                              })}
+                            </div>
+                          );
+                        }
+                        return <span className="whitespace-pre-wrap">{valText}</span>;
+                      })()
                     )}
                   </div>
                 )}
@@ -1868,11 +2017,30 @@ const handleBulkDownloadZip = async () => {
                         {fuText}
                       </div>
                       <div className="text-sm text-gray-700 dark:text-gray-300">
-                        {isImageUrl(fuData.answer && typeof fuData.answer === 'object' && fuData.answer.url ? String(fuData.answer.url) : String(fuData.answer)) ? (
-                          <ImageLink text={fuData.answer && typeof fuData.answer === 'object' && fuData.answer.url ? String(fuData.answer.url) : String(fuData.answer)} />
-                        ) : (
-                          String(fuData.answer)
-                        )}
+                        {(() => {
+                          const textValue = String(fuData.answer);
+                          if (isImageUrl(textValue)) {
+                            return <ImageLink text={textValue} showImage={true} />;
+                          }
+                          const urlRegex = /(https?:\/\/[^\s]+)/g;
+                          if (urlRegex.test(textValue)) {
+                            const parts = textValue.split(urlRegex);
+                            return (
+                              <div className="flex flex-col gap-2">
+                                {parts.map((part, i) => {
+                                  if (part.match(urlRegex)) {
+                                    if (isImageUrl(part)) {
+                                      return <ImageLink key={i} text={part} showImage={true} />;
+                                    }
+                                    return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{part}</a>;
+                                  }
+                                  return part ? <span key={i} className="whitespace-pre-wrap">{part}</span> : null;
+                                })}
+                              </div>
+                            );
+                          }
+                          return textValue;
+                        })()}
                       </div>
                     </div>
                   ));
@@ -2272,11 +2440,15 @@ const handleBulkDownloadZip = async () => {
                             const totalCorrect = filteredSectionStats.reduce((sum, stat) => sum + stat.correct, 0);
                             const totalWrong = filteredSectionStats.reduce((sum, stat) => sum + stat.wrong, 0);
                             const totalAnswered = filteredSectionStats.reduce((sum, stat) => sum + stat.answeredCount, 0);
-                            const yesPercent = totalAnswered > 0 ? ((totalYes / totalAnswered) * 100).toFixed(1) : "0.0";
-                            const noPercent = totalAnswered > 0 ? ((totalNo / totalAnswered) * 100).toFixed(1) : "0.0";
-                            const naPercent = totalAnswered > 0 ? ((totalNA / totalAnswered) * 100).toFixed(1) : "0.0";
-                            const correctPercent = totalAnswered > 0 ? ((totalCorrect / totalAnswered) * 100).toFixed(1) : "0.0";
-                            const wrongPercent = totalAnswered > 0 ? ((totalWrong / totalAnswered) * 100).toFixed(1) : "0.0";
+                            
+                            const complianceTotal = totalYes + totalNo + totalNA;
+                            const accuracyTotal = totalCorrect + totalWrong;
+                            
+                            const yesPercent = complianceTotal > 0 ? ((totalYes / complianceTotal) * 100).toFixed(1) : "0.0";
+                            const noPercent = complianceTotal > 0 ? ((totalNo / complianceTotal) * 100).toFixed(1) : "0.0";
+                            const naPercent = complianceTotal > 0 ? ((totalNA / complianceTotal) * 100).toFixed(1) : "0.0";
+                            const correctPercent = accuracyTotal > 0 ? ((totalCorrect / accuracyTotal) * 100).toFixed(1) : "0.0";
+                            const wrongPercent = accuracyTotal > 0 ? ((totalWrong / accuracyTotal) * 100).toFixed(1) : "0.0";
 
                             return (
                               <>
@@ -2598,25 +2770,39 @@ const handleBulkDownloadZip = async () => {
                         </td>
                         {summaryTotals.hasAnyQuiz && (
                           <>
-                            <td className="px-6 py-5 text-green-600 dark:text-green-400 font-bold">
-                              {summaryTotals.correct} ({summaryTotals.total > 0 ? ((summaryTotals.correct / summaryTotals.total) * 100).toFixed(1) : 0}%)
-                            </td>
-                            <td className="px-6 py-5 text-red-600 dark:text-red-400 font-bold">
-                              {summaryTotals.wrong} ({summaryTotals.total > 0 ? ((summaryTotals.wrong / summaryTotals.total) * 100).toFixed(1) : 0}%)
-                            </td>
+                            {(() => {
+                              const summaryAccuracyTotal = summaryTotals.correct + summaryTotals.wrong;
+                              return (
+                                <>
+                                  <td className="px-6 py-5 text-green-600 dark:text-green-400 font-bold">
+                                    {summaryTotals.correct} ({summaryAccuracyTotal > 0 ? ((summaryTotals.correct / summaryAccuracyTotal) * 100).toFixed(1) : 0}%)
+                                  </td>
+                                  <td className="px-6 py-5 text-red-600 dark:text-red-400 font-bold">
+                                    {summaryTotals.wrong} ({summaryAccuracyTotal > 0 ? ((summaryTotals.wrong / summaryAccuracyTotal) * 100).toFixed(1) : 0}%)
+                                  </td>
+                                </>
+                              );
+                            })()}
                           </>
                         )}
                         {summaryTotals.hasAnyYesNo && (
                           <>
-                            <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
-                              {summaryTotals.yes} ({summaryTotals.total > 0 ? ((summaryTotals.yes / summaryTotals.total) * 100).toFixed(1) : 0}%)
-                            </td>
-                            <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
-                              {summaryTotals.no} ({summaryTotals.total > 0 ? ((summaryTotals.no / summaryTotals.total) * 100).toFixed(1) : 0}%)
-                            </td>
-                            <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
-                              {summaryTotals.na} ({summaryTotals.total > 0 ? ((summaryTotals.na / summaryTotals.total) * 100).toFixed(1) : 0}%)
-                            </td>
+                            {(() => {
+                              const summaryComplianceTotal = summaryTotals.yes + summaryTotals.no + summaryTotals.na;
+                              return (
+                                <>
+                                  <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                                    {summaryTotals.yes} ({summaryComplianceTotal > 0 ? ((summaryTotals.yes / summaryComplianceTotal) * 100).toFixed(1) : 0}%)
+                                  </td>
+                                  <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                                    {summaryTotals.no} ({summaryComplianceTotal > 0 ? ((summaryTotals.no / summaryComplianceTotal) * 100).toFixed(1) : 0}%)
+                                  </td>
+                                  <td className="px-6 py-5 text-gray-900 dark:text-gray-100 font-bold">
+                                    {summaryTotals.na} ({summaryComplianceTotal > 0 ? ((summaryTotals.na / summaryComplianceTotal) * 100).toFixed(1) : 0}%)
+                                  </td>
+                                </>
+                              );
+                            })()}
                           </>
                         )}
                       </tr>
@@ -3308,15 +3494,33 @@ const handleBulkDownloadZip = async () => {
                                                 const textValue = String(val);
                                                 if (isImageUrl(textValue)) {
                                                   return (
-                                                    <ImageLink 
-                                                      text={textValue} 
-                                                      showImage={showMainParamsImages[section.id] ?? false} 
+                                                    <ImageLink
+                                                      text={textValue}
+                                                      showImage={true}
                                                     />
                                                   );
                                                 }
 
-                                                return textValue;
-                                              };
+                                                const urlRegex = /(https?:\/\/[^\s]+)/g;
+                                                if (urlRegex.test(textValue)) {
+                                                  const parts = textValue.split(urlRegex);
+                                                  return (
+                                                    <div className="flex flex-col gap-2">
+                                                      {parts.map((part, i) => {
+                                                        if (part.match(urlRegex)) {
+                                                          if (isImageUrl(part)) {
+                                                            return <ImageLink key={i} text={part} showImage={true} />;
+                                                          }
+                                                          return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline break-all">{part}</a>;
+                                                        }
+                                                        return part ? <span key={i} className="whitespace-pre-wrap">{part}</span> : null;
+                                                      })}
+                                                    </div>
+                                                  );
+                                                }
+
+                                                return <span className="whitespace-pre-wrap">{textValue}</span>;
+                                                };
 
                                               return (
                                                 <div key={idx} className="w-full">
@@ -3478,21 +3682,10 @@ const handleBulkDownloadZip = async () => {
                             <span className="text-sm font-bold text-gray-900 dark:text-white flex-shrink-0">{qIdx + 1}.</span>
                             <div className="flex flex-col gap-2 flex-1">
                               <div className="flex items-center gap-2 flex-wrap">
-                                {q.subParam1 && (
-                                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded">
-                                    {q.subParam1}
-                                  </span>
-                                )}
                                 <div className="text-sm font-bold text-gray-800 dark:text-gray-200">
                                   {q.title}
                                 </div>
                               </div>
-                              {(q.description || q.instructions) && (
-                                <div className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed bg-gray-50 dark:bg-gray-800/50 px-2 py-1.5 rounded border-l-2 border-blue-400 w-fit max-w-full">
-                                  {q.description && <div className="mb-0.5">{q.description}</div>}
-                                  {q.instructions && <div className="font-medium italic text-[10px] opacity-80">{q.instructions}</div>}
-                                </div>
-                              )}
                             </div>
                           </div>
                           <div className="text-xs font-bold text-gray-500 dark:text-gray-400 whitespace-nowrap">
@@ -3543,7 +3736,7 @@ const handleBulkDownloadZip = async () => {
                               
                               return (
                                 <div className="flex flex-col">
-                                  <div>{String(answer)}</div>
+                                  {answer !== undefined && answer !== null && answer !== "" && <div>{String(answer)}</div>}
                                   {renderTracking(trackingValue)}
                                 </div>
                               );
@@ -3579,28 +3772,49 @@ const handleBulkDownloadZip = async () => {
                             return (
                               <div key={fu.id} className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                                 <div className="flex flex-col gap-1 mb-1">
-                                  {fu.subParam1 && (
-                                    <span className="text-[9px] font-bold text-blue-500 dark:text-blue-400 uppercase tracking-tighter w-fit">
-                                      {fu.subParam1}
-                                    </span>
-                                  )}
-                                  <div className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">{fu.title}:</div>
+                                  <div className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase">{fu.title}</div>
                                 </div>
-                                <div className="text-sm text-gray-700 dark:text-gray-300 italic">
+                                <div className="text-sm text-gray-700 dark:text-gray-300">
                                   {(() => {
+                                    // Resolve the raw value (string/object) and check for an image
+                                    let rawVal: any = fuAns;
+                                    if (typeof fuAns === 'object' && fuAns !== null) {
+                                      rawVal = fuAns.url || fuAns.answer || fuAns.fileUrl || fuAns.file || fuAns.imageUrl || fuAns;
+                                    }
+
+                                    if (typeof rawVal === 'string' && isImageUrl(rawVal)) {
+                                      return (
+                                        <div className="flex flex-col gap-2">
+                                          <div className="w-40 aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-900 group relative">
+                                            <img
+                                              src={rawVal}
+                                              alt={fu.title}
+                                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                            />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                              <ImageLink text={rawVal} className="!text-white font-bold" />
+                                            </div>
+                                          </div>
+                                          {renderRemark(typeof fuAns === 'object' ? fuAns : null)}
+                                          {renderTracking(fuTracking)}
+                                        </div>
+                                      );
+                                    }
+
                                     if (typeof fuAns === 'object' && fuAns !== null) {
                                       const display = fuAns.answer !== undefined ? String(fuAns.answer) : (fuAns.status || JSON.stringify(fuAns));
                                       return (
-                                        <div className="flex flex-col">
+                                        <div className="flex flex-col italic">
                                           <div>{display}</div>
                                           {renderRemark(fuAns)}
                                           {renderTracking(fuTracking)}
                                         </div>
                                       );
                                     }
+
                                     return (
-                                      <div className="flex flex-col">
-                                        {fuAns && <div>{String(fuAns)}</div>}
+                                      <div className="flex flex-col italic">
+                                        {fuAns !== undefined && fuAns !== null && fuAns !== "" && <div>{String(fuAns)}</div>}
                                         {renderTracking(fuTracking)}
                                       </div>
                                     );
@@ -3615,98 +3829,6 @@ const handleBulkDownloadZip = async () => {
                   })}
                 </div>
 
-                {/* Evidence & Remarks Grid for Section */}
-                {(() => {
-                  const images: string[] = [];
-                  const remarks: Array<{ title: string, answer: string, subParam?: string, description?: string, instructions?: string }> = [];
-
-                  const collectImages = (obj: any) => {
-                    if (!obj) return;
-                    if (typeof obj === 'string' && isImageUrl(obj)) {
-                      images.push(obj);
-                    } else if (Array.isArray(obj)) {
-                      obj.forEach(collectImages);
-                    } else if (typeof obj === 'object') {
-                      if (obj.url && isImageUrl(String(obj.url))) images.push(String(obj.url));
-                      if (obj.answer && isImageUrl(String(obj.answer))) images.push(String(obj.answer));
-                      Object.values(obj).forEach(collectImages);
-                    }
-                  };
-
-                  sectionQuestions.forEach((q: any) => {
-                    collectImages(q.answer || response.answers?.[q.id]);
-                    
-                    q.followUpQuestions?.forEach((fu: any) => {
-                      const fuAns = fu.answer || response.answers?.[fu.id];
-                      collectImages(fuAns);
-                      
-                      // Also collect as remark if it's text and not an image
-                      if (fuAns && typeof fuAns !== 'object' && !isImageUrl(String(fuAns))) {
-                        const strVal = String(fuAns);
-                        if (strVal && strVal.toLowerCase() !== 'n/a' && strVal.length > 1) {
-                          remarks.push({
-                            title: fu.title,
-                            answer: strVal,
-                            subParam: fu.subParam1,
-                            description: fu.description,
-                            instructions: fu.instructions
-                          });
-                        }
-                      }
-                    });
-                  });
-
-                  if (images.length === 0 && remarks.length === 0) return null;
-
-                  return (
-                    <div className="p-4 bg-gray-50 dark:bg-gray-800/50 space-y-4">
-                      {images.length > 0 && (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                          {images.map((img, i) => (
-                            <div key={i} className="aspect-square rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm bg-white dark:bg-gray-900 group relative">
-                              <img 
-                                src={img} 
-                                alt={`Evidence ${i}`} 
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                              />
-                              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                <ImageLink text={img} className="!text-white font-bold" />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {remarks.length > 0 && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {remarks.map((rem, i) => (
-                            <div key={i} className="bg-white dark:bg-gray-900 p-3 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-                              <div className="flex flex-col gap-1 mb-2">
-                                {rem.subParam && (
-                                  <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tighter bg-blue-50 dark:bg-blue-900/20 px-1.5 py-0.5 rounded w-fit">
-                                    {rem.subParam}
-                                  </span>
-                                )}
-                                <div className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-tight leading-tight">
-                                  {rem.title}
-                                </div>
-                              </div>
-                              {(rem.description || rem.instructions) && (
-                                <div className="text-[10px] text-gray-500 dark:text-gray-400 mb-2 leading-tight opacity-80 border-l border-gray-300 pl-1.5">
-                                  {rem.description && <p>{rem.description}</p>}
-                                  {rem.instructions && <p className="italic">{rem.instructions}</p>}
-                                </div>
-                              )}
-                              <div className="text-sm text-gray-700 dark:text-gray-200 font-medium italic">
-                                "{rem.answer}"
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
               </div>
             );
           })}
