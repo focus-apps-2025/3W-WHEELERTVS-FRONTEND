@@ -1267,7 +1267,7 @@ export default function Overall() {
       };
 
       try {
-        const logoRes = await fetch("/src/logoimages/roundlogo.jpeg");
+        const logoRes = await fetch("/assets/roundlogo.jpeg");
         if (logoRes.ok) {
           const blob = await logoRes.blob();
           logoBase64 = await new Promise<string>((resolve, reject) => {
@@ -1281,8 +1281,8 @@ export default function Overall() {
         console.warn("Could not load logo image:", err);
       }
 
-      templateBase64 = await loadImageAsBase64('/src/logoimages/template.png');
-      otherTemplateBase64 = await loadImageAsBase64('/src/logoimages/othertemplate.png');
+      templateBase64 = await loadImageAsBase64('/assets/template.png');
+      otherTemplateBase64 = await loadImageAsBase64('/assets/othertemplate.png');
 
       const coverPage = getCoverPageData(yesTotal, questionsTotal, allFormTitles, tenantName);
       console.log('Logo Base64 length:', logoBase64?.length);

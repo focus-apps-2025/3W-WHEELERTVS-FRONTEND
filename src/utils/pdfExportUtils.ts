@@ -4289,7 +4289,7 @@ async function getLogoAsBase64(): Promise<string> {
 
   console.warn("⚠️ No custom logo found, falling back to default logo");
   try {
-    const defaultLogoPath = "/logoimages/logo.jpeg";
+    const defaultLogoPath = "/assets/logo.jpeg";
     const response = await fetch(defaultLogoPath);
 
     if (response.ok) {

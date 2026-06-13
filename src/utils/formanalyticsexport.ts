@@ -279,7 +279,7 @@ function generatePieChartSVG(
 // Get logo
 async function getLogoAsBase64(): Promise<string> {
   try {
-    const response = await fetch("/logoimages/logo.jpeg");
+    const response = await fetch("/assets/logo.jpeg");
     if (response.ok) {
       const blob = await response.blob();
       return new Promise((resolve) => {

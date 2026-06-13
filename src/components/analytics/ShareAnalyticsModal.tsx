@@ -180,7 +180,7 @@ export default function ShareAnalyticsModal({
           // Get logo base64 if possible, otherwise pass empty (generateAnalyticsHTML handles it)
           let logoBase64 = "";
           try {
-            const response = await fetch('/logoimages/logo.jpeg');
+            const response = await fetch('/assets/logo.jpeg');
             if (response.ok) {
               const blob = await response.blob();
               logoBase64 = await new Promise((resolve) => {
