@@ -1416,6 +1416,17 @@ useEffect(() => {
 
   if (performanceTableData.length === 0) return null;
 
+  // NEW: build a map of inspectorName -> { [status]: count }
+  const inspectorStatusMap: Record<string, Record<string, number>> = {};
+  inspectorSummary.forEach((item: any) => {
+    const name = item.qcInspector;
+    if (!name) return;
+    if (!inspectorStatusMap[name]) inspectorStatusMap[name] = {};
+    Object.entries(item.statusCounts || {}).forEach(([status, count]) => {
+      inspectorStatusMap[name][status] = (inspectorStatusMap[name][status] || 0) + (count as number);
+    });
+  });
+
   // Pagination logic
   const totalPerformanceItems = performanceTableData.length;
   const totalPerformancePages = Math.ceil(totalPerformanceItems / performancePageSize);
@@ -1439,8 +1450,18 @@ useEffect(() => {
               <tr>
                 {isSuperAdmin && <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">Tenant</th>}
                 <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">User Name</th>
+                
+                {/* NEW: dynamic status columns from Inspection Summary */}
+                {summaryStatuses.map((status) => (
+                  <th
+                    key={status}
+                    className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-indigo-600"
+                  >
+                    {status}
+                  </th>
+                ))}
+
                 <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Total Submitted</th>
-                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-blue-600">Dispatched</th>
                 <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Total Reviewed</th>
                 <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-green-600">Accepted</th>
                 <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-red-600">Rejected</th>
@@ -1453,8 +1474,27 @@ useEffect(() => {
                 <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
                   {isSuperAdmin && <td className="px-4 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">{row.tenantName}</td>}
                   <td className="px-4 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">{row.name}</td>
+                  
+                  {/* NEW: dynamic status counts from Inspection Summary */}
+                  {summaryStatuses.map((status) => {
+                    const count = inspectorStatusMap[row.name]?.[status] || 0;
+                    const isZero = count === 0;
+                    const colorClass =
+                      status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-emerald-600 dark:text-emerald-400' :
+                      status.startsWith('Rework') ? 'text-amber-600 dark:text-amber-400' :
+                      status === 'Rejected' ? 'text-rose-600 dark:text-rose-400' :
+                      'text-blue-600 dark:text-blue-400';
+                    return (
+                      <td
+                        key={status}
+                        className={`px-4 py-4 font-bold text-center tabular-nums transition-opacity ${isZero ? 'opacity-20 text-gray-400' : colorClass}`}
+                      >
+                        {count}
+                      </td>
+                    );
+                  })}
+
                   <td className="px-4 py-4 font-bold text-center tabular-nums">{row.totalSubmitted}</td>
-                  <td className="px-4 py-4 font-bold text-center text-blue-600 dark:text-blue-400 tabular-nums">{row.dispatched || 0}</td>
                   <td className="px-4 py-4 font-bold text-center tabular-nums">{row.totalReviewed}</td>
                   <td className="px-4 py-4 font-bold text-center text-green-600 tabular-nums">{row.accepted}</td>
                   <td className="px-4 py-4 font-bold text-center text-red-600 tabular-nums">{row.rejected}</td>
