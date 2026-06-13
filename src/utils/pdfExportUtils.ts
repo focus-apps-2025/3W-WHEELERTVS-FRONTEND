@@ -4245,18 +4245,18 @@ interface PDFOptions {
 async function getLogoAsBase64(): Promise<string> {
   // Try multiple possible paths
   const possiblePaths = [
-    "/assets/logo.png",
-    "./assets/logo.png",
-    "assets/logo.png",
-    "/Logo.png",
-    "./Logo.png",
-    "Logo.png",
-    "/images/Logo.png",
-    "./images/Logo.png",
-    "images/Logo.png",
-    "/img/Logo.png",
-    "./img/Logo.png",
-    "img/Logo.png",
+    "/assets/logo.jpeg",
+    "./assets/logo.jpeg",
+    "assets/logo.jpeg",
+    "/Logo.jpeg",
+    "./Logo.jpeg",
+    "Logo.jpeg",
+    "/images/Logo.jpeg",
+    "./images/Logo.jpeg",
+    "images/Logo.jpeg",
+    "/img/Logo.jpeg",
+    "./img/Logo.jpeg",
+    "img/Logo.jpeg",
   ];
 
   for (const logoPath of possiblePaths) {
