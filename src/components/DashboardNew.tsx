@@ -1,4 +1,10 @@
-import React, { useRef, useState, useEffect, useMemo } from "react";
+import React, {
+  useRef,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useForms, useResponses } from "../hooks/useApi";
@@ -31,6 +37,13 @@ interface Tenant {
   slug: string;
   isActive: boolean;
   createdAt: string;
+  settings?: {
+    logo?: string;
+    primaryColor?: string;
+    companyEmail?: string;
+    companyPhone?: string;
+    showCustomerPortal?: boolean;
+  };
 }
 
 interface TenantStats {
@@ -39,128 +52,170 @@ interface TenantStats {
   performanceScore: number;
 }
 
-  const MyReviewBreakdownChart = ({ myReviewStats }: { myReviewStats: any }) => {
-    if (!myReviewStats) return null;
+const MyReviewBreakdownChart = ({ myReviewStats }: { myReviewStats: any }) => {
+  if (!myReviewStats) return null;
 
-    const data = {
-      labels: ["Accepted", "Rejected", "Rework"],
-      datasets: [
-        {
-          data: [
-            myReviewStats.accepted,
-            myReviewStats.rejected,
-            myReviewStats.rework,
-          ],
-          backgroundColor: ["#22c55e", "#ef4444", "#f59e0b"],
-          hoverBackgroundColor: ["#16a34a", "#dc2626", "#d97706"],
-          borderWidth: 0,
-        },
-      ],
-    };
+  const data = {
+    labels: ["Accepted", "Rejected", "Rework"],
+    datasets: [
+      {
+        data: [
+          myReviewStats.accepted,
+          myReviewStats.rejected,
+          myReviewStats.rework,
+        ],
+        backgroundColor: ["#22c55e", "#ef4444", "#f59e0b"],
+        hoverBackgroundColor: ["#16a34a", "#dc2626", "#d97706"],
+        borderWidth: 0,
+      },
+    ],
+  };
 
-    const options = {
-      cutout: "70%",
-      plugins: {
+  const options = {
+    cutout: "70%",
+    plugins: {
       legend: {
         display: false,
       },
-        tooltip: {
-          callbacks: {
-            label: (context: any) => {
-              const value = context.raw;
-              const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-              const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-              return `${context.label}: ${value} (${percentage}%)`;
-            },
+      tooltip: {
+        callbacks: {
+          label: (context: any) => {
+            const value = context.raw;
+            const total = context.dataset.data.reduce(
+              (a: number, b: number) => a + b,
+              0,
+            );
+            const percentage =
+              total > 0 ? Math.round((value / total) * 100) : 0;
+            return `${context.label}: ${value} (${percentage}%)`;
           },
         },
-        datalabels:{
-          display:false,
-        }
       },
-      maintainAspectRatio: false,
-    };
+      datalabels: {
+        display: false,
+      },
+    },
+    maintainAspectRatio: false,
+  };
 
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm mb-8">
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
-          <Smile className="w-5 h-5 text-indigo-500" />
-          My Review Performance Breakdown
-        </h3>
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm mb-8">
+      <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+        <Smile className="w-5 h-5 text-indigo-500" />
+        My Review Performance Breakdown
+      </h3>
 
-        <div className="flex flex-col lg:flex-row items-center gap-8">
-          <div className="relative w-full max-w-[280px] aspect-square sm:w-72 sm:h-72 flex-shrink-0">
+      <div className="flex flex-col lg:flex-row items-center gap-8">
+        <div className="relative w-full max-w-[280px] aspect-square sm:w-72 sm:h-72 flex-shrink-0">
+          <Doughnut data={data} options={options} />
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <span className="text-3xl font-black text-gray-900 dark:text-white">
+              {myReviewStats.reviewed}
+            </span>
+            <span className="text-[15px] font-bold text-gray-400 uppercase tracking-widest blend-in">
+              Performance
+            </span>
+          </div>
+        </div>
 
-            <Doughnut data={data} options={options} />
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-3xl font-black text-gray-900 dark:text-white">
-                {myReviewStats.reviewed}
+        <div className="flex flex-col flex-1 gap-8">
+          <div className="flex justify-center lg:justify-start gap-6">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-[#22c55e]"></div>
+              <span className="text-xs font-bold text-gray-600 dark:text-gray-400">
+                Accepted
               </span>
-              <span className="text-[15px] font-bold text-gray-400 uppercase tracking-widest blend-in">
-                Performance
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
+              <span className="text-xs font-bold text-gray-600 dark:text-gray-400">
+                Rejected
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded-full bg-[#f59e0b]"></div>
+              <span className="text-xs font-bold text-gray-600 dark:text-gray-400">
+                Rework
               </span>
             </div>
           </div>
 
-          <div className="flex flex-col flex-1 gap-8">
-            <div className="flex justify-center lg:justify-start gap-6">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#22c55e]"></div>
-                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Accepted</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#ef4444]"></div>
-                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Rejected</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-[#f59e0b]"></div>
-                <span className="text-xs font-bold text-gray-600 dark:text-gray-400">Rework</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
             <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800/30">
-              <p className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-wider mb-1">Accepted</p>
-              <p className="text-2xl font-black text-green-700 dark:text-green-300">{myReviewStats.accepted}</p>
+              <p className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-wider mb-1">
+                Accepted
+              </p>
+              <p className="text-2xl font-black text-green-700 dark:text-green-300">
+                {myReviewStats.accepted}
+              </p>
               <div className="flex items-center gap-1 mt-1">
                 <div className="flex-1 h-1 bg-green-200 dark:bg-green-900 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-green-500"
-                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.accepted / myReviewStats.reviewed) * 100 : 0}%` }}
+                    style={{
+                      width: `${myReviewStats.reviewed > 0 ? (myReviewStats.accepted / myReviewStats.reviewed) * 100 : 0}%`,
+                    }}
                   ></div>
                 </div>
                 <span className="text-[20px] font-bold text-green-600/70 dark:text-green-400/70">
-                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.accepted / myReviewStats.reviewed) * 100) : 0}%
+                  {myReviewStats.reviewed > 0
+                    ? Math.round(
+                        (myReviewStats.accepted / myReviewStats.reviewed) * 100,
+                      )
+                    : 0}
+                  %
                 </span>
               </div>
             </div>
             <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/30">
-              <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">Rejected</p>
-              <p className="text-2xl font-black text-red-700 dark:text-red-300">{myReviewStats.rejected}</p>
+              <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">
+                Rejected
+              </p>
+              <p className="text-2xl font-black text-red-700 dark:text-red-300">
+                {myReviewStats.rejected}
+              </p>
               <div className="flex items-center gap-1 mt-1">
                 <div className="flex-1 h-1 bg-red-200 dark:bg-red-900 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-red-500"
-                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.rejected / myReviewStats.reviewed) * 100 : 0}%` }}
+                    style={{
+                      width: `${myReviewStats.reviewed > 0 ? (myReviewStats.rejected / myReviewStats.reviewed) * 100 : 0}%`,
+                    }}
                   ></div>
                 </div>
                 <span className="text-[20px] font-bold text-red-600/70 dark:text-red-400/70">
-                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.rejected / myReviewStats.reviewed) * 100) : 0}%
+                  {myReviewStats.reviewed > 0
+                    ? Math.round(
+                        (myReviewStats.rejected / myReviewStats.reviewed) * 100,
+                      )
+                    : 0}
+                  %
                 </span>
               </div>
             </div>
             <div className="p-4 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/30">
-              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">Rework</p>
-              <p className="text-2xl font-black text-amber-700 dark:text-amber-300">{myReviewStats.rework}</p>
+              <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">
+                Rework
+              </p>
+              <p className="text-2xl font-black text-amber-700 dark:text-amber-300">
+                {myReviewStats.rework}
+              </p>
               <div className="flex items-center gap-1 mt-1">
                 <div className="flex-1 h-1 bg-amber-200 dark:bg-amber-900 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-amber-500"
-                    style={{ width: `${myReviewStats.reviewed > 0 ? (myReviewStats.rework / myReviewStats.reviewed) * 100 : 0}%` }}
+                    style={{
+                      width: `${myReviewStats.reviewed > 0 ? (myReviewStats.rework / myReviewStats.reviewed) * 100 : 0}%`,
+                    }}
                   ></div>
                 </div>
                 <span className="text-[20px] font-bold text-amber-600/70 dark:text-amber-400/70">
-                  {myReviewStats.reviewed > 0 ? Math.round((myReviewStats.rework / myReviewStats.reviewed) * 100) : 0}%
+                  {myReviewStats.reviewed > 0
+                    ? Math.round(
+                        (myReviewStats.rework / myReviewStats.reviewed) * 100,
+                      )
+                    : 0}
+                  %
                 </span>
               </div>
             </div>
@@ -169,27 +224,41 @@ interface TenantStats {
       </div>
 
       <div className="mt-6 pt-6 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center">
-          <div>
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Current Performance Score</p>
-            <div className="flex items-center gap-2">
-              <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{myReviewStats.performanceScore}%</p>
-              <div className={`w-2 h-2 rounded-full ${myReviewStats.performanceScore >= 80 ? 'bg-green-500' : myReviewStats.performanceScore >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}></div>
-            </div>
+        <div>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+            Current Performance Score
+          </p>
+          <div className="flex items-center gap-2">
+            <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
+              {myReviewStats.performanceScore}%
+            </p>
+            <div
+              className={`w-2 h-2 rounded-full ${myReviewStats.performanceScore >= 80 ? "bg-green-500" : myReviewStats.performanceScore >= 50 ? "bg-amber-500" : "bg-red-500"}`}
+            ></div>
           </div>
-          <div className="flex gap-8">
-            <div className="text-right">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Reviews</p>
-              <p className="text-2xl font-black text-gray-900 dark:text-white">{myReviewStats.reviewed}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Total Submissions</p>
-              <p className="text-2xl font-black text-gray-900 dark:text-white">{myReviewStats.totalResponses}</p>
-            </div>
+        </div>
+        <div className="flex gap-8">
+          <div className="text-right">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+              Total Reviews
+            </p>
+            <p className="text-2xl font-black text-gray-900 dark:text-white">
+              {myReviewStats.reviewed}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">
+              Total Submissions
+            </p>
+            <p className="text-2xl font-black text-gray-900 dark:text-white">
+              {myReviewStats.totalResponses}
+            </p>
           </div>
         </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
 export default function DashboardNew() {
   const navigate = useNavigate();
@@ -228,21 +297,95 @@ export default function DashboardNew() {
   const [summaryEndDate, setSummaryEndDate] = useState(() => {
     return new Date().toISOString().split("T")[0];
   });
-   const [myReviewStats, setMyReviewStats] = useState<any>(null);
-   const [myReviewStatsLoading, setMyReviewStatsLoading] = useState(false);
-   const [performanceTableData, setPerformanceTableData] = useState<any[]>([]);
-   const [performanceTableLoading, setPerformanceTableLoading] = useState(false);
+  const [myReviewStats, setMyReviewStats] = useState<any>(null);
+  const [myReviewStatsLoading, setMyReviewStatsLoading] = useState(false);
+  const [performanceTableData, setPerformanceTableData] = useState<any[]>([]);
+  const [performanceTableLoading, setPerformanceTableLoading] = useState(false);
+  const [perfStartDate, setPerfStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split("T")[0];
+  });
+  const [perfEndDate, setPerfEndDate] = useState(() => {
+    return new Date().toISOString().split("T")[0];
+  });
+  const [perfInspectorSummary, setPerfInspectorSummary] = useState<any[]>([]);
+  const [activeUserNames, setActiveUserNames] = useState<Set<string>>(
+    new Set(),
+  );
 
-   // Pagination states
-   const [summaryPage, setSummaryPage] = useState(1);
-   const [summaryPageSize, setSummaryPageSize] = useState(10);
-   const [performancePage, setPerformancePage] = useState(1);
-   const [performancePageSize, setPerformancePageSize] = useState(10);
-   const [expandedForms, setExpandedForms] = useState<Set<string>>(new Set());
+  // Pagination states
+  const [summaryPage, setSummaryPage] = useState(1);
+  const [summaryPageSize, setSummaryPageSize] = useState(10);
+  const [performancePage, setPerformancePage] = useState(1);
+  const [performancePageSize, setPerformancePageSize] = useState(10);
+  const [expandedForms, setExpandedForms] = useState<Set<string>>(new Set());
 
   // Check user role
   const isSuperAdmin = user?.role === "superadmin";
   const isInspector = user?.role === "inspector";
+
+  const isUserActive = useCallback((user: any) => {
+    if (user?.isActive !== undefined) return user.isActive !== false;
+    if (user?.status) return String(user.status).toLowerCase() !== "inactive";
+    return true;
+  }, []);
+
+  const getUserNameAliases = useCallback((user: any) => {
+    const aliases = new Set<string>();
+    const addAlias = (value: string | undefined | null) => {
+      if (!value) return;
+      const trimmed = String(value).trim();
+      if (!trimmed) return;
+      aliases.add(trimmed);
+      aliases.add(trimmed.toLowerCase());
+      aliases.add(trimmed.replace(/^@/, ""));
+      aliases.add(trimmed.replace(/^@/, "").toLowerCase());
+    };
+
+    const firstName = user?.firstName || "";
+    const lastName = user?.lastName || "";
+    const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+    addAlias(fullName);
+    addAlias(user?.name);
+    addAlias(user?.username);
+    addAlias(user?.email);
+    addAlias(user?._id);
+
+    return aliases;
+  }, []);
+
+  const buildActiveUserNames = useCallback(
+    (users: any[]) => {
+      const activeNames = new Set<string>();
+      users.filter(isUserActive).forEach((user) => {
+        getUserNameAliases(user).forEach((alias) => activeNames.add(alias));
+      });
+      return activeNames;
+    },
+    [isUserActive, getUserNameAliases],
+  );
+
+  const getInspectorName = useCallback((item: any) => {
+    return (
+      item?.qcInspector ||
+      item?.qcInspectorName ||
+      item?.inspectorName ||
+      item?.name ||
+      item?.username ||
+      item?.email ||
+      item?.userId ||
+      ""
+    );
+  }, []);
+
+  const isInspectorActive = (item: any) => {
+    if (!isUserActive(item)) return false;
+    const inspectorName = getInspectorName(item);
+    if (!inspectorName || activeUserNames.size === 0) return true;
+    const aliases = getUserNameAliases({ username: inspectorName });
+    return Array.from(aliases).some((alias) => activeUserNames.has(alias));
+  };
 
   // Calculate trial days left
   const getTrialDaysLeft = () => {
@@ -268,6 +411,9 @@ export default function DashboardNew() {
     isSuperAdmin,
     currentTenantId: currentTenant?._id,
     currentTenantSlug: currentTenant?.slug,
+    showCustomerPortal: currentTenant?.settings?.showCustomerPortal,
+    fullSettings: currentTenant?.settings,
+    storedTenant: localStorage.getItem("tenant_info"),
   });
   console.log("Forms Data:", formsData);
   console.log("Responses Data:", responsesData);
@@ -369,6 +515,45 @@ export default function DashboardNew() {
     }
   }, [currentTenant, isSuperAdmin]);
 
+  useEffect(() => {
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const fetchActiveUsers = async () => {
+      try {
+        const [adminData, subadminData, inspectorData] = await Promise.all([
+          apiClient.getUsers({ role: "admin", limit: 100 }),
+          apiClient.getUsers({ role: "subadmin", limit: 100 }),
+          apiClient.getUsers({ role: "inspector", limit: 100 }),
+        ]);
+
+        const allUsers = [
+          ...(Array.isArray(adminData.users) ? adminData.users : []),
+          ...(Array.isArray(subadminData.users) ? subadminData.users : []),
+          ...(Array.isArray(inspectorData.users) ? inspectorData.users : []),
+        ];
+
+        if (!cancelled) {
+          setActiveUserNames(buildActiveUserNames(allUsers));
+        }
+      } catch (error) {
+        console.error("Error fetching active users:", error);
+        if (!cancelled) {
+          setActiveUserNames(new Set());
+        }
+      }
+    };
+
+    fetchActiveUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?._id, user?.role]);
+
   // Fetch inspector summary data
   useEffect(() => {
     const fetchSummary = async () => {
@@ -384,7 +569,8 @@ export default function DashboardNew() {
 
         const response = await apiClient.get<any>(url);
         if (response.data) {
-          setInspectorSummary(response.data.summary || []);
+          const summary = response.data.summary || [];
+          setInspectorSummary(summary);
           setSummaryStatuses(response.data.allStatuses || []);
         }
       } catch (error) {
@@ -399,9 +585,36 @@ export default function DashboardNew() {
     }
   }, [user, summaryStartDate, summaryEndDate]);
 
+  const activeInspectorSummary = useMemo(() => {
+    return inspectorSummary.filter(isInspectorActive);
+  }, [inspectorSummary, activeUserNames]);
+
+  const activeSummaryStatuses = useMemo(() => {
+    const statuses = Array.from(
+      new Set(
+        activeInspectorSummary.flatMap((item: any) =>
+          Object.keys(item.statusCounts || {}),
+        ),
+      ),
+    );
+    return statuses.length > 0 ? statuses : summaryStatuses;
+  }, [activeInspectorSummary, summaryStatuses]);
+
+  // Performance table statuses: derived from perfInspectorSummary (its own date range)
+  const performanceStatuses = useMemo(() => {
+    const statuses = Array.from(
+      new Set(
+        perfInspectorSummary.flatMap((item: any) =>
+          Object.keys(item.statusCounts || {}),
+        ),
+      ),
+    );
+    return statuses.length > 0 ? statuses : summaryStatuses;
+  }, [perfInspectorSummary, summaryStatuses]);
+
   const groupedSummary = useMemo(() => {
     const groups: Record<string, any> = {};
-    inspectorSummary.forEach(item => {
+    activeInspectorSummary.forEach((item) => {
       const title = item.formTitle || "N/A";
       if (!groups[title]) {
         groups[title] = {
@@ -409,17 +622,18 @@ export default function DashboardNew() {
           tenantName: item.tenantName,
           totalInspection: 0,
           statusCounts: {},
-          subItems: []
+          subItems: [],
         };
       }
       groups[title].totalInspection += item.totalInspection;
       Object.entries(item.statusCounts || {}).forEach(([status, count]) => {
-        groups[title].statusCounts[status] = (groups[title].statusCounts[status] || 0) + (count as number);
+        groups[title].statusCounts[status] =
+          (groups[title].statusCounts[status] || 0) + (count as number);
       });
       groups[title].subItems.push(item);
     });
     return Object.values(groups);
-  }, [inspectorSummary]);
+  }, [activeInspectorSummary]);
 
   // Fetch my review stats
   useEffect(() => {
@@ -442,49 +656,83 @@ export default function DashboardNew() {
     }
   }, [user]);
 
-  // Fetch performance table data
-useEffect(() => {
-  const fetchPerformanceTable = async () => {
-    if (!user || (user.role !== 'admin' && user.role !== 'superadmin')) return;
-    
-    setPerformanceTableLoading(true);
-    try {
-      const response = await apiClient.getPerformanceTable({
-        startDate: summaryStartDate,
-        endDate: summaryEndDate
-      });
-      if (response.success) {
-        // Create a map of user to dispatch count from inspection summary
-        const dispatchMap = new Map<string, number>();
-        
-        inspectorSummary.forEach((item: any) => {
-          const userName = item.qcInspector;
-          if (userName && item.statusCounts?.Dispatched) {
-            const currentCount = dispatchMap.get(userName) || 0;
-            dispatchMap.set(userName, currentCount + (item.statusCounts.Dispatched || 0));
-          }
-        });
-
-        // Merge the dispatch counts into performance table data
-        const mergedData = response.data.map((row: any) => ({
-          ...row,
-          dispatched: dispatchMap.get(row.name) || row.dispatched || 0
-        }));
-        
-        setPerformanceTableData(mergedData);
+  // Fetch inspector summary specifically for the Performance Table (independent dates)
+  useEffect(() => {
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) return;
+    let cancelled = false;
+    const fetchPerfSummary = async () => {
+      try {
+        let url = "/analytics/inspector-summary";
+        const params = new URLSearchParams();
+        if (perfStartDate) params.append("startDate", perfStartDate);
+        if (perfEndDate) params.append("endDate", perfEndDate);
+        const queryString = params.toString();
+        if (queryString) url += `?${queryString}`;
+        const response = await apiClient.get<any>(url);
+        if (!cancelled && response.data) {
+          setPerfInspectorSummary(response.data.summary || []);
+        }
+      } catch (error) {
+        console.error("Error fetching perf inspector summary:", error);
+        if (!cancelled) setPerfInspectorSummary([]);
       }
-    } catch (error) {
-      console.error("Error fetching performance table:", error);
-    } finally {
-      setPerformanceTableLoading(false);
-    }
-  };
+    };
+    fetchPerfSummary();
+    return () => { cancelled = true; };
+  }, [user, perfStartDate, perfEndDate]);
 
-  // Only run when summary loading is done so we have the latest inspectorSummary
-  if (!summaryLoading) {
+  // Fetch performance table data
+  useEffect(() => {
+    const fetchPerformanceTable = async () => {
+      if (!user || (user.role !== "admin" && user.role !== "superadmin"))
+        return;
+
+      setPerformanceTableLoading(true);
+      try {
+        const response = await apiClient.getPerformanceTable({
+          startDate: perfStartDate,
+          endDate: perfEndDate,
+        });
+        if (response.success) {
+          const dispatchMap = new Map<string, number>();
+
+          perfInspectorSummary.forEach((item: any) => {
+            const userName = item.qcInspector;
+            if (userName && item.statusCounts?.Dispatched) {
+              const currentCount = dispatchMap.get(userName) || 0;
+              dispatchMap.set(
+                userName,
+                currentCount + (item.statusCounts.Dispatched || 0),
+              );
+            }
+          });
+
+          const filteredRows = response.data.filter(
+            (row: any) => isUserActive(row) && isInspectorActive(row),
+          );
+
+          const mergedData = filteredRows.map((row: any) => ({
+            ...row,
+            dispatched: dispatchMap.get(row.name) || row.dispatched || 0,
+          }));
+
+          setPerformanceTableData(mergedData);
+        }
+      } catch (error) {
+        console.error("Error fetching performance table:", error);
+      } finally {
+        setPerformanceTableLoading(false);
+      }
+    };
+
     fetchPerformanceTable();
-  }
-}, [user, summaryStartDate, summaryEndDate, inspectorSummary, summaryLoading]);
+  }, [
+    user,
+    perfStartDate,
+    perfEndDate,
+    perfInspectorSummary,
+    activeUserNames,
+  ]);
   // Calculate tenant statistics
   useEffect(() => {
     if (formsData?.forms && responsesData?.responses && tenants.length > 0) {
@@ -569,13 +817,15 @@ useEffect(() => {
             setUserPerformanceScore(response.data[user._id]);
           }
         } catch (error) {
-          console.error('Failed to load user performance score:', error);
+          console.error("Failed to load user performance score:", error);
           // Fallback to localStorage if API fails
           try {
-            const scores = JSON.parse(localStorage.getItem('performanceScores') || '{}');
+            const scores = JSON.parse(
+              localStorage.getItem("performanceScores") || "{}",
+            );
             setUserPerformanceScore(scores[user._id] || 100);
           } catch (localError) {
-            console.error('Failed to load from localStorage:', localError);
+            console.error("Failed to load from localStorage:", localError);
             setUserPerformanceScore(100);
           }
         }
@@ -757,7 +1007,6 @@ useEffect(() => {
       tenantList: Tenant[],
       accentColor: string,
     ) => (
-
       <div className="mb-12">
         <div className="flex items-center gap-3 mb-6">
           <div className={`w-1.5 h-8 rounded-full ${accentColor}`}></div>
@@ -806,10 +1055,11 @@ useEffect(() => {
                         />
                       </div>
                       <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${tenant.isActive
+                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                          tenant.isActive
                             ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
                             : "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-400"
-                          }`}
+                        }`}
                       >
                         {tenant.isActive ? "Active" : "Inactive"}
                       </span>
@@ -1007,10 +1257,11 @@ useEffect(() => {
                     <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400" />
                   </div>
                   <span
-                    className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${form.isVisible
+                    className={`inline-block px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                      form.isVisible
                         ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400"
                         : "bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
-                      }`}
+                    }`}
                   >
                     {form.isVisible ? "Published" : "Draft"}
                   </span>
@@ -1052,24 +1303,38 @@ useEffect(() => {
                       <div className="grid grid-cols-3 gap-4 py-4 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700">
                         <div className="text-center">
                           <Smile className="w-5 h-5 text-emerald-500 mx-auto mb-1" />
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Yes</p>
-                          <p className="text-sm font-black text-gray-900 dark:text-white">{stats.yesCount}</p>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                            Yes
+                          </p>
+                          <p className="text-sm font-black text-gray-900 dark:text-white">
+                            {stats.yesCount}
+                          </p>
                         </div>
                         <div className="text-center border-x border-gray-100 dark:border-gray-700">
                           <Frown className="w-5 h-5 text-rose-500 mx-auto mb-1" />
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No</p>
-                          <p className="text-sm font-black text-gray-900 dark:text-white">{stats.noCount}</p>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                            No
+                          </p>
+                          <p className="text-sm font-black text-gray-900 dark:text-white">
+                            {stats.noCount}
+                          </p>
                         </div>
                         <div className="text-center">
                           <Meh className="w-5 h-5 text-amber-500 mx-auto mb-1" />
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">N/A</p>
-                          <p className="text-sm font-black text-gray-900 dark:text-white">{stats.naCount}</p>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                            N/A
+                          </p>
+                          <p className="text-sm font-black text-gray-900 dark:text-white">
+                            {stats.naCount}
+                          </p>
                         </div>
                       </div>
                     </>
                   ) : (
                     <div className="py-8 text-center bg-gray-50/50 dark:bg-gray-900/30 rounded-2xl border-2 border-dashed border-gray-100 dark:border-gray-700">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">No response data yet</p>
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                        No response data yet
+                      </p>
                     </div>
                   )}
 
@@ -1090,7 +1355,7 @@ useEffect(() => {
   };
 
   const toggleFormExpansion = (formTitle: string) => {
-    setExpandedForms(prev => {
+    setExpandedForms((prev) => {
       const next = new Set(prev);
       if (next.has(formTitle)) {
         next.delete(formTitle);
@@ -1135,33 +1400,49 @@ useEffect(() => {
               <h3 className="text-xl font-black text-gray-900 dark:text-white leading-none mb-1">
                 Inspection Summary
               </h3>
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Real-time inspection data</p>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                Real-time inspection data
+              </p>
             </div>
           </div>
 
           {/* Date Filters - Responsive */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <div className="flex items-center bg-white dark:bg-gray-800 rounded-2xl px-4 py-2 border border-gray-200 dark:border-gray-700 shadow-sm focus-within:ring-4 focus-within:ring-blue-500/10 transition-all">
-              <span className="text-[10px] font-black text-gray-400 mr-3 uppercase tracking-wider">From</span>
+              <span className="text-[10px] font-black text-gray-400 mr-3 uppercase tracking-wider">
+                From
+              </span>
               <input
                 type="date"
                 value={summaryStartDate}
-                onChange={(e) => { setSummaryStartDate(e.target.value); setSummaryPage(1); }}
+                onChange={(e) => {
+                  setSummaryStartDate(e.target.value);
+                  setSummaryPage(1);
+                }}
                 className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-200 focus:outline-none w-full"
               />
             </div>
             <div className="flex items-center bg-white dark:bg-gray-800 rounded-2xl px-4 py-2 border border-gray-200 dark:border-gray-700 shadow-sm focus-within:ring-4 focus-within:ring-blue-500/10 transition-all">
-              <span className="text-[10px] font-black text-gray-400 mr-3 uppercase tracking-wider">To</span>
+              <span className="text-[10px] font-black text-gray-400 mr-3 uppercase tracking-wider">
+                To
+              </span>
               <input
                 type="date"
                 value={summaryEndDate}
-                onChange={(e) => { setSummaryEndDate(e.target.value); setSummaryPage(1); }}
+                onChange={(e) => {
+                  setSummaryEndDate(e.target.value);
+                  setSummaryPage(1);
+                }}
                 className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-200 focus:outline-none w-full"
               />
             </div>
             {(summaryStartDate || summaryEndDate) && (
               <button
-                onClick={() => { setSummaryStartDate(""); setSummaryEndDate(""); setSummaryPage(1); }}
+                onClick={() => {
+                  setSummaryStartDate("");
+                  setSummaryEndDate("");
+                  setSummaryPage(1);
+                }}
                 className="px-4 py-2 text-xs font-black text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-900/20 rounded-xl transition-colors uppercase tracking-widest"
               >
                 Clear
@@ -1175,14 +1456,26 @@ useEffect(() => {
             <table className="w-full text-sm text-left border-collapse">
               <thead className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-md sticky top-16 z-10 text-gray-500 dark:text-gray-400 uppercase text-[10px] font-black tracking-[0.15em]">
                 <tr>
-                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">Tenant Name</th>
-                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">Date</th>
-                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">Shift</th>
-                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">Form Title</th>
-                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">QC Inspector</th>
-                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">Total</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">
+                    Tenant Name
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">
+                    Date
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">
+                    Shift
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">
+                    Form Title
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">
+                    QC Inspector
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">
+                    Total
+                  </th>
                   {/* Dynamic Status Columns */}
-                  {summaryStatuses.map((status) => (
+                  {activeSummaryStatuses.map((status) => (
                     <th
                       key={status}
                       className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center"
@@ -1190,36 +1483,48 @@ useEffect(() => {
                       {status}
                     </th>
                   ))}
-                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">Actions</th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
                 {paginatedSummary.map((group, groupIdx) => {
                   const isExpanded = expandedForms.has(group.formTitle);
                   // Collect all inspectors for this form
-                  const inspectors = Array.from(new Set(group.subItems.map((i: any) => i.qcInspector)));
-                  
+                  const inspectors = Array.from(
+                    new Set(group.subItems.map((i: any) => i.qcInspector)),
+                  );
+
                   return (
                     <React.Fragment key={groupIdx}>
                       {/* Main Group Row */}
-                      <tr 
-                        className={`transition-colors cursor-pointer ${isExpanded ? 'bg-blue-50/50 dark:bg-blue-900/20' : 'hover:bg-blue-50/30 dark:hover:bg-blue-900/10'}`}
+                      <tr
+                        className={`transition-colors cursor-pointer ${isExpanded ? "bg-blue-50/50 dark:bg-blue-900/20" : "hover:bg-blue-50/30 dark:hover:bg-blue-900/10"}`}
                         onClick={() => toggleFormExpansion(group.formTitle)}
                       >
                         <td className="px-4 sm:px-6 py-5 font-bold text-gray-900 dark:text-white whitespace-nowrap">
                           {group.tenantName}
                         </td>
                         <td className="px-4 sm:px-6 py-5 text-gray-400 whitespace-nowrap text-xs">
-                          {isExpanded ? '—' : (
-                            group.subItems.length > 1 
+                          {isExpanded
+                            ? "—"
+                            : group.subItems.length > 1
                               ? `${new Date(Math.min(...group.subItems.map((i: any) => new Date(i.date).getTime()))).toLocaleDateString()} - ...`
-                              : new Date(group.subItems[0].date).toLocaleDateString()
-                          )}
+                              : new Date(
+                                  group.subItems[0].date,
+                                ).toLocaleDateString()}
                         </td>
                         <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
                           {!isExpanded && (
                             <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300">
-                              {Array.from(new Set(group.subItems.map((i: any) => i.shift || "N/A"))).join(', ')}
+                              {Array.from(
+                                new Set(
+                                  group.subItems.map(
+                                    (i: any) => i.shift || "N/A",
+                                  ),
+                                ),
+                              ).join(", ")}
                             </span>
                           )}
                         </td>
@@ -1229,12 +1534,15 @@ useEffect(() => {
                         <td className="px-4 sm:px-6 py-5 whitespace-nowrap">
                           <div className="flex items-center -space-x-2">
                             {inspectors.slice(0, 3).map((inspector: any, i) => (
-                              <div 
+                              <div
                                 key={i}
                                 className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 border-2 border-white dark:border-gray-800 flex items-center justify-center text-blue-700 dark:text-blue-300 font-black text-[10px] z-[i]"
                                 title={inspector}
                               >
-                                {inspector?.split(' ').map((n: string) => n[0]).join('')}
+                                {inspector
+                                  ?.split(" ")
+                                  .map((n: string) => n[0])
+                                  .join("")}
                               </div>
                             ))}
                             {inspectors.length > 3 && (
@@ -1243,7 +1551,9 @@ useEffect(() => {
                               </div>
                             )}
                             {inspectors.length <= 1 && inspectors[0] && (
-                               <span className="ml-3 font-bold text-gray-700 dark:text-gray-200 text-xs">{inspectors[0]}</span>
+                              <span className="ml-3 font-bold text-gray-700 dark:text-gray-200 text-xs">
+                                {inspectors[0]}
+                              </span>
                             )}
                           </div>
                         </td>
@@ -1253,16 +1563,23 @@ useEffect(() => {
                           </span>
                         </td>
                         {/* Dynamic Status Cells */}
-                        {summaryStatuses.map((status) => {
+                        {activeSummaryStatuses.map((status) => {
                           const count = group.statusCounts?.[status] || 0;
                           const isZero = count === 0;
                           return (
                             <td
                               key={status}
-                              className={`px-4 sm:px-6 py-5 text-center font-black tabular-nums transition-opacity ${isZero ? 'opacity-20 text-gray-400' : 
-                                status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-emerald-600 dark:text-emerald-400' :
-                                status.startsWith('Rework') ? 'text-amber-600 dark:text-amber-400' :
-                                status === 'Rejected' ? 'text-rose-600 dark:text-rose-400' : 'text-blue-600 dark:text-blue-400'
+                              className={`px-4 sm:px-6 py-5 text-center font-black tabular-nums transition-opacity ${
+                                isZero
+                                  ? "opacity-20 text-gray-400"
+                                  : status === "Direct Ok" ||
+                                      status === "Rework Accepted"
+                                    ? "text-emerald-600 dark:text-emerald-400"
+                                    : status.startsWith("Rework")
+                                      ? "text-amber-600 dark:text-amber-400"
+                                      : status === "Rejected"
+                                        ? "text-rose-600 dark:text-rose-400"
+                                        : "text-blue-600 dark:text-blue-400"
                               }`}
                             >
                               {count}
@@ -1270,57 +1587,70 @@ useEffect(() => {
                           );
                         })}
                         <td className="px-4 sm:px-6 py-5 text-center">
-                           <button className="p-2 hover:bg-white/50 dark:hover:bg-white/10 rounded-full transition-colors">
-                             {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-                           </button>
+                          <button className="p-2 hover:bg-white/50 dark:hover:bg-white/10 rounded-full transition-colors">
+                            {isExpanded ? (
+                              <ChevronUp className="w-5 h-5" />
+                            ) : (
+                              <ChevronDown className="w-5 h-5" />
+                            )}
+                          </button>
                         </td>
                       </tr>
 
                       {/* Sub Items (QC Inspectors for this Form) */}
-                      {isExpanded && group.subItems.map((row: any, subIdx: number) => (
-                        <tr key={`${groupIdx}-${subIdx}`} className="bg-gray-50/30 dark:bg-gray-900/20 border-l-4 border-l-blue-500">
-                          <td className="px-4 sm:px-6 py-4 opacity-50">
-                            {/* Empty or same tenant */}
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 text-gray-600 dark:text-gray-400 whitespace-nowrap tabular-nums font-medium text-xs italic">
-                            {new Date(row.date).toLocaleDateString()}
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400">
-                              {row.shift || "N/A"}
-                            </span>
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 text-gray-400 whitespace-nowrap text-xs italic">
-                            {/* Same form title, usually empty or dimmed */}
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap pl-10">
-                            <div className="flex items-center gap-3">
-                              <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-[8px]">
-                                {row.qcInspector?.split(' ').map((n: string) => n[0]).join('')}
+                      {isExpanded &&
+                        group.subItems.map((row: any, subIdx: number) => (
+                          <tr
+                            key={`${groupIdx}-${subIdx}`}
+                            className="bg-gray-50/30 dark:bg-gray-900/20 border-l-4 border-l-blue-500"
+                          >
+                            <td className="px-4 sm:px-6 py-4 opacity-50">
+                              {/* Empty or same tenant */}
+                            </td>
+                            <td className="px-4 sm:px-6 py-4 text-gray-600 dark:text-gray-400 whitespace-nowrap tabular-nums font-medium text-xs italic">
+                              {new Date(row.date).toLocaleDateString()}
+                            </td>
+                            <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-gray-200/50 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400">
+                                {row.shift || "N/A"}
+                              </span>
+                            </td>
+                            <td className="px-4 sm:px-6 py-4 text-gray-400 whitespace-nowrap text-xs italic">
+                              {/* Same form title, usually empty or dimmed */}
+                            </td>
+                            <td className="px-4 sm:px-6 py-4 whitespace-nowrap pl-10">
+                              <div className="flex items-center gap-3">
+                                <div className="w-6 h-6 rounded-full bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-[8px]">
+                                  {row.qcInspector
+                                    ?.split(" ")
+                                    .map((n: string) => n[0])
+                                    .join("")}
+                                </div>
+                                <span className="font-bold text-gray-600 dark:text-gray-300 text-xs">
+                                  {row.qcInspector}
+                                </span>
                               </div>
-                              <span className="font-bold text-gray-600 dark:text-gray-300 text-xs">{row.qcInspector}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 sm:px-6 py-4 text-center">
-                            <span className="text-sm font-bold text-gray-700 dark:text-gray-200 tabular-nums">
-                              {row.totalInspection}
-                            </span>
-                          </td>
-                          {summaryStatuses.map((status) => {
-                            const count = row.statusCounts?.[status] || 0;
-                            const isZero = count === 0;
-                            return (
-                              <td
-                                key={status}
-                                className={`px-4 sm:px-6 py-4 text-center font-bold text-xs tabular-nums ${isZero ? 'opacity-10 text-gray-400' : 'opacity-70'}`}
-                              >
-                                {count}
-                              </td>
-                            );
-                          })}
-                          <td></td>
-                        </tr>
-                      ))}
+                            </td>
+                            <td className="px-4 sm:px-6 py-4 text-center">
+                              <span className="text-sm font-bold text-gray-700 dark:text-gray-200 tabular-nums">
+                                {row.totalInspection}
+                              </span>
+                            </td>
+                            {activeSummaryStatuses.map((status) => {
+                              const count = row.statusCounts?.[status] || 0;
+                              const isZero = count === 0;
+                              return (
+                                <td
+                                  key={status}
+                                  className={`px-4 sm:px-6 py-4 text-center font-bold text-xs tabular-nums ${isZero ? "opacity-10 text-gray-400" : "opacity-70"}`}
+                                >
+                                  {count}
+                                </td>
+                              );
+                            })}
+                            <td></td>
+                          </tr>
+                        ))}
                     </React.Fragment>
                   );
                 })}
@@ -1334,50 +1664,67 @@ useEffect(() => {
               <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-4 order-2 lg:order-1">
                   <div className="flex items-center bg-white dark:bg-gray-800 rounded-xl px-3 py-1.5 border border-gray-200 dark:border-gray-700 shadow-sm">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider mr-3">Show</span>
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider mr-3">
+                      Show
+                    </span>
                     <select
                       value={summaryPageSize}
-                      onChange={(e) => { setSummaryPageSize(Number(e.target.value)); setSummaryPage(1); }}
+                      onChange={(e) => {
+                        setSummaryPageSize(Number(e.target.value));
+                        setSummaryPage(1);
+                      }}
                       className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-200 focus:outline-none"
                     >
-                      {[5, 10, 20, 50].map(size => (
-                        <option key={size} value={size}>{size}</option>
+                      {[5, 10, 20, 50].map((size) => (
+                        <option key={size} value={size}>
+                          {size}
+                        </option>
                       ))}
                     </select>
                   </div>
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                    Showing <span className="text-gray-900 dark:text-white tabular-nums">{startIndex + 1}-{Math.min(endIndex, totalSummaryItems)}</span> of <span className="text-gray-900 dark:text-white tabular-nums">{totalSummaryItems}</span>
+                    Showing{" "}
+                    <span className="text-gray-900 dark:text-white tabular-nums">
+                      {startIndex + 1}-{Math.min(endIndex, totalSummaryItems)}
+                    </span>{" "}
+                    of{" "}
+                    <span className="text-gray-900 dark:text-white tabular-nums">
+                      {totalSummaryItems}
+                    </span>
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 order-1 lg:order-2">
                   <button
-                    onClick={() => setSummaryPage(prev => Math.max(1, prev - 1))}
+                    onClick={() =>
+                      setSummaryPage((prev) => Math.max(1, prev - 1))
+                    }
                     disabled={summaryPage === 1}
                     className="p-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm group"
                   >
                     <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600" />
                   </button>
-                  
+
                   <div className="flex items-center gap-1.5 overflow-x-auto px-2 max-w-[200px] sm:max-w-none">
                     {Array.from({ length: totalSummaryPages }, (_, i) => i + 1)
-                      .filter(num => 
-                        totalSummaryPages <= 5 || 
-                        Math.abs(num - summaryPage) <= 1 || 
-                        num === 1 || 
-                        num === totalSummaryPages
+                      .filter(
+                        (num) =>
+                          totalSummaryPages <= 5 ||
+                          Math.abs(num - summaryPage) <= 1 ||
+                          num === 1 ||
+                          num === totalSummaryPages,
                       )
                       .map((pageNum, idx, arr) => (
                         <React.Fragment key={pageNum}>
-                          {idx > 0 && arr[idx-1] !== pageNum - 1 && (
+                          {idx > 0 && arr[idx - 1] !== pageNum - 1 && (
                             <span className="text-gray-300">...</span>
                           )}
                           <button
                             onClick={() => setSummaryPage(pageNum)}
                             className={`min-w-[40px] h-10 text-xs font-black rounded-xl transition-all ${
                               summaryPage === pageNum
-                                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-                                : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 shadow-sm'
+                                ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
+                                : "bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 shadow-sm"
                             }`}
                           >
                             {pageNum}
@@ -1387,7 +1734,11 @@ useEffect(() => {
                   </div>
 
                   <button
-                    onClick={() => setSummaryPage(prev => Math.min(totalSummaryPages, prev + 1))}
+                    onClick={() =>
+                      setSummaryPage((prev) =>
+                        Math.min(totalSummaryPages, prev + 1),
+                      )
+                    }
                     disabled={summaryPage === totalSummaryPages}
                     className="p-2 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm group"
                   >
@@ -1403,186 +1754,529 @@ useEffect(() => {
   };
 
   const renderPerformanceTable = () => {
-  if (user?.role !== 'admin' && user?.role !== 'superadmin') return null;
+    if (user?.role !== "admin" && user?.role !== "superadmin") return null;
 
-  if (performanceTableLoading) {
-    return (
-      <div className="mt-12 text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-        <p className="text-gray-500 text-sm">Loading performance data...</p>
-      </div>
-    );
-  }
-
-  if (performanceTableData.length === 0) return null;
-
-  // NEW: build a map of inspectorName -> { [status]: count }
-  const inspectorStatusMap: Record<string, Record<string, number>> = {};
-  inspectorSummary.forEach((item: any) => {
-    const name = item.qcInspector;
-    if (!name) return;
-    if (!inspectorStatusMap[name]) inspectorStatusMap[name] = {};
-    Object.entries(item.statusCounts || {}).forEach(([status, count]) => {
-      inspectorStatusMap[name][status] = (inspectorStatusMap[name][status] || 0) + (count as number);
-    });
-  });
-
-  // Pagination logic
-  const totalPerformanceItems = performanceTableData.length;
-  const totalPerformancePages = Math.ceil(totalPerformanceItems / performancePageSize);
-  const startIndex = (performancePage - 1) * performancePageSize;
-  const endIndex = startIndex + performancePageSize;
-  const paginatedPerformance = performanceTableData.slice(startIndex, endIndex);
-
-  return (
-    <div className="mt-12 border-t border-gray-100 dark:border-gray-600 pt-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-1.5 h-6 bg-purple-600 rounded-full"></div>
-        <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-          Performance Table
-        </h3>
-      </div>
-
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 max-h-[600px]">
-          <table className="w-full text-sm text-left border-collapse">
-            <thead className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-md sticky top-16 z-10 text-gray-700 dark:text-gray-300 uppercase text-[10px] font-black tracking-widest">
-              <tr>
-                {isSuperAdmin && <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">Tenant</th>}
-                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">User Name</th>
-                
-                {/* NEW: dynamic status columns from Inspection Summary */}
-                {summaryStatuses.map((status) => (
-                  <th
-                    key={status}
-                    className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-indigo-600"
-                  >
-                    {status}
-                  </th>
-                ))}
-
-                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Total Submitted</th>
-                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Total Reviewed</th>
-                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-green-600">Accepted</th>
-                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-red-600">Rejected</th>
-                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-orange-600">Reworked</th>
-                <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Performance Score</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {paginatedPerformance.map((row, idx) => (
-                <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
-                  {isSuperAdmin && <td className="px-4 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">{row.tenantName}</td>}
-                  <td className="px-4 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">{row.name}</td>
-                  
-                  {/* NEW: dynamic status counts from Inspection Summary */}
-                  {summaryStatuses.map((status) => {
-                    const count = inspectorStatusMap[row.name]?.[status] || 0;
-                    const isZero = count === 0;
-                    const colorClass =
-                      status === 'Direct Ok' || status === 'Rework Accepted' ? 'text-emerald-600 dark:text-emerald-400' :
-                      status.startsWith('Rework') ? 'text-amber-600 dark:text-amber-400' :
-                      status === 'Rejected' ? 'text-rose-600 dark:text-rose-400' :
-                      'text-blue-600 dark:text-blue-400';
-                    return (
-                      <td
-                        key={status}
-                        className={`px-4 py-4 font-bold text-center tabular-nums transition-opacity ${isZero ? 'opacity-20 text-gray-400' : colorClass}`}
-                      >
-                        {count}
-                      </td>
-                    );
-                  })}
-
-                  <td className="px-4 py-4 font-bold text-center tabular-nums">{row.totalSubmitted}</td>
-                  <td className="px-4 py-4 font-bold text-center tabular-nums">{row.totalReviewed}</td>
-                  <td className="px-4 py-4 font-bold text-center text-green-600 tabular-nums">{row.accepted}</td>
-                  <td className="px-4 py-4 font-bold text-center text-red-600 tabular-nums">{row.rejected}</td>
-                  <td className="px-4 py-4 font-bold text-center text-orange-600 tabular-nums">{row.rework}</td>
-                  <td className="px-4 py-4 text-center">
-                    <span className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${
-                      row.performanceScore >= 80 ? 'bg-green-100 text-green-700' :
-                      row.performanceScore >= 50 ? 'bg-orange-100 text-orange-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {row.performanceScore}%
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    if (performanceTableLoading) {
+      return (
+        <div className="mt-12 text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-500 text-sm">Loading performance data...</p>
         </div>
+      );
+    }
 
-        {/* Pagination Controls - Responsive */}
-        {totalPerformancePages > 1 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-gray-50/30 dark:bg-gray-900/30 border-t border-gray-100 dark:border-gray-700">
-            <div className="flex items-center gap-3">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Show</label>
-              <select
-                value={performancePageSize}
-                onChange={(e) => { setPerformancePageSize(Number(e.target.value)); setPerformancePage(1); }}
-                className="px-2 py-1 text-xs font-bold border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none"
-              >
-                {[5, 10, 20, 50].map(size => (
-                  <option key={size} value={size}>{size}</option>
-                ))}
-              </select>
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest hidden xs:inline">
-                {startIndex + 1}-{Math.min(endIndex, totalPerformanceItems)} of {totalPerformanceItems}
-              </span>
-            </div>
+    if (performanceTableData.length === 0) return null;
 
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPerformancePage(prev => Math.max(1, prev - 1))}
-                disabled={performancePage === 1}
-                className="p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-30 transition-all hover:bg-gray-50 shadow-sm"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              
-              <div className="flex items-center gap-1 overflow-x-auto max-w-[120px] sm:max-w-none scrollbar-none">
-                {Array.from({ length: totalPerformancePages }, (_, i) => i + 1)
-                  .filter(num => 
-                    totalPerformancePages <= 3 || 
-                    Math.abs(num - performancePage) <= 1 || 
-                    num === 1 || 
-                    num === totalPerformancePages
-                  )
-                  .map((pageNum, idx, arr) => (
-                    <React.Fragment key={pageNum}>
-                      {idx > 0 && arr[idx-1] !== pageNum - 1 && (
-                        <span className="text-gray-300 text-[10px]">...</span>
-                      )}
-                      <button
-                        onClick={() => setPerformancePage(pageNum)}
-                        className={`min-w-[28px] h-7 text-[10px] font-black rounded-lg transition-all ${
-                          performancePage === pageNum
-                            ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
-                            : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    </React.Fragment>
-                  ))}
-              </div>
+    // Build a map of inspectorName -> { [status]: count } from perfInspectorSummary
+    const inspectorStatusMap: Record<string, Record<string, number>> = {};
+    perfInspectorSummary.forEach((item: any) => {
+      const name = item.qcInspector;
+      if (!name) return;
+      if (!inspectorStatusMap[name]) inspectorStatusMap[name] = {};
+      Object.entries(item.statusCounts || {}).forEach(([status, count]) => {
+        inspectorStatusMap[name][status] =
+          (inspectorStatusMap[name][status] || 0) + (count as number);
+      });
+    });
 
-              <button
-                onClick={() => setPerformancePage(prev => Math.min(totalPerformancePages, prev + 1))}
-                disabled={performancePage === totalPerformancePages}
-                className="p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-30 transition-all hover:bg-gray-50 shadow-sm"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+    // Pagination logic
+    const totalPerformanceItems = performanceTableData.length;
+    const totalPerformancePages = Math.ceil(
+      totalPerformanceItems / performancePageSize,
+    );
+    const startIndex = (performancePage - 1) * performancePageSize;
+    const endIndex = startIndex + performancePageSize;
+    const paginatedPerformance = performanceTableData.slice(
+      startIndex,
+      endIndex,
+    );
+
+    return (
+      <div className="mt-12 border-t border-gray-100 dark:border-gray-600 pt-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-1.5 h-6 bg-purple-600 rounded-full"></div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white leading-none mb-1">
+                Performance Table
+              </h3>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                Per-user performance data
+              </p>
             </div>
           </div>
-        )}
+
+          {/* Independent date filters for Performance Table */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="flex items-center bg-white dark:bg-gray-800 rounded-2xl px-4 py-2 border border-gray-200 dark:border-gray-700 shadow-sm focus-within:ring-4 focus-within:ring-purple-500/10 transition-all">
+              <span className="text-[10px] font-black text-gray-400 mr-3 uppercase tracking-wider">
+                From
+              </span>
+              <input
+                type="date"
+                value={perfStartDate}
+                onChange={(e) => {
+                  setPerfStartDate(e.target.value);
+                  setPerformancePage(1);
+                }}
+                className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-200 focus:outline-none w-full"
+              />
+            </div>
+            <div className="flex items-center bg-white dark:bg-gray-800 rounded-2xl px-4 py-2 border border-gray-200 dark:border-gray-700 shadow-sm focus-within:ring-4 focus-within:ring-purple-500/10 transition-all">
+              <span className="text-[10px] font-black text-gray-400 mr-3 uppercase tracking-wider">
+                To
+              </span>
+              <input
+                type="date"
+                value={perfEndDate}
+                onChange={(e) => {
+                  setPerfEndDate(e.target.value);
+                  setPerformancePage(1);
+                }}
+                className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-200 focus:outline-none w-full"
+              />
+            </div>
+            {(perfStartDate || perfEndDate) && (
+              <button
+                onClick={() => {
+                  setPerfStartDate("");
+                  setPerfEndDate("");
+                  setPerformancePage(1);
+                }}
+                className="px-4 py-2 text-xs font-black text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-900/20 rounded-xl transition-colors uppercase tracking-widest"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700 max-h-[600px]">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-md sticky top-0 z-10 text-gray-700 dark:text-gray-300 uppercase text-[10px] font-black tracking-widest">
+                <tr>
+                  {isSuperAdmin && (
+                    <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">
+                      Tenant
+                    </th>
+                  )}
+                  <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">
+                    User Name
+                  </th>
+
+                  {/* NEW: dynamic status columns from Inspection Summary (Dispatched rendered separately) */}
+                  {performanceStatuses
+                    .filter((status) => status !== "Dispatched")
+                    .map((status) => (
+                      <th
+                        key={status}
+                        className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-indigo-600"
+                      >
+                        {status}
+                      </th>
+                    ))}
+
+                  {/* Dispatch Pending column (before Dispatched) */}
+                  <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-violet-600">
+                    Dispatch Pending
+                  </th>
+
+                  {/* Dispatched column */}
+                  {performanceStatuses.includes("Dispatched") && (
+                    <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-indigo-600">
+                      Dispatched
+                    </th>
+                  )}
+
+                  <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
+                    Total Submitted
+                  </th>
+                  <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
+                    Total Reviewed
+                  </th>
+                  <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-amber-600">
+                    Review Pending
+                  </th>
+                  <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-green-600">
+                    Accepted
+                  </th>
+                  <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-red-600">
+                    Rejected
+                  </th>
+                  <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-orange-600">
+                    Reworked
+                  </th>
+                  <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
+                    Performance Score
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {paginatedPerformance.map((row, idx) => (
+                  <tr
+                    key={idx}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
+                  >
+                    {isSuperAdmin && (
+                      <td className="px-4 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                        {row.tenantName}
+                      </td>
+                    )}
+                    <td className="px-4 py-4 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                      {row.name}
+                    </td>
+
+                    {/* NEW: dynamic status counts from Inspection Summary (Dispatched rendered separately) */}
+                    {performanceStatuses
+                      .filter((status) => status !== "Dispatched")
+                      .map((status) => {
+                        const count =
+                          inspectorStatusMap[row.name]?.[status] || 0;
+                        const isZero = count === 0;
+                        const colorClass =
+                          status === "Direct Ok" || status === "Rework Accepted"
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : status.startsWith("Rework")
+                              ? "text-amber-600 dark:text-amber-400"
+                              : status === "Rejected"
+                                ? "text-rose-600 dark:text-rose-400"
+                                : "text-blue-600 dark:text-blue-400";
+                        return (
+                          <td
+                            key={status}
+                            className={`px-4 py-4 font-bold text-center tabular-nums transition-opacity ${isZero ? "opacity-20 text-gray-400" : colorClass}`}
+                          >
+                            {count}
+                          </td>
+                        );
+                      })}
+
+                    {/* Dispatch Pending = (Direct Ok + Rework QC Completed) - Dispatched */}
+                    {(() => {
+                      const directOk =
+                        inspectorStatusMap[row.name]?.["Direct Ok"] || 0;
+                      const reworkQCCompleted =
+                        inspectorStatusMap[row.name]?.["Rework QC Completed"] ||
+                        0;
+                      const dispatched =
+                        inspectorStatusMap[row.name]?.["Dispatched"] || 0;
+                      const dispatchPending = Math.max(
+                        0,
+                        directOk + reworkQCCompleted - dispatched,
+                      );
+                      const isZero = dispatchPending === 0;
+                      return (
+                        <td
+                          className={`px-4 py-4 font-bold text-center tabular-nums transition-opacity ${isZero ? "opacity-20 text-gray-400" : "text-violet-600 dark:text-violet-400"}`}
+                        >
+                          {dispatchPending}
+                        </td>
+                      );
+                    })()}
+
+                    {/* Dispatched column */}
+                    {performanceStatuses.includes("Dispatched") &&
+                      (() => {
+                        const count =
+                          inspectorStatusMap[row.name]?.["Dispatched"] || 0;
+                        const isZero = count === 0;
+                        return (
+                          <td
+                            className={`px-4 py-4 font-bold text-center tabular-nums transition-opacity ${isZero ? "opacity-20 text-gray-400" : "text-blue-600 dark:text-blue-400"}`}
+                          >
+                            {count}
+                          </td>
+                        );
+                      })()}
+
+                    <td className="px-4 py-4 font-bold text-center tabular-nums">
+                      {row.totalSubmitted}
+                    </td>
+                    <td className="px-4 py-4 font-bold text-center tabular-nums">
+                      {row.totalReviewed}
+                    </td>
+                    {/* Review Pending = Dispatched - Total Reviewed */}
+                    <td
+                      className={`px-4 py-4 font-bold text-center tabular-nums ${(() => {
+                        const dispatched =
+                          inspectorStatusMap[row.name]?.["Dispatched"] || 0;
+                        const pending = Math.max(
+                          0,
+                          dispatched - (row.totalReviewed || 0),
+                        );
+                        return pending === 0
+                          ? "opacity-20 text-gray-400"
+                          : "text-amber-600 dark:text-amber-400";
+                      })()}`}
+                    >
+                      {Math.max(
+                        0,
+                        (inspectorStatusMap[row.name]?.["Dispatched"] || 0) -
+                          (row.totalReviewed || 0),
+                      )}
+                    </td>
+                    <td className="px-4 py-4 font-bold text-center text-green-600 tabular-nums">
+                      {row.accepted}
+                    </td>
+                    <td className="px-4 py-4 font-bold text-center text-red-600 tabular-nums">
+                      {row.rejected}
+                    </td>
+                    <td className="px-4 py-4 font-bold text-center text-orange-600 tabular-nums">
+                      {row.rework}
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <span
+                        className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${
+                          row.performanceScore >= 80
+                            ? "bg-green-100 text-green-700"
+                            : row.performanceScore >= 50
+                              ? "bg-orange-100 text-orange-700"
+                              : "bg-red-100 text-red-700"
+                        }`}
+                      >
+                        {row.performanceScore}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+
+                {/* ── TOTALS ROW ── */}
+                {(() => {
+                  const totalDispatched = performanceTableData.reduce(
+                    (sum, row) =>
+                      sum + (inspectorStatusMap[row.name]?.["Dispatched"] || 0),
+                    0,
+                  );
+                  const totalTotalSubmitted = performanceTableData.reduce(
+                    (sum, row) => sum + (row.totalSubmitted || 0),
+                    0,
+                  );
+                  const totalTotalReviewed = performanceTableData.reduce(
+                    (sum, row) => sum + (row.totalReviewed || 0),
+                    0,
+                  );
+                  const totalAccepted = performanceTableData.reduce(
+                    (sum, row) => sum + (row.accepted || 0),
+                    0,
+                  );
+                  const totalRejected = performanceTableData.reduce(
+                    (sum, row) => sum + (row.rejected || 0),
+                    0,
+                  );
+                  const totalRework = performanceTableData.reduce(
+                    (sum, row) => sum + (row.rework || 0),
+                    0,
+                  );
+                  const avgPerformance =
+                    performanceTableData.length > 0
+                      ? Math.round(
+                          performanceTableData.reduce(
+                            (sum, row) => sum + (row.performanceScore || 0),
+                            0,
+                          ) / performanceTableData.length,
+                        )
+                      : 0;
+
+                  // Totals per dynamic status (excluding Dispatched)
+                  const statusTotals: Record<string, number> = {};
+                  performanceStatuses
+                    .filter((s) => s !== "Dispatched")
+                    .forEach((status) => {
+                      statusTotals[status] = performanceTableData.reduce(
+                        (sum, row) =>
+                          sum + (inspectorStatusMap[row.name]?.[status] || 0),
+                        0,
+                      );
+                    });
+
+                  const totalDirectOk = performanceTableData.reduce(
+                    (sum, row) =>
+                      sum + (inspectorStatusMap[row.name]?.["Direct Ok"] || 0),
+                    0,
+                  );
+                  const totalReworkQCCompleted = performanceTableData.reduce(
+                    (sum, row) =>
+                      sum +
+                      (inspectorStatusMap[row.name]?.["Rework QC Completed"] ||
+                        0),
+                    0,
+                  );
+                  const totalDispatchPending = Math.max(
+                    0,
+                    totalDirectOk + totalReworkQCCompleted - totalDispatched,
+                  );
+                  const totalReviewPending = Math.max(
+                    0,
+                    totalDispatched - totalTotalReviewed,
+                  );
+
+                  return (
+                    <tr className="bg-gray-100 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-500 font-black text-gray-900 dark:text-white">
+                      {isSuperAdmin && (
+                        <td className="px-4 py-4 whitespace-nowrap text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                          —
+                        </td>
+                      )}
+                      <td className="px-4 py-4 whitespace-nowrap text-xs font-black uppercase tracking-widest text-gray-700 dark:text-gray-200">
+                        Total
+                      </td>
+
+                      {performanceStatuses
+                        .filter((s) => s !== "Dispatched")
+                        .map((status) => (
+                          <td
+                            key={status}
+                            className={`px-4 py-4 text-center tabular-nums font-black ${
+                              status === "Direct Ok" ||
+                              status === "Rework Accepted"
+                                ? "text-emerald-700 dark:text-emerald-300"
+                                : status.startsWith("Rework")
+                                  ? "text-amber-700 dark:text-amber-300"
+                                  : status === "Rejected"
+                                    ? "text-rose-700 dark:text-rose-300"
+                                    : "text-blue-700 dark:text-blue-300"
+                            }`}
+                          >
+                            {statusTotals[status] || 0}
+                          </td>
+                        ))}
+
+                      <td className="px-4 py-4 text-center tabular-nums font-black text-violet-700 dark:text-violet-300">
+                        {totalDispatchPending}
+                      </td>
+
+                      {performanceStatuses.includes("Dispatched") && (
+                        <td className="px-4 py-4 text-center tabular-nums font-black text-blue-700 dark:text-blue-300">
+                          {totalDispatched}
+                        </td>
+                      )}
+
+                      <td className="px-4 py-4 text-center tabular-nums font-black">
+                        {totalTotalSubmitted}
+                      </td>
+                      <td className="px-4 py-4 text-center tabular-nums font-black">
+                        {totalTotalReviewed}
+                      </td>
+                      <td className="px-4 py-4 text-center tabular-nums font-black text-amber-700 dark:text-amber-300">
+                        {totalReviewPending}
+                      </td>
+                      <td className="px-4 py-4 text-center tabular-nums font-black text-green-700 dark:text-green-300">
+                        {totalAccepted}
+                      </td>
+                      <td className="px-4 py-4 text-center tabular-nums font-black text-red-700 dark:text-red-300">
+                        {totalRejected}
+                      </td>
+                      <td className="px-4 py-4 text-center tabular-nums font-black text-orange-700 dark:text-orange-300">
+                        {totalRework}
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span
+                          className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${
+                            avgPerformance >= 80
+                              ? "bg-green-200 text-green-800"
+                              : avgPerformance >= 50
+                                ? "bg-orange-200 text-orange-800"
+                                : "bg-red-200 text-red-800"
+                          }`}
+                        >
+                          {avgPerformance}%
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })()}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Controls - Responsive */}
+          {totalPerformancePages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-4 bg-gray-50/30 dark:bg-gray-900/30 border-t border-gray-100 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  Show
+                </label>
+                <select
+                  value={performancePageSize}
+                  onChange={(e) => {
+                    setPerformancePageSize(Number(e.target.value));
+                    setPerformancePage(1);
+                  }}
+                  className="px-2 py-1 text-xs font-bold border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none"
+                >
+                  {[5, 10, 20, 50].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest hidden xs:inline">
+                  {startIndex + 1}-{Math.min(endIndex, totalPerformanceItems)}{" "}
+                  of {totalPerformanceItems}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() =>
+                    setPerformancePage((prev) => Math.max(1, prev - 1))
+                  }
+                  disabled={performancePage === 1}
+                  className="p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-30 transition-all hover:bg-gray-50 shadow-sm"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1 overflow-x-auto max-w-[120px] sm:max-w-none scrollbar-none">
+                  {Array.from(
+                    { length: totalPerformancePages },
+                    (_, i) => i + 1,
+                  )
+                    .filter(
+                      (num) =>
+                        totalPerformancePages <= 3 ||
+                        Math.abs(num - performancePage) <= 1 ||
+                        num === 1 ||
+                        num === totalPerformancePages,
+                    )
+                    .map((pageNum, idx, arr) => (
+                      <React.Fragment key={pageNum}>
+                        {idx > 0 && arr[idx - 1] !== pageNum - 1 && (
+                          <span className="text-gray-300 text-[10px]">...</span>
+                        )}
+                        <button
+                          onClick={() => setPerformancePage(pageNum)}
+                          className={`min-w-[28px] h-7 text-[10px] font-black rounded-lg transition-all ${
+                            performancePage === pageNum
+                              ? "bg-purple-600 text-white shadow-md shadow-purple-500/20"
+                              : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                </div>
+
+                <button
+                  onClick={() =>
+                    setPerformancePage((prev) =>
+                      Math.min(totalPerformancePages, prev + 1),
+                    )
+                  }
+                  disabled={performancePage === totalPerformancePages}
+                  className="p-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg disabled:opacity-30 transition-all hover:bg-gray-50 shadow-sm"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
-};
+    );
+  };
 
   // Determine page title based on user role
   const getPageTitle = () => {
@@ -1606,7 +2300,6 @@ useEffect(() => {
     return viewMode === "forms";
   };
 
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-4 md:p-8">
       {/* Tenant Info Banner - Hide for inspectors */}
@@ -1619,39 +2312,52 @@ useEffect(() => {
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:flex lg:items-center gap-4 lg:gap-8 text-sm">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                  <span className="text-gray-500 dark:text-gray-400 font-medium">Business:</span>
-                  <span className="font-bold text-gray-900 dark:text-gray-100">{currentTenant.companyName}</span>
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">
+                    Business:
+                  </span>
+                  <span className="font-bold text-gray-900 dark:text-gray-100">
+                    {currentTenant.companyName}
+                  </span>
                 </div>
                 {/* <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
                   <span className="text-gray-500 dark:text-gray-400 font-medium">ID:</span>
                   <code className="px-2 py-0.5 bg-white dark:bg-gray-800 rounded border border-blue-100 dark:border-blue-800 font-bold text-blue-700 dark:text-blue-400">{currentTenant._id}</code>
                 </div> */}
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                  <span className="text-gray-500 dark:text-gray-400 font-medium">Slug:</span>
-                  <span className="font-bold text-gray-900 dark:text-gray-100">{currentTenant.slug}</span>
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">
+                    Slug:
+                  </span>
+                  <span className="font-bold text-gray-900 dark:text-gray-100">
+                    {currentTenant.slug}
+                  </span>
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                  <span className="text-gray-500 dark:text-gray-400 font-medium">Role:</span>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 capitalize">{user?.role}</span>
+                  <span className="text-gray-500 dark:text-gray-400 font-medium">
+                    Role:
+                  </span>
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 capitalize">
+                    {user?.role}
+                  </span>
                 </div>
               </div>
             </div>
-            {/* {currentTenant.slug && (
-              <div className="lg:text-right pt-4 lg:pt-0 border-t lg:border-t-0 border-blue-100 dark:border-blue-800">
-                <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-widest">
-                  Customer Portal
-                </p>
-                <a
-                  href={`https://3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center text-sm font-bold text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-100 transition-colors break-all"
-                >
-                  <Eye className="w-4 h-4 mr-2 flex-shrink-0" />
-                  {`3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
-                </a>
-              </div>
-            )} */}
+            {currentTenant.slug &&
+              currentTenant.settings?.showCustomerPortal && (
+                <div className="lg:text-right pt-4 lg:pt-0 border-t lg:border-t-0 border-blue-100 dark:border-blue-800">
+                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-widest">
+                    Customer Portal
+                  </p>
+                  <a
+                    href={`https://3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center text-sm font-bold text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-100 transition-colors break-all"
+                  >
+                    <Eye className="w-4 h-4 mr-2 flex-shrink-0" />
+                    {`3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
+                  </a>
+                </div>
+              )}
           </div>
         </div>
       )}
@@ -1702,12 +2408,16 @@ useEffect(() => {
                     <div className="p-2 sm:p-3 bg-blue-100 dark:bg-blue-900/40 rounded-xl group-hover:scale-110 transition-transform">
                       <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 dark:text-blue-400" />
                     </div>
-                    <span className="text-[10px] sm:text-xs font-bold text-blue-600/50 dark:text-blue-400/50 uppercase tracking-widest">Forms</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-blue-600/50 dark:text-blue-400/50 uppercase tracking-widest">
+                      Forms
+                    </span>
                   </div>
                   <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
                     {tenantStats[selectedTenant._id].totalForms}
                   </p>
-                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">Active managed forms</p>
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">
+                    Active managed forms
+                  </p>
                 </div>
 
                 <div className="bg-emerald-50/50 dark:bg-emerald-900/10 rounded-2xl p-4 sm:p-6 border border-emerald-100 dark:border-emerald-900/20 group hover:bg-emerald-50 transition-colors">
@@ -1715,12 +2425,16 @@ useEffect(() => {
                     <div className="p-2 sm:p-3 bg-emerald-100 dark:bg-emerald-900/40 rounded-xl group-hover:scale-110 transition-transform">
                       <Users className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-600 dark:text-emerald-400" />
                     </div>
-                    <span className="text-[10px] sm:text-xs font-bold text-emerald-600/50 dark:text-emerald-400/50 uppercase tracking-widest">Growth</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-emerald-600/50 dark:text-emerald-400/50 uppercase tracking-widest">
+                      Growth
+                    </span>
                   </div>
                   <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
                     {tenantStats[selectedTenant._id].totalResponses}
                   </p>
-                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">Total user submissions</p>
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">
+                    Total user submissions
+                  </p>
                 </div>
 
                 <div className="bg-purple-50/50 dark:bg-purple-900/10 rounded-2xl p-4 sm:p-6 border border-purple-100 dark:border-purple-900/20 group hover:bg-purple-50 transition-colors sm:col-span-2 lg:col-span-1">
@@ -1728,26 +2442,34 @@ useEffect(() => {
                     <div className="p-2 sm:p-3 bg-purple-100 dark:bg-purple-900/40 rounded-xl group-hover:scale-110 transition-transform">
                       <Smile className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
                     </div>
-                    <span className="text-[10px] sm:text-xs font-bold text-purple-600/50 dark:text-purple-400/50 uppercase tracking-widest">Performance</span>
+                    <span className="text-[10px] sm:text-xs font-bold text-purple-600/50 dark:text-purple-400/50 uppercase tracking-widest">
+                      Performance
+                    </span>
                   </div>
                   <div className="flex items-baseline gap-2">
                     <p className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white">
                       {tenantStats[selectedTenant._id].performanceScore}%
                     </p>
                     <div className="flex-1 h-2 bg-purple-100 dark:bg-purple-900/40 rounded-full overflow-hidden ml-4">
-                      <div 
+                      <div
                         className="h-full bg-purple-600 rounded-full"
-                        style={{ width: `${tenantStats[selectedTenant._id].performanceScore}%` }}
+                        style={{
+                          width: `${tenantStats[selectedTenant._id].performanceScore}%`,
+                        }}
                       ></div>
                     </div>
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">Average quality score</p>
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1 font-medium">
+                    Average quality score
+                  </p>
                 </div>
               </div>
             )}
 
-           {/* New Review Breakdown Chart - Show for all users when data is available */}
-           {!isSuperAdmin && <MyReviewBreakdownChart myReviewStats={myReviewStats} />}
+          {/* New Review Breakdown Chart - Show for all users when data is available */}
+          {!isSuperAdmin && (
+            <MyReviewBreakdownChart myReviewStats={myReviewStats} />
+          )}
         </div>
 
         {/* Debug Info - Remove in production 

@@ -1102,7 +1102,8 @@ case "chassis-without-zone":
     categories: question.type === "chassis-without-zone" ? [] : undefined,
     defectCategory: [],
     defects: [],
-    remark: "Sample inspection remark",
+    // remark and evidenceUrl intentionally left empty — user must fill these manually
+    remark: "",
     evidenceUrl: "",
   };
   break;
@@ -1111,7 +1112,8 @@ case "zone-in":
   sampleResponses[qId] = {
     chassisNumber: `CH-${Math.floor(Math.random() * 9000) + 1000}`,
     status: "Accepted",
-    remark: "Sample remark for zone inspection",
+    // remark and evidenceUrl intentionally left empty — user must fill these manually
+    remark: "",
     evidenceUrl: "",
     zones: ["Zone A", "Zone B"],
   };
@@ -1121,7 +1123,8 @@ case "zone-out":
   sampleResponses[qId] = {
     chassisNumber: `CH-${Math.floor(Math.random() * 9000) + 1000}`,
     status: "Accepted",
-    remark: "Sample rework remark",
+    // remark and evidenceUrl intentionally left empty — user must fill these manually
+    remark: "",
     evidenceUrl: "",
   };
   break;

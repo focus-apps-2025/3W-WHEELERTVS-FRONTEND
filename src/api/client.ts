@@ -260,7 +260,7 @@ class ApiClient {
   }
 
   async getProfile() {
-    return this.request<{ user: any }>("/auth/profile");
+    return this.request<{ user: any; tenant?: any }>("/auth/profile");
   }
 
   async changePassword(passwords: {

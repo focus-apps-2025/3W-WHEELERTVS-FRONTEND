@@ -25,6 +25,7 @@ interface TenantSettings {
   primaryColor?: string;
   companyEmail?: string;
   companyPhone?: string;
+  showCustomerPortal?: boolean;
 }
 
 interface TenantSubscription {
@@ -116,8 +117,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const response = await apiClient.getProfile();
           setUser(response.user);
 
-          // Restore tenant info if available
-          if (storedTenant) {
+          if (response.tenant) {
+            updateTenantState(response.tenant);
+          } else if (storedTenant) {
             const parsedTenant = JSON.parse(storedTenant);
             setTenant(parsedTenant);
 

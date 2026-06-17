@@ -444,6 +444,9 @@ export default function Overall() {
   const [selectedSectionIds, setSelectedSectionIds] = useState<string[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
   const [expandedNoResponsesForms, setExpandedNoResponsesForms] = useState<Set<string>>(new Set());
+  const [expandedFirstQuestionForms, setExpandedFirstQuestionForms] = useState<Set<string>>(new Set());
+  const [firstQuestionRowLimits, setFirstQuestionRowLimits] = useState<Record<string, number>>({});
+  const [complianceView, setComplianceView] = useState<"question" | "form">("question");
 
   const toggleFormExpansion = (formTitle: string) => {
     setExpandedNoResponsesForms((prev) => {
@@ -458,6 +461,22 @@ export default function Overall() {
   };
 
 
+
+  const toggleFirstQuestionForm = (formTitle: string) => {
+    setExpandedFirstQuestionForms((prev) => {
+      const next = new Set(prev);
+      if (next.has(formTitle)) {
+        next.delete(formTitle);
+      } else {
+        next.add(formTitle);
+      }
+      return next;
+    });
+  };
+
+  const showMoreFirstQuestionRows = (formTitle: string, currentLimit: number) => {
+    setFirstQuestionRowLimits((prev) => ({ ...prev, [formTitle]: currentLimit + 10 }));
+  };
 
   const toggleFormFilter = () => {
     setShowFormFilter((prev) => !prev);
@@ -2383,6 +2402,27 @@ export default function Overall() {
     [sectionSummaryRows],
   );
 
+  // Form-wise compliance totals (for the toggle view)
+  const formWiseCompliance = useMemo(() => {
+    const map = new Map<string, { yesCount: number; noCount: number; naCount: number; total: number }>();
+    filteredResponses.forEach((r) => {
+      const title = r.formTitle || "Unknown Form";
+      if (!map.has(title)) map.set(title, { yesCount: 0, noCount: 0, naCount: 0, total: 0 });
+      const s = map.get(title)!;
+      const stats = r.stats ?? { yes: 0, no: 0, na: 0, accepted: 0, rejected: 0, rework: 0 };
+      const yes = (stats.yes || 0) + (stats.accepted || 0);
+      const no = (stats.no || 0) + (stats.rejected || 0);
+      const na = (stats.na || 0) + (stats.rework || 0);
+      s.yesCount += yes;
+      s.noCount += no;
+      s.naCount += na;
+      s.total += yes + no + na;
+    });
+    return Array.from(map.entries())
+      .map(([title, v]) => ({ title, ...v }))
+      .sort((a, b) => b.total - a.total);
+  }, [filteredResponses]);
+
   const generateTableBarChart = (
     yesPct: number,
     noPct: number,
@@ -2859,55 +2899,109 @@ export default function Overall() {
           {/*   liance Donut Chart */}
           <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-blue-100 dark:border-blue-800/30 flex flex-col sm:flex-row items-start gap-8">
             <div className="flex-1 w-full">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3 mb-2">
-                <PieChart className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Overall Compliancesss
-              </h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-2">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                  <PieChart className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Overall Compliance
+                </h3>
+                {/* Toggle: Question-wise / Form-wise */}
+                <div className="flex items-center bg-gray-100 dark:bg-gray-700 p-1 rounded-lg self-start sm:self-auto">
+                  <button
+                    onClick={() => setComplianceView("question")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded transition-all ${complianceView === "question"
+                      ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm"
+                      : "text-gray-500 dark:text-gray-400"}`}
+                  >
+                    Question-wise
+                  </button>
+                  <button
+                    onClick={() => setComplianceView("form")}
+                    className={`px-3 py-1.5 text-xs font-bold rounded transition-all ${complianceView === "form"
+                      ? "bg-white dark:bg-gray-600 text-blue-600 dark:text-blue-400 shadow-sm"
+                      : "text-gray-500 dark:text-gray-400"}`}
+                  >
+                    Form-wise
+                  </button>
+                </div>
+              </div>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                Yes and No percentages in overall responses
+                {complianceView === "question"
+                  ? "Yes and No percentages in overall responses"
+                  : "Compliance breakdown per form"}
               </p>
 
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800/30">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    <span className="font-semibold text-green-900 dark:text-green-100">Yes / Accepted</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-black text-lg text-green-700 dark:text-green-300">{summaryTotals.yesCount}</span>
-                    <span className="text-xs font-bold text-green-600/70 ml-2">
-                      ({summaryTotals.total > 0 ? Math.round((summaryTotals.yesCount / summaryTotals.total) * 100) : 0}%)
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/30">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                    <span className="font-semibold text-red-900 dark:text-red-100">No / Rejected</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-black text-lg text-red-700 dark:text-red-300">{summaryTotals.noCount}</span>
-                    <span className="text-xs font-bold text-red-600/70 ml-2">
-                      ({summaryTotals.total > 0 ? Math.round((summaryTotals.noCount / summaryTotals.total) * 100) : 0}%)
-                    </span>
-                  </div>
-                </div>
-
-                {summaryTotals.naCount > 0 && (
-                  <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+              {complianceView === "question" ? (
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800/30">
                     <div className="flex items-center gap-3">
-                      <div className="w-3 h-3 rounded-full bg-gray-400"></div>
-                      <span className="font-semibold text-gray-700 dark:text-gray-300">N/A / Rework</span>
+                      <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                      <span className="font-semibold text-green-900 dark:text-green-100">Yes / Accepted</span>
                     </div>
                     <div className="text-right">
-                      <span className="font-black text-lg text-gray-700 dark:text-gray-300">{summaryTotals.naCount}</span>
-                      <span className="text-xs font-bold text-gray-500 ml-2">
-                        ({summaryTotals.total > 0 ? Math.round((summaryTotals.naCount / summaryTotals.total) * 100) : 0}%)
+                      <span className="font-black text-lg text-green-700 dark:text-green-300">{summaryTotals.yesCount}</span>
+                      <span className="text-xs font-bold text-green-600/70 ml-2">
+                        ({summaryTotals.total > 0 ? Math.round((summaryTotals.yesCount / summaryTotals.total) * 100) : 0}%)
                       </span>
                     </div>
                   </div>
-                )}
-              </div>
+
+                  <div className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/30">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                      <span className="font-semibold text-red-900 dark:text-red-100">No / Rejected</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="font-black text-lg text-red-700 dark:text-red-300">{summaryTotals.noCount}</span>
+                      <span className="text-xs font-bold text-red-600/70 ml-2">
+                        ({summaryTotals.total > 0 ? Math.round((summaryTotals.noCount / summaryTotals.total) * 100) : 0}%)
+                      </span>
+                    </div>
+                  </div>
+
+                  {summaryTotals.naCount > 0 && (
+                    <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-3">
+                        <div className="w-3 h-3 rounded-full bg-gray-400"></div>
+                        <span className="font-semibold text-gray-700 dark:text-gray-300">N/A / Rework</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-black text-lg text-gray-700 dark:text-gray-300">{summaryTotals.naCount}</span>
+                        <span className="text-xs font-bold text-gray-500 ml-2">
+                          ({summaryTotals.total > 0 ? Math.round((summaryTotals.naCount / summaryTotals.total) * 100) : 0}%)
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {formWiseCompliance.map(({ title, yesCount, noCount, naCount, total }) => {
+                    const yesPct = total > 0 ? Math.round((yesCount / total) * 100) : 0;
+                    const noPct = total > 0 ? Math.round((noCount / total) * 100) : 0;
+                    const naPct = total > 0 ? Math.round((naCount / total) * 100) : 0;
+                    return (
+                      <div key={title} className="p-3 bg-gray-50 dark:bg-gray-700/40 rounded-xl border border-gray-200 dark:border-gray-700">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-bold text-gray-800 dark:text-gray-200 truncate max-w-[60%]" title={title}>
+                            {title}
+                          </span>
+                          <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400">{total} answers</span>
+                        </div>
+                        {/* Mini bar */}
+                        <div className="flex h-2.5 w-full rounded overflow-hidden bg-gray-200 dark:bg-gray-600 mb-2">
+                          {yesPct > 0 && <div className="bg-green-500 transition-all" style={{ width: `${yesPct}%` }} title={`Yes/Accepted ${yesPct}%`} />}
+                          {noPct > 0 && <div className="bg-red-500 transition-all" style={{ width: `${noPct}%` }} title={`No/Rejected ${noPct}%`} />}
+                          {naPct > 0 && <div className="bg-amber-400 transition-all" style={{ width: `${naPct}%` }} title={`N/A/Rework ${naPct}%`} />}
+                        </div>
+                        <div className="flex gap-3 text-[10px] font-bold">
+                          <span className="text-green-600 dark:text-green-400">{yesCount} ({yesPct}%)</span>
+                          <span className="text-red-600 dark:text-red-400">{noCount} ({noPct}%)</span>
+                          {naCount > 0 && <span className="text-amber-600 dark:text-amber-400">{naCount} ({naPct}%)</span>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Chart on the RIGHT side */}
@@ -3110,7 +3204,9 @@ export default function Overall() {
                   <div className="space-y-8">
                     {formTitles.map((formTitle) => {
                       const rows = grouped[formTitle];
-                      const displayRows = rows.slice(0, 100);
+                      const isFormExpanded = expandedFirstQuestionForms.has(formTitle);
+                      const rowLimit = firstQuestionRowLimits[formTitle] ?? 10;
+                      const displayRows = rows.slice(0, rowLimit);
 
                       // ── decide columns: scan actual stats to see what's present ────
                       // Check if ANY response has accepted/rejected/rework values
@@ -3202,158 +3298,177 @@ export default function Overall() {
                       );
 
                       return (
-                        <div key={formTitle}>
-                          <h4 className="text-md font-bold text-gray-800 dark:text-gray-200 mb-3 flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-blue-500" />
-                            {formTitle}
-                            <span className="text-xs font-normal text-gray-500 ml-1">
-                              ({rows.length} response
-                              {rows.length !== 1 ? "s" : ""})
-                            </span>
-                          </h4>
+                        <div key={formTitle} className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                          {/* Collapsible Header */}
+                          <button
+                            onClick={() => toggleFirstQuestionForm(formTitle)}
+                            className="w-full flex items-center justify-between px-5 py-4 bg-gray-50 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-colors"
+                          >
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-4 h-4 text-blue-500" />
+                              <span className="text-md font-bold text-gray-800 dark:text-gray-200">
+                                {formTitle}
+                              </span>
+                              <span className="text-xs font-normal text-gray-500 ml-1">
+                                ({rows.length} response{rows.length !== 1 ? "s" : ""})
+                              </span>
+                            </div>
+                            <ChevronDown
+                              className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isFormExpanded ? "rotate-180" : ""}`}
+                            />
+                          </button>
 
-                          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
-                            <table className="min-w-full text-xs border-collapse">
-                              <thead className="bg-gray-100 dark:bg-gray-800">
-                                <tr>
-                                  <th className="text-left px-4 py-3 border border-gray-300 dark:border-gray-600 font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200 whitespace-nowrap w-36">
-                                    Response Date
-                                  </th>
-                                  <th colSpan={2} className="text-left px-4 py-3 border border-gray-300 dark:border-gray-600 font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200">
-                                    Basic Informations
-                                  </th>
-                                  {/* Dynamic compliance columns */}
-                                  {columns.map((col) => (
-                                    <th
-                                      key={col}
-                                      className={`text-center px-3 py-3 border border-gray-300 dark:border-gray-600 font-bold uppercase tracking-wider whitespace-nowrap ${colConfig[col].color}`}
-                                    >
-                                      {colConfig[col].label}
-                                    </th>
-                                  ))}
-                                  {/* Visual bar column */}
-                                  <th className="text-center px-4 py-3 border border-gray-300 dark:border-gray-600 font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200 whitespace-nowrap w-28">
-                                    {hasInspection ? "Acc / Rej" : "Yes / No"}
-                                  </th>
-                                </tr>
-                              </thead>
-
-                              <tbody>
-                                {rowsData.map(({ r, stats, colTotal }, i) => (
-                                  <tr
-                                    key={r._id || i}
-                                    className={`border-b border-gray-200 dark:border-gray-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors ${i % 2 === 0
-                                      ? "bg-white dark:bg-gray-900"
-                                      : "bg-gray-50/50 dark:bg-gray-800/50"
-                                      }`}
-                                  >
-                                    {/* Date */}
-                                    <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 whitespace-nowrap text-gray-700 dark:text-gray-300">
-                                      {formatTimestamp(r.createdAt)}
-                                    </td>
-                                    {/* First Question */}
-                                    <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 break-words whitespace-normal text-gray-800 dark:text-gray-200">
-                                      {r.firstQuestionText}
-                                    </td>
-                                    {/* Answer */}
-                                    <td
-                                      className="px-4 py-3 font-bold border border-gray-200 dark:border-gray-700 break-words whitespace-normal text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
-                                      onClick={() => navigate(`/responses/${r._id || r.id}`)}
-                                    >
-                                      {r.firstAnswerValue}
-                                    </td>
-                                    {/* Compliance counts */}
-                                    {columns.map((col) => {
-                                      const count = stats[col] ?? 0;
-                                      const pct =
-                                        colTotal > 0
-                                          ? Math.round((count / colTotal) * 100)
-                                          : null;
-                                      return (
-                                        <td
+                          {isFormExpanded && (
+                            <div className="p-4">
+                              <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700">
+                                <table className="min-w-full text-xs border-collapse">
+                                  <thead className="bg-gray-100 dark:bg-gray-800">
+                                    <tr>
+                                      <th className="text-left px-4 py-3 border border-gray-300 dark:border-gray-600 font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200 whitespace-nowrap w-36">
+                                        Response Date
+                                      </th>
+                                      <th colSpan={2} className="text-left px-4 py-3 border border-gray-300 dark:border-gray-600 font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200">
+                                        Basic Informations
+                                      </th>
+                                      {columns.map((col) => (
+                                        <th
                                           key={col}
-                                          className={`text-center px-3 py-3 border border-gray-200 dark:border-gray-700 font-bold ${colConfig[col].color}`}
+                                          className={`text-center px-3 py-3 border border-gray-300 dark:border-gray-600 font-bold uppercase tracking-wider whitespace-nowrap ${colConfig[col].color}`}
                                         >
-                                          {colTotal === 0 ? (
-                                            <span className="text-gray-300 dark:text-gray-600">
-                                              —
-                                            </span>
-                                          ) : (
-                                            <>
-                                              {count}
-                                              {pct !== null && (
-                                                <span className="text-gray-400 dark:text-gray-500 font-medium ml-1">
-                                                  ({pct}%)
-                                                </span>
-                                              )}
-                                            </>
-                                          )}
-                                        </td>
-                                      );
-                                    })}
-                                    {/* Visual bar */}
-                                    <td className="px-3 py-3 border border-gray-200 dark:border-gray-700">
-                                      <div className="flex justify-center">
-                                        <ComplianceBar
-                                          yesCount={stats[primaryCol] ?? 0}
-                                          noCount={stats[secondaryCol] ?? 0}
-                                          total={colTotal}
-                                        />
-                                      </div>
-                                    </td>
-                                  </tr>
-                                ))}
+                                          {colConfig[col].label}
+                                        </th>
+                                      ))}
+                                      <th className="text-center px-4 py-3 border border-gray-300 dark:border-gray-600 font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200 whitespace-nowrap w-28">
+                                        {hasInspection ? "Acc / Rej" : "Yes / No"}
+                                      </th>
+                                    </tr>
+                                  </thead>
 
-                                {/* ── Footer totals row ────────────────────────────── */}
-                                <tr className="bg-blue-100/80 dark:bg-blue-900/40 font-extrabold border-t-2 border-blue-300 dark:border-blue-600">
-                                  <td
-                                    colSpan={3}
-                                    className="px-4 py-3 text-blue-900 dark:text-blue-100 border border-gray-300 dark:border-gray-600 uppercase tracking-wider"
-                                  >
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-2.5 h-2.5 bg-blue-700 rounded-full" />
-                                      Total ({Math.min(rows.length, 100)} shown)
-                                    </div>
-                                  </td>
-                                  {columns.map((col) => {
-                                    const total = colTotals[col] ?? 0;
-                                    const pct =
-                                      grandTotal > 0
-                                        ? Math.round((total / grandTotal) * 100)
-                                        : null;
-                                    return (
-                                      <td
-                                        key={col}
-                                        className={`text-center px-3 py-3 border border-gray-300 dark:border-gray-600 ${colConfig[col].color}`}
+                                  <tbody>
+                                    {rowsData.map(({ r, stats, colTotal }, i) => (
+                                      <tr
+                                        key={r._id || i}
+                                        className={`border-b border-gray-200 dark:border-gray-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors ${i % 2 === 0
+                                          ? "bg-white dark:bg-gray-900"
+                                          : "bg-gray-50/50 dark:bg-gray-800/50"
+                                          }`}
                                       >
-                                        {total}
-                                        {pct !== null && (
-                                          <span className="text-gray-500 dark:text-gray-400 font-medium ml-1">
-                                            ({pct}%)
-                                          </span>
-                                        )}
-                                      </td>
-                                    );
-                                  })}
-                                  {/* Footer visual bar */}
-                                  <td className="px-3 py-3 border border-gray-300 dark:border-gray-600">
-                                    <div className="flex justify-center">
-                                      <ComplianceBar
-                                        yesCount={colTotals[primaryCol] ?? 0}
-                                        noCount={colTotals[secondaryCol] ?? 0}
-                                        total={grandTotal}
-                                      />
-                                    </div>
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
+                                        <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 whitespace-nowrap text-gray-700 dark:text-gray-300">
+                                          {formatTimestamp(r.createdAt)}
+                                        </td>
+                                        <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 break-words whitespace-normal text-gray-800 dark:text-gray-200">
+                                          {r.firstQuestionText}
+                                        </td>
+                                        <td
+                                          className="px-4 py-3 font-bold border border-gray-200 dark:border-gray-700 break-words whitespace-normal text-blue-600 dark:text-blue-400 cursor-pointer hover:underline"
+                                          onClick={() => navigate(`/responses/${r._id || r.id}`)}
+                                        >
+                                          {r.firstAnswerValue}
+                                        </td>
+                                        {columns.map((col) => {
+                                          const count = stats[col] ?? 0;
+                                          const pct =
+                                            colTotal > 0
+                                              ? Math.round((count / colTotal) * 100)
+                                              : null;
+                                          return (
+                                            <td
+                                              key={col}
+                                              className={`text-center px-3 py-3 border border-gray-200 dark:border-gray-700 font-bold ${colConfig[col].color}`}
+                                            >
+                                              {colTotal === 0 ? (
+                                                <span className="text-gray-300 dark:text-gray-600">
+                                                  —
+                                                </span>
+                                              ) : (
+                                                <>
+                                                  {count}
+                                                  {pct !== null && (
+                                                    <span className="text-gray-400 dark:text-gray-500 font-medium ml-1">
+                                                      ({pct}%)
+                                                    </span>
+                                                  )}
+                                                </>
+                                              )}
+                                            </td>
+                                          );
+                                        })}
+                                        <td className="px-3 py-3 border border-gray-200 dark:border-gray-700">
+                                          <div className="flex justify-center">
+                                            <ComplianceBar
+                                              yesCount={stats[primaryCol] ?? 0}
+                                              noCount={stats[secondaryCol] ?? 0}
+                                              total={colTotal}
+                                            />
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    ))}
 
-                          {rows.length > 100 && (
-                            <div className="text-right mt-2 text-[10px] text-gray-500">
-                              Showing first 100 of {rows.length} responses for
-                              this form.
+                                    {/* Footer totals row */}
+                                    <tr className="bg-blue-100/80 dark:bg-blue-900/40 font-extrabold border-t-2 border-blue-300 dark:border-blue-600">
+                                      <td
+                                        colSpan={3}
+                                        className="px-4 py-3 text-blue-900 dark:text-blue-100 border border-gray-300 dark:border-gray-600 uppercase tracking-wider"
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-2.5 h-2.5 bg-blue-700 rounded-full" />
+                                          Total ({rowLimit < rows.length ? rowLimit : rows.length} shown)
+                                        </div>
+                                      </td>
+                                      {columns.map((col) => {
+                                        const total = colTotals[col] ?? 0;
+                                        const pct =
+                                          grandTotal > 0
+                                            ? Math.round((total / grandTotal) * 100)
+                                            : null;
+                                        return (
+                                          <td
+                                            key={col}
+                                            className={`text-center px-3 py-3 border border-gray-300 dark:border-gray-600 ${colConfig[col].color}`}
+                                          >
+                                            {total}
+                                            {pct !== null && (
+                                              <span className="text-gray-500 dark:text-gray-400 font-medium ml-1">
+                                                ({pct}%)
+                                              </span>
+                                            )}
+                                          </td>
+                                        );
+                                      })}
+                                      <td className="px-3 py-3 border border-gray-300 dark:border-gray-600">
+                                        <div className="flex justify-center">
+                                          <ComplianceBar
+                                            yesCount={colTotals[primaryCol] ?? 0}
+                                            noCount={colTotals[secondaryCol] ?? 0}
+                                            total={grandTotal}
+                                          />
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              {/* Show More button */}
+                              {rows.length > rowLimit && (
+                                <div className="flex items-center justify-between mt-3 px-1">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    Showing {rowLimit} of {rows.length} responses
+                                  </span>
+                                  <button
+                                    onClick={() => showMoreFirstQuestionRows(formTitle, rowLimit)}
+                                    className="px-4 py-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                  >
+                                    Show More (+10)
+                                  </button>
+                                </div>
+                              )}
+                              {rows.length <= rowLimit && rows.length > 10 && (
+                                <div className="text-right mt-2 text-[10px] text-gray-500">
+                                  All {rows.length} responses shown
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
