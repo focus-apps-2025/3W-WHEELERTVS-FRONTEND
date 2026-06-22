@@ -4036,11 +4036,38 @@ export default function FormAnalyticsDashboard() {
       }
 
       const trimmed = value.trim();
-      return trimmed ? (
-        trimmed
-      ) : (
-        <span className="text-gray-400">No response</span>
-      );
+      if (!trimmed) {
+        return <span className="text-gray-400">No response</span>;
+      }
+
+      // Render inspection status strings as colored badges (consistent with object-form answers)
+      const lowerTrimmed = trimmed.toLowerCase();
+      const isAcceptedStatus =
+        lowerTrimmed === "accepted" ||
+        lowerTrimmed === "rework completed" ||
+        lowerTrimmed === "rework accepted" ||
+        lowerTrimmed === "verified" ||
+        lowerTrimmed === "direct ok";
+      const isRejectedStatus = lowerTrimmed === "rejected";
+      const isReworkStatus =
+        lowerTrimmed === "rework" ||
+        lowerTrimmed === "reworked" ||
+        lowerTrimmed.startsWith("rework");
+
+      if (isAcceptedStatus || isRejectedStatus || isReworkStatus) {
+        const badgeClass = isAcceptedStatus
+          ? "bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-200"
+          : isRejectedStatus
+            ? "bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-200"
+            : "bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200";
+        return (
+          <span className={`px-2 py-1 ${badgeClass} text-xs rounded font-medium`}>
+            {trimmed}
+          </span>
+        );
+      }
+
+      return trimmed;
     }
 
     if (Array.isArray(value)) {
@@ -4151,10 +4178,25 @@ export default function FormAnalyticsDashboard() {
           String(value.status).trim() &&
           String(value.status).toLowerCase() !== "no response"
         ) {
+          const statusVal = String(value.status).toLowerCase().trim();
+          const statusZoneColor =
+            statusVal === "accepted" ||
+            statusVal === "rework completed" ||
+            statusVal === "rework accepted" ||
+            statusVal === "verified" ||
+            statusVal === "direct ok"
+              ? "green"
+              : statusVal === "rejected"
+                ? "red"
+                : statusVal === "rework" ||
+                    statusVal === "reworked" ||
+                    statusVal.startsWith("rework")
+                  ? "amber"
+                  : "indigo";
           parts.push({
             label: "Status",
             value: String(value.status),
-            zoneColor: "red",
+            zoneColor: statusZoneColor,
           });
         }
         if (

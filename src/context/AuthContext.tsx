@@ -26,12 +26,20 @@ interface TenantSettings {
   companyEmail?: string;
   companyPhone?: string;
   showCustomerPortal?: boolean;
+  officeLocation?: {
+    lat: number;
+    lng: number;
+    radius: number;
+  };
+  timezone?: string;
 }
 
 interface TenantSubscription {
   plan: string;
   maxUsers: number;
   maxForms: number;
+  endDate?: string;
+  startDate?: string;
 }
 
 interface Tenant {
@@ -42,6 +50,8 @@ interface Tenant {
   isActive: boolean;
   settings?: TenantSettings;
   subscription?: TenantSubscription;
+  internalTrackingEnabled?: boolean;
+  allowedTenantIds?: string[];
 }
 
 interface AuthContextType {
@@ -68,6 +78,7 @@ interface AuthContextType {
   error: string | null;
   updateTenant: (tenant: Tenant | null) => void;
   updateUser: (updatedUser: Partial<User>) => void;
+  refreshTenant: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -104,57 +115,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const isAuthenticated = !!user;
+const isAuthenticated = !!user;
 
-  // Check for existing auth token on app start
+   // Refresh tenant data from backend (for getting latest internalTrackingEnabled, etc.)
+   const refreshTenant = async () => {
+     try {
+       const response = await apiClient.getCurrentTenant();
+       if (response.tenant) {
+         updateTenantState(response.tenant);
+       }
+     } catch (err) {
+       console.warn("Failed to refresh tenant data:", err);
+     }
+   };
+
+   // Check for existing auth token on app start
   useEffect(() => {
     const initializeAuth = async () => {
       const token = localStorage.getItem("auth_token");
       const storedTenant = localStorage.getItem("tenant_info");
 
-      if (token) {
-        try {
-          const response = await apiClient.getProfile();
-          setUser(response.user);
+if (token) {
+         try {
+           const response = await apiClient.getProfile();
+           setUser(response.user);
 
-          if (response.tenant) {
-            updateTenantState(response.tenant);
-          } else if (storedTenant) {
-            const parsedTenant = JSON.parse(storedTenant);
-            setTenant(parsedTenant);
+           if (response.tenant) {
+             updateTenantState(response.tenant);
+           } else if (storedTenant) {
+             const parsedTenant = JSON.parse(storedTenant);
+             setTenant(parsedTenant);
+           }
 
-            // If tenant exists but doesn't have _id, try to fetch it (only for superadmin)
-            if (
-              parsedTenant &&
-              !parsedTenant._id &&
-              response.user.tenantId &&
-              response.user.role === "superadmin"
-            ) {
-              try {
-                const tenantResponse = await apiClient.getTenant(
-                  response.user.tenantId,
-                );
-                updateTenantState(tenantResponse.tenant);
-              } catch (tenantErr) {
-                console.warn("Failed to fetch tenant information:", tenantErr);
-                // Keep the stored tenant if fetch fails
-              }
-            }
-          } else if (
-            response.user.tenantId &&
-            response.user.role === "superadmin"
-          ) {
-            // No stored tenant but user has tenantId, try to fetch it (only for superadmin)
-            try {
-              const tenantResponse = await apiClient.getTenant(
-                response.user.tenantId,
-              );
-              updateTenantState(tenantResponse.tenant);
-            } catch (tenantErr) {
-              console.warn("Failed to fetch tenant information:", tenantErr);
-            }
-          }
-        } catch (err) {
+// Always fetch fresh tenant data to ensure internalTrackingEnabled etc. are up to date
+           await refreshTenant();
+         } catch (err) {
           apiClient.clearToken();
           updateTenantState(null);
         }
@@ -270,6 +265,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error,
         updateTenant: updateTenantState,
         updateUser: updateUserState,
+        refreshTenant,
       }}
     >
       {children}

@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   UserCheck,
   ChevronRight,
+  Eye,
 } from "lucide-react";
 import { useLogo } from "../context/LogoContext";
 import { useAuth } from "../context/AuthContext";
@@ -50,7 +51,13 @@ export default function Header() {
   const [mobileActiveDropdown, setMobileActiveDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { logo } = useLogo();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, tenant } = useAuth();
+   const canViewInternalTracking = user?.role === "superadmin" || (
+      user?.role === "admin" && 
+      tenant?.internalTrackingEnabled === true && 
+      Array.isArray(tenant?.allowedTenantIds) && 
+      tenant.allowedTenantIds.length > 0
+    );
   const { isMobileOpen, closeMobile, toggleMobile } = useSidebar();
   const { darkMode, toggleDarkMode } = useTheme();
   const location = useLocation();
@@ -197,6 +204,13 @@ export default function Header() {
       path: "/inspector/chat",
       description: "Communicate with Service Analytics administrators",
       roles: ["inspector", "admin", "tenant_admin", "staff"],
+    },
+    {
+      title: "Internal Tracking",
+      icon: Eye,
+      path: "/internal-tracking",
+      description: "View cross-tenant performance data",
+      roles: ["admin", "superadmin"],
     },
   ];
 

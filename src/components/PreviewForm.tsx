@@ -41,7 +41,9 @@ interface Form {
   sections: any[];
   viewType?: "section-wise" | "question-wise";
   followUpQuestions?: any[];
-  chassisNumbers?: Array<{ chassisNumber: string; partDescription: string }> | string[];
+  chassisNumbers?:
+    | Array<{ chassisNumber: string; partDescription: string }>
+    | string[];
   chassisTenantAssignments?: Record<string, string[]>;
 }
 
@@ -62,10 +64,12 @@ interface PreviewFormProps {
     sectionId: string,
     sectionTitle: string,
     timeSpentSeconds: number,
-    questionCount: number
+    questionCount: number,
   ) => void;
   formSessionId?: string | null;
-  chassisNumbers?: Array<{ chassisNumber: string; partDescription: string }> | string[];
+  chassisNumbers?:
+    | Array<{ chassisNumber: string; partDescription: string }>
+    | string[];
   chassisTenantAssignments?: Record<string, string[]>;
 }
 
@@ -181,20 +185,29 @@ export default function PreviewForm({
   >(null);
   const [previousUniqueAnswers, setPreviousUniqueAnswers] = useState<any[]>([]);
   const [selectedRank, setSelectedRank] = useState<number | null>(null);
-  const [triggeringQuestionId, setTriggeringQuestionId] = useState<string | null>(null);
-  const [globalRankAnswers, setGlobalRankAnswers] = useState<Record<string, any> | null>(null);
+  const [triggeringQuestionId, setTriggeringQuestionId] = useState<
+    string | null
+  >(null);
+  const [globalRankAnswers, setGlobalRankAnswers] = useState<Record<
+    string,
+    any
+  > | null>(null);
   const [globalRank, setGlobalRank] = useState<number | null>(null);
   const [previousAnswers, setPreviousAnswers] = useState<string[]>([]);
   const [showMobileAssistant, setShowMobileAssistant] = useState(false);
   const { darkMode, toggleDarkMode } = useTheme();
-  const { showSuccess, showConfirm, showError: showNotifyError } = useNotification();
+  const {
+    showSuccess,
+    showConfirm,
+    showError: showNotifyError,
+  } = useNotification();
   const { getOrderedVisibleQuestions } = useQuestionLogic();
 
   // Normalize chassis numbers for display
   const chassisNumbers = useMemo(() => {
     const rawChassis = propChassisNumbers || form?.chassisNumbers || [];
     return rawChassis.map((cn: any) =>
-      typeof cn === 'string' ? { chassisNumber: cn, partDescription: '' } : cn
+      typeof cn === "string" ? { chassisNumber: cn, partDescription: "" } : cn,
     );
   }, [propChassisNumbers, form?.chassisNumbers]);
 
@@ -229,15 +242,30 @@ export default function PreviewForm({
         if (l3Opts.length > 0 && !answer.level3) return false;
       }
       if (answer.level3) {
-        const l4Opts = getLevel4Options(answer.level1, answer.level2, answer.level3);
+        const l4Opts = getLevel4Options(
+          answer.level1,
+          answer.level2,
+          answer.level3,
+        );
         if (l4Opts.length > 0 && !answer.level4) return false;
       }
       if (answer.level4) {
-        const l5Opts = getLevel5Options(answer.level1, answer.level2, answer.level3, answer.level4);
+        const l5Opts = getLevel5Options(
+          answer.level1,
+          answer.level2,
+          answer.level3,
+          answer.level4,
+        );
         if (l5Opts.length > 0 && !answer.level5) return false;
       }
       if (answer.level5) {
-        const l6Opts = getLevel6Options(answer.level1, answer.level2, answer.level3, answer.level4, answer.level5);
+        const l6Opts = getLevel6Options(
+          answer.level1,
+          answer.level2,
+          answer.level3,
+          answer.level4,
+          answer.level5,
+        );
         if (l6Opts.length > 0 && !answer.level6) return false;
       }
       return true;
@@ -246,19 +274,26 @@ export default function PreviewForm({
       if (!answer || typeof answer !== "object") return false;
       const { chassisNumber, status, zone, defectCategory, defects } = answer;
       if (!chassisNumber?.trim() || !status) return false;
-      if (status === 'Rejected' || status === 'Rework') {
+      if (status === "Rejected" || status === "Rework") {
         if (q.type === "chassis-with-zone") {
           if (!zone || (Array.isArray(zone) && zone.length === 0)) return false;
         }
-        const hasCategory = Array.isArray(defectCategory) ? defectCategory.length > 0 : !!defectCategory;
-        if (!hasCategory || !Array.isArray(defects) || defects.length === 0) return false;
+        const hasCategory = Array.isArray(defectCategory)
+          ? defectCategory.length > 0
+          : !!defectCategory;
+        if (!hasCategory || !Array.isArray(defects) || defects.length === 0)
+          return false;
       }
       return true;
     }
     if (q.type === "checkbox") {
       return Array.isArray(answer) && answer.length > 0;
     }
-    if (q.type === "radio-grid" || q.type === "checkbox-grid" || q.type === "grid") {
+    if (
+      q.type === "radio-grid" ||
+      q.type === "checkbox-grid" ||
+      q.type === "grid"
+    ) {
       if (!answer || typeof answer !== "object") return false;
       const rows = q.gridOptions?.rows || q.rows || [];
       if (rows.length === 0) return true;
@@ -268,10 +303,16 @@ export default function PreviewForm({
         if (q.type === "checkbox-grid") {
           return Array.isArray(rowAnswer) && rowAnswer.length > 0;
         }
-        return rowAnswer !== undefined && rowAnswer !== null && String(rowAnswer).trim() !== "";
+        return (
+          rowAnswer !== undefined &&
+          rowAnswer !== null &&
+          String(rowAnswer).trim() !== ""
+        );
       });
     }
-    return answer !== undefined && answer !== null && String(answer).trim() !== "";
+    return (
+      answer !== undefined && answer !== null && String(answer).trim() !== ""
+    );
   };
 
   const validateSections = (sectionsToValidate: any[]) => {
@@ -281,7 +322,8 @@ export default function PreviewForm({
     sectionsToValidate.forEach((section) => {
       if (!section) return;
       const allQuestions = [...section.questions];
-      const subSections = form?.sections.filter(
+      const subSections =
+        form?.sections.filter(
           (s) => s.isSubsection && s.parentSectionId === section.id,
         ) || [];
 
@@ -289,7 +331,10 @@ export default function PreviewForm({
         allQuestions.push(...ss.questions);
       });
 
-      const visibleQuestions = getOrderedVisibleQuestions(allQuestions, answers);
+      const visibleQuestions = getOrderedVisibleQuestions(
+        allQuestions,
+        answers,
+      );
 
       visibleQuestions.forEach((q) => {
         if (!q.required) return;
@@ -359,9 +404,10 @@ export default function PreviewForm({
             (questions || []).forEach((question: any) => {
               const { followUpQuestions, ...mainQuestion } = question;
               if (parentId && !mainQuestion.showWhen) {
+                const fuValue = question.followUpQuestions && question.followUpQuestions[0]?.showWhen?.value;
                 mainQuestion.showWhen = {
                   questionId: parentId,
-                  value: mainQuestion.showWhen?.value || "",
+                  value: fuValue || "",
                 };
               }
               allQuestions.push(mainQuestion);
@@ -387,10 +433,17 @@ export default function PreviewForm({
       if (!formId) return;
 
       try {
-        const response = await apiClient.getPublicForm(formId, tenantSlug, inviteId);
+        const response = await apiClient.getPublicForm(
+          formId,
+          tenantSlug,
+          inviteId,
+        );
         const fetchedForm = response.form;
 
-        if (fetchedForm && (!fetchedForm.sections || fetchedForm.sections.length === 0)) {
+        if (
+          fetchedForm &&
+          (!fetchedForm.sections || fetchedForm.sections.length === 0)
+        ) {
           fetchedForm.sections = [
             {
               id: "default",
@@ -423,7 +476,8 @@ export default function PreviewForm({
             return {
               ...section,
               id: section.id || section._id,
-              nextSectionId: section.nextSectionId || (section as any)._nextSectionId,
+              nextSectionId:
+                section.nextSectionId || (section as any)._nextSectionId,
               questions: allQuestions,
             };
           });
@@ -432,12 +486,18 @@ export default function PreviewForm({
         setForm(fetchedForm);
 
         try {
-          const rulesResponse = await apiClient.getSectionBranchingPublic(formId, tenantSlug);
+          const rulesResponse = await apiClient.getSectionBranchingPublic(
+            formId,
+            tenantSlug,
+          );
           if (rulesResponse && rulesResponse.sectionBranching) {
             setBranchingRules(rulesResponse.sectionBranching);
           }
         } catch (rulesErr) {
-          console.warn("[PreviewForm] Failed to fetch branching rules:", rulesErr);
+          console.warn(
+            "[PreviewForm] Failed to fetch branching rules:",
+            rulesErr,
+          );
         }
       } catch (err: any) {
         if (err.response?.message === "ALREADY_SUBMITTED") {
@@ -445,9 +505,15 @@ export default function PreviewForm({
             "You have already responded to this form using this link. Are you sure you want to re-submit? Your previous response will be kept, but a new one will be created.",
             async () => {
               try {
-                const response = await apiClient.getPublicForm(formId!, tenantSlug);
+                const response = await apiClient.getPublicForm(
+                  formId!,
+                  tenantSlug,
+                );
                 setForm(response.form);
-                const rulesResponse = await apiClient.getSectionBranchingPublic(formId!, tenantSlug);
+                const rulesResponse = await apiClient.getSectionBranchingPublic(
+                  formId!,
+                  tenantSlug,
+                );
                 if (rulesResponse && rulesResponse.sectionBranching) {
                   setBranchingRules(rulesResponse.sectionBranching);
                 }
@@ -470,7 +536,15 @@ export default function PreviewForm({
     };
 
     fetchForm();
-  }, [formId, tenantSlug, propQuestions, propBranchingRules, viewType, propChassisNumbers, propChassisTenantAssignments]);
+  }, [
+    formId,
+    tenantSlug,
+    propQuestions,
+    propBranchingRules,
+    viewType,
+    propChassisNumbers,
+    propChassisTenantAssignments,
+  ]);
 
   // Location tracking
   useEffect(() => {
@@ -613,7 +687,9 @@ export default function PreviewForm({
 
     const mainSections = getMainSections();
     const historyIndices = Array.from(new Set(navigationHistory));
-    const sectionsToValidate = mainSections.filter((_, idx) => historyIndices.includes(idx));
+    const sectionsToValidate = mainSections.filter((_, idx) =>
+      historyIndices.includes(idx),
+    );
 
     if (!validateSections(sectionsToValidate)) return;
 
@@ -629,13 +705,13 @@ export default function PreviewForm({
   };
 
   const performSubmission = async () => {
-     if (formSessionId && chassisNumbers.length > 0) {
-    if (!answers['chassis_number']) {
-      showNotifyError("Please select a Chassis Number before submitting");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
+    if (formSessionId && chassisNumbers.length > 0) {
+      if (!answers["chassis_number"]) {
+        showNotifyError("Please select a Chassis Number before submitting");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
     }
-  }
     setSubmitting(true);
     try {
       console.log("[PREVIEW FORM] User object full:", JSON.stringify(user));
@@ -709,7 +785,11 @@ export default function PreviewForm({
 
       if (!formId) return;
 
-      const response = await apiClient.submitResponse(formId, tenantSlug, submissionData);
+      const response = await apiClient.submitResponse(
+        formId,
+        tenantSlug,
+        submissionData,
+      );
       clearSavedData();
 
       // Check for follow-up form redirection
@@ -784,9 +864,16 @@ export default function PreviewForm({
 
   const handleResponseChange = (questionId: string, value: any) => {
     // Track question change for analytics
-    if (!answers[questionId] && value && onQuestionChange && getMainSections()[currentSectionIndex]) {
+    if (
+      !answers[questionId] &&
+      value &&
+      onQuestionChange &&
+      getMainSections()[currentSectionIndex]
+    ) {
       const currentSection = getMainSections()[currentSectionIndex];
-      const question = currentSection.questions?.find((q: any) => q.id === questionId);
+      const question = currentSection.questions?.find(
+        (q: any) => q.id === questionId,
+      );
       if (question) {
         onQuestionChange(
           questionId,
@@ -794,7 +881,7 @@ export default function PreviewForm({
           question.type || "unknown",
           currentSection.id,
           currentSection.title || "Untitled Section",
-          value
+          value,
         );
       }
     }
@@ -802,25 +889,36 @@ export default function PreviewForm({
     setAnswers((prev) => ({ ...prev, [questionId]: value }));
 
     // Suggestion logic
-    const normalizedQId = questionId.endsWith("_tracking") ? questionId.replace("_tracking", "") : questionId;
-    const normalizeKey = (s: string) => String(s || "").toLowerCase().replace(/_tracking$/, "").replace(/^_/, "").trim();
+    const normalizedQId = questionId.endsWith("_tracking")
+      ? questionId.replace("_tracking", "")
+      : questionId;
+    const normalizeKey = (s: string) =>
+      String(s || "")
+        .toLowerCase()
+        .replace(/_tracking$/, "")
+        .replace(/^_/, "")
+        .trim();
     const normalizedTarget = normalizeKey(normalizedQId);
 
     const question = allFormQuestions.find((q) => {
       const qId = (q.id || (q as any)._id) as string;
       if (!qId) return false;
-      return qId === normalizedQId || qId.toLowerCase() === normalizedQId.toLowerCase() || normalizeKey(qId) === normalizedTarget;
+      return (
+        qId === normalizedQId ||
+        qId.toLowerCase() === normalizedQId.toLowerCase() ||
+        normalizeKey(qId) === normalizedTarget
+      );
     });
 
     // Only fetch suggestions if trackResponseQuestion OR trackResponseRank is enabled
-    const isTrackQuestionEnabled = question && (
-      question.trackResponseQuestion === true || 
-      String(question.trackResponseQuestion) === "true"
-    );
-    const isTrackRankEnabled = question && (
-      question.trackResponseRank === true ||
-      String(question.trackResponseRank) === "true"
-    );
+    const isTrackQuestionEnabled =
+      question &&
+      (question.trackResponseQuestion === true ||
+        String(question.trackResponseQuestion) === "true");
+    const isTrackRankEnabled =
+      question &&
+      (question.trackResponseRank === true ||
+        String(question.trackResponseRank) === "true");
     const isAnyTrackingEnabled = isTrackQuestionEnabled || isTrackRankEnabled;
 
     if (fetchingSuggestionsForId !== questionId) {
@@ -829,27 +927,44 @@ export default function PreviewForm({
 
     const getExistingSuggestion = (qId: string) => {
       if (!suggestedAnswers) return null;
-      const normalize = (s: string) => String(s || "").toLowerCase().replace(/_tracking$/, "").replace(/^_/, "").trim();
+      const normalize = (s: string) =>
+        String(s || "")
+          .toLowerCase()
+          .replace(/_tracking$/, "")
+          .replace(/^_/, "")
+          .trim();
       const target = normalize(qId);
       if (Array.isArray(suggestedAnswers)) {
         if (suggestedAnswers.length === 0) return null;
         const firstRecord = suggestedAnswers[0].answers;
-        const matchKey = Object.keys(firstRecord).find(k => normalize(k) === target);
+        const matchKey = Object.keys(firstRecord).find(
+          (k) => normalize(k) === target,
+        );
         return matchKey ? firstRecord[matchKey] : null;
       }
       if (suggestedAnswers[qId] !== undefined) return suggestedAnswers[qId];
-      const matchKey = Object.keys(suggestedAnswers).find(k => normalize(k) === target);
+      const matchKey = Object.keys(suggestedAnswers).find(
+        (k) => normalize(k) === target,
+      );
       return matchKey ? suggestedAnswers[matchKey] : null;
     };
 
-    const searchValue = (typeof value === 'object' && value?.chassisNumber) ? value.chassisNumber : value;
+    const searchValue =
+      typeof value === "object" && value?.chassisNumber
+        ? value.chassisNumber
+        : value;
     const currentMatchingSuggestion = getExistingSuggestion(questionId);
-    const isAlreadySuggested = currentMatchingSuggestion !== null &&
-      String(currentMatchingSuggestion).trim().toLowerCase() === String(searchValue).trim().toLowerCase();
+    const isAlreadySuggested =
+      currentMatchingSuggestion !== null &&
+      String(currentMatchingSuggestion).trim().toLowerCase() ===
+        String(searchValue).trim().toLowerCase();
 
-    const isMeaningful = (typeof value === "string" && value.trim().length >= 1) ||
+    const isMeaningful =
+      (typeof value === "string" && value.trim().length >= 1) ||
       typeof value === "number" ||
-      ((question?.type === "chassis-with-zone" || question?.type === "chassis-without-zone") && value?.chassisNumber?.trim().length >= 1);
+      ((question?.type === "chassis-with-zone" ||
+        question?.type === "chassis-without-zone") &&
+        value?.chassisNumber?.trim().length >= 1);
 
     // Only fetch suggestions if any tracking is enabled (trackResponseQuestion OR trackResponseRank)
     if (isMeaningful && formId && !isAlreadySuggested && isAnyTrackingEnabled) {
@@ -867,28 +982,43 @@ export default function PreviewForm({
   const fetchSuggestions = async (questionId: string, value: any) => {
     if (!formId) return;
 
-    const searchValue = (typeof value === 'object' && value?.chassisNumber) ? value.chassisNumber : value;
+    const searchValue =
+      typeof value === "object" && value?.chassisNumber
+        ? value.chassisNumber
+        : value;
 
     const getExistingSuggestion = (qId: string) => {
       if (!suggestedAnswers) return null;
-      const normalize = (s: string) => String(s || "").toLowerCase().replace(/_tracking$/, "").replace(/^_/, "").trim();
+      const normalize = (s: string) =>
+        String(s || "")
+          .toLowerCase()
+          .replace(/_tracking$/, "")
+          .replace(/^_/, "")
+          .trim();
       const target = normalize(qId);
       if (Array.isArray(suggestedAnswers)) {
         if (suggestedAnswers.length === 0) return null;
         const firstRecord = suggestedAnswers[0].answers;
-        const matchKey = Object.keys(firstRecord).find(k => normalize(k) === target);
+        const matchKey = Object.keys(firstRecord).find(
+          (k) => normalize(k) === target,
+        );
         return matchKey ? firstRecord[matchKey] : null;
       }
       if (suggestedAnswers[qId] !== undefined) return suggestedAnswers[qId];
-      const matchKey = Object.keys(suggestedAnswers).find(k => normalize(k) === target);
+      const matchKey = Object.keys(suggestedAnswers).find(
+        (k) => normalize(k) === target,
+      );
       return matchKey ? suggestedAnswers[matchKey] : null;
     };
 
     const currentMatchingSuggestion = getExistingSuggestion(questionId);
     const searchSource = `${questionId}:${searchValue}`;
-    if (lastSuggestionSource === searchSource ||
+    if (
+      lastSuggestionSource === searchSource ||
       (currentMatchingSuggestion !== null &&
-        String(currentMatchingSuggestion).trim().toLowerCase() === String(searchValue).trim().toLowerCase())) {
+        String(currentMatchingSuggestion).trim().toLowerCase() ===
+          String(searchValue).trim().toLowerCase())
+    ) {
       return;
     }
 
@@ -896,27 +1026,40 @@ export default function PreviewForm({
       setFetchingSuggestionsForId(searchSource);
       setTriggeringQuestionId(questionId);
 
-      apiClient.getQuestionPreviousAnswers(formId, questionId, tenantSlug)
-        .then(res => {
+      apiClient
+        .getQuestionPreviousAnswers(formId, questionId, tenantSlug)
+        .then((res) => {
           if (res && res.answers) {
             setPreviousUniqueAnswers(res.answers);
           }
         })
-        .catch(err => console.warn("[PreviewForm] Failed to fetch previous answers:", err));
+        .catch((err) =>
+          console.warn("[PreviewForm] Failed to fetch previous answers:", err),
+        );
 
-      const result = await apiClient.getSuggestedAnswers(formId, questionId, searchValue, tenantSlug);
+      const result = await apiClient.getSuggestedAnswers(
+        formId,
+        questionId,
+        searchValue,
+        tenantSlug,
+      );
       setLastSuggestionSource(`${questionId}:${searchValue}`);
 
       if (result && result.suggestedAnswers) {
-        const rawSuggestions = Array.isArray(result.suggestedAnswers) ? result.suggestedAnswers : [];
-        
+        const rawSuggestions = Array.isArray(result.suggestedAnswers)
+          ? result.suggestedAnswers
+          : [];
+
         // Exact match filter: only show if the triggering question's value matches exactly
-        const normalize = (v: any) => String(v || "").trim().toLowerCase();
+        const normalize = (v: any) =>
+          String(v || "")
+            .trim()
+            .toLowerCase();
         const searchValNormalized = normalize(searchValue);
-        
-        const suggestions = rawSuggestions.filter(s => {
+
+        const suggestions = rawSuggestions.filter((s) => {
           const val = s.answers?.[questionId];
-          if (typeof val === 'object' && val?.chassisNumber) {
+          if (typeof val === "object" && val?.chassisNumber) {
             return normalize(val.chassisNumber) === searchValNormalized;
           }
           return normalize(val) === searchValNormalized;
@@ -945,34 +1088,55 @@ export default function PreviewForm({
       console.error("[PreviewForm] Failed to fetch suggestions:", err);
     } finally {
       const fetchSource = `${questionId}:${searchValue}`;
-      setFetchingSuggestionsForId((prev) => prev === fetchSource ? null : prev);
+      setFetchingSuggestionsForId((prev) =>
+        prev === fetchSource ? null : prev,
+      );
     }
   };
 
-  const applySuggestions = (specificAnswers?: Record<string, any>, targetQuestionId?: string, rank?: number) => {
-    const suggestionsToApply = specificAnswers || (Array.isArray(suggestedAnswers) ? suggestedAnswers[0]?.answers : suggestedAnswers);
+  const applySuggestions = (
+    specificAnswers?: Record<string, any>,
+    targetQuestionId?: string,
+    rank?: number,
+  ) => {
+    const suggestionsToApply =
+      specificAnswers ||
+      (Array.isArray(suggestedAnswers)
+        ? suggestedAnswers[0]?.answers
+        : suggestedAnswers);
     if (!suggestionsToApply || suggestionsToApply._no_match) return;
 
     if (rank !== undefined) setSelectedRank(rank);
 
-    const effectiveTargetId = targetQuestionId ||
-      (fetchingSuggestionsForId?.split(':')[0]) ||
-      (lastSuggestionSource?.split(':')[0]);
+    const effectiveTargetId =
+      targetQuestionId ||
+      fetchingSuggestionsForId?.split(":")[0] ||
+      lastSuggestionSource?.split(":")[0];
 
     setAnswers((prev) => {
       const newAnswers = { ...prev };
-      const normalize = (s: string) => String(s || "").toLowerCase().replace(/_tracking$/, "").replace(/^_/, "").trim();
+      const normalize = (s: string) =>
+        String(s || "")
+          .toLowerCase()
+          .replace(/_tracking$/, "")
+          .replace(/^_/, "")
+          .trim();
 
       Object.keys(suggestionsToApply).forEach((key) => {
         if (key.startsWith("_") && !key.includes("tracking")) return;
         const val = suggestionsToApply[key];
-        if (val === null || val === undefined || String(val).trim() === "") return;
+        if (val === null || val === undefined || String(val).trim() === "")
+          return;
 
         const normalizedKey = normalize(key);
         const question = allFormQuestions.find((q) => {
           const qId = (q.id || (q as any)._id) as string;
           if (!qId) return false;
-          return qId === key || qId.toLowerCase() === key.toLowerCase() || normalize(qId) === normalizedKey;
+          return (
+            qId === key ||
+            qId.toLowerCase() === key.toLowerCase() ||
+            normalize(qId) === normalizedKey
+          );
         });
 
         if (question) {
@@ -999,11 +1163,19 @@ export default function PreviewForm({
   };
 
   const activeTrackQuestion = useMemo(() => {
-    const qId = triggeringQuestionId || (lastSuggestionSource?.split(':')[0]);
+    const qId = triggeringQuestionId || lastSuggestionSource?.split(":")[0];
     if (!qId) return null;
-    
-    const question = allFormQuestions.find(q => (q.id || (q as any)._id) === qId);
-    if (!question || !(question.trackResponseQuestion === true || String(question.trackResponseQuestion) === "true")) {
+
+    const question = allFormQuestions.find(
+      (q) => (q.id || (q as any)._id) === qId,
+    );
+    if (
+      !question ||
+      !(
+        question.trackResponseQuestion === true ||
+        String(question.trackResponseQuestion) === "true"
+      )
+    ) {
       return null;
     }
     return question;
@@ -1017,9 +1189,8 @@ export default function PreviewForm({
     allFormQuestions.forEach((question: any) => {
       const qId = question.id || question._id;
       if (!qId) return;
-      if (sampleResponses[qId] !== undefined && sampleResponses[qId] !== "") return;
-
-      
+      if (sampleResponses[qId] !== undefined && sampleResponses[qId] !== "")
+        return;
 
       switch (question.type) {
         case "text":
@@ -1035,19 +1206,29 @@ export default function PreviewForm({
         case "radio":
         case "select":
         case "dropdown":
-        case "yesNoNA":
         case "radio-image":
         case "search-select":
           if (question.options && question.options.length > 0) {
-            sampleResponses[qId] = question.options[0].label || question.options[0];
-          } else if (question.type === "yesNoNA") {
+            sampleResponses[qId] =
+              question.options[0].label || question.options[0];
+          }
+          break;
+        case "yesNoNA":
+          // Use actual first option if custom labels exist (e.g. "Accepted"/"Rework"/"Rejected")
+          // Fall back to "Yes" only when no options are defined
+          if (question.options && question.options.length > 0) {
+            sampleResponses[qId] =
+              question.options[0].label || question.options[0];
+          } else {
             sampleResponses[qId] = "Yes";
           }
           break;
         case "checkbox":
         case "multiple_choice":
           if (question.options && question.options.length > 0) {
-            sampleResponses[qId] = [question.options[0].label || question.options[0]];
+            sampleResponses[qId] = [
+              question.options[0].label || question.options[0],
+            ];
           }
           break;
         case "rating":
@@ -1091,43 +1272,52 @@ export default function PreviewForm({
             sampleResponses[qId] = gridData;
           }
           break;
-          case "chassis-with-zone":
-case "chassis-without-zone":
-  const sampleStatus = "Accepted";
-  sampleResponses[qId] = {
-    chassisNumber: `CH-${Math.floor(Math.random() * 9000) + 1000}`,
-    status: sampleStatus,
-    zone: question.type === "chassis-with-zone" ? ["Zone A"] : undefined,
-    zonesData: question.type === "chassis-with-zone" ? {} : undefined,
-    categories: question.type === "chassis-without-zone" ? [] : undefined,
-    defectCategory: [],
-    defects: [],
-    // remark and evidenceUrl intentionally left empty — user must fill these manually
-    remark: "",
-    evidenceUrl: "",
-  };
-  break;
+        case "chassis-with-zone":
+        case "chassis-without-zone": {
+          // Use a real chassis number from the configured list if available
+          const availableChassis = chassisNumbers;
+          const pickedChassis =
+            availableChassis.length > 0
+              ? availableChassis[
+                  Math.floor(Math.random() * availableChassis.length)
+                ].chassisNumber
+              : `CH-${Math.floor(Math.random() * 9000) + 1000}`;
+          sampleResponses[qId] = {
+            chassisNumber: pickedChassis,
+            status: "Accepted",
+            zone:
+              question.type === "chassis-with-zone" ? ["Zone A"] : undefined,
+            zonesData: question.type === "chassis-with-zone" ? {} : undefined,
+            categories:
+              question.type === "chassis-without-zone" ? [] : undefined,
+            defectCategory: [],
+            defects: [],
+            remark: "",
+            evidenceUrl: "",
+          };
+          break;
+        }
 
-case "zone-in":
-  sampleResponses[qId] = {
-    chassisNumber: `CH-${Math.floor(Math.random() * 9000) + 1000}`,
-    status: "Accepted",
-    // remark and evidenceUrl intentionally left empty — user must fill these manually
-    remark: "",
-    evidenceUrl: "",
-    zones: ["Zone A", "Zone B"],
-  };
-  break;
+        case "zone-in": {
+          // zone-in: NO chassisNumber — user must enter it manually
+          sampleResponses[qId] = {
+            status: "Accepted",
+            remark: "",
+            evidenceUrl: "",
+            zones: ["Zone A", "Zone B"],
+          };
+          break;
+        }
 
-case "zone-out":
-  sampleResponses[qId] = {
-    chassisNumber: `CH-${Math.floor(Math.random() * 9000) + 1000}`,
-    status: "Accepted",
-    // remark and evidenceUrl intentionally left empty — user must fill these manually
-    remark: "",
-    evidenceUrl: "",
-  };
-  break;
+        case "zone-out": {
+          // zone-out: NO chassisNumber — user must enter it manually
+          sampleResponses[qId] = {
+            status: "Accepted",
+            remark: "",
+            evidenceUrl: "",
+          };
+          break;
+        }
       }
     });
 
@@ -1140,12 +1330,16 @@ case "zone-out":
     if (!form) return [];
     const baseSections = form.sections.filter((s) => !s.isSubsection);
 
-    const effectiveViewType = form?.viewType || (form as any)?.view_type || "section-wise";
+    const effectiveViewType =
+      form?.viewType || (form as any)?.view_type || "section-wise";
 
     if (effectiveViewType === "question-wise") {
       const virtualSections: any[] = [];
       baseSections.forEach((section, sIdx) => {
-        const visibleQuestions = getOrderedVisibleQuestions(section.questions, answers);
+        const visibleQuestions = getOrderedVisibleQuestions(
+          section.questions,
+          answers,
+        );
         if (visibleQuestions.length === 0) {
           virtualSections.push({
             ...section,
@@ -1189,10 +1383,15 @@ case "zone-out":
     baseSections.forEach((section) => {
       const mappedSection = sectionsMap.get(section.id);
       const parentId = section.parentSectionId;
-      const isSub = section.isSubsection === true || section.isSubsection === 'true' || (parentId && parentId !== '');
+      const isSub =
+        section.isSubsection === true ||
+        section.isSubsection === "true" ||
+        (parentId && parentId !== "");
 
       if (isSub && parentId) {
-        const parent = sectionsMap.get(parentId) || Array.from(sectionsMap.values()).find(s => s._id === parentId);
+        const parent =
+          sectionsMap.get(parentId) ||
+          Array.from(sectionsMap.values()).find((s) => s._id === parentId);
         if (parent) {
           parent.subsections.push(mappedSection);
         } else {
@@ -1211,13 +1410,19 @@ case "zone-out":
     if (!form) return linkedIds;
 
     branchingRules.forEach((rule) => {
-      if (rule.targetSectionId && rule.targetSectionId.toLowerCase() !== "end") {
+      if (
+        rule.targetSectionId &&
+        rule.targetSectionId.toLowerCase() !== "end"
+      ) {
         linkedIds.add(rule.targetSectionId);
       }
     });
 
     form.sections.forEach((section) => {
-      if (section.nextSectionId && section.nextSectionId.toLowerCase() !== "end") {
+      if (
+        section.nextSectionId &&
+        section.nextSectionId.toLowerCase() !== "end"
+      ) {
         linkedIds.add(section.nextSectionId);
       }
       if (section.isSubsection || (section as any).parentSectionId) {
@@ -1251,37 +1456,58 @@ case "zone-out":
     const currentMainSection = mainSections[currentSectionIndex];
     if (!currentMainSection) return currentSectionIndex + 1;
 
-    const effectiveViewType = form?.viewType || (form as any)?.view_type || "section-wise";
+    const effectiveViewType =
+      form?.viewType || (form as any)?.view_type || "section-wise";
 
     if (effectiveViewType === "question-wise" && currentMainSection.isVirtual) {
-      if (currentMainSection.questionIndex < currentMainSection.totalQuestionsInSection - 1) {
+      if (
+        currentMainSection.questionIndex <
+        currentMainSection.totalQuestionsInSection - 1
+      ) {
         return currentSectionIndex + 1;
       }
     }
 
     // Get all sections in the current group
     const currentGroupSections = form.sections.filter(
-      (s) => s.id === currentMainSection.id || (s.isSubsection && s.parentSectionId === currentMainSection.id),
+      (s) =>
+        s.id === currentMainSection.id ||
+        (s.isSubsection && s.parentSectionId === currentMainSection.id),
     );
     const currentGroupSectionIds = currentGroupSections.map((s) => s.id);
 
     const findMatchingRule = (question: any, userAnswer: any) => {
       if (userAnswer === undefined || userAnswer === null) return null;
-      const questionRules = branchingRules.filter((rule) => rule.questionId === question.id);
+      const questionRules = branchingRules.filter(
+        (rule) => rule.questionId === question.id,
+      );
       if (questionRules.length === 0) return null;
 
-      const matchingRules = questionRules.filter((rule) => currentGroupSectionIds.includes(rule.sectionId));
+      const matchingRules = questionRules.filter((rule) =>
+        currentGroupSectionIds.includes(rule.sectionId),
+      );
 
       for (const rule of matchingRules) {
         const ruleOptionLower = rule.optionLabel?.toLowerCase();
-        const userAnswerStr = Array.isArray(userAnswer) ? userAnswer.join(",") : String(userAnswer);
+        const userAnswerStr = Array.isArray(userAnswer)
+          ? userAnswer.join(",")
+          : String(userAnswer);
         const userAnswerLower = userAnswerStr.toLowerCase();
 
         if (rule.isOtherOption) {
-          const exactMatchExists = matchingRules.some((r) => !r.isOtherOption && r.optionLabel?.toLowerCase() === userAnswerLower);
+          const exactMatchExists = matchingRules.some(
+            (r) =>
+              !r.isOtherOption &&
+              r.optionLabel?.toLowerCase() === userAnswerLower,
+          );
           if (!exactMatchExists && userAnswerLower) return rule;
         } else if (Array.isArray(userAnswer)) {
-          if (userAnswer.some((val) => String(val).toLowerCase() === ruleOptionLower)) return rule;
+          if (
+            userAnswer.some(
+              (val) => String(val).toLowerCase() === ruleOptionLower,
+            )
+          )
+            return rule;
         } else if (userAnswerLower === ruleOptionLower) {
           return rule;
         }
@@ -1291,16 +1517,23 @@ case "zone-out":
 
     // Check branching rules
     for (const section of currentGroupSections) {
-      const visibleQuestions = getOrderedVisibleQuestions(section.questions, answers);
+      const visibleQuestions = getOrderedVisibleQuestions(
+        section.questions,
+        answers,
+      );
       for (const question of visibleQuestions) {
         const matchedRule = findMatchingRule(question, answers[question.id]);
         if (matchedRule) {
           if (matchedRule.targetSectionId?.toLowerCase() === "end") {
             return mainSections.length;
           }
-          const targetSection = form.sections.find((s) => s.id === matchedRule.targetSectionId && !s.isSubsection);
+          const targetSection = form.sections.find(
+            (s) => s.id === matchedRule.targetSectionId && !s.isSubsection,
+          );
           if (targetSection) {
-            const targetIndex = mainSections.findIndex((s) => s.id === targetSection.id);
+            const targetIndex = mainSections.findIndex(
+              (s) => s.id === targetSection.id,
+            );
             if (targetIndex !== -1) {
               return targetIndex;
             }
@@ -1314,9 +1547,13 @@ case "zone-out":
       if (currentMainSection.nextSectionId.toLowerCase() === "end") {
         return mainSections.length;
       }
-      const targetSection = form.sections.find((s) => s.id === currentMainSection.nextSectionId && !s.isSubsection);
+      const targetSection = form.sections.find(
+        (s) => s.id === currentMainSection.nextSectionId && !s.isSubsection,
+      );
       if (targetSection) {
-        const targetIndex = mainSections.findIndex((s) => s.id === targetSection.id);
+        const targetIndex = mainSections.findIndex(
+          (s) => s.id === targetSection.id,
+        );
         if (targetIndex !== -1) {
           return targetIndex;
         }
@@ -1334,14 +1571,19 @@ case "zone-out":
   const checkSectionRequiredAnswers = (section: any): boolean => {
     if (!section) return true;
 
-    const visibleQuestions = getOrderedVisibleQuestions(section.questions || [], answers);
+    const visibleQuestions = getOrderedVisibleQuestions(
+      section.questions || [],
+      answers,
+    );
     const hasRequiredAnswers = visibleQuestions.every(
-      (q) => !q.required || answers[q.id || q._id]
+      (q) => !q.required || answers[q.id || q._id],
     );
     if (!hasRequiredAnswers) return false;
 
     if (section.subsections && section.subsections.length > 0) {
-      const allSubsectionsValid = section.subsections.every((sub: any) => checkSectionRequiredAnswers(sub));
+      const allSubsectionsValid = section.subsections.every((sub: any) =>
+        checkSectionRequiredAnswers(sub),
+      );
       if (!allSubsectionsValid) return false;
     }
 
@@ -1357,7 +1599,9 @@ case "zone-out":
 
     // Track section completion for analytics
     if (onSectionComplete && formSessionId) {
-      const timeSpentSeconds = Math.floor((new Date().getTime() - sectionStartTime.getTime()) / 1000);
+      const timeSpentSeconds = Math.floor(
+        (new Date().getTime() - sectionStartTime.getTime()) / 1000,
+      );
       let questionCount = currentMainSection.questions?.length || 0;
       if (currentMainSection.subsections) {
         currentMainSection.subsections.forEach((sub: any) => {
@@ -1368,18 +1612,22 @@ case "zone-out":
         currentMainSection.id,
         currentMainSection.title || "Untitled Section",
         timeSpentSeconds,
-        questionCount
+        questionCount,
       );
     }
 
     setSectionStartTime(new Date());
-    if (currentSectionIndex === 0 && formSessionId && chassisNumbers.length > 0) {
-  if (!answers['chassis_number']) {
-    showNotifyError("Please select a Chassis Number to continue");
-    window.scrollTo({ top: 0, behavior: "smooth" });
-    return;
-  }
-}
+    if (
+      currentSectionIndex === 0 &&
+      formSessionId &&
+      chassisNumbers.length > 0
+    ) {
+      if (!answers["chassis_number"]) {
+        showNotifyError("Please select a Chassis Number to continue");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+    }
 
     if (!validateSections([currentMainSection])) return;
 
@@ -1484,10 +1732,14 @@ case "zone-out":
             </div>
           </div>
           <div className="space-y-2">
-            <p className={`text-[11px] font-black uppercase tracking-widest ${darkMode ? "text-emerald-400" : "text-emerald-600"}`}>
+            <p
+              className={`text-[11px] font-black uppercase tracking-widest ${darkMode ? "text-emerald-400" : "text-emerald-600"}`}
+            >
               Searching...
             </p>
-            <p className={`text-[9px] font-bold ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+            <p
+              className={`text-[9px] font-bold ${darkMode ? "text-slate-500" : "text-slate-400"}`}
+            >
               Checking records
             </p>
           </div>
@@ -1504,7 +1756,9 @@ case "zone-out":
               Assistant Ready
             </p>
             <p className="text-[9px] font-medium leading-tight">
-              Start typing to see<br />smart recommendations
+              Start typing to see
+              <br />
+              smart recommendations
             </p>
           </div>
         </div>
@@ -1514,30 +1768,41 @@ case "zone-out":
     return (
       <div className="flex flex-col h-full overflow-hidden">
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
-          <div className={`p-5 rounded-2xl ${darkMode ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-100"} border shadow-sm shadow-emerald-500/5 animate-in zoom-in-95 duration-500`}>
+          <div
+            className={`p-5 rounded-2xl ${darkMode ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-100"} border shadow-sm shadow-emerald-500/5 animate-in zoom-in-95 duration-500`}
+          >
             <div className="flex items-center gap-3 mb-3 text-emerald-500">
               <Sparkles className="h-5 w-5" />
               <span className="text-[10px] font-black uppercase tracking-widest">
                 Previous Entries
               </span>
             </div>
-            <p className={`text-[10px] font-bold leading-relaxed ${darkMode ? "text-emerald-400/80" : "text-emerald-600/80"}`}>
-              Found {suggestedAnswers.length} historical records for this chassis.
+            <p
+              className={`text-[10px] font-bold leading-relaxed ${darkMode ? "text-emerald-400/80" : "text-emerald-600/80"}`}
+            >
+              Found {suggestedAnswers.length} historical records for this
+              chassis.
             </p>
           </div>
 
           <div className="space-y-4">
             <div className="flex flex-col gap-1">
-              <span className={`text-[10px] font-black uppercase tracking-[0.1em] ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+              <span
+                className={`text-[10px] font-black uppercase tracking-[0.1em] ${darkMode ? "text-slate-400" : "text-slate-500"}`}
+              >
                 Selected Rank:
               </span>
-              <div className={`text-[14px] font-black ${darkMode ? "text-emerald-400" : "text-emerald-600"}`}>
+              <div
+                className={`text-[14px] font-black ${darkMode ? "text-emerald-400" : "text-emerald-600"}`}
+              >
                 #{selectedRank || 1} Record Applied
               </div>
             </div>
 
             <div className="space-y-3">
-              <span className={`text-[9px] font-black uppercase tracking-widest ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+              <span
+                className={`text-[9px] font-black uppercase tracking-widest ${darkMode ? "text-slate-500" : "text-slate-400"}`}
+              >
                 Switch Record:
               </span>
               <div className="flex flex-wrap gap-2">
@@ -1561,27 +1826,51 @@ case "zone-out":
             </div>
 
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-3">
-              <span className={`text-[9px] font-black uppercase tracking-widest ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+              <span
+                className={`text-[9px] font-black uppercase tracking-widest ${darkMode ? "text-slate-500" : "text-slate-400"}`}
+              >
                 Record Content:
               </span>
               <div className="space-y-3">
                 {(() => {
-                  const activeRecord = suggestedAnswers.find((s) => s.rank === (selectedRank || 1));
+                  const activeRecord = suggestedAnswers.find(
+                    (s) => s.rank === (selectedRank || 1),
+                  );
                   if (!activeRecord) return null;
 
                   const entries = Object.entries(activeRecord.answers);
                   const uniqueEntries = new Map();
-                  const normalizeKey = (s: string) => String(s || "").toLowerCase().replace(/_tracking$/, "").replace(/^_/, "").trim();
-                  const activeTargetId = triggeringQuestionId || (lastSuggestionSource?.split(':')[0]);
-                  const normalizedActiveTarget = activeTargetId ? normalizeKey(activeTargetId) : null;
+                  const normalizeKey = (s: string) =>
+                    String(s || "")
+                      .toLowerCase()
+                      .replace(/_tracking$/, "")
+                      .replace(/^_/, "")
+                      .trim();
+                  const activeTargetId =
+                    triggeringQuestionId || lastSuggestionSource?.split(":")[0];
+                  const normalizedActiveTarget = activeTargetId
+                    ? normalizeKey(activeTargetId)
+                    : null;
 
                   entries.forEach(([key, val]) => {
-                    if (key.startsWith("_") || !val || (typeof val === "string" && val.trim() === "")) return;
+                    if (
+                      key.startsWith("_") ||
+                      !val ||
+                      (typeof val === "string" && val.trim() === "")
+                    )
+                      return;
                     const baseKey = key.replace("_tracking", "");
-                    if (normalizedActiveTarget && normalizeKey(baseKey) !== normalizedActiveTarget) return;
+                    if (
+                      normalizedActiveTarget &&
+                      normalizeKey(baseKey) !== normalizedActiveTarget
+                    )
+                      return;
                     const isTracking = key.endsWith("_tracking");
                     if (!uniqueEntries.has(baseKey)) {
-                      uniqueEntries.set(baseKey, { main: null, tracking: null });
+                      uniqueEntries.set(baseKey, {
+                        main: null,
+                        tracking: null,
+                      });
                     }
                     const entry = uniqueEntries.get(baseKey);
                     if (isTracking) entry.tracking = val;
@@ -1590,11 +1879,19 @@ case "zone-out":
 
                   const items = Array.from(uniqueEntries.entries());
                   if (items.length === 0) {
-                    return <p className={`text-[10px] italic ${darkMode ? "text-slate-600" : "text-slate-400"}`}>No historical record for this specific question.</p>;
+                    return (
+                      <p
+                        className={`text-[10px] italic ${darkMode ? "text-slate-600" : "text-slate-400"}`}
+                      >
+                        No historical record for this specific question.
+                      </p>
+                    );
                   }
 
                   return items.map(([baseKey, data]) => {
-                    const question = allFormQuestions.find((q) => (q.id || q._id) === baseKey);
+                    const question = allFormQuestions.find(
+                      (q) => (q.id || q._id) === baseKey,
+                    );
                     const qText = question?.text || baseKey;
                     const formatVal = (v: any) => {
                       if (!v) return null;
@@ -1602,10 +1899,17 @@ case "zone-out":
                         if (v.chassisNumber) {
                           const parts = [];
                           if (v.status) parts.push(`Status: ${v.status}`);
-                          if (v.zone?.length) parts.push(`Zones: ${v.zone.join(", ")}`);
-                          if (v.defectCategory) parts.push(`Category: ${v.defectCategory}`);
-                          if (v.defects?.length) parts.push(`Defects: ${v.defects.map((d: any) => (typeof d === "string" ? d : d.name)).join(", ")}`);
-                          return parts.length ? parts.join(" | ") : v.chassisNumber;
+                          if (v.zone?.length)
+                            parts.push(`Zones: ${v.zone.join(", ")}`);
+                          if (v.defectCategory)
+                            parts.push(`Category: ${v.defectCategory}`);
+                          if (v.defects?.length)
+                            parts.push(
+                              `Defects: ${v.defects.map((d: any) => (typeof d === "string" ? d : d.name)).join(", ")}`,
+                            );
+                          return parts.length
+                            ? parts.join(" | ")
+                            : v.chassisNumber;
                         }
                         return JSON.stringify(v);
                       }
@@ -1618,21 +1922,41 @@ case "zone-out":
                     if (!mainDisplay && !trackingDisplay) return null;
 
                     return (
-                      <div key={baseKey} className={`p-4 rounded-xl border ${darkMode ? "bg-slate-800/50 border-slate-700" : "bg-slate-50 border-slate-100"} space-y-3`}>
+                      <div
+                        key={baseKey}
+                        className={`p-4 rounded-xl border ${darkMode ? "bg-slate-800/50 border-slate-700" : "bg-slate-50 border-slate-100"} space-y-3`}
+                      >
                         <div>
-                          <p className="text-[8px] font-black uppercase tracking-tight text-slate-400 mb-1">{qText}</p>
+                          <p className="text-[8px] font-black uppercase tracking-tight text-slate-400 mb-1">
+                            {qText}
+                          </p>
                           {trackingDisplay && (
-                            <p className={`text-[10px] font-bold ${darkMode ? "text-blue-400" : "text-blue-600"} break-words mb-1`}>
-                              <span className="opacity-50 text-[8px] mr-1">TRACKING:</span> {trackingDisplay}
+                            <p
+                              className={`text-[10px] font-bold ${darkMode ? "text-blue-400" : "text-blue-600"} break-words mb-1`}
+                            >
+                              <span className="opacity-50 text-[8px] mr-1">
+                                TRACKING:
+                              </span>{" "}
+                              {trackingDisplay}
                             </p>
                           )}
                           {mainDisplay && (
-                            <p className={`text-[10px] font-bold ${darkMode ? "text-emerald-400" : "text-emerald-600"} break-words`}>{mainDisplay}</p>
+                            <p
+                              className={`text-[10px] font-bold ${darkMode ? "text-emerald-400" : "text-emerald-600"} break-words`}
+                            >
+                              {mainDisplay}
+                            </p>
                           )}
                         </div>
                         <button
                           type="button"
-                          onClick={() => applySuggestions(activeRecord.answers, baseKey, activeRecord.rank)}
+                          onClick={() =>
+                            applySuggestions(
+                              activeRecord.answers,
+                              baseKey,
+                              activeRecord.rank,
+                            )
+                          }
                           className="w-full py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-black uppercase tracking-widest transition-all active:scale-[0.98] shadow-lg shadow-emerald-600/20"
                         >
                           Apply This Answer
@@ -1669,11 +1993,16 @@ case "zone-out":
     if (!currentMainSection) return true;
 
     const allSectionsToCheck = form.sections.filter(
-      (s) => s.id === currentMainSection.id || (s.isSubsection && s.parentSectionId === currentMainSection.id),
+      (s) =>
+        s.id === currentMainSection.id ||
+        (s.isSubsection && s.parentSectionId === currentMainSection.id),
     );
 
     for (const section of allSectionsToCheck) {
-      const visibleQuestions = getOrderedVisibleQuestions(section.questions, answers);
+      const visibleQuestions = getOrderedVisibleQuestions(
+        section.questions,
+        answers,
+      );
       for (const q of visibleQuestions) {
         const answer = answers[q.id];
         if (answer !== undefined && answer !== null) {
@@ -1682,17 +2011,28 @@ case "zone-out":
               r.sectionId === section.id &&
               r.questionId === q.id &&
               (Array.isArray(answer)
-                ? answer.some((v) => v?.toString().toLowerCase() === r.optionLabel?.toLowerCase())
-                : answer.toString().toLowerCase() === r.optionLabel?.toLowerCase()),
+                ? answer.some(
+                    (v) =>
+                      v?.toString().toLowerCase() ===
+                      r.optionLabel?.toLowerCase(),
+                  )
+                : answer.toString().toLowerCase() ===
+                  r.optionLabel?.toLowerCase()),
           );
-          if (rule?.targetSectionId && rule.targetSectionId.toLowerCase() === "end") {
+          if (
+            rule?.targetSectionId &&
+            rule.targetSectionId.toLowerCase() === "end"
+          ) {
             return true;
           }
         }
       }
     }
 
-    if (currentMainSection.nextSectionId && currentMainSection.nextSectionId.toLowerCase() === "end") {
+    if (
+      currentMainSection.nextSectionId &&
+      currentMainSection.nextSectionId.toLowerCase() === "end"
+    ) {
       return true;
     }
 
@@ -1708,7 +2048,8 @@ case "zone-out":
         ),
       ),
     );
-    const hasDirectLink = currentMainSection.nextSectionId &&
+    const hasDirectLink =
+      currentMainSection.nextSectionId &&
       currentMainSection.nextSectionId.toLowerCase() !== "end" &&
       form.sections.some((s) => s.id === currentMainSection.nextSectionId);
 
@@ -1834,9 +2175,15 @@ case "zone-out":
                     ? "bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700/50"
                     : "bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200"
                 }`}
-                title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                title={
+                  darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"
+                }
               >
-                {darkMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                {darkMode ? (
+                  <Sun className="h-3.5 w-3.5" />
+                ) : (
+                  <Moon className="h-3.5 w-3.5" />
+                )}
               </button>
             </div>
             <div className="p-6">
@@ -1866,26 +2213,39 @@ case "zone-out":
                   </div>
                   <div className="grid gap-5 text-xs sm:grid-cols-3">
                     <div>
-                      <p className={`font-bold ${darkMode ? "text-slate-300" : "text-slate-900"}`}>
+                      <p
+                        className={`font-bold ${darkMode ? "text-slate-300" : "text-slate-900"}`}
+                      >
                         Coordinates
                       </p>
-                      <p className={`mt-1 font-mono ${darkMode ? "text-slate-500" : "text-slate-600"}`}>
-                        {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
+                      <p
+                        className={`mt-1 font-mono ${darkMode ? "text-slate-500" : "text-slate-600"}`}
+                      >
+                        {location.latitude.toFixed(5)},{" "}
+                        {location.longitude.toFixed(5)}
                       </p>
                     </div>
                     <div>
-                      <p className={`font-bold ${darkMode ? "text-slate-300" : "text-slate-900"}`}>
+                      <p
+                        className={`font-bold ${darkMode ? "text-slate-300" : "text-slate-900"}`}
+                      >
                         Approximate area
                       </p>
-                      <p className={`mt-1 ${darkMode ? "text-slate-500" : "text-slate-600"} line-clamp-2`}>
+                      <p
+                        className={`mt-1 ${darkMode ? "text-slate-500" : "text-slate-600"} line-clamp-2`}
+                      >
                         {locationDisplayName || "Loading..."}
                       </p>
                     </div>
                     <div>
-                      <p className={`font-bold ${darkMode ? "text-slate-300" : "text-slate-900"}`}>
+                      <p
+                        className={`font-bold ${darkMode ? "text-slate-300" : "text-slate-900"}`}
+                      >
                         Accuracy
                       </p>
-                      <p className={`mt-1 ${darkMode ? "text-slate-500" : "text-slate-600"}`}>
+                      <p
+                        className={`mt-1 ${darkMode ? "text-slate-500" : "text-slate-600"}`}
+                      >
                         ±{Math.round(location.accuracy)}m
                       </p>
                     </div>
@@ -1915,11 +2275,17 @@ case "zone-out":
                 <div
                   className={`mt-6 rounded-xl border ${darkMode ? "border-red-500/10 bg-red-500/5" : "border-red-100/50 bg-red-50/30"} p-6`}
                 >
-                  <p className={`text-xs font-bold ${darkMode ? "text-red-400" : "text-red-700"}`}>
+                  <p
+                    className={`text-xs font-bold ${darkMode ? "text-red-400" : "text-red-700"}`}
+                  >
                     ⚠️ {locationError}
                   </p>
                   <button
-                    onClick={() => locationError.includes("refresh") ? window.location.reload() : handleRefreshLocation()}
+                    onClick={() =>
+                      locationError.includes("refresh")
+                        ? window.location.reload()
+                        : handleRefreshLocation()
+                    }
                     className={`mt-4 w-full inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs font-bold transition-all duration-200 ${
                       darkMode
                         ? "bg-red-500/10 text-red-400 hover:bg-red-500/20"
@@ -1927,7 +2293,9 @@ case "zone-out":
                     }`}
                   >
                     <RefreshCw className="h-3.5 w-3.5" />
-                    {locationError.includes("refresh") ? "Refresh Page" : "Try Again"}
+                    {locationError.includes("refresh")
+                      ? "Refresh Page"
+                      : "Try Again"}
                   </button>
                 </div>
               ) : (
@@ -1935,7 +2303,9 @@ case "zone-out":
                   className={`mt-6 flex items-center gap-3 rounded-lg border ${darkMode ? "border-blue-500/20 bg-blue-500/5" : "border-blue-100 bg-blue-50/50"} px-6 py-4`}
                 >
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
-                  <span className={`text-xs font-bold ${darkMode ? "text-blue-400" : "text-blue-700"}`}>
+                  <span
+                    className={`text-xs font-bold ${darkMode ? "text-blue-400" : "text-blue-700"}`}
+                  >
                     Capturing your location...
                   </span>
                 </div>
@@ -1950,21 +2320,28 @@ case "zone-out":
   // Main form view
   const mainSections = getMainSections();
   const currentSection = mainSections[currentSectionIndex];
-  const effectiveViewType = form?.viewType || (form as any)?.view_type || "section-wise";
+  const effectiveViewType =
+    form?.viewType || (form as any)?.view_type || "section-wise";
 
   const subsections = form.sections.filter(
     (s) => s.isSubsection && s.parentSectionId === currentSection?.id,
   );
-  const allSectionsToDisplay = currentSection ? [currentSection, ...subsections] : [];
+  const allSectionsToDisplay = currentSection
+    ? [currentSection, ...subsections]
+    : [];
 
   let progressPercentage = 0;
   let progressLabel = "";
 
   if (effectiveViewType === "question-wise" && currentSection?.isVirtual) {
-    progressPercentage = ((currentSection.originalSectionIndex + 1) / currentSection.totalOriginalSections) * 100;
+    progressPercentage =
+      ((currentSection.originalSectionIndex + 1) /
+        currentSection.totalOriginalSections) *
+      100;
     progressLabel = `${currentSection.originalSectionIndex + 1} / ${currentSection.totalOriginalSections}`;
   } else {
-    progressPercentage = ((currentSectionIndex + 1) / mainSections.length) * 100;
+    progressPercentage =
+      ((currentSectionIndex + 1) / mainSections.length) * 100;
     progressLabel = `${currentSectionIndex + 1} / ${mainSections.length}`;
   }
 
@@ -2019,10 +2396,14 @@ case "zone-out":
                   />
                 </div>
                 <div className="flex items-center gap-2 whitespace-nowrap">
-                  <span className={`text-[10px] font-black ${darkMode ? "text-blue-400" : "text-blue-600"}`}>
+                  <span
+                    className={`text-[10px] font-black ${darkMode ? "text-blue-400" : "text-blue-600"}`}
+                  >
                     {Math.round(progressPercentage)}%
                   </span>
-                  <span className={`text-[9px] font-bold uppercase tracking-widest ${darkMode ? "text-slate-500" : "text-slate-400"}`}>
+                  <span
+                    className={`text-[9px] font-bold uppercase tracking-widest ${darkMode ? "text-slate-500" : "text-slate-400"}`}
+                  >
                     {progressLabel}
                   </span>
                 </div>
@@ -2069,7 +2450,11 @@ case "zone-out":
                     : "bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200"
                 }`}
               >
-                {darkMode ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+                {darkMode ? (
+                  <Sun className="h-3.5 w-3.5" />
+                ) : (
+                  <Moon className="h-3.5 w-3.5" />
+                )}
               </button>
             </div>
           </div>
@@ -2083,68 +2468,108 @@ case "zone-out":
             {/* Form Column */}
             <div className="flex-1 w-full min-w-0 space-y-4 max-w-5xl mx-auto">
               {/* Chassis Number Selection (If enabled and at first section) */}
-              {formSessionId && chassisNumbers.length > 0 && currentSectionIndex === 0 && (
-                <div className={`p-8 rounded-2xl border-2 ${darkMode ? "bg-purple-500/5 border-purple-500/20" : "bg-purple-50 border-purple-100"} shadow-sm relative overflow-hidden group`}>
+              {formSessionId &&
+                chassisNumbers.length > 0 &&
+                currentSectionIndex === 0 && (
+                  <div
+                    className={`p-8 rounded-2xl border-2 ${darkMode ? "bg-purple-500/5 border-purple-500/20" : "bg-purple-50 border-purple-100"} shadow-sm relative overflow-hidden group`}
+                  >
                     <div className="absolute top-0 right-0 p-4 opacity-10 font-bold">
-                    <Clipboard className={`w-16 h-16 ${darkMode ? "text-purple-400" : "text-purple-600"}`} />
+                      <Clipboard
+                        className={`w-16 h-16 ${darkMode ? "text-purple-400" : "text-purple-600"}`}
+                      />
                     </div>
-                  <h2 className={`text-xl font-bold ${darkMode ? "text-purple-300" : "text-purple-900"} mb-6 flex items-center gap-2`}>
-                    <div className={`p-2 rounded-lg ${darkMode ? "bg-purple-800/30" : "bg-purple-100"}`}>
-                      <Users className={`w-5 h-5 ${darkMode ? "text-purple-400" : "text-purple-600"}`} />
+                    <h2
+                      className={`text-xl font-bold ${darkMode ? "text-purple-300" : "text-purple-900"} mb-6 flex items-center gap-2`}
+                    >
+                      <div
+                        className={`p-2 rounded-lg ${darkMode ? "bg-purple-800/30" : "bg-purple-100"}`}
+                      >
+                        <Users
+                          className={`w-5 h-5 ${darkMode ? "text-purple-400" : "text-purple-600"}`}
+                        />
                       </div>
                       Select Chassis Number *
                     </h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {chassisNumbers.map((cn: { chassisNumber: string; partDescription: string }) => {
+                      {chassisNumbers.map(
+                        (cn: {
+                          chassisNumber: string;
+                          partDescription: string;
+                        }) => {
                           const chassisAssignments = chassisTenantAssignments;
-                      const isVisibleToTenant = !user?.tenantId ||
+                          const isVisibleToTenant =
+                            !user?.tenantId ||
                             !chassisAssignments[cn.chassisNumber] ||
                             chassisAssignments[cn.chassisNumber].length === 0 ||
-                        chassisAssignments[cn.chassisNumber].includes(user.tenantId);
+                            chassisAssignments[cn.chassisNumber].includes(
+                              user.tenantId,
+                            );
 
                           if (!isVisibleToTenant) return null;
 
-                      const displayValue = cn.partDescription ? `${cn.chassisNumber}-${cn.partDescription}` : cn.chassisNumber;
+                          const displayValue = cn.partDescription
+                            ? `${cn.chassisNumber}-${cn.partDescription}`
+                            : cn.chassisNumber;
 
                           return (
                             <button
                               key={cn.chassisNumber}
                               type="button"
-                          onClick={() => handleResponseChange('chassis_number', cn.chassisNumber)}
+                              onClick={() =>
+                                handleResponseChange(
+                                  "chassis_number",
+                                  cn.chassisNumber,
+                                )
+                              }
                               className={`p-4 rounded-xl text-left border-2 transition-all duration-200 group relative overflow-hidden ${
-                            answers['chassis_number'] === cn.chassisNumber
+                                answers["chassis_number"] === cn.chassisNumber
                                   ? `border-purple-600 ${darkMode ? "bg-gray-800" : "bg-white"} shadow-lg ring-4 ring-purple-100 dark:ring-purple-900/30 scale-[1.02]`
                                   : `border-white dark:border-gray-700 ${darkMode ? "bg-gray-800/60" : "bg-white/60"} hover:border-purple-300 dark:hover:border-purple-500 hover:bg-white dark:hover:bg-gray-800 hover:shadow-md`
                               }`}
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex flex-col">
-                              <span className={`font-bold ${answers['chassis_number'] === cn.chassisNumber ? "text-purple-700 dark:text-purple-300" : "text-gray-600 dark:text-gray-400"}`}>
+                                  <span
+                                    className={`font-bold ${answers["chassis_number"] === cn.chassisNumber ? "text-purple-700 dark:text-purple-300" : "text-gray-600 dark:text-gray-400"}`}
+                                  >
                                     {cn.chassisNumber}
                                   </span>
                                   {cn.partDescription && (
-                                <span className={`text-xs ${answers['chassis_number'] === cn.chassisNumber ? "text-purple-500 dark:text-purple-400" : "text-gray-500 dark:text-gray-400"}`}>
+                                    <span
+                                      className={`text-xs ${answers["chassis_number"] === cn.chassisNumber ? "text-purple-500 dark:text-purple-400" : "text-gray-500 dark:text-gray-400"}`}
+                                    >
                                       {cn.partDescription}
                                     </span>
                                   )}
                                 </div>
-                            {answers['chassis_number'] === cn.chassisNumber && (
+                                {answers["chassis_number"] ===
+                                  cn.chassisNumber && (
                                   <div className="w-5 h-5 bg-purple-600 rounded-full flex items-center justify-center">
                                     <Send className="w-3 h-3 text-white" />
                                   </div>
                                 )}
                               </div>
-                          <div className={`mt-1 text-[10px] uppercase tracking-wider font-bold ${answers['chassis_number'] === cn.chassisNumber ? "text-purple-400 dark:text-purple-500" : "text-gray-400"}`}>
-                            {answers['chassis_number'] === cn.chassisNumber ? 'Selected Chassis' : 'Available'}
+                              <div
+                                className={`mt-1 text-[10px] uppercase tracking-wider font-bold ${answers["chassis_number"] === cn.chassisNumber ? "text-purple-400 dark:text-purple-500" : "text-gray-400"}`}
+                              >
+                                {answers["chassis_number"] === cn.chassisNumber
+                                  ? "Selected Chassis"
+                                  : "Available"}
                               </div>
                             </button>
                           );
-                    })}
+                        },
+                      )}
                     </div>
                   </div>
                 )}
 
-              <form id="customer-form" onSubmit={handleSubmit} className="space-y-0">
+              <form
+                id="customer-form"
+                onSubmit={handleSubmit}
+                className="space-y-0"
+              >
                 <div className="space-y-4">
                   <div
                     className={`rounded-xl border ${darkMode ? "border-slate-800 bg-slate-900/40" : "border-slate-200 bg-white shadow-sm shadow-slate-200/50"} overflow-hidden backdrop-blur-sm`}
@@ -2154,32 +2579,52 @@ case "zone-out":
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1">
-                          <div className={`inline-flex items-center gap-2.5 ${(currentSection.title || (currentSection.description && currentSection.description !== form.description)) ? 'mb-3' : ''}`}>
+                          <div
+                            className={`inline-flex items-center gap-2.5 ${currentSection.title || (currentSection.description && currentSection.description !== form.description) ? "mb-3" : ""}`}
+                          >
                             <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-blue-600 text-white font-black text-[11px] shadow-lg shadow-blue-500/20">
                               {currentSectionIndex + 1}
                             </div>
                             <div className="flex flex-col">
-                              <span className={`text-[8px] font-black uppercase tracking-[0.25em] ${darkMode ? "text-slate-600" : "text-slate-400"}`}>
-                                {effectiveViewType === "question-wise" && currentSection.isVirtual
+                              <span
+                                className={`text-[8px] font-black uppercase tracking-[0.25em] ${darkMode ? "text-slate-600" : "text-slate-400"}`}
+                              >
+                                {effectiveViewType === "question-wise" &&
+                                currentSection.isVirtual
                                   ? `Section ${currentSection.originalSectionIndex + 1}`
                                   : "Current Phase"}
                               </span>
-                              <span className={`text-[10px] font-bold ${darkMode ? "text-blue-400" : "text-blue-600"}`}>
-                                {effectiveViewType === "question-wise" && currentSection.isVirtual ? (
-                                  <>Question {currentSection.questionIndex + 1} of {currentSection.totalQuestionsInSection}</>
+                              <span
+                                className={`text-[10px] font-bold ${darkMode ? "text-blue-400" : "text-blue-600"}`}
+                              >
+                                {effectiveViewType === "question-wise" &&
+                                currentSection.isVirtual ? (
+                                  <>
+                                    Question {currentSection.questionIndex + 1}{" "}
+                                    of {currentSection.totalQuestionsInSection}
+                                  </>
                                 ) : (
-                                  <>0{currentSectionIndex + 1} of 0{mainSections.length}</>
+                                  <>
+                                    0{currentSectionIndex + 1} of 0
+                                    {mainSections.length}
+                                  </>
                                 )}
                               </span>
                             </div>
                           </div>
-                          {currentSection.title && currentSection.title !== form.title && (
-                            <h2 className={`text-lg font-black tracking-tight ${darkMode ? "text-white" : "text-slate-900"}`}>
+                          {currentSection.title &&
+                            currentSection.title !== form.title && (
+                              <h2
+                                className={`text-lg font-black tracking-tight ${darkMode ? "text-white" : "text-slate-900"}`}
+                              >
                                 {currentSection.title || currentSection.name}
                               </h2>
                             )}
-                          {currentSection.description && currentSection.description !== form.description && (
-                            <p className={`mt-1 text-xs ${darkMode ? "text-slate-500" : "text-slate-500"}`}>
+                          {currentSection.description &&
+                            currentSection.description !== form.description && (
+                              <p
+                                className={`mt-1 text-xs ${darkMode ? "text-slate-500" : "text-slate-500"}`}
+                              >
                                 {currentSection.description}
                               </p>
                             )}
@@ -2191,12 +2636,18 @@ case "zone-out":
                       {allSectionsToDisplay.map((section) => (
                         <div key={section.id}>
                           {section.isSubsection && (
-                            <div className={`mb-4 pb-2 border-b ${darkMode ? "border-emerald-500/10" : "border-emerald-100/50"}`}>
-                              <h3 className={`text-sm font-bold ${darkMode ? "text-emerald-400" : "text-emerald-700"}`}>
+                            <div
+                              className={`mb-4 pb-2 border-b ${darkMode ? "border-emerald-500/10" : "border-emerald-100/50"}`}
+                            >
+                              <h3
+                                className={`text-sm font-bold ${darkMode ? "text-emerald-400" : "text-emerald-700"}`}
+                              >
                                 {section.title}
                               </h3>
                               {section.description && (
-                                <p className={`text-[11px] ${darkMode ? "text-emerald-500/60" : "text-emerald-600/80"}`}>
+                                <p
+                                  className={`text-[11px] ${darkMode ? "text-emerald-500/60" : "text-emerald-600/80"}`}
+                                >
                                   {section.description}
                                 </p>
                               )}
@@ -2227,24 +2678,40 @@ case "zone-out":
             </div>
 
             {/* Assistant Sidebar */}
-            {activeTrackQuestion && suggestedAnswers && !suggestedAnswers._no_match && (
-              <div className="hidden lg:block w-[380px] sticky top-24 animate-in fade-in slide-in-from-right-4 duration-500 z-20">
-                <div className={`rounded-2xl border ${darkMode ? "border-slate-800 bg-slate-900/40" : "border-slate-200 bg-white shadow-xl shadow-slate-200/50"} overflow-hidden backdrop-blur-sm`}>
-                  <div className={`border-b ${darkMode ? "border-slate-800 bg-slate-900/60" : "border-slate-50 bg-slate-50/80"} px-6 py-4`}>
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${darkMode ? "bg-blue-500/20" : "bg-blue-50"}`}>
-                        <Sparkles className="h-4 w-4 text-blue-500" />
-                      </div>
-                      <div>
-                        <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${darkMode ? "text-slate-500" : "text-slate-400"}`}>Assistant</span>
-                        <h3 className={`text-sm font-black ${darkMode ? "text-white" : "text-slate-900"}`}>Found Records!</h3>
+            {activeTrackQuestion &&
+              suggestedAnswers &&
+              !suggestedAnswers._no_match && (
+                <div className="hidden lg:block w-[380px] sticky top-24 animate-in fade-in slide-in-from-right-4 duration-500 z-20">
+                  <div
+                    className={`rounded-2xl border ${darkMode ? "border-slate-800 bg-slate-900/40" : "border-slate-200 bg-white shadow-xl shadow-slate-200/50"} overflow-hidden backdrop-blur-sm`}
+                  >
+                    <div
+                      className={`border-b ${darkMode ? "border-slate-800 bg-slate-900/60" : "border-slate-50 bg-slate-50/80"} px-6 py-4`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`p-2 rounded-lg ${darkMode ? "bg-blue-500/20" : "bg-blue-50"}`}
+                        >
+                          <Sparkles className="h-4 w-4 text-blue-500" />
+                        </div>
+                        <div>
+                          <span
+                            className={`text-[10px] font-black uppercase tracking-[0.2em] ${darkMode ? "text-slate-500" : "text-slate-400"}`}
+                          >
+                            Assistant
+                          </span>
+                          <h3
+                            className={`text-sm font-black ${darkMode ? "text-white" : "text-slate-900"}`}
+                          >
+                            Found Records!
+                          </h3>
+                        </div>
                       </div>
                     </div>
+                    {renderAssistantContent()}
                   </div>
-                  {renderAssistantContent()}
                 </div>
-              </div>
-            )}
+              )}
           </div>
         </div>
       </div>
@@ -2269,7 +2736,6 @@ case "zone-out":
               </button>
 
               {/* Location Status Badge */}
-              
             </div>
 
             <div className="flex items-center gap-3">
@@ -2333,40 +2799,58 @@ case "zone-out":
         </div>
       </div>
       {/* Mobile Assistant Toggle */}
-      {activeTrackQuestion && suggestedAnswers && !suggestedAnswers._no_match && (
-        <button
-          onClick={() => setShowMobileAssistant(true)}
-          className="lg:hidden fixed bottom-24 right-6 z-50 p-4 rounded-full bg-blue-600 text-white shadow-2xl shadow-blue-500/40 animate-bounce transition-transform active:scale-95"
-        >
-          <Sparkles className="h-6 w-6" />
-          {suggestedAnswers && Array.isArray(suggestedAnswers) && suggestedAnswers.length > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold ring-2 ring-white">
-              {suggestedAnswers.length}
-            </span>
-          )}
-        </button>
-      )}
+      {activeTrackQuestion &&
+        suggestedAnswers &&
+        !suggestedAnswers._no_match && (
+          <button
+            onClick={() => setShowMobileAssistant(true)}
+            className="lg:hidden fixed bottom-24 right-6 z-50 p-4 rounded-full bg-blue-600 text-white shadow-2xl shadow-blue-500/40 animate-bounce transition-transform active:scale-95"
+          >
+            <Sparkles className="h-6 w-6" />
+            {suggestedAnswers &&
+              Array.isArray(suggestedAnswers) &&
+              suggestedAnswers.length > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold ring-2 ring-white">
+                  {suggestedAnswers.length}
+                </span>
+              )}
+          </button>
+        )}
 
       {/* Mobile Assistant Modal */}
       {showMobileAssistant && (
         <div className="lg:hidden fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div 
+          <div
             className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-300"
             onClick={() => setShowMobileAssistant(false)}
           />
-          <div className={`relative w-full sm:max-w-lg max-h-[90vh] overflow-hidden rounded-t-3xl sm:rounded-3xl border-t sm:border border-slate-200 dark:border-slate-800 ${darkMode ? "bg-slate-900 shadow-2xl shadow-black" : "bg-white shadow-2xl"} animate-in slide-in-from-bottom-full duration-500 flex flex-col`}>
+          <div
+            className={`relative w-full sm:max-w-lg max-h-[90vh] overflow-hidden rounded-t-3xl sm:rounded-3xl border-t sm:border border-slate-200 dark:border-slate-800 ${darkMode ? "bg-slate-900 shadow-2xl shadow-black" : "bg-white shadow-2xl"} animate-in slide-in-from-bottom-full duration-500 flex flex-col`}
+          >
             {/* Modal Header */}
-            <div className={`p-4 border-b flex items-center justify-between sticky top-0 z-10 ${darkMode ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-100"} backdrop-blur-md`}>
+            <div
+              className={`p-4 border-b flex items-center justify-between sticky top-0 z-10 ${darkMode ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-100"} backdrop-blur-md`}
+            >
               <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${darkMode ? "bg-blue-500/20" : "bg-blue-50"}`}>
+                <div
+                  className={`p-2 rounded-lg ${darkMode ? "bg-blue-500/20" : "bg-blue-50"}`}
+                >
                   <Sparkles className="h-4 w-4 text-blue-500" />
                 </div>
                 <div>
-                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${darkMode ? "text-slate-500" : "text-slate-400"}`}>Assistant</span>
-                  <h3 className={`text-sm font-black ${darkMode ? "text-white" : "text-slate-900"}`}>Historical Records</h3>
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-[0.2em] ${darkMode ? "text-slate-500" : "text-slate-400"}`}
+                  >
+                    Assistant
+                  </span>
+                  <h3
+                    className={`text-sm font-black ${darkMode ? "text-white" : "text-slate-900"}`}
+                  >
+                    Historical Records
+                  </h3>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowMobileAssistant(false)}
                 className={`p-2 rounded-xl transition-colors ${darkMode ? "hover:bg-slate-800 text-slate-400" : "hover:bg-slate-100 text-slate-500"}`}
               >

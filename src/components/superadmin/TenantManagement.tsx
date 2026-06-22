@@ -5,7 +5,7 @@ import {
   Search,
   Trash2,
   Power,
-  Eye,
+  Eye as EyeIcon,
   Users,
   FileText,
   Upload,
@@ -56,6 +56,8 @@ interface Tenant {
     maxUsers: number;
     maxForms: number;
   };
+  internalTrackingEnabled?: boolean;
+  allowedTenantIds?: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -116,6 +118,11 @@ export default function TenantManagement() {
   const [deletingAdmin, setDeletingAdmin] = useState<string | null>(null);
   const [updatingAdmin, setUpdatingAdmin] = useState<string | null>(null);
   const [expandedAdmins, setExpandedAdmins] = useState<Set<string>>(new Set());
+  const [showInternalTrackingModal, setShowInternalTrackingModal] = useState(false);
+  const [trackingTenant, setTrackingTenant] = useState<Tenant | null>(null);
+  const [trackingEnabled, setTrackingEnabled] = useState(false);
+  const [selectedAllowedTenants, setSelectedAllowedTenants] = useState<string[]>([]);
+  const [savingTracking, setSavingTracking] = useState(false);
 
   const stats = {
     total: tenants.length,
@@ -128,6 +135,58 @@ export default function TenantManagement() {
       const next = new Set(prev);
       next.has(tenantId) ? next.delete(tenantId) : next.add(tenantId);
       return next;
+    });
+  };
+
+  const handleInternalTrackingClick = (tenant: Tenant) => {
+    setTrackingTenant(tenant);
+    setTrackingEnabled(tenant.internalTrackingEnabled || false);
+    const allowed = Array.isArray(tenant.allowedTenantIds)
+      ? tenant.allowedTenantIds.map((id: any) => id.toString ? id.toString() : id)
+      : [];
+    setSelectedAllowedTenants(allowed);
+    setShowInternalTrackingModal(true);
+  };
+
+const handleSaveInternalTracking = async () => {
+    if (!trackingTenant) return;
+    setSavingTracking(true);
+    try {
+      await apiClient.updateTenantInternalTracking(trackingTenant._id, {
+        internalTrackingEnabled: trackingEnabled,
+        allowedTenantIds: trackingEnabled ? selectedAllowedTenants : [],
+      });
+      const updatedTenant: Tenant = {
+        ...trackingTenant,
+        internalTrackingEnabled: trackingEnabled,
+        allowedTenantIds: trackingEnabled ? selectedAllowedTenants : [],
+      };
+      setTenants((prev) =>
+        prev.map((t) => (t._id === trackingTenant._id ? updatedTenant : t)),
+      );
+      if (currentTenant?._id === trackingTenant._id) {
+        updateTenant(updatedTenant);
+      }
+      showSuccess(
+        trackingEnabled
+          ? "Internal Tracking enabled successfully"
+          : "Internal Tracking disabled successfully"
+      );
+      setShowInternalTrackingModal(false);
+      setTrackingTenant(null);
+    } catch (error: any) {
+      showError(error?.message || "Failed to update Internal Tracking settings");
+    } finally {
+      setSavingTracking(false);
+    }
+  };
+
+  const toggleAllowedTenant = (tenantId: string) => {
+    setSelectedAllowedTenants((prev) => {
+      if (prev.includes(tenantId)) {
+        return prev.filter((id) => id !== tenantId);
+      }
+      return [...prev, tenantId];
     });
   };
 
@@ -836,10 +895,52 @@ export default function TenantManagement() {
                             </div>
                           </button>
 
-                          {adminsExpanded && (
-                            <div className="p-3 space-y-2 bg-white dark:bg-gray-900">
-                              {/* Add Admin Form */}
-                              {showAddAdminForm === tenant._id && (
+{adminsExpanded && (
+                             <div className="p-3 space-y-2 bg-white dark:bg-gray-900">
+                               {/* Existing Administrators List */}
+                               {Array.isArray(tenant.adminId) && tenant.adminId.length > 0 ? (
+                                 <div className="space-y-2 mb-3">
+                                   {tenant.adminId.map((admin: any) => (
+                                     <div key={admin._id || admin} className="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
+                                       <div className="flex items-center gap-2">
+                                         <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/40 flex items-center justify-center">
+                                           <span className="text-xs font-bold text-primary-600 dark:text-primary-400">
+                                             {admin.firstName?.[0]}{admin.lastName?.[0]}
+                                           </span>
+                                         </div>
+                                         <div>
+                                           <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                             {admin.firstName} {admin.lastName}
+                                           </p>
+                                           <p className="text-xs text-gray-500">{admin.email}</p>
+                                         </div>
+                                       </div>
+                                       <div className="flex items-center gap-1">
+                                         <button
+                                           onClick={() => handleEditAdminClick(tenant._id, admin)}
+                                           disabled={updatingAdmin === (admin._id || admin)}
+                                           className="p-1 text-gray-400 hover:text-primary-600 rounded"
+                                           title="Edit admin"
+                                         >
+                                           Edit
+                                         </button>
+                                         <button
+                                           onClick={() => handleDeleteAdmin(tenant._id, admin._id || admin, `${admin.firstName} ${admin.lastName}`)}
+                                           disabled={deletingAdmin === (admin._id || admin)}
+                                           className="p-1 text-gray-400 hover:text-red-600 rounded"
+                                           title="Remove admin"
+                                         >
+                                           Remove
+                                         </button>
+                                       </div>
+                                     </div>
+                                   ))}
+                                 </div>
+                               ) : showAddAdminForm !== tenant._id && (
+                                 <p className="text-xs text-gray-400 mb-3">No administrators found</p>
+                               )}
+                               {/* Add Admin Form */}
+                               {showAddAdminForm === tenant._id && (
                                 <div className="bg-primary-50 dark:bg-primary-950/20 rounded-xl p-4 border border-primary-200 dark:border-primary-900 mb-3">
                                   <div className="flex items-center justify-between mb-4">
                                     <h5 className="text-sm font-bold text-gray-900 dark:text-white">
@@ -1054,406 +1155,118 @@ export default function TenantManagement() {
                                       )}
                                     </button>
                                     <button
-                                      onClick={handleCancelAddAdmin}
-                                      className="px-4 py-2 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
+                                       onClick={handleCancelAddAdmin}
+                                       className="px-4 py-2 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
+                                     >
+                                       Cancel
+                                     </button>
+                                   </div>
+                                 </div>
+                               )}
+                             </div>
+                           )}
+                         </div>
 
-                              {!tenant.adminId ||
-                              tenant.adminId.length === 0 ? (
-                                <div className="py-6 text-center">
-                                  <Users className="w-8 h-8 text-gray-300 dark:text-gray-700 mx-auto mb-2" />
-                                  <p className="text-sm text-gray-400">
-                                    No administrators assigned
-                                  </p>
-                                </div>
-                              ) : (
-                                tenant.adminId.map((admin) => (
-                                  <div
-                                    key={admin._id}
-                                    className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 overflow-hidden"
-                                  >
-                                    {editingAdmin &&
-                                    editingAdmin.admin._id === admin._id ? (
-                                      <div className="p-4 space-y-3">
-                                        <div className="flex items-center justify-between">
-                                          <h5 className="text-sm font-bold text-gray-800 dark:text-gray-200">
-                                            Edit Admin
-                                          </h5>
-                                          <button
-                                            onClick={handleCancelEdit}
-                                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                                          >
-                                            <X className="w-4 h-4" />
-                                          </button>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-2">
-                                          <input
-                                            type="text"
-                                            value={editAdminData.firstName}
-                                            onChange={(e) =>
-                                              handleEditAdminChange(
-                                                "firstName",
-                                                e.target.value,
-                                              )
-                                            }
-                                            className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all"
-                                            placeholder="First name"
-                                          />
-                                          <input
-                                            type="text"
-                                            value={editAdminData.lastName}
-                                            onChange={(e) =>
-                                              handleEditAdminChange(
-                                                "lastName",
-                                                e.target.value,
-                                              )
-                                            }
-                                            className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all"
-                                            placeholder="Last name"
-                                          />
-                                        </div>
-                                        <input
-                                          type="email"
-                                          value={editAdminData.email}
-                                          onChange={(e) =>
-                                            handleEditAdminChange(
-                                              "email",
-                                              e.target.value,
-                                            )
-                                          }
-                                          className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all"
-                                          placeholder="Email"
-                                        />
-                                        <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
-                                          <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 mb-2">
-                                            Change Password (optional)
-                                          </p>
-                                          <div className="grid grid-cols-2 gap-2">
-                                            <input
-                                              type="password"
-                                              value={
-                                                editAdminData.newPassword || ""
-                                              }
-                                              onChange={(e) =>
-                                                handleEditAdminChange(
-                                                  "newPassword",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all"
-                                              placeholder="New password"
-                                              autoComplete="new-password"
-                                            />
-                                            <input
-                                              type="password"
-                                              value={
-                                                editAdminData.confirmNewPassword ||
-                                                ""
-                                              }
-                                              onChange={(e) =>
-                                                handleEditAdminChange(
-                                                  "confirmNewPassword",
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all"
-                                              placeholder="Confirm"
-                                              autoComplete="new-password"
-                                            />
-                                          </div>
-                                          {editAdminData.newPassword &&
-                                            editAdminData.newPassword !==
-                                              editAdminData.confirmNewPassword && (
-                                              <p className="text-red-500 text-xs mt-1">
-                                                Passwords don't match
-                                              </p>
-                                            )}
-                                          {editAdminData.newPassword &&
-                                            editAdminData.newPassword.length <
-                                              6 && (
-                                              <p className="text-red-500 text-xs mt-1">
-                                                Min 6 characters
-                                              </p>
-                                            )}
-                                        </div>
-                                        <div className="flex gap-2">
-                                          <button
-                                            onClick={handleEditAdminSubmit}
-                                            disabled={
-                                              updatingAdmin === admin._id
-                                            }
-                                            className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold py-2 rounded-lg transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-                                          >
-                                            {updatingAdmin === admin._id ? (
-                                              <>
-                                                <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
-                                                Saving...
-                                              </>
-                                            ) : (
-                                              "Save Changes"
-                                            )}
-                                          </button>
-                                          <button
-                                            onClick={handleCancelEdit}
-                                            className="px-4 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-sm font-semibold rounded-lg hover:bg-white dark:hover:bg-gray-700 transition-all"
-                                          >
-                                            Cancel
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="flex items-center gap-3 p-3">
-                                        <div
-                                          className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0 ${admin.role === "superadmin" ? "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300" : "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"}`}
-                                        >
-                                          {getInitials(
-                                            `${admin.firstName} ${admin.lastName}`,
-                                          )}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <div className="flex items-center gap-2 flex-wrap">
-                                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
-                                              {admin.firstName} {admin.lastName}
-                                            </p>
-                                            <span
-                                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${admin.role === "superadmin" ? "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300" : "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"}`}
-                                            >
-                                              {admin.role}
-                                            </span>
-                                          </div>
-                                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                                            {admin.email}
-                                          </p>
-                                          {admin.lastLogin && (
-                                            <p className="text-[10px] text-gray-400 mt-0.5">
-                                              Last login{" "}
-                                              {new Date(
-                                                admin.lastLogin,
-                                              ).toLocaleDateString()}
-                                            </p>
-                                          )}
-                                        </div>
-                                        <div className="flex items-center gap-1 flex-shrink-0">
-                                          <button
-                                            onClick={() =>
-                                              handleToggleAdminStatus(
-                                                tenant._id,
-                                                admin,
-                                              )
-                                            }
-                                            disabled={
-                                              updatingAdmin === admin._id
-                                            }
-                                            className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-all disabled:opacity-60 ${admin.isActive ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200" : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"}`}
-                                          >
-                                            {updatingAdmin === admin._id
-                                              ? "..."
-                                              : admin.isActive
-                                                ? "Active"
-                                                : "Inactive"}
-                                          </button>
-                                          <button
-                                            onClick={() =>
-                                              handleEditAdminClick(
-                                                tenant._id,
-                                                admin,
-                                              )
-                                            }
-                                            disabled={!!editingAdmin}
-                                            className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950/30 rounded-lg transition-all disabled:opacity-40"
-                                            title="Edit"
-                                          >
-                                            <svg
-                                              className="w-3.5 h-3.5"
-                                              fill="none"
-                                              stroke="currentColor"
-                                              viewBox="0 0 24 24"
-                                            >
-                                              <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                                              />
-                                            </svg>
-                                          </button>
-                                          {tenant.adminId &&
-                                            tenant.adminId.length > 1 && (
-                                              <button
-                                                onClick={() =>
-                                                  handleDeleteAdmin(
-                                                    tenant._id,
-                                                    admin._id,
-                                                    `${admin.firstName} ${admin.lastName}`,
-                                                  )
-                                                }
-                                                disabled={
-                                                  deletingAdmin === admin._id ||
-                                                  !!editingAdmin
-                                                }
-                                                className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-all disabled:opacity-40"
-                                                title="Remove"
-                                              >
-                                                {deletingAdmin === admin._id ? (
-                                                  <div className="w-3.5 h-3.5 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                                                ) : (
-                                                  <Trash2 className="w-3.5 h-3.5" />
-                                                )}
-                                              </button>
-                                            )}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))
-                              )}
-                            </div>
+                       {/* Customer Portal Toggle */}
+                       <div className="mb-5 flex items-center justify-between p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900">
+                        <div className="flex items-center gap-3">
+                          <Globe className="w-4 h-4 text-indigo-500" />
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                              Customer Portal
+                            </p>
+                            {tenant.settings?.showCustomerPortal ? (
+                              <p className="text-[10px] text-indigo-500 font-mono mt-0.5 truncate max-w-[200px]">
+                                /{tenant.slug}
+                              </p>
+                            ) : (
+                              <p className="text-xs text-gray-400">
+                                Disabled
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleToggleCustomerPortal(
+                              tenant._id,
+                              tenant.settings?.showCustomerPortal ?? false,
+                            )
+                          }
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${tenant.settings?.showCustomerPortal ? "bg-indigo-600" : "bg-gray-200 dark:bg-gray-700"}`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${tenant.settings?.showCustomerPortal ? "translate-x-6" : "translate-x-1"}`}
+                          />
+                        </button>
+                      </div>
+
+                      {/* Internal Tracking Toggle */}
+                      <div className="mb-5 flex items-center justify-between p-4 rounded-xl bg-violet-50 dark:bg-violet-950/20 border border-violet-100 dark:border-violet-900">
+                        <div className="flex items-center gap-3">
+                          <EyeIcon className="w-4 h-4 text-violet-500" />
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                              Internal Tracking
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {tenant.internalTrackingEnabled
+                                ? `Access granted to ${(tenant.allowedTenantIds?.length || 0)} tenant${(tenant.allowedTenantIds?.length || 0) !== 1 ? 's' : ''}`
+                                : "Disabled"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {tenant.internalTrackingEnabled && (
+                            <button
+                              type="button"
+                              onClick={() => handleInternalTrackingClick(tenant)}
+                              className="px-2.5 py-1 bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 text-[10px] font-bold rounded-lg hover:bg-violet-200 dark:hover:bg-violet-900/60 transition-all"
+                            >
+                              Configure
+                            </button>
                           )}
-                        </div>
-
-                        {/* Logo Upload Section */}
-                        <div className="mb-5 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30 p-4">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex items-center justify-center overflow-hidden flex-shrink-0">
-                              {tenantLogo ? (
-                                <img
-                                  src={tenantLogo}
-                                  alt="Logo"
-                                  className="w-full h-full object-contain"
-                                />
-                              ) : (
-                                <ImageIcon className="w-5 h-5 text-gray-300 dark:text-gray-600" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
-                                Tenant Logo
-                              </p>
-                              {uploadingTenantId === tenant._id &&
-                              uploadProgress[tenant._id] ? (
-                                <div className="space-y-1.5">
-                                  <div className="flex justify-between text-xs text-primary-600 font-semibold">
-                                    <span className="flex items-center gap-1">
-                                      <Upload className="w-3 h-3 animate-pulse" />{" "}
-                                      Uploading...
-                                    </span>
-                                    <span>
-                                      {uploadProgress[tenant._id].percentage}%
-                                    </span>
-                                  </div>
-                                  <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                    <div
-                                      className="h-full bg-primary-500 rounded-full transition-all duration-300"
-                                      style={{
-                                        width: `${uploadProgress[tenant._id].percentage}%`,
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="flex gap-2">
-                                  <label
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-semibold cursor-pointer hover:bg-primary-50 dark:hover:bg-primary-950/30 hover:border-primary-300 hover:text-primary-700 transition-all ${uploadingTenantId === tenant._id ? "opacity-50 cursor-not-allowed" : ""}`}
-                                  >
-                                    <Upload className="w-3.5 h-3.5" /> Upload
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      className="hidden"
-                                      onChange={(e) =>
-                                        handleTenantLogoChange(tenant._id, e)
-                                      }
-                                      disabled={
-                                        uploadingTenantId === tenant._id
-                                      }
-                                    />
-                                  </label>
-                                  {tenantLogo && (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleTenantLogoRemove(tenant._id)
-                                      }
-                                      disabled={
-                                        uploadingTenantId === tenant._id
-                                      }
-                                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-red-500 rounded-lg text-xs font-semibold hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-200 transition-all disabled:opacity-50"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" /> Remove
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Customer Portal Toggle */}
-                        <div className="mb-5 flex items-center justify-between p-4 rounded-xl bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900">
-                          <div className="flex items-center gap-3">
-                            <Globe className="w-4 h-4 text-indigo-500" />
-                            <div>
-                              <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                                Customer Portal
-                              </p>
-                              {tenant.settings?.showCustomerPortal ? (
-                                <p className="text-[10px] text-indigo-500 font-mono mt-0.5 truncate max-w-[200px]">
-                                  /{tenant.slug}
-                                </p>
-                              ) : (
-                                <p className="text-xs text-gray-400">
-                                  Disabled
-                                </p>
-                              )}
-                            </div>
-                          </div>
                           <button
                             type="button"
-                            onClick={() =>
-                              handleToggleCustomerPortal(
-                                tenant._id,
-                                tenant.settings?.showCustomerPortal ?? false,
-                              )
-                            }
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${tenant.settings?.showCustomerPortal ? "bg-indigo-600" : "bg-gray-200 dark:bg-gray-700"}`}
+                            onClick={() => {
+                              handleInternalTrackingClick(tenant);
+                            }}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 ${tenant.internalTrackingEnabled ? "bg-violet-600" : "bg-gray-200 dark:bg-gray-700"}`}
                           >
                             <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${tenant.settings?.showCustomerPortal ? "translate-x-6" : "translate-x-1"}`}
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${tenant.internalTrackingEnabled ? "translate-x-6" : "translate-x-1"}`}
                             />
                           </button>
                         </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex gap-3 pt-1">
-                          <button
-                            onClick={() => handleViewDetails(tenant)}
-                            className="flex-1 flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 text-sm"
-                          >
-                            <Eye className="w-4 h-4" />
-                            View Details
-                          </button>
-                          <button
-                            onClick={() => handleToggleStatus(tenant._id)}
-                            className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border ${
-                              tenant.isActive
-                                ? "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-100 dark:hover:bg-red-950/50"
-                                : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900 hover:bg-emerald-100 dark:hover:bg-emerald-950/50"
-                            }`}
-                            title={tenant.isActive ? "Deactivate" : "Activate"}
-                          >
-                            <Power className="w-4 h-4" />
-                            {tenant.isActive ? "Deactivate" : "Activate"}
-                          </button>
-                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+
+                      {/* Action Buttons */}
+                        <div className="flex gap-3 pt-1">
+                         <button
+                           onClick={() => handleViewDetails(tenant)}
+                           className="flex-1 flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 text-sm"
+                         >
+                           <EyeIcon className="w-4 h-4" />
+                           View Details
+                         </button>
+                         <button
+                           onClick={() => handleToggleStatus(tenant._id)}
+                           className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border ${
+                             tenant.isActive
+                               ? "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-100 dark:hover:bg-red-950/50"
+                               : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900 hover:bg-emerald-100 dark:hover:bg-emerald-950/50"
+                           }`}
+                           title={tenant.isActive ? "Deactivate" : "Activate"}
+                         >
+                           <Power className="w-4 h-4" />
+                           {tenant.isActive ? "Deactivate" : "Activate"}
+                         </button>
+                       </div>
+                     </div>
+                   </div>
+                 );
+               })}
               </div>
             )}
           </div>
@@ -1544,6 +1357,108 @@ export default function TenantManagement() {
                       <>
                         <Trash2 className="w-4 h-4" /> Delete Tenant
                       </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Internal Tracking Configuration Modal */}
+        {showInternalTrackingModal && trackingTenant && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-lg w-full border border-violet-100 dark:border-violet-900/30 overflow-hidden">
+              <div className="h-1.5 bg-gradient-to-r from-violet-500 to-purple-600" />
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-violet-100 dark:bg-violet-900/30 rounded-xl flex items-center justify-center">
+                      <EyeIcon className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                        Internal Tracking
+                      </h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Configure for {trackingTenant.companyName}
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 ${trackingEnabled ? "bg-violet-600" : "bg-gray-200 dark:bg-gray-700"}`}>
+                    <button
+                      type="button"
+                      onClick={() => setTrackingEnabled(!trackingEnabled)}
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${trackingEnabled ? "translate-x-6" : "translate-x-1"}`}
+                    />
+                  </div>
+                </div>
+
+                {trackingEnabled && (
+                  <div className="mb-5">
+                    <p className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-widest mb-3">
+                      Select Tenants to Grant Access
+                    </p>
+                    <p className="text-xs text-gray-500 mb-3">
+                      Choose which tenants {trackingTenant.companyName} can view data from:
+                    </p>
+                    <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-100 dark:divide-gray-800">
+                      {tenants
+                        .filter((t: any) => t._id !== trackingTenant._id)
+                        .map((t: any) => (
+                          <label
+                            key={t._id}
+                            className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedAllowedTenants.includes(t._id)}
+                              onChange={() => toggleAllowedTenant(t._id)}
+                              className="w-4 h-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                            />
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
+                              {t.companyName}
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-mono">
+                              /{t.slug}
+                            </span>
+                          </label>
+                        ))}
+                      {tenants.filter((t: any) => t._id !== trackingTenant._id).length === 0 && (
+                        <p className="text-xs text-gray-400 p-4 text-center">No other tenants available</p>
+                      )}
+                    </div>
+                    {selectedAllowedTenants.length === 0 && trackingEnabled && (
+                      <p className="text-xs text-amber-600 mt-2 font-semibold">
+                        Please select at least one tenant
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowInternalTrackingModal(false);
+                      setTrackingTenant(null);
+                    }}
+                    disabled={savingTracking}
+                    className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold hover:bg-gray-50 dark:hover:bg-gray-800 transition-all disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveInternalTracking}
+                    disabled={savingTracking || (trackingEnabled && selectedAllowedTenants.length === 0)}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {savingTracking ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Settings"
                     )}
                   </button>
                 </div>

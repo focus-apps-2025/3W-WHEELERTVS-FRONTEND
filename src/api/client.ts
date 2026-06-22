@@ -1507,6 +1507,10 @@ class ApiClient {
     return this.request<{ tenants: any[] }>("/tenants/minimal");
   }
 
+  async getCurrentTenant() {
+    return this.request<{ tenant: any }>("/tenants/me");
+  }
+
   async getTenant(tenantId: string) {
     return this.request<{ tenant: any }>(`/tenants/${tenantId}`);
   }
@@ -2525,14 +2529,11 @@ class ApiClient {
   }
 
   async getReviewsForResponse(responseId: string) {
-    // Backend returns { success, reviews } without a 'data' key so use raw fetch
-    // Now a public endpoint, no authentication required
     const url = `${this.baseUrl}/responses/reviews/${responseId}`;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "X-App-Type": "website",
     };
-    // Reviews are now public, so no Authorization header needed
     const res = await fetch(url, { headers });
     if (!res.ok) throw new Error(`Failed to fetch reviews: ${res.status}`);
     return res.json() as Promise<{
@@ -2545,6 +2546,51 @@ class ApiClient {
         createdAt: string;
       }>;
     }>;
+  }
+
+  // --- INTERNAL TRACKING ---
+  async updateTenantInternalTracking(
+    tenantId: string,
+    data: {
+      internalTrackingEnabled: boolean;
+      allowedTenantIds: string[];
+    },
+  ) {
+    return this.request<{ tenant: any }>(
+      `/internal-tracking/${tenantId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify(data),
+      },
+    );
+  }
+
+  async getTenantInternalTracking(tenantId: string) {
+    return this.request<{
+      tenantId: string;
+      internalTrackingEnabled: boolean;
+      allowedTenantIds: string[];
+    }>(`/internal-tracking/${tenantId}`);
+  }
+
+  async checkInternalTrackingAccess() {
+    return this.request<{
+      hasAccess: boolean;
+      isSuperAdmin: boolean;
+      allowedTenantIds: string[];
+    }>(`/internal-tracking/check-access`);
+  }
+
+  async getInternalTrackingPerformance() {
+    return this.request<{
+      tenants: Array<{
+        _id: string;
+        name: string;
+        companyName: string;
+        slug: string;
+      }>;
+      users: any[];
+    }>(`/internal-tracking/performance`);
   }
 }
 

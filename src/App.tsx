@@ -60,6 +60,7 @@ import ErrorPage from "./components/ErrorPage";
 import LeaveManagement from "./components/hr/LeaveManagement";
 import PermissionManagement from "./components/hr/PermissionManagement";
 import InspectorChat from "./components/inspectors/InspectorChat";
+import InternalTrackingPage from "./components/InternalTracking";
 
 const ROUTE_PERMISSIONS = {
   DASHBOARD: "dashboard:view",
@@ -272,6 +273,10 @@ const router = createBrowserRouter(
         {
           path: "/overall",
           element: withAuthenticatedLayout(<Overall />),
+        },
+        {
+          path: "/internal-tracking",
+          element: withAuthenticatedLayout(<InternalTrackingPage />),
         },
         {
           path: "/forms/analytics",

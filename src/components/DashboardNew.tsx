@@ -22,6 +22,8 @@ import {
   Eye,
   ChevronUp,
   ChevronDown,
+  Shield,
+  BarChart2 as BarChart2Icon,
 } from "lucide-react";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
@@ -37,6 +39,8 @@ interface Tenant {
   slug: string;
   isActive: boolean;
   createdAt: string;
+  internalTrackingEnabled?: boolean;
+  allowedTenantIds?: string[];
   settings?: {
     logo?: string;
     primaryColor?: string;
@@ -313,6 +317,8 @@ export default function DashboardNew() {
   const [activeUserNames, setActiveUserNames] = useState<Set<string>>(
     new Set(),
   );
+  const [internalTrackingTenants, setInternalTrackingTenants] = useState<any[]>([]);
+  const [internalTrackingLoading, setInternalTrackingLoading] = useState(false);
 
   // Pagination states
   const [summaryPage, setSummaryPage] = useState(1);
@@ -833,6 +839,138 @@ export default function DashboardNew() {
     };
     loadScore();
   }, [user?._id]);
+
+  // Load Internal Tracking allowed tenants (for admin users with access)
+  useEffect(() => {
+    const loadInternalTracking = async () => {
+      const t = (currentTenant as any);
+      if (!t || !t.internalTrackingEnabled || !Array.isArray(t.allowedTenantIds) || t.allowedTenantIds.length === 0) {
+        setInternalTrackingTenants([]);
+        setInternalTrackingLoading(false);
+        return;
+      }
+      setInternalTrackingLoading(true);
+      try {
+        const perfData = await apiClient.getInternalTrackingPerformance();
+        if (perfData && perfData.tenants && Array.isArray(perfData.tenants)) {
+          const tenantList = perfData.tenants as any[];
+          const users = perfData.users || [];
+          const allowedIds = t.allowedTenantIds;
+          const tenantScores = tenantList
+            .filter((tenantItem: any) => allowedIds.includes(tenantItem._id))
+            .map((tItem: any) => {
+              const tenantUsers = users.filter(
+                (u: any) => typeof u.tenantId === 'string' ? u.tenantId === tItem._id : u.tenantId?.toString() === tItem._id
+              );
+              const adminUsers = tenantUsers.filter(
+                (u: any) => ['admin', 'subadmin', 'inspector'].includes(u.role)
+              );
+              const avgPerformance = adminUsers.length > 0
+                ? Math.round(adminUsers.reduce((sum: number, u: any) => sum + (u.performanceScore || 0), 0) / adminUsers.length)
+                : 0;
+              return {
+                _id: tItem._id,
+                name: tItem.name,
+                companyName: tItem.companyName,
+                performanceScore: avgPerformance,
+                userCount: adminUsers.length,
+              };
+            });
+          setInternalTrackingTenants(tenantScores);
+        } else {
+          setInternalTrackingTenants([]);
+        }
+      } catch (error) {
+        console.error("Failed to load internal tracking data:", error);
+        setInternalTrackingTenants([]);
+      } finally {
+        setInternalTrackingLoading(false);
+      }
+    };
+    loadInternalTracking();
+  }, [currentTenant]);
+
+  const renderInternalTrackingSection = () => {
+    if (user?.role === "superadmin" || user?.role === "inspector") return null;
+    if (internalTrackingLoading) {
+      return (
+        <div className="mt-12 border-t border-gray-100 dark:border-gray-600 pt-8">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-4 border-violet-600 border-t-transparent mx-auto mb-4"></div>
+            <p className="text-gray-500 text-sm">Loading Internal Tracking...</p>
+          </div>
+        </div>
+      );
+    }
+    if (internalTrackingTenants.length === 0) return null;
+
+    return (
+      <div className="mt-12 border-t border-gray-100 dark:border-gray-600 pt-8">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-1.5 h-6 bg-violet-600 rounded-full"></div>
+          <div>
+            <h3 className="text-lg font-bold text-gray-800 dark:text-white leading-none mb-1">
+              Internal Tracking
+            </h3>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+              Granted tenant performance overview (Read-only)
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {internalTrackingTenants.map((tenant) => (
+            <div
+              key={tenant._id}
+              className="bg-white dark:bg-gray-800 rounded-3xl border border-violet-100 dark:border-violet-900/50 shadow-sm hover:shadow-xl hover:shadow-violet-500/5 hover:-translate-y-1 transition-all duration-300 overflow-hidden"
+            >
+              <div className="h-1.5 w-full bg-gradient-to-r from-violet-500 to-purple-600" />
+              <div className="p-6">
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="w-12 h-12 rounded-2xl bg-violet-50 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900 flex items-center justify-center">
+                    <Building className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-black text-gray-900 dark:text-white leading-tight">
+                      {tenant.companyName}
+                    </h4>
+                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">
+                      {tenant.name}
+                    </p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Performance</p>
+                    <p className={`text-xl font-black tabular-nums ${
+                      tenant.performanceScore >= 80
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : tenant.performanceScore >= 50
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-red-600 dark:text-red-400"
+                    }`}>
+                      {tenant.performanceScore}%
+                    </p>
+                  </div>
+                  <div className="p-3 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700">
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Inspectors</p>
+                    <p className="text-xl font-black text-gray-900 dark:text-white tabular-nums">
+                      {tenant.userCount}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center gap-2 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl">
+                  <Shield className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                  <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                    Read-only — Super Admin granted access
+                  </p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   // Filter forms by selected tenant
   const filteredForms = React.useMemo(() => {

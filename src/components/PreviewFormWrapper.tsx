@@ -395,8 +395,10 @@ export default function PreviewFormWrapper() {
       questions.forEach((question: any) => {
         const { followUpQuestions, ...mainQuestion } = question;
 
+        // Preserve existing showWhen, or create one with the correct value from follow-up's showWhen
         if (parentId && !mainQuestion.showWhen) {
-          mainQuestion.showWhen = { questionId: parentId, value: "" };
+          const fuValue = question.followUpQuestions && question.followUpQuestions[0]?.showWhen?.value;
+          mainQuestion.showWhen = { questionId: parentId, value: fuValue || "" };
         }
 
         allQuestions.push(mainQuestion);

@@ -15,6 +15,165 @@ import {
 } from "lucide-react";
 import { useAttendanceStatus } from "../../context/AttendanceContext";
 
+// 🟢 REPLACE THE formatLocalTime FUNCTION WITH THIS MORE ROBUST VERSION
+const formatLocalTime = (dateInput: string | Date | null | undefined) => {
+  if (!dateInput) return "-";
+
+  try {
+    let date: Date;
+
+    // If it's already a Date object
+    if (dateInput instanceof Date) {
+      date = dateInput;
+    }
+    // If it's a string
+    else if (typeof dateInput === "string") {
+      // Check if it's just a time string like "09:00" or "09:00 AM"
+      const timeMatch = dateInput.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+      if (timeMatch) {
+        // It's just a time string, not a full date
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const ampm = timeMatch[3]?.toUpperCase();
+
+        // Convert to 24-hour format if AM/PM is provided
+        if (ampm === "PM" && hours !== 12) hours += 12;
+        if (ampm === "AM" && hours === 12) hours = 0;
+
+        // Create a date object with today's date and the given time
+        const now = new Date();
+        date = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          hours,
+          minutes,
+        );
+
+        // Format and return the time
+        return date.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+      }
+
+      // Try parsing as full date string
+      date = new Date(dateInput);
+      if (isNaN(date.getTime())) {
+        // If still invalid, try extracting time from string
+        const extractedTime = dateInput.match(/\d{1,2}:\d{2}/);
+        if (extractedTime) {
+          // Return the extracted time as-is
+          return extractedTime[0];
+        }
+        return "-";
+      }
+    } else {
+      return "-";
+    }
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) return "-";
+
+    // Format using the user's local timezone
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "-";
+  }
+};
+
+// 🟢 ALSO ADD A DEBUG FUNCTION TO CHECK WHAT THE SHIFT DATA LOOKS LIKE
+const debugShiftData = (shift: any) => {
+  console.log("=== SHIFT DATA DEBUG ===");
+  console.log("Full shift object:", shift);
+  console.log("shift.startTime:", shift?.startTime);
+  console.log("typeof shift.startTime:", typeof shift?.startTime);
+  console.log("shift.endTime:", shift?.endTime);
+  console.log("typeof shift.endTime:", typeof shift?.endTime);
+  console.log("shift.displayName:", shift?.displayName);
+  console.log("=======================");
+};
+
+// 🟢 ADD THIS SIMPLER DIRECT APPROACH FOR SHIFT TIMES
+const formatShiftTime = (timeValue: any) => {
+  if (!timeValue) return "-";
+
+  // If it's already a formatted time string like "09:00" or "09:00 AM"
+  if (typeof timeValue === "string") {
+    // Check if it matches a time pattern
+    const timePattern = /^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i;
+    const match = timeValue.match(timePattern);
+    if (match) {
+      // It's already a time string, just format it nicely
+      let hours = parseInt(match[1]);
+      const minutes = parseInt(match[2]);
+      const ampm = match[3]?.toUpperCase();
+
+      // If no AM/PM, assume 24-hour format
+      if (!ampm) {
+        return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+      }
+
+      // Format with AM/PM
+      return `${hours % 12 || 12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
+    }
+
+    // Try parsing as date
+    try {
+      const date = new Date(timeValue);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        });
+      }
+    } catch (e) {
+      // If parsing fails, return the string as-is
+      return timeValue;
+    }
+  }
+
+  // If it's a Date object
+  if (timeValue instanceof Date && !isNaN(timeValue.getTime())) {
+    return timeValue.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+  }
+
+  return "-";
+};
+// 🟢 ADD THIS FOR FORMATTING DATES
+const formatLocalDate = (dateInput: string | Date | null | undefined) => {
+  if (!dateInput) return "-";
+
+  try {
+    const date =
+      typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+    if (isNaN(date.getTime())) return "-";
+
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+  } catch (error) {
+    console.error("Error formatting date:", error);
+    return "-";
+  }
+};
+
 export default function AttendanceDashboard({
   showAllHistory = false,
 }: {
@@ -118,7 +277,6 @@ export default function AttendanceDashboard({
       console.log("My status response:", response);
       console.log("response.data:", response?.data);
 
-      // Backend returns { success: true, data: { shift, attendance, canCheckIn, canCheckOut } }
       if (response?.data) {
         setStatus(response.data);
         console.log("Set status with data:", response.data);
@@ -144,7 +302,6 @@ export default function AttendanceDashboard({
       console.log("=== fetchHistory response ===");
       console.log("response:", response);
 
-      // API client returns data.data directly, so response is { history: [...] }
       if (response && response.history) {
         console.log("history data:", response.history);
         setHistory(response.history);
@@ -190,7 +347,6 @@ export default function AttendanceDashboard({
       return;
     }
 
-    // Check if within geofence
     const distance = getDistance(
       location.lat,
       location.lng,
@@ -205,16 +361,6 @@ export default function AttendanceDashboard({
       return;
     }
 
-    // if (location.accuracy > 50) {
-    //   if (
-    //     !window.confirm(
-    //       `GPS accuracy is low (${Math.round(location.accuracy)}m). Proceed anyway?`,
-    //     )
-    //   )
-    //     return;
-    // }
-
-    // Show OTP screen
     setShowOTPScreen(true);
     sendOTP();
   };
@@ -314,10 +460,9 @@ export default function AttendanceDashboard({
 
   const shift = status?.shift;
   const attendance = status?.attendance;
-  const currentTime = new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+
+  // 🟢 USE THE HELPER FUNCTION FOR CURRENT TIME
+  const currentTime = formatLocalTime(new Date());
 
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
@@ -328,7 +473,14 @@ export default function AttendanceDashboard({
             <h1 className="text-xl font-bold text-gray-900">
               Hello, Inspector
             </h1>
-            <p className="text-gray-500 text-sm">{new Date().toDateString()}</p>
+            <p className="text-gray-500 text-sm">
+              {new Date().toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </p>
           </div>
           <div className="text-right">
             <div className="text-2xl font-black text-blue-600">
@@ -353,12 +505,18 @@ export default function AttendanceDashboard({
               <div className="flex items-center gap-4 text-blue-100 font-medium bg-white/10 p-3 rounded-2xl border border-white/10">
                 <div className="flex-1">
                   <div className="text-xs uppercase opacity-70">Start</div>
-                  <div className="text-lg">{shift.startTime}</div>
+                  {/* 🟢 USE formatShiftTime FOR SHIFT TIMES */}
+                  <div className="text-lg">
+                    {formatShiftTime(shift.startTime)}
+                  </div>
                 </div>
                 <div className="h-8 w-px bg-white/20"></div>
                 <div className="flex-1">
                   <div className="text-xs uppercase opacity-70">End</div>
-                  <div className="text-lg">{shift.endTime}</div>
+                  {/* 🟢 USE formatShiftTime FOR SHIFT TIMES */}
+                  <div className="text-lg">
+                    {formatShiftTime(shift.endTime)}
+                  </div>
                 </div>
               </div>
             </div>
@@ -440,7 +598,6 @@ export default function AttendanceDashboard({
 
             {!attendance?.checkInTime ? (
               <button
-                //disabled={!shift || !location || !isWithinRadius || punching}
                 disabled={!shift || !location || !isWithinRadius || punching}
                 onClick={handlePunchIn}
                 className="w-full h-20 bg-green-600 hover:bg-green-700 disabled:bg-gray-200 text-white rounded-3xl font-black text-xl shadow-lg shadow-green-100 transition-all flex items-center justify-center gap-3 active:scale-95"
@@ -458,11 +615,9 @@ export default function AttendanceDashboard({
                   <p className="text-xs text-blue-600 font-bold uppercase tracking-widest mb-1">
                     Clocked In At
                   </p>
+                  {/* 🟢 FIXED: Use consistent formatting */}
                   <p className="text-2xl font-black text-blue-900">
-                    {new Date(attendance.checkInTime).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {formatLocalTime(attendance.checkInTime)}
                   </p>
                   <p className="text-xs text-blue-400 mt-1 flex items-center justify-center gap-1">
                     <MapPin size={12} />{" "}
@@ -497,19 +652,15 @@ export default function AttendanceDashboard({
                   <div>
                     <div>Punch In</div>
                     <div className="text-gray-900 text-sm mt-1">
-                      {new Date(attendance.checkInTime).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {/* 🟢 FIXED: Use consistent formatting */}
+                      {formatLocalTime(attendance.checkInTime)}
                     </div>
                   </div>
                   <div>
                     <div>Punch Out</div>
                     <div className="text-gray-900 text-sm mt-1">
-                      {new Date(attendance.checkOutTime).toLocaleTimeString(
-                        [],
-                        { hour: "2-digit", minute: "2-digit" },
-                      )}
+                      {/* 🟢 FIXED: Use consistent formatting */}
+                      {formatLocalTime(attendance.checkOutTime)}
                     </div>
                   </div>
                 </div>
@@ -567,29 +718,22 @@ export default function AttendanceDashboard({
                   </div>
                   <div className="flex-1 overflow-hidden">
                     <div className="font-bold text-gray-900">
-                      {new Date(item.date).toLocaleDateString(undefined, {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      })}
+                      {/* 🟢 FIXED: Use consistent date formatting */}
+                      {formatLocalDate(item.date)}
                     </div>
                     <div className="text-xs text-gray-400 flex items-center gap-3 mt-1">
                       <span className="flex items-center gap-1">
                         <LogIn size={12} />{" "}
+                        {/* 🟢 FIXED: Use consistent formatting */}
                         {item.checkInTime
-                          ? new Date(item.checkInTime).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
+                          ? formatLocalTime(item.checkInTime)
                           : "-"}
                       </span>
                       <span className="flex items-center gap-1">
                         <LogOut size={12} />{" "}
+                        {/* 🟢 FIXED: Use consistent formatting */}
                         {item.checkOutTime
-                          ? new Date(item.checkOutTime).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
+                          ? formatLocalTime(item.checkOutTime)
                           : "-"}
                       </span>
                     </div>

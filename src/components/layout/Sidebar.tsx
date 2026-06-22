@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -15,6 +15,7 @@ import {
   Building2,
   Users,
   Clock,
+  Eye,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useSidebar } from "../../context/SidebarContext";
@@ -28,6 +29,7 @@ interface MenuItem {
   description: string;
   roles?: string[];
   permission?: string;
+  condition?: () => boolean;
 }
 
 const MODULE_PERMISSIONS = {
@@ -125,6 +127,13 @@ export default function Sidebar() {
       description: "View overall statistics",
     },
     {
+      title: "Internal Tracking",
+      icon: Eye,
+      path: "/internal-tracking",
+      description: "View cross-tenant performance data",
+      roles: ["admin"], // shown for ALL admins; access control handled inside the page
+    },
+    {
       title: "Service Analytics",
       icon: BarChart2,
       path: "/forms/analytics",
@@ -201,7 +210,10 @@ export default function Sidebar() {
         return false;
       }
 
-      // Hide Service Analytics for inspector if they haven't checked in
+      if (item.condition && !item.condition()) {
+        return false;
+      }
+
       if (
         item.path === "/forms/analytics" &&
         user.role === "inspector" &&
@@ -225,6 +237,12 @@ export default function Sidebar() {
       filteredItems.push(adminManagementMenuItem);
     }
 
+    console.log(
+      "[Sidebar] menuItems for role",
+      user.role,
+      "=>",
+      filteredItems.map((i) => i.title),
+    );
     return filteredItems;
   })();
 
