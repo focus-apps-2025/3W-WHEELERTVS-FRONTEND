@@ -14,6 +14,77 @@ import {
   Eye,
 } from "lucide-react";
 import { useAttendanceStatus } from "../../context/AttendanceContext";
+const formatLocalTime = (dateInput: string | Date | null | undefined) => {
+  if (!dateInput) return '-';
+
+  try {
+    // 🔥 Check if it's a time string (like "09:00" or "09:00 AM")
+    if (typeof dateInput === 'string') {
+      const timeMatch = dateInput.match(/^(\d{1,2}):(\d{2})(?:\s*(AM|PM))?$/i);
+      if (timeMatch) {
+        // It's a time string, return it as-is
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const ampm = timeMatch[3]?.toUpperCase();
+
+        // Convert to 24-hour format if needed
+        if (ampm === 'PM' && hours !== 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+
+        // Format consistently
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+      }
+
+      // Try parsing as full date
+      const date = new Date(dateInput);
+      if (!isNaN(date.getTime())) {
+        return date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+          timeZone: 'Asia/Kolkata'
+        });
+      }
+
+      return '-';
+    }
+
+    // If it's a Date object
+    if (dateInput instanceof Date) {
+      return dateInput.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Kolkata'
+      });
+    }
+
+    return '-';
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '-';
+  }
+};
+
+// 🟢 ADD THIS FOR DATE FORMATTING
+const formatLocalDate = (dateInput: string | Date | null | undefined) => {
+  if (!dateInput) return '-';
+
+  try {
+    const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
+    if (isNaN(date.getTime())) return '-';
+
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      timeZone: 'Asia/Kolkata'
+    });
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return '-';
+  }
+};
 
 export default function AttendanceDashboard({
   showAllHistory = false,
@@ -99,11 +170,11 @@ export default function AttendanceDashboard({
   // Check if user is within allowed radius
   const isWithinRadius = location
     ? getDistance(
-        location.lat,
-        location.lng,
-        OFFICE_LOCATION.lat,
-        OFFICE_LOCATION.lng,
-      ) <= ALLOWED_RADIUS_METERS
+      location.lat,
+      location.lng,
+      OFFICE_LOCATION.lat,
+      OFFICE_LOCATION.lng,
+    ) <= ALLOWED_RADIUS_METERS
     : false;
 
   useEffect(() => {
@@ -314,11 +385,7 @@ export default function AttendanceDashboard({
 
   const shift = status?.shift;
   const attendance = status?.attendance;
-  const currentTime = new Date().toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
+  const currentTime = formatLocalTime(new Date());
   return (
     <div className="p-4 md:p-8 bg-gray-50 min-h-screen">
       <div className="max-w-xl mx-auto space-y-6">
@@ -353,12 +420,12 @@ export default function AttendanceDashboard({
               <div className="flex items-center gap-4 text-blue-100 font-medium bg-white/10 p-3 rounded-2xl border border-white/10">
                 <div className="flex-1">
                   <div className="text-xs uppercase opacity-70">Start</div>
-                  <div className="text-lg">{shift.startTime}</div>
+                  <div className="text-lg">{formatLocalTime(shift.startTime)}</div>
                 </div>
                 <div className="h-8 w-px bg-white/20"></div>
                 <div className="flex-1">
                   <div className="text-xs uppercase opacity-70">End</div>
-                  <div className="text-lg">{shift.endTime}</div>
+                  <div className="text-lg">{formatLocalTime(shift.endTime)}</div>
                 </div>
               </div>
             </div>
@@ -395,11 +462,10 @@ export default function AttendanceDashboard({
 
           {statusMessage && (
             <div
-              className={`mb-4 p-3 rounded-2xl flex items-center gap-3 text-sm ${
-                statusMessage.type === "success"
-                  ? "bg-green-50 border border-green-100 text-green-700"
-                  : "bg-red-50 border border-red-100 text-red-700"
-              }`}
+              className={`mb-4 p-3 rounded-2xl flex items-center gap-3 text-sm ${statusMessage.type === "success"
+                ? "bg-green-50 border border-green-100 text-green-700"
+                : "bg-red-50 border border-red-100 text-red-700"
+                }`}
             >
               {statusMessage.type === "success" ? (
                 <CheckCircle2 size={18} />
@@ -459,10 +525,7 @@ export default function AttendanceDashboard({
                     Clocked In At
                   </p>
                   <p className="text-2xl font-black text-blue-900">
-                    {new Date(attendance.checkInTime).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {formatLocalTime(attendance.checkInTime)}
                   </p>
                   <p className="text-xs text-blue-400 mt-1 flex items-center justify-center gap-1">
                     <MapPin size={12} />{" "}
@@ -497,19 +560,15 @@ export default function AttendanceDashboard({
                   <div>
                     <div>Punch In</div>
                     <div className="text-gray-900 text-sm mt-1">
-                      {new Date(attendance.checkInTime).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {formatLocalTime(attendance.checkInTime)}
+
                     </div>
                   </div>
                   <div>
                     <div>Punch Out</div>
                     <div className="text-gray-900 text-sm mt-1">
-                      {new Date(attendance.checkOutTime).toLocaleTimeString(
-                        [],
-                        { hour: "2-digit", minute: "2-digit" },
-                      )}
+                      {formatLocalTime(attendance.checkOutTime)}
+
                     </div>
                   </div>
                 </div>
@@ -551,13 +610,12 @@ export default function AttendanceDashboard({
                   className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-4"
                 >
                   <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center ${
-                      item.status === "present"
-                        ? "bg-green-50 text-green-600"
-                        : item.status === "late"
-                          ? "bg-yellow-50 text-yellow-600"
-                          : "bg-orange-50 text-orange-600"
-                    }`}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center ${item.status === "present"
+                      ? "bg-green-50 text-green-600"
+                      : item.status === "late"
+                        ? "bg-yellow-50 text-yellow-600"
+                        : "bg-orange-50 text-orange-600"
+                      }`}
                   >
                     {item.status === "present" ? (
                       <CheckCircle2 size={24} />
@@ -567,41 +625,27 @@ export default function AttendanceDashboard({
                   </div>
                   <div className="flex-1 overflow-hidden">
                     <div className="font-bold text-gray-900">
-                      {new Date(item.date).toLocaleDateString(undefined, {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      })}
+                      {formatLocalDate(item.date)}
                     </div>
                     <div className="text-xs text-gray-400 flex items-center gap-3 mt-1">
                       <span className="flex items-center gap-1">
                         <LogIn size={12} />{" "}
-                        {item.checkInTime
-                          ? new Date(item.checkInTime).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "-"}
+                        {item.checkInTime ? formatLocalTime(item.checkInTime) : "-"}
                       </span>
                       <span className="flex items-center gap-1">
                         <LogOut size={12} />{" "}
-                        {item.checkOutTime
-                          ? new Date(item.checkOutTime).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })
-                          : "-"}
+                        {item.checkOutTime ? formatLocalTime(item.checkOutTime) : "-"}
+
                       </span>
                     </div>
                   </div>
                   <div
-                    className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                      item.status === "present"
-                        ? "bg-green-100 text-green-700"
-                        : item.status === "late"
-                          ? "bg-yellow-100 text-yellow-700"
-                          : "bg-orange-100 text-orange-700"
-                    }`}
+                    className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${item.status === "present"
+                      ? "bg-green-100 text-green-700"
+                      : item.status === "late"
+                        ? "bg-yellow-100 text-yellow-700"
+                        : "bg-orange-100 text-orange-700"
+                      }`}
                   >
                     {item.status}
                   </div>
