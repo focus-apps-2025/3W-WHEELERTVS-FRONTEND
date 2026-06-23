@@ -119,7 +119,7 @@ interface FormItem {
     if (templateOptions.length > 0 && !selectedTemplate) {
       setSelectedTemplate(templateOptions[0]);
     }
-  }, [selectedTemplate, templateOptions]);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -154,62 +154,66 @@ const {
   } = useForms(!isAnswerTemplateOpen);
 
   const deleteMutation = useMutation((id: string) => apiClient.deleteForm(id), {
-  onSuccess: () => {
-    refetchForms();
-  },
-});
-
-// ✅ ADD THESE FOUR:
-const duplicateMutation = useMutation((id: string) => apiClient.duplicateForm(id), {
-  onSuccess: () => {
-    showSuccess("Form duplicated successfully", "Success");
-    refetchForms();
-  },
-  onError: () => {
-    showError("Failed to duplicate form", "Error");
-  },
-});
-
-const visibilityMutation = useMutation(
-  ({ id, isVisible }: { id: string; isVisible: boolean }) =>
-    apiClient.updateForm(id, { isVisible }),
-  {
     onSuccess: () => {
       refetchForms();
     },
-    onError: () => {
-      showError("Failed to update visibility", "Error");
-    },
-  }
-);
+  });
 
-const locationMutation = useMutation(
-  ({ id, locationEnabled }: { id: string; locationEnabled: boolean }) =>
-    apiClient.updateForm(id, { locationEnabled }),
-  {
-    onSuccess: () => {
-      refetchForms();
-    },
-    onError: () => {
-      showError("Failed to update location setting", "Error");
-    },
-  }
-);
+  const duplicateMutation = useMutation(
+    (id: string) => apiClient.duplicateForm(id),
+    {
+      onSuccess: () => {
+        refetchForms();
+      },
+    }
+  );
 
-const viewTypeMutation = useMutation(
-  ({ id, viewType }: { id: string; viewType: "section-wise" | "question-wise" }) =>
-    apiClient.updateForm(id, { viewType }),
-  {
-    onSuccess: () => {
-      refetchForms();
-    },
-    onError: () => {
-      showError("Failed to update view type", "Error");
-    },
-  }
-);
-  const forms = useMemo(() => formsData?.forms || [], [formsData]);
-  const parentForms = useMemo(() => forms.filter((form: FormItem) => !form.parentFormId), [forms]);
+  const visibilityMutation = useMutation(
+    ({ id, isVisible }: { id: string; isVisible: boolean }) =>
+      apiClient.updateFormVisibility(id, isVisible),
+    {
+      onSuccess: () => {
+        refetchForms();
+      },
+    }
+  );
+
+  const locationMutation = useMutation(
+    ({ id, locationEnabled }: { id: string; locationEnabled: boolean }) =>
+      apiClient.updateFormLocationEnabled(id, locationEnabled),
+    {
+      onSuccess: () => {
+        refetchForms();
+      },
+      onError: (error: any) => {
+        showError(
+          error.message || "Failed to update location setting",
+          "Error"
+        );
+      },
+    }
+  );
+
+  const viewTypeMutation = useMutation(
+    ({ id, viewType }: { id: string; viewType: "section-wise" | "question-wise" }) =>
+      apiClient.updateFormViewType(id, viewType),
+    {
+      onSuccess: () => {
+        refetchForms();
+        showSuccess("Form view type updated successfully");
+      },
+      onError: (error: any) => {
+        console.error("View Type Update Error:", error);
+        showError(
+          typeof error === "string" ? error : error.message || "Failed to update view type setting",
+          "Error"
+        );
+      },
+    }
+  );
+
+  const forms = formsData?.forms || [];
+  const parentForms = forms.filter((form: FormItem) => !form.parentFormId);
   const totalForms = parentForms.length;
 
   const [emailInviteModal, setEmailInviteModal] = useState<{

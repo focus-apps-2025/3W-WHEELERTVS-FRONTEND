@@ -476,6 +476,12 @@ class ApiClient {
     const endpoint = `/forms${query.toString() ? `?${query.toString()}` : ""}`;
     const result = await this.request<{ forms: any[] }>(endpoint);
 
+    // DEBUG: Log the response
+    console.log("Forms API Response:", result);
+    result.forms.forEach((form) => {
+      console.log(`Form "${form.title}" responseCount: ${form.responseCount}`);
+    });
+
     return result;
   }
 
@@ -2575,25 +2581,19 @@ class ApiClient {
     }>(`/internal-tracking/check-access`);
   }
 
-  async getInternalTrackingPerformance(params?: {
-    page?: number;
-    limit?: number;
-    search?: string;
-    sortBy?: string;
-    sortOrder?: string;
-  }) {
-    const query = new URLSearchParams();
-    if (params?.page) query.set('page', params.page.toString());
-    if (params?.limit) query.set('limit', params.limit.toString());
-    if (params?.search) query.set('search', params.search);
-    if (params?.sortBy) query.set('sortBy', params.sortBy);
-    if (params?.sortOrder) query.set('sortOrder', params.sortOrder);
-
-    const url = `/internal-tracking/performance${query.toString() ? `?${query.toString()}` : ''}`;
-
-    // Use a shorter timeout since we're paginating
-    return this.request<any>(url, { timeout: 10000 });
-  }
+  async getInternalTrackingPerformance() {
+  return this.request<{
+    tenants: Array<{
+      _id: string;
+      name: string;
+      companyName: string;
+      slug: string;
+    }>;
+    users: any[];
+  }>(`/internal-tracking/performance`, {
+    timeout: 10000, // 10 second timeout instead of 30s
+  });
+}
 }
 
 // Create and export a singleton instance
