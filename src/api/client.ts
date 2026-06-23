@@ -464,8 +464,7 @@ class ApiClient {
   }
 
   // Forms
-  // In client.ts
-  async getForms(params?: { isGlobal?: boolean; search?: string }) {
+  async getForms(params?: { isGlobal?: boolean; search?: string; tenantId?: string; limit?: number }) {
     const query = new URLSearchParams();
     if (params?.isGlobal !== undefined) {
       query.set("isGlobal", params.isGlobal.toString());
@@ -473,13 +472,16 @@ class ApiClient {
     if (params?.search) {
       query.set("search", params.search);
     }
+    if (params?.tenantId) {
+      query.set("tenantId", params.tenantId);
+    }
+    if (params?.limit !== undefined) {
+      query.set("limit", params.limit.toString());
+    }
     const endpoint = `/forms${query.toString() ? `?${query.toString()}` : ""}`;
-    const result = await this.request<{ forms: any[] }>(endpoint);
 
-    // DEBUG: Log the response
-    console.log("Forms API Response:", result);
-    result.forms.forEach((form) => {
-      console.log(`Form "${form.title}" responseCount: ${form.responseCount}`);
+    const result = await this.request<{ forms: any[] }>(endpoint, {
+      timeout: 60000 // 60 seconds instead of default 30s
     });
 
     return result;
@@ -687,9 +689,14 @@ class ApiClient {
   }
 
   // Responses
-  async getResponses() {
+  async getResponses(params?: { formIds?: string; limit?: number }) {
+    const query = new URLSearchParams();
+    query.set("limit", (params?.limit ?? 1000).toString());
+    if (params?.formIds) {
+      query.set("formIds", params.formIds);
+    }
     return this.request<{ responses: any[]; pagination?: any }>(
-      "/responses?limit=1000",
+      `/responses?${query.toString()}`, { timeout: 60000 }
     );
   }
 
