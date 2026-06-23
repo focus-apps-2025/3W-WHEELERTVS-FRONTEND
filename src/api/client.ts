@@ -2582,16 +2582,18 @@ class ApiClient {
   }
 
   async getInternalTrackingPerformance() {
-    return this.request<{
-      tenants: Array<{
-        _id: string;
-        name: string;
-        companyName: string;
-        slug: string;
-      }>;
-      users: any[];
-    }>(`/internal-tracking/performance`);
-  }
+  return this.request<{
+    tenants: Array<{
+      _id: string;
+      name: string;
+      companyName: string;
+      slug: string;
+    }>;
+    users: any[];
+  }>(`/internal-tracking/performance`, {
+    timeout: 10000, // 10 second timeout instead of 30s
+  });
+}
 }
 
 // Create and export a singleton instance
