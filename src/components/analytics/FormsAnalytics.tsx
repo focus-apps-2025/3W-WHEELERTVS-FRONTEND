@@ -12,7 +12,6 @@ import {
   Users,
   Calendar,
   Layers,
-  ChevronRight,
   Trash2,
   Edit2,
   PlusCircle,
@@ -34,7 +33,7 @@ import {
   Layout,
   Split,
 } from "lucide-react";
-import { useForms, useResponses, useMutation } from "../../hooks/useApi";
+import { useForms, useMutation } from "../../hooks/useApi";
 import { apiClient } from "../../api/client";
 import { useNotification } from "../../context/NotificationContext";
 import {
@@ -49,9 +48,8 @@ import EmailInviteModal from "../EmailInviteModal";
 import WhatsAppInviteModal from "../WhatsAppInviteModal";
 import SMSInviteModal from "../SMSInviteModal";
 import ShareAnalyticsModal from "./ShareAnalyticsModal";
-import AutoSendModal from "../forms/AutoSendModal";
 
-import { useAuth } from "../../context/AuthContext";
+ import { useAuth } from "../../context/AuthContext";
 
 // Add this interface for the dropdown options
 interface TemplateOption {
@@ -84,11 +82,7 @@ interface FormItem {
   }>;
 }
 
-interface ResponseData {
-  responses: any[];
-}
-
-export default function FormsAnalytics() {
+  export default function FormsAnalytics() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isInspector = user?.role === "inspector";
@@ -152,18 +146,12 @@ export default function FormsAnalytics() {
   const menuRef = useRef<HTMLDivElement>(null);
   const templateDropdownRef = useRef<HTMLDivElement>(null); 
 
-  const {
+const {
     data: formsData,
     loading,
     error,
     execute: refetchForms,
   } = useForms(!isAnswerTemplateOpen);
-
-  const {
-    data: responsesData,
-    loading: responsesLoading,
-    execute: refetchResponses,
-  } = useResponses();
 
   const deleteMutation = useMutation((id: string) => apiClient.deleteForm(id), {
     onSuccess: () => {
@@ -250,17 +238,8 @@ export default function FormsAnalytics() {
     open: boolean;
     formId: string | null;
     formTitle: string;
-  }>({ open: false, formId: null, formTitle: "" });
+}>({ open: false, formId: null, formTitle: "" });
 
-  const [autoSendModal, setAutoSendModal] = useState<{
-    open: boolean;
-    formId: string | null;
-    formTitle: string;
-  }>({ open: false, formId: null, formTitle: "" });
-
-  const [inviteCounts, setInviteCounts] = useState<Record<string, number>>({});
-
-  // Add these functions with your other handlers
   const openEmailInviteModal = (formId: string) => {
     const form = forms.find((f) => f.id === formId || f._id === formId);
     if (form) {
@@ -303,81 +282,7 @@ export default function FormsAnalytics() {
         formTitle: form.title,
       });
     }
-  };
-
-  const openAutoSendModal = (formId: string) => {
-    const form = forms.find((f) => f.id === formId || f._id === formId);
-    if (form) {
-      setAutoSendModal({
-        open: true,
-        formId,
-        formTitle: form.title,
-      });
-    }
-  };
-
-  useEffect(() => {
-    const fetchInviteCounts = async () => {
-      try {
-        const counts: Record<string, number> = {};
-
-        // Loop through forms and get invite stats only for owned forms
-        for (const form of forms) {
-          const formId = form.id || form._id;
-          if (formId) {
-            // Check if user can access this form's invite stats
-            const ownerTenantId = typeof form.tenantId === 'object' ? form.tenantId?._id : form.tenantId;
-            const isOwner = user?.role === "superadmin" || !form.tenantId || ownerTenantId === user?.tenantId;
-
-            if (isOwner) {
-              try {
-                const response = await apiClient.getInviteStats(formId);
-                if (response.success) {
-                  counts[formId] = response.data.invites?.total || 0;
-                }
-              } catch (error) {
-                // If access denied or other error, skip this form
-                console.warn(`Failed to fetch invite stats for form ${formId}:`, error);
-                counts[formId] = 0;
-              }
-            } else {
-              // User doesn't own this form, set count to 0
-              counts[formId] = 0;
-            }
-          }
-        }
-
-        setInviteCounts(counts);
-      } catch (error) {
-        console.error("Failed to fetch invite counts:", error);
-      }
-    };
-
-    if (forms.length > 0) {
-      fetchInviteCounts();
-    }
-  }, [forms, user]);
-
-  console.log("DEBUG: Total forms from API:", forms.length);
-  console.log("DEBUG: Parent forms (no parentFormId):", parentForms.length);
-  console.log(
-    "DEBUG: Child forms (with parentFormId):",
-    forms.filter((f: FormItem) => f.parentFormId).length
-  );
-  console.log(
-    "DEBUG: All forms data:",
-    forms.map((f: FormItem) => ({
-      id: f._id || f.id,
-      title: f.title,
-      parentFormId: f.parentFormId,
-    }))
-  );
-  const activeFormsCount = parentForms.filter(
-    (form: FormItem) => form.isActive === true
-  ).length;
-  const inactiveFormsCount = parentForms.filter(
-    (form: FormItem) => form.isActive === false
-  ).length;
+};
 
   const formsMap = useMemo(() => {
     const map = new Map<string, FormItem>();
@@ -390,65 +295,16 @@ export default function FormsAnalytics() {
       }
     });
     return map;
-  }, [forms]);
+}, [forms]);
 
-  const filteredForms = forms.filter((form: FormItem) => {
-    const titleMatch = form.title
-      ?.toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    const descriptionMatch = form.description
-      ?.toLowerCase()
-      .includes(searchTerm.toLowerCase());
-    return titleMatch || descriptionMatch;
-  });
-
-  const responseCounts = useMemo(() => {
-    let allResponses =
-      (responsesData as ResponseData | undefined)?.responses || [];
-    
-    // Apply Inspector Visibility Rules
-    if (user?.role === "inspector") {
-      const currentUserEmail = user?.email || "";
-      const currentUserUsername = user?.username || "";
-      const currentUserId = user?._id || user?.id;
-      const currentUserTenantId = user?.tenantId;
-      
-      allResponses = allResponses.filter((response: any) => {
-        const submittedBy = response.submittedBy || "";
-        const createdBy = response.createdBy || "";
-        const submitterEmail = response.submitterContact?.email || "";
-        const responseTenantId = response.tenantId;
-
-        // Check if current user is the submitter (can see own responses)
-        const isOwnSubmission = 
-          submittedBy === currentUserEmail ||
-          submittedBy === currentUserUsername ||
-          createdBy === currentUserEmail ||
-          createdBy === currentUserUsername ||
-          submitterEmail === currentUserEmail ||
-          (currentUserId && (response.createdBy === currentUserId || (response.createdBy && response.createdBy._id === currentUserId)));
-        
-        // Check if response is from different tenant
-        const isDifferentTenant = !responseTenantId || 
-          (currentUserTenantId && responseTenantId.toString() !== currentUserTenantId.toString());
-        
-        // Check if response is from same tenant but different user
-        const isSameTenantOtherUser = !isOwnSubmission && 
-          responseTenantId && 
-          currentUserTenantId && 
-          responseTenantId.toString() === currentUserTenantId.toString();
-        
-        return isOwnSubmission || (isDifferentTenant && !isSameTenantOtherUser);
-      });
-    }
-
-    return allResponses.reduce<Record<string, number>>((acc, response: any) => {
-      if (response.questionId) {
-        acc[response.questionId] = (acc[response.questionId] || 0) + 1;
-      }
-      return acc;
-    }, {});
-  }, [responsesData, user]);
+  const filteredForms = useMemo(() => {
+    if (!searchTerm) return forms;
+    return forms.filter((form: FormItem) => {
+      const titleMatch = form.title?.toLowerCase().includes(searchTerm.toLowerCase());
+      const descriptionMatch = form.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      return titleMatch || descriptionMatch;
+    });
+  }, [forms, searchTerm]);
 
   const groupedForms = useMemo(() => {
     const result = filteredForms.reduce((acc, form) => {
@@ -503,7 +359,7 @@ export default function FormsAnalytics() {
       const orderedChildren: FormItem[] = [];
       const usedChildIds = new Set<string>();
 
-      childRefs.forEach((childRef, index) => {
+      childRefs.forEach((childRef) => {
         const childId = childRef.formId;
         if (!childId || usedChildIds.has(childId)) {
           return;
@@ -535,15 +391,12 @@ export default function FormsAnalytics() {
       group.children = orderedChildren;
     });
 
-    return result;
+return result;
   }, [filteredForms, formsMap]);
 
-  const allForms = filteredForms.length;
-  const totalResponses = filteredForms.reduce((sum, form) => {
-    const formId = form.id || form._id;
-    const count = responseCounts[formId] || 0;
-    return sum + count;
-  }, 0);
+  const totalResponses = useMemo(() => {
+    return filteredForms.reduce((sum, form) => sum + (form.responseCount || 0), 0);
+  }, [filteredForms]);
 
   const handleDelete = async (id: string, title: string) => {
     showConfirm(
@@ -587,10 +440,9 @@ export default function FormsAnalytics() {
     id: string,
     currentViewType: "section-wise" | "question-wise" | undefined
   ) => {
-    console.log("Toggling view type for ID:", id, "current:", currentViewType);
     const nextViewType =
       currentViewType === "question-wise" ? "section-wise" : "question-wise";
-    
+
     viewTypeMutation.mutate({
       id,
       viewType: nextViewType,
@@ -693,10 +545,6 @@ export default function FormsAnalytics() {
       return;
     }
     fileInputRef.current?.click();
-  };
-
-  const toggleMenu = (formId: string) => {
-    setOpenMenuId(openMenuId === formId ? null : formId);
   };
 
   const handleManageChildForms = (formId: string) => {
@@ -993,7 +841,7 @@ export default function FormsAnalytics() {
             if (!parent) return null;
 
             const formId = parent.id || parent._id;
-            const responseCount = responseCounts[formId] || 0;
+            const responseCount = parent.responseCount || 0;
             const isLocationEnabled = parent.locationEnabled !== false;
 
             const ownerTenantId = typeof parent.tenantId === 'object' ? parent.tenantId?._id : parent.tenantId;
@@ -1044,14 +892,9 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
                             openEmailInviteModal(formId);
                           }}
                           title="Send Email Invites"
-                          className="p-1.5 rounded-md hover:bg-blue-50 transition-colors group relative"
+                          className="p-1.5 rounded-md hover:bg-blue-50 transition-colors"
                         >
-                          <Mail className="w-4 h-4 text-blue-600 group-hover:text-blue-700" />
-                          {inviteCounts[formId] > 0 && (
-                            <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-[8px] rounded-full w-4 h-4 flex items-center justify-center font-bold">
-                              {inviteCounts[formId]}
-                            </span>
-                          )}
+                          <Mail className="w-4 h-4 text-blue-600" />
                         </button>
                         <button
                           onClick={(e) => {
@@ -1456,9 +1299,7 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {children.map((child, index) => {
                         const childId = child.id || child._id;
-                        const childResponseCount = childId
-                          ? (responseCounts[childId] || 0)
-                          : 0;
+                        const childResponseCount = child.responseCount || 0;
 
                         return (
                           <div
@@ -1593,7 +1434,6 @@ const tenantName = typeof parent.tenantId === 'object' ? (parent.tenantId?.compa
         onClose={() => setIsAnswerTemplateOpen(false)}
         onSuccess={() => {
           refetchForms();
-          refetchResponses();
         }}
       />
 

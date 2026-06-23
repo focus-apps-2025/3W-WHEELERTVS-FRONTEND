@@ -318,6 +318,7 @@ export default function DashboardNew() {
     new Set(),
   );
   const [internalTrackingTenants, setInternalTrackingTenants] = useState<any[]>([]);
+  const [internalTrackingUsers, setInternalTrackingUsers] = useState<any[]>([]);
   const [internalTrackingLoading, setInternalTrackingLoading] = useState(false);
 
   // Pagination states
@@ -326,6 +327,18 @@ export default function DashboardNew() {
   const [performancePage, setPerformancePage] = useState(1);
   const [performancePageSize, setPerformancePageSize] = useState(10);
   const [expandedForms, setExpandedForms] = useState<Set<string>>(new Set());
+  const [expandedInternalTenants, setExpandedInternalTenants] = useState<Set<string>>(new Set());
+  const [trackingPerfStartDate, setTrackingPerfStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    return d.toISOString().split("T")[0];
+  });
+  const [trackingPerfEndDate, setTrackingPerfEndDate] = useState(() => {
+    return new Date().toISOString().split("T")[0];
+  });
+  const [trackingPerfData, setTrackingPerfData] = useState<any[]>([]);
+  const [trackingPerfSummary, setTrackingPerfSummary] = useState<any[]>([]);
+  const [trackingPerfLoading, setTrackingPerfLoading] = useState(false);
 
   // Check user role
   const isSuperAdmin = user?.role === "superadmin";
@@ -813,6 +826,77 @@ export default function DashboardNew() {
     }
   }, [formsData, responsesData, tenants]);
 
+  // Fetch tracking-specific performance table data (independent date range)
+  useEffect(() => {
+    if (!user || (user.role !== "admin" && user.role !== "superadmin")) return;
+    let cancelled = false;
+    const fetchTrackingPerf = async () => {
+      setTrackingPerfLoading(true);
+      try {
+        const [perfResponse, summaryResponse] = await Promise.all([
+          apiClient.getPerformanceTable({
+            startDate: trackingPerfStartDate,
+            endDate: trackingPerfEndDate,
+          }),
+          apiClient.get<any>(`/analytics/inspector-summary?startDate=${trackingPerfStartDate}&endDate=${trackingPerfEndDate}`),
+        ]);
+        if (!cancelled) {
+          if (perfResponse.success) {
+            setTrackingPerfData(perfResponse.data || []);
+          } else {
+            setTrackingPerfData([]);
+          }
+          if (summaryResponse.data) {
+            setTrackingPerfSummary(summaryResponse.data.summary || []);
+          } else {
+            setTrackingPerfSummary([]);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching tracking performance data:", error);
+        if (!cancelled) {
+          setTrackingPerfData([]);
+          setTrackingPerfSummary([]);
+        }
+      } finally {
+        if (!cancelled) setTrackingPerfLoading(false);
+      }
+    };
+    fetchTrackingPerf();
+    return () => { cancelled = true; };
+  }, [user, trackingPerfStartDate, trackingPerfEndDate]);
+
+  const trackingInspectorStatusMap: Record<string, Record<string, number>> = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {};
+    trackingPerfSummary.forEach((item: any) => {
+      const name = item.qcInspector;
+      if (!name) return;
+      if (!map[name]) map[name] = {};
+      Object.entries(item.statusCounts || {}).forEach(([status, count]) => {
+        map[name][status] = (map[name][status] || 0) + (count as number);
+      });
+    });
+    return map;
+  }, [trackingPerfSummary]);
+
+  const trackingPerfGroups = useMemo(() => {
+    const t = (currentTenant as any);
+    const allowedIds = t?.allowedTenantIds || [];
+    const allowedTenantNames = new Set<string>();
+    internalTrackingTenants.forEach((tn: any) => {
+      if (tn.companyName) allowedTenantNames.add(tn.companyName);
+      if (tn.name && tn.name !== tn.companyName) allowedTenantNames.add(tn.name);
+    });
+    const filtered = trackingPerfData.filter((row: any) => allowedTenantNames.has(row.tenantName));
+    const groups: Record<string, any[]> = {};
+    filtered.forEach((row: any) => {
+      const key = row.tenantName;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(row);
+    });
+    return groups;
+  }, [trackingPerfData, internalTrackingTenants, currentTenant]);
+
   // Load user performance score
   useEffect(() => {
     const loadScore = async () => {
@@ -846,6 +930,7 @@ export default function DashboardNew() {
       const t = (currentTenant as any);
       if (!t || !t.internalTrackingEnabled || !Array.isArray(t.allowedTenantIds) || t.allowedTenantIds.length === 0) {
         setInternalTrackingTenants([]);
+        setInternalTrackingUsers([]);
         setInternalTrackingLoading(false);
         return;
       }
@@ -877,12 +962,18 @@ export default function DashboardNew() {
               };
             });
           setInternalTrackingTenants(tenantScores);
+          const allowedUsers = users.filter(
+            (u: any) => typeof u.tenantId === 'string' ? allowedIds.includes(u.tenantId) : allowedIds.includes(u.tenantId?.toString?.())
+          );
+          setInternalTrackingUsers(allowedUsers);
         } else {
           setInternalTrackingTenants([]);
+          setInternalTrackingUsers([]);
         }
       } catch (error) {
         console.error("Failed to load internal tracking data:", error);
         setInternalTrackingTenants([]);
+        setInternalTrackingUsers([]);
       } finally {
         setInternalTrackingLoading(false);
       }
@@ -891,7 +982,6 @@ export default function DashboardNew() {
   }, [currentTenant]);
 
   const renderInternalTrackingSection = () => {
-    if (user?.role === "superadmin" || user?.role === "inspector") return null;
     if (internalTrackingLoading) {
       return (
         <div className="mt-12 border-t border-gray-100 dark:border-gray-600 pt-8">
@@ -902,7 +992,77 @@ export default function DashboardNew() {
         </div>
       );
     }
-    if (internalTrackingTenants.length === 0) return null;
+    if (internalTrackingTenants.length === 0 && internalTrackingUsers.length === 0) return null;
+
+    const t = (currentTenant as any);
+    const allowedIds = t?.allowedTenantIds || [];
+    const tenantNameMap: Record<string, string> = {};
+    internalTrackingTenants.forEach((tn: any) => {
+      tenantNameMap[tn._id] = tn.companyName || tn.name;
+    });
+
+    const relevantUsers = allowedIds.length > 0
+      ? internalTrackingUsers.filter((u: any) => {
+          const uid = typeof u.tenantId === 'string' ? u.tenantId : u.tenantId?.toString?.();
+          return uid && allowedIds.includes(uid);
+        })
+      : [];
+
+    if (trackingPerfLoading) {
+      return (
+        <div className="mt-12 border-t border-gray-100 dark:border-gray-600 pt-8">
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-4 border-violet-600 border-t-transparent mx-auto mb-4"></div>
+            <p className="text-gray-500 text-sm">Loading performance data...</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (Object.keys(trackingPerfGroups).length === 0) {
+      return (
+        <div className="mt-12 border-t border-gray-100 dark:border-gray-600 pt-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-1.5 h-6 bg-violet-600 rounded-full"></div>
+            <div>
+              <h3 className="text-lg font-bold text-gray-800 dark:text-white leading-none mb-1">Enabled Tenants Performance</h3>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Performance scores of granted tenants (Read-only)</p>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-16 text-center">
+            <p className="text-sm text-gray-400 font-medium">No inspection data available for the current date range.</p>
+          </div>
+        </div>
+      );
+    }
+
+    const scoreColor = (score: number) =>
+      score >= 80
+        ? "text-emerald-600 dark:text-emerald-400"
+        : score >= 50
+          ? "text-amber-600 dark:text-amber-400"
+          : "text-red-600 dark:text-red-400";
+
+    const scoreBg = (score: number) =>
+      score >= 80
+        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+        : score >= 50
+          ? "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400"
+          : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400";
+
+    const getDispatchPending = (userName: string) => {
+      const directOk = trackingInspectorStatusMap[userName]?.["Direct Ok"] || 0;
+      const reworkQC = trackingInspectorStatusMap[userName]?.["Rework QC Completed"] || 0;
+      const dispatched = trackingInspectorStatusMap[userName]?.["Dispatched"] || 0;
+      return Math.max(0, directOk + reworkQC - dispatched);
+    };
+
+    const getReviewPending = (userName: string, totalReviewed: number) => {
+      const dispatched = trackingInspectorStatusMap[userName]?.["Dispatched"] || 0;
+      return Math.max(0, dispatched - totalReviewed);
+    };
+
+    const totalTrackingUsers = Object.values(trackingPerfGroups).reduce((s, rows) => s + rows.length, 0);
 
     return (
       <div className="mt-12 border-t border-gray-100 dark:border-gray-600 pt-8">
@@ -910,64 +1070,240 @@ export default function DashboardNew() {
           <div className="w-1.5 h-6 bg-violet-600 rounded-full"></div>
           <div>
             <h3 className="text-lg font-bold text-gray-800 dark:text-white leading-none mb-1">
-              Internal Tracking
+              Enabled Tenants Performance
             </h3>
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-              Granted tenant performance overview (Read-only)
+              Performance scores of granted tenants (Read-only)
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {internalTrackingTenants.map((tenant) => (
-            <div
-              key={tenant._id}
-              className="bg-white dark:bg-gray-800 rounded-3xl border border-violet-100 dark:border-violet-900/50 shadow-sm hover:shadow-xl hover:shadow-violet-500/5 hover:-translate-y-1 transition-all duration-300 overflow-hidden"
-            >
-              <div className="h-1.5 w-full bg-gradient-to-r from-violet-500 to-purple-600" />
-              <div className="p-6">
-                <div className="flex items-center gap-4 mb-5">
-                  <div className="w-12 h-12 rounded-2xl bg-violet-50 dark:bg-violet-950/30 border border-violet-100 dark:border-violet-900 flex items-center justify-center">
-                    <Building className="w-6 h-6 text-violet-600 dark:text-violet-400" />
-                  </div>
-                  <div>
-                    <h4 className="text-base font-black text-gray-900 dark:text-white leading-tight">
-                      {tenant.companyName}
-                    </h4>
-                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-0.5">
-                      {tenant.name}
-                    </p>
-                  </div>
+
+        {Object.keys(trackingPerfGroups).length === 0 ? (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-16 text-center">
+            <p className="text-sm text-gray-400 font-medium">No inspection data available for the current date range.</p>
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden mt-8">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <div>
+                  <h4 className="text-sm font-bold text-gray-800 dark:text-white">Tenant Performance Table</h4>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Click a tenant row to view inspectors / admins</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Performance</p>
-                    <p className={`text-xl font-black tabular-nums ${
-                      tenant.performanceScore >= 80
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : tenant.performanceScore >= 50
-                          ? "text-amber-600 dark:text-amber-400"
-                          : "text-red-600 dark:text-red-400"
-                    }`}>
-                      {tenant.performanceScore}%
-                    </p>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                  <div className="flex items-center bg-white dark:bg-gray-800 rounded-2xl px-4 py-2 border border-gray-200 dark:border-gray-700 shadow-sm focus-within:ring-4 focus-within:ring-violet-500/10 transition-all">
+                    <span className="text-[10px] font-black text-gray-400 mr-3 uppercase tracking-wider">From</span>
+                    <input
+                      type="date"
+                      value={trackingPerfStartDate}
+                      onChange={(e) => setTrackingPerfStartDate(e.target.value)}
+                      className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-200 focus:outline-none w-full"
+                    />
                   </div>
-                  <div className="p-3 bg-gray-50/50 dark:bg-gray-900/50 rounded-2xl border border-gray-100 dark:border-gray-700">
-                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Inspectors</p>
-                    <p className="text-xl font-black text-gray-900 dark:text-white tabular-nums">
-                      {tenant.userCount}
-                    </p>
+                  <div className="flex items-center bg-white dark:bg-gray-800 rounded-2xl px-4 py-2 border border-gray-200 dark:border-gray-700 shadow-sm focus-within:ring-4 focus-within:ring-violet-500/10 transition-all">
+                    <span className="text-[10px] font-black text-gray-400 mr-3 uppercase tracking-wider">To</span>
+                    <input
+                      type="date"
+                      value={trackingPerfEndDate}
+                      onChange={(e) => setTrackingPerfEndDate(e.target.value)}
+                      className="bg-transparent text-sm font-bold text-gray-700 dark:text-gray-200 focus:outline-none w-full"
+                    />
                   </div>
-                </div>
-                <div className="mt-4 flex items-center gap-2 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800 rounded-xl">
-                  <Shield className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                  <p className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
-                    Read-only — Super Admin granted access
-                  </p>
+                  {(trackingPerfStartDate || trackingPerfEndDate) && (
+                    <button
+                      onClick={() => { setTrackingPerfStartDate(""); setTrackingPerfEndDate(""); }}
+                      className="px-4 py-2 text-xs font-black text-rose-600 hover:text-rose-700 bg-rose-50 dark:bg-rose-900/20 rounded-xl transition-colors uppercase tracking-widest"
+                    >Clear</button>
+                  )}
                 </div>
               </div>
             </div>
-          ))}
-        </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-left border-collapse">
+                <thead className="bg-gray-50/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 uppercase text-[10px] font-black tracking-widest">
+                  <tr>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">Tenant Name</th>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">User Name</th>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">Role</th>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Dispatch Pending</th>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Total Submitted</th>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Total Reviewed</th>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Review Pending</th>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-emerald-600">Accepted</th>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-red-600">Rejected</th>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-orange-600">Reworked</th>
+                    <th className="px-3 py-3 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">Performance Score</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  {Object.entries(trackingPerfGroups).map(([tenantName, rows]) => {
+                    const isExpanded = expandedInternalTenants.has(tenantName);
+                    return (
+                      <React.Fragment key={tenantName}>
+                        <tr
+                          className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors bg-gray-30/50 dark:bg-gray-800/50"
+                          onClick={() => {
+                            setExpandedInternalTenants((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(tenantName)) next.delete(tenantName);
+                              else next.add(tenantName);
+                              return next;
+                            });
+                          }}
+                        >
+                          <td className="px-3 py-3 font-black text-gray-900 dark:text-white whitespace-nowrap">
+                            {tenantName}
+                          </td>
+                          <td className="px-3 py-3 text-gray-500 dark:text-gray-400">
+                            {isExpanded ? `${rows.length} user(s)` : "Click to expand"}
+                          </td>
+                          <td className="px-3 py-3 text-gray-500 dark:text-gray-400">—</td>
+                          <td className="px-3 py-3 text-center">
+                            {(() => {
+                              const totalDP = rows.reduce((sum, r) => sum + getDispatchPending(r.name), 0);
+                              return <span className="text-[10px] font-black text-violet-600 dark:text-violet-400">{totalDP}</span>;
+                            })()}
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className="text-[10px] font-black text-gray-900 dark:text-white tabular-nums">
+                              {rows.reduce((s, r) => s + (r.totalSubmitted || 0), 0)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className="text-[10px] font-black text-gray-900 dark:text-white tabular-nums">
+                              {rows.reduce((s, r) => s + (r.totalReviewed || 0), 0)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            {(() => {
+                              const totalDis = rows.reduce((sum, r) => sum + (inspectorStatusMap[r.name]?.["Dispatched"] || 0), 0);
+                              const totalRev = rows.reduce((s, r) => s + (r.totalReviewed || 0), 0);
+                              const val = Math.max(0, totalDis - totalRev);
+                              return <span className={`text-[10px] font-black tabular-nums ${val > 0 ? "text-amber-600 dark:text-amber-400" : "text-gray-400"}`}>{val}</span>;
+                            })()}
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                              {rows.reduce((s, r) => s + (r.accepted || 0), 0)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className="text-[10px] font-black text-red-600 dark:text-red-400 tabular-nums">
+                              {rows.reduce((s, r) => s + (r.rejected || 0), 0)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            <span className="text-[10px] font-black text-orange-600 dark:text-orange-400 tabular-nums">
+                              {rows.reduce((s, r) => s + (r.rework || 0), 0)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 text-center">
+                            {(() => {
+                              const avg = rows.length > 0
+                                ? Math.round(rows.reduce((s, r) => s + (r.performanceScore || 0), 0) / rows.length)
+                                : 0;
+                              return (
+                                <span className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${scoreBg(avg)}`}>
+                                  {avg}%
+                                </span>
+                              );
+                            })()}
+                          </td>
+                        </tr>
+                        {isExpanded &&
+                          rows.map((row: any, rIdx: number) => {
+                            const dp = getDispatchPending(row.name);
+                            const rp = getReviewPending(row.name, row.totalReviewed || 0);
+                            return (
+                              <tr key={rIdx} className="bg-gray-50/40 dark:bg-gray-900/20 hover:bg-gray-100/50 dark:hover:bg-gray-700/20 transition-colors">
+                                <td className="px-3 py-3 text-gray-900 dark:text-white whitespace-nowrap pl-6">
+                                  {tenantName}
+                                </td>
+                                <td className="px-3 py-3 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                                  {row.name || "—"}
+                                </td>
+                                <td className="px-3 py-3 text-gray-600 dark:text-gray-300 capitalize">
+                                  {row.role || "—"}
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className="text-[10px] font-black text-violet-600 dark:text-violet-400 tabular-nums">{dp}</span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className="text-[10px] font-black text-gray-700 dark:text-gray-200 tabular-nums">{row.totalSubmitted || 0}</span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className="text-[10px] font-black text-gray-700 dark:text-gray-200 tabular-nums">{row.totalReviewed || 0}</span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className={`text-[10px] font-black tabular-nums ${rp > 0 ? "text-amber-600 dark:text-amber-400" : "text-gray-400"}`}>{rp}</span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{row.accepted || 0}</span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className="text-[10px] font-black text-red-600 dark:text-red-400 tabular-nums">{row.rejected || 0}</span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className="text-[10px] font-black text-orange-600 dark:text-orange-400 tabular-nums">{row.rework || 0}</span>
+                                </td>
+                                <td className="px-3 py-3 text-center">
+                                  <span className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${scoreBg(row.performanceScore || 0)}`}>
+                                    {row.performanceScore || 0}%
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-gray-100 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-500 font-black text-gray-900 dark:text-white">
+                    <td className="px-3 py-3 whitespace-nowrap text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">Total</td>
+                    <td className="px-3 py-3 whitespace-nowrap text-xs font-black uppercase tracking-widest text-gray-700 dark:text-gray-200">
+                      {totalTrackingUsers} users
+                    </td>
+                    <td className="px-3 py-3">—</td>
+                    <td className="px-3 py-3 text-center tabular-nums font-black">
+                      {trackingPerfData.reduce((sum, r) => sum + getDispatchPending(r.name), 0)}
+                    </td>
+                    <td className="px-3 py-3 text-center tabular-nums font-black">
+                      {trackingPerfData.reduce((s, r) => s + (r.totalSubmitted || 0), 0)}
+                    </td>
+                    <td className="px-3 py-3 text-center tabular-nums font-black">
+                      {trackingPerfData.reduce((s, r) => s + (r.totalReviewed || 0), 0)}
+                    </td>
+                    <td className="px-3 py-3 text-center tabular-nums font-black text-amber-700 dark:text-amber-300">
+                      {Math.max(0, trackingPerfData.reduce((sum, r) => sum + (trackingInspectorStatusMap[r.name]?.["Dispatched"] || 0), 0) - trackingPerfData.reduce((s, r) => s + (r.totalReviewed || 0), 0))}
+                    </td>
+                    <td className="px-3 py-3 text-center tabular-nums font-black text-green-700 dark:text-green-300">
+                      {trackingPerfData.reduce((s, r) => s + (r.accepted || 0), 0)}
+                    </td>
+                    <td className="px-3 py-3 text-center tabular-nums font-black text-red-700 dark:text-red-300">
+                      {trackingPerfData.reduce((s, r) => s + (r.rejected || 0), 0)}
+                    </td>
+                    <td className="px-3 py-3 text-center tabular-nums font-black text-orange-700 dark:text-orange-300">
+                      {trackingPerfData.reduce((s, r) => s + (r.rework || 0), 0)}
+                    </td>
+                    <td className="px-3 py-3 text-center">
+                      {(() => {
+                        const avg = trackingPerfRows.length > 0
+                          ? Math.round(trackingPerfRows.reduce((s, r) => s + (r.performanceScore || 0), 0) / trackingPerfRows.length)
+                          : 0;
+                        return (
+                          <span className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${avg >= 80 ? "bg-green-200 text-green-800" : avg >= 50 ? "bg-orange-200 text-orange-800" : "bg-red-200 text-red-800"}`}>
+                            {avg}%
+                          </span>
+                        );
+                      })()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -2116,15 +2452,13 @@ export default function DashboardNew() {
                     {/* Dispatched column */}
                     {performanceStatuses.includes("Dispatched") &&
                       (() => {
-                        const count =
-                          inspectorStatusMap[row.name]?.["Dispatched"] || 0;
-                        const isZero = count === 0;
+                        const avg = trackingPerfData.length > 0
+                          ? Math.round(trackingPerfData.reduce((s, r) => s + (r.performanceScore || 0), 0) / trackingPerfData.length)
+                          : 0;
                         return (
-                          <td
-                            className={`px-4 py-4 font-bold text-center tabular-nums transition-opacity ${isZero ? "opacity-20 text-gray-400" : "text-blue-600 dark:text-blue-400"}`}
-                          >
-                            {count}
-                          </td>
+                          <span className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${avg >= 80 ? "bg-green-200 text-green-800" : avg >= 50 ? "bg-orange-200 text-orange-800" : "bg-red-200 text-red-800"}`}>
+                            {avg}%
+                          </span>
                         );
                       })()}
 
@@ -2629,11 +2963,9 @@ export default function DashboardNew() {
         {/* Content Area */}
         {viewMode === "tenants" ? renderTenantCards() : renderFormCards()}
 
-        {/* Inspection Summary Table - Visible for all but specially important for inspectors */}
-        {renderSummaryTable()}
+        {/* Internal Tracking - Granted Tenants Performance */}
+        {renderInternalTrackingSection()}
 
-        {/* Performance Table - Visible for admins and superadmins */}
-        {renderPerformanceTable()}
       </div>
     </div>
   );
