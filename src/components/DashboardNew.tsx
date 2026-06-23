@@ -2947,7 +2947,7 @@ useEffect(() => {
         {viewMode === "tenants" ? renderTenantCards() : renderFormCards()}
 
         {/* Internal Tracking - Granted Tenants Performance */}
-        {renderInternalTrackingSection()}
+        {/* {renderInternalTrackingSection()} */}
 
       </div>
     </div>
