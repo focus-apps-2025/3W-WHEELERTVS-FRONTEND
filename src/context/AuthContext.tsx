@@ -40,6 +40,8 @@ interface Tenant {
   slug: string;
   companyName: string;
   isActive: boolean;
+  internalTrackingEnabled?: boolean;
+  allowedTenantIds?: string[];
   settings?: TenantSettings;
   subscription?: TenantSubscription;
 }

@@ -887,6 +887,20 @@ class ApiClient {
     return this.get<any[]>(url);
   }
 
+  async getInternalTrackingPerformance(params?: { page?: number; limit?: number; search?: string; sortBy?: string; sortOrder?: string }) {
+    const query = new URLSearchParams();
+    if (params?.page) query.set("page", params.page.toString());
+    if (params?.limit) query.set("limit", params.limit.toString());
+    if (params?.search) query.set("search", params.search);
+    if (params?.sortBy) query.set("sortBy", params.sortBy);
+    if (params?.sortOrder) query.set("sortOrder", params.sortOrder);
+    return this.get<{ tenants: any[]; users: any[]; pagination: any }>(`/internal-tracking/performance?${query.toString()}`);
+  }
+
+  async getTenantPerformanceDetails(tenantId: string) {
+    return this.get<{ users: any[]; tenant: any }>(`/internal-tracking/tenant/${tenantId}/performance`);
+  }
+
   // ── Form Session Tracking ─────────────────────────────────────────────────
   // Start a time-tracking session when a user opens a form
   // NOTE: Uses raw fetch because the backend returns { success, sessionId, startedAt }
@@ -1602,6 +1616,16 @@ class ApiClient {
   async removeAdminFromTenant(tenantId: string, adminId: string) {
     return this.request(`/tenants/${tenantId}/remove-admin/${adminId}`, {
       method: "DELETE",
+    });
+  }
+
+  async updateTenantInternalTracking(
+    tenantId: string,
+    data: { internalTrackingEnabled: boolean; allowedTenantIds: string[] },
+  ) {
+    return this.request<any>(`/internal-tracking/${tenantId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
     });
   }
 

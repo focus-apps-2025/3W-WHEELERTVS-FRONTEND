@@ -43,6 +43,7 @@ import Header from "./components/Header";
 import ResponseDetailsPage from "./components/ResponseDetailsPage";
 import InviteStatusPage from "./components/InviteStatusPage";
 import ErrorPage from "./components/ErrorPage";
+import InternalTracking from "../pages/InternalTracking";
 
 const ROUTE_PERMISSIONS = {
   DASHBOARD: "dashboard:view",
@@ -282,6 +283,12 @@ const router = createBrowserRouter(
         {
           path: "/forms/:id/invites",
           element: withAuthenticatedLayout(<InviteStatusPage />),
+        },
+        {
+          path: "/internal-tracking",
+          element: withAccessControl(<InternalTracking />, {
+            allowedRoles: ["admin", "superadmin"],
+          }),
         },
       ],
     },

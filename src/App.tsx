@@ -60,6 +60,7 @@ import ErrorPage from "./components/ErrorPage";
 import LeaveManagement from "./components/hr/LeaveManagement";
 import PermissionManagement from "./components/hr/PermissionManagement";
 import InspectorChat from "./components/inspectors/InspectorChat";
+import InternalTracking from "./pages/InternalTracking";
 
 const ROUTE_PERMISSIONS = {
   DASHBOARD: "dashboard:view",
@@ -450,6 +451,12 @@ const router = createBrowserRouter(
           path: "/inspector/chat",
           element: withAccessControl(<InspectorChat />, {
             allowedRoles: ["inspector", "admin", "tenant_admin", "staff"],
+          }),
+        },
+        {
+          path: "/internal-tracking",
+          element: withAccessControl(<InternalTracking />, {
+            allowedRoles: ["admin", "superadmin"],
           }),
         },
       ],

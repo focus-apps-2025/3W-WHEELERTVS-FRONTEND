@@ -2169,6 +2169,9 @@ export default function DashboardNew() {
                   <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
                     Performance Score
                   </th>
+                  <th className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
+                    Performance Category
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -2294,6 +2297,27 @@ export default function DashboardNew() {
                           }`}
                       >
                         {row.performanceScore}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      <span
+                        className={`px-2 py-1 rounded-full text-[10px] font-black ${(() => {
+                          const score = row.performanceScore || 0;
+                          if (score < 60) return "bg-red-100 text-red-700";
+                          if (score < 70) return "bg-orange-100 text-orange-700";
+                          if (score < 80) return "bg-yellow-100 text-yellow-700";
+                          if (score < 90) return "bg-green-100 text-green-700";
+                          return "bg-emerald-100 text-emerald-700";
+                        })()}`}
+                      >
+                        {(() => {
+                          const score = row.performanceScore || 0;
+                          if (score < 60) return "Not met performer";
+                          if (score < 70) return "partially met performer";
+                          if (score < 80) return "Met expectation";
+                          if (score < 90) return "exceeded Performance";
+                          return "Exemplary performer";
+                        })()}
                       </span>
                     </td>
                   </tr>
@@ -2437,6 +2461,27 @@ export default function DashboardNew() {
                             }`}
                         >
                           {avgPerformance}%
+                        </span>
+                      </td>
+                      <td className="px-4 py-4 text-center">
+                        <span
+                          className={`px-2 py-1 rounded-full text-[10px] font-black ${(() => {
+                            if (avgPerformance < 60) return "bg-red-100 text-red-700";
+                            if (avgPerformance < 70) return "bg-orange-100 text-orange-700";
+                            if (avgPerformance < 80) return "bg-yellow-100 text-yellow-700";
+                            if (avgPerformance < 90) return "bg-green-100 text-green-700";
+                            return "bg-emerald-100 text-emerald-700";
+                          })()}`}
+                        >
+                          {avgPerformance < 60
+                            ? "Not met performer"
+                            : avgPerformance < 70
+                              ? "partially met performer"
+                              : avgPerformance < 80
+                                ? "Met expectation"
+                                : avgPerformance < 90
+                                  ? "exceeded Performance"
+                                  : "Exemplary performer"}
                         </span>
                       </td>
                     </tr>
