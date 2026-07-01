@@ -720,63 +720,88 @@ const PerformanceTable = ({
                     </td>
                   </tr>
 
-                  {expandedRows.has(row.name) && (
-                    <tr>
-                      <td colSpan={isSuperAdmin ? performanceStatuses.length + 12 : performanceStatuses.length + 11} className="px-2 py-1">
-                        {(() => {
-                          const forms = new Map<string, any>();
-                          perfInspectorSummary
-                            .filter((item: any) => item.qcInspector === row.name)
-                            .forEach((item: any) => {
-                              const formName = item.formTitle || "Unknown Form";
-                              if (!forms.has(formName)) forms.set(formName, []);
-                              forms.get(formName).push(item);
-                            });
-                          if (forms.size === 0) return null;
-                          return (
-                              <table className="w-full text-[10px] border-collapse">
-                                <tbody className="divide-y divide-purple-100 dark:divide-purple-900/50">
-                                {Array.from(forms.entries()).map(([formName, items], formIdx) => {
-                                  const v = (items as any[]).reduce((acc: any, it: any) => {
-                                    const sc = it.statusCounts || {};
-                                    acc.directOk += sc["Direct Ok"] || 0;
-                                    acc.reworkqc += sc["Rework QC Completed"] || 0;
-                                    acc.reworkqcPending += sc["Rework QC Pending"] || 0;
-                                    acc.rejected += sc["Rejected"] || 0;
-                                    acc.dispatched += sc["Dispatched"] || 0;
-                                    acc.submitted += sc["Total Submitted"] || 0;
-                                    acc.reviewed += sc["Total Reviewed"] || 0;
-                                    acc.accepted += sc["Accepted"] || 0;
-                                    acc.reworked += sc["Reworked"] || 0;
-                                    return acc;
-                                  }, { directOk: 0, reworkqc: 0, reworkqcPending: 0, rejected: 0, dispatched: 0, submitted: 0, reviewed: 0, accepted: 0, reworked: 0 });
-                                  const dispatchPending = Math.max(0, (v.directOk || 0) + (v.reworkqc || 0) - (v.dispatched || 0));
-                                  const reviewPending = Math.max(0, (v.dispatched || 0) - (v.reviewed || 0));
-                                  const rowBg = formIdx % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-purple-50/40 dark:bg-purple-900/10";
-                                  return (
-                                    <tr key={formIdx} className={`${rowBg}`}>
-                                      <td className="py-0.5 px-0.5 font-black text-purple-800 dark:text-purple-200 truncate">{formName}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums text-emerald-700 dark:text-emerald-300 font-bold">{v.directOk}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums text-purple-700 dark:text-purple-300 font-bold">{v.reworkqc}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums text-purple-600 dark:text-purple-400 font-bold">{v.reworkqcPending}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums text-rose-700 dark:text-rose-300 font-bold">{v.rejected}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums text-violet-700 dark:text-violet-300 font-bold">{dispatchPending}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums text-blue-700 dark:text-blue-300 font-bold">{v.dispatched}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums font-bold">{v.submitted}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums font-bold">{v.reviewed}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums text-amber-700 dark:text-amber-300 font-bold">{reviewPending}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums text-green-700 dark:text-green-300 font-bold">{v.accepted}</td>
-                                      <td className="text-center py-0.5 px-0.5 tabular-nums text-orange-700 dark:text-orange-300 font-bold">{v.reworked}</td>
-                                    </tr>
-                                  );
-                                })}
-                              </tbody>
-                            </table>
-                          );
-                        })()}
-                      </td>
-                    </tr>
-                  )}
+                  {expandedRows.has(row.name) &&
+                    (() => {
+                      // 1. Group summary items by form
+                      const forms = new Map<string, any[]>();
+                      perfInspectorSummary
+                        .filter((item: any) => item.qcInspector === row.name)
+                        .forEach((item: any) => {
+                          const formName = item.formTitle || "Unknown Form";
+                          if (!forms.has(formName)) forms.set(formName, []);
+                          forms.get(formName)!.push(item);
+                        });
+
+                      if (forms.size === 0) return null;
+
+                      // 2. Map over forms to create a <React.Fragment> of <tr> elements
+                      return Array.from(forms.entries()).map(([formName, items], formIdx) => {
+                        // 3. For each form, calculate the summary stats, including review outcomes
+                        const formSummary = (items as any[]).reduce((acc, it) => {
+                            const sc = it.statusCounts || {};
+                            for (const status in sc) {
+                                acc.statuses[status] = (acc.statuses[status] || 0) + sc[status];
+                            }
+                            acc.totalReviewed += it.totalReviewed || 0;
+                            acc.accepted += it.accepted || 0;
+                            acc.rework += it.rework || 0;
+                            acc.rejected_outcome += it.rejected || 0;
+                            return acc;
+                        }, {
+                            statuses: {} as Record<string, number>,
+                            totalReviewed: 0,
+                            accepted: 0,
+                            rework: 0,
+                            rejected_outcome: 0,
+                        });
+
+                        const v = formSummary.statuses;
+                        const directOk = v["Direct Ok"] || 0;
+                        const reworkQCCompleted = v["Rework QC Completed"] || 0;
+                        const dispatched = v["Dispatched"] || 0;
+                        
+                        const totalSubmitted = performanceStatuses
+                          .filter(s => s !== 'Dispatched')
+                          .reduce((sum, status) => sum + (v[status] || 0), 0);
+
+                        const { totalReviewed, accepted, rework, rejected_outcome } = formSummary;
+
+                        const dispatchPending = Math.max(0, directOk + reworkQCCompleted - dispatched);
+                        const reviewPending = Math.max(0, dispatched - totalReviewed);
+                        
+                        const rowBg = formIdx % 2 === 0 ? "bg-purple-50/20 dark:bg-purple-900/10" : "bg-purple-50/40 dark:bg-purple-900/20";
+                        
+                        return (
+                          <tr key={`${row.name}-${formName}-${formIdx}`} className={rowBg}>
+                            {isSuperAdmin && <td className="px-2 py-1.5"></td>}
+                            <td className="px-2 py-1.5 font-medium text-purple-800 dark:text-purple-200 whitespace-nowrap pl-6 truncate">
+                              {formName}
+                            </td>
+                            {performanceStatuses.filter(s => s !== 'Dispatched').map(status => (
+                              <td key={status} className="px-2 py-1.5 font-bold text-center tabular-nums">
+                                {v[status] || 0}
+                              </td>
+                            ))}
+                            <td className="px-2 py-1.5 font-bold text-center tabular-nums">{dispatchPending}</td>
+                            {performanceStatuses.includes("Dispatched") && (
+                                <td className="px-2 py-1.5 font-bold text-center tabular-nums">
+                                    {dispatched}
+                                </td>
+                            )}
+                            <td className="px-2 py-1.5 font-bold text-center tabular-nums">{totalSubmitted}</td>
+                            <td className="px-2 py-1.5 font-bold text-center tabular-nums">{totalReviewed}</td>
+                            <td className="px-2 py-1.5 font-bold text-center tabular-nums">{reviewPending}</td>
+                            <td className="px-2 py-1.5 font-bold text-center tabular-nums">{accepted}</td>
+                            <td className="px-2 py-1.5 font-bold text-center tabular-nums">{rejected_outcome}</td>
+                            <td className="px-2 py-1.5 font-bold text-center tabular-nums">{rework}</td>
+                            {/* Empty cells for alignment */}
+                            <td className="px-2 py-1.5"></td>
+                            <td className="px-2 py-1.5"></td>
+                            <td className="px-2 py-1.5"></td>
+                          </tr>
+                        );
+                      });
+                    })()}
                 </React.Fragment>
               ))}
 <tr className="bg-gray-100 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-500 font-black text-gray-900 dark:text-white">
