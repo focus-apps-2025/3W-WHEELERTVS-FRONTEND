@@ -2296,6 +2296,7 @@ export default function FormAnalyticsDashboard() {
   const [form, setForm] = useState<Form | null>(null);
   const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [isBulkDispatching, setIsBulkDispatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [autoOpenSectionId, setAutoOpenSectionId] = useState<string | null>(
     null,
@@ -2402,6 +2403,7 @@ export default function FormAnalyticsDashboard() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedResponseIds, setSelectedResponseIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [showBulkDispatchConfirm, setShowBulkDispatchConfirm] = useState(false);
   const [showActionMenuModal, setShowActionMenuModal] = useState(false);
   const [actionResponse, setActionResponse] = useState<Response | null>(null);
 
@@ -6948,6 +6950,57 @@ export default function FormAnalyticsDashboard() {
     );
   }
 
+  // Helper calculations for Bulk Dispatch
+  const dispatchableResponses = filteredResponses.filter(response => {
+    const status = responseStatuses[response.id] || "";
+    return status === "Direct Ok" ||
+      status === "Rework Accepted" ||
+      status === "Rework Completed" ||
+      status === "Accepted";
+  });
+
+  const pendingDispatchResponses = dispatchableResponses.filter(response => !response.isDispatched);
+
+  const isAllDispatchableDispatched = dispatchableResponses.length > 0 && pendingDispatchResponses.length === 0;
+
+  const handleHeaderDispatchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      if (pendingDispatchResponses.length === 0) return;
+      setShowBulkDispatchConfirm(true);
+    }
+  };
+
+  const handleExecuteBulkDispatch = async () => {
+    setIsBulkDispatching(true);
+    try {
+      await Promise.all(
+        pendingDispatchResponses.map(response =>
+          apiClient.updateResponse(response.id, { isDispatched: true })
+        )
+      );
+      
+      // Update local state to reflect change immediately
+      const dispatchedIds = pendingDispatchResponses.map(r => r.id);
+      setResponses((prev) =>
+        prev.map((r) =>
+          dispatchedIds.includes(r.id)
+            ? {
+                ...r,
+                isDispatched: true,
+                dispatchedAt: new Date().toISOString(),
+              }
+            : r
+        )
+      );
+      setShowBulkDispatchConfirm(false);
+    } catch (error) {
+      console.error("Failed to batch enable dispatch:", error);
+      alert("Failed to batch enable dispatch. Some responses may not have been updated.");
+    } finally {
+      setIsBulkDispatching(false);
+    }
+  };
+
   return (
     <div
       className="p-2 sm:p-6 space-y-4 sm:space-y-6 bg-gray-50 dark:bg-gray-950 min-h-screen"
@@ -8722,7 +8775,19 @@ export default function FormAnalyticsDashboard() {
                               <span>Actions</span>
                             </th>
                             <th className="text-center px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-24 whitespace-nowrap bg-gray-100 dark:bg-gray-800">
-                              Dispatch
+                              <div className="flex flex-col items-center gap-1.5 justify-center">
+                                <span>Dispatch</span>
+                                <label className="flex items-center gap-1.5 cursor-pointer font-normal text-[10px] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 normal-case">
+                                  <input
+                                    type="checkbox"
+                                    checked={isAllDispatchableDispatched}
+                                    disabled={dispatchableResponses.length === 0 || pendingDispatchResponses.length === 0 || isBulkDispatching}
+                                    onChange={handleHeaderDispatchChange}
+                                    className="w-3.5 h-3.5 text-green-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-green-600"
+                                  />
+                                  <span>Select All</span>
+                                </label>
+                              </div>
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Submitted by
@@ -9041,6 +9106,7 @@ export default function FormAnalyticsDashboard() {
                                         <input
                                           type="checkbox"
                                           checked={false}
+                                          disabled={isBulkDispatching}
                                           onChange={async (e) => {
                                             if (
                                               e.target.checked &&
@@ -10236,6 +10302,53 @@ export default function FormAnalyticsDashboard() {
                     </>
                   ) : (
                     <>Delete {selectedResponseIds.length} Response(s)</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Dispatch Confirmation Modal */}
+      {showBulkDispatchConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-sm w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 dark:bg-green-900/30 rounded-full mb-4">
+                <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+                Bulk Dispatch Responses
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 text-center mb-2">
+                Are you sure you want to enable dispatch for all {pendingDispatchResponses.length} pending responses?
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-500 text-center mb-6">
+                This will batch enable dispatching for all currently pending dispatchable responses.
+              </p>
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={() => {
+                    setShowBulkDispatchConfirm(false);
+                  }}
+                  disabled={isBulkDispatching}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExecuteBulkDispatch}
+                  disabled={isBulkDispatching}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isBulkDispatching ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Dispatching...
+                    </>
+                  ) : (
+                    `Dispatch ${pendingDispatchResponses.length} Responses`
                   )}
                 </button>
               </div>

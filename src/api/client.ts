@@ -705,7 +705,7 @@ class ApiClient {
   // Responses
   async getResponses(params?: { formIds?: string; limit?: number }) {
     const query = new URLSearchParams();
-    query.set("limit", (params?.limit ?? 1000).toString());
+    query.set("limit", (params?.limit ?? 50000).toString());
     if (params?.formIds) {
       query.set("formIds", params.formIds);
     }

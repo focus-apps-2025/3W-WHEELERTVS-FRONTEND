@@ -283,28 +283,18 @@ export default function TenantManagement() {
       showError("Password must be at least 6 characters long");
       return;
     }
-    if (!otpVerified) {
-      showError("Please verify the mobile number first");
-      return;
-    }
     setAddingAdmin(tenantId);
     try {
-      await apiClient.addAdminToTenant(tenantId, {
+      const payload: any = {
         firstName: newAdminData.firstName,
         lastName: newAdminData.lastName,
         email: newAdminData.email,
         password: newAdminData.password,
-      });
-      showSuccess("Admin added successfully");
-      setShowAddAdminForm(null);
-      setNewAdminData({
-        firstName: "",
-        lastName: "",
-        email: "",
-        password: "",
-        confirmPassword: "",
-        mobile: "",
-      });
+      };
+      if (otpVerified && newAdminData.mobile) {
+        payload.mobile = newAdminData.mobile;
+      }
+      await apiClient.addAdminToTenant(tenantId, payload);
       fetchTenants();
     } catch (error: any) {
       showError(error.response?.message || "Failed to add admin");
@@ -1081,166 +1071,148 @@ export default function TenantManagement() {
                                         )
                                       }
                                       className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
-                                      placeholder="admin@company.com"
-                                    />
-                                  </div>
-                                  <div className="mb-2.5">
-                                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
-                                      Mobile *
-                                    </label>
-                                    <div className="flex gap-2">
-                                      <div className="relative flex-1">
-                                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                                        <input
-                                          type="tel"
-                                          value={newAdminData.mobile}
-                                          onChange={(e) =>
-                                            handleNewAdminChange(
-                                              "mobile",
-                                              e.target.value,
-                                            )
-                                          }
-                                          disabled={otpSent && !otpVerified}
-                                          className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all disabled:opacity-60"
-                                          placeholder="Mobile number"
-                                        />
-                                      </div>
-                                      {!otpVerified && (
-                                        <button
-                                          type="button"
-                                          onClick={handleSendOtp}
-                                          disabled={
-                                            sendingOtp || !newAdminData.mobile
-                                          }
-                                          className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
-                                        >
-                                          {sendingOtp ? (
-                                            <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                          ) : (
-                                            "Send OTP"
-                                          )}
-                                        </button>
-                                      )}
-                                      {otpVerified && (
-                                        <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border border-emerald-200 dark:border-emerald-900 rounded-lg">
-                                          <CheckCircle className="w-3.5 h-3.5" />
-                                          <span className="text-xs font-bold">
-                                            Verified
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {otpSent && !otpVerified && (
-                                    <div className="mb-2.5 p-3 bg-white dark:bg-gray-800 border border-primary-200 dark:border-primary-900 rounded-xl">
-                                      <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">
-                                        Enter 6-digit OTP
-                                      </label>
-                                      <div className="flex gap-2">
-                                        <input
-                                          type="text"
-                                          maxLength={6}
-                                          value={otp}
-                                          onChange={(e) =>
-                                            setOtp(
-                                              e.target.value.replace(/\D/g, ""),
-                                            )
-                                          }
-                                          className="flex-1 px-3 py-2 border-2 border-primary-200 dark:border-primary-800 rounded-lg text-center text-lg font-bold tracking-[0.4em] bg-white dark:bg-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
-                                          placeholder="000000"
-                                        />
-                                        <button
-                                          type="button"
-                                          onClick={handleVerifyOtp}
-                                          disabled={
-                                            verifyingOtp || otp.length !== 6
-                                          }
-                                          className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50 flex items-center gap-1"
-                                        >
-                                          {verifyingOtp ? (
-                                            <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                          ) : (
-                                            "Verify"
-                                          )}
-                                        </button>
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={handleSendOtp}
-                                        className="text-xs text-primary-600 dark:text-primary-400 font-semibold underline mt-2 block text-center"
+placeholder="admin@company.com"
+                                     />
+                                   </div>
+                                   <div className="mb-2.5">
+                                     <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                                       Mobile
+                                     </label>
+                                     <div className="flex gap-2">
+                                       <div className="relative flex-1">
+                                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                                         <input
+                                           type="tel"
+                                           value={newAdminData.mobile}
+                                           onChange={(e) =>
+                                             handleNewAdminChange("mobile", e.target.value)
+                                           }
+                                           disabled={otpSent && !otpVerified}
+                                           className="w-full pl-9 pr-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all disabled:opacity-60"
+                                           placeholder="Mobile number"
+                                         />
+                                       </div>
+                                       {!otpVerified && newAdminData.mobile && (
+                                         <button
+                                           type="button"
+                                           onClick={handleSendOtp}
+                                           disabled={sendingOtp || !newAdminData.mobile}
+                                           className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
+                                         >
+                                           {sendingOtp ? (
+                                             <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                           ) : (
+                                             "Send OTP"
+                                           )}
+                                         </button>
+                                       )}
+                                       {otpVerified && (
+                                         <div className="flex items-center gap-1.5 px-3 py-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 border border-emerald-200 dark:border-emerald-900 rounded-lg">
+                                           <CheckCircle className="w-3.5 h-3.5" />
+                                           <span className="text-xs font-bold">Verified</span>
+                                         </div>
+                                       )}
+                                     </div>
+                                   </div>
+                                   {otpSent && !otpVerified && (
+                                     <div className="mb-2.5 p-3 bg-white dark:bg-gray-800 border border-primary-200 dark:border-primary-900 rounded-xl">
+                                       <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">
+                                         Enter 6-digit OTP
+                                       </label>
+                                       <div className="flex gap-2">
+                                         <input
+                                           type="text"
+                                           maxLength={6}
+                                           value={otp}
+                                           onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                                           className="flex-1 px-3 py-2 border-2 border-primary-200 dark:border-primary-800 rounded-lg text-center text-lg font-bold tracking-[0.4em] bg-white dark:bg-gray-900 focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all"
+                                           placeholder="000000"
+                                         />
+                                         <button
+                                           type="button"
+                                           onClick={handleVerifyOtp}
+                                           disabled={verifyingOtp || otp.length !== 6}
+                                           className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg transition-all disabled:opacity-50 flex items-center gap-1"
+                                         >
+                                           {verifyingOtp ? (
+                                             <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                           ) : (
+                                             "Verify"
+                                           )}
+                                         </button>
+                                       </div>
+                                       <button
+                                         type="button"
+                                         onClick={handleSendOtp}
+                                         className="text-xs text-primary-600 dark:text-primary-400 font-semibold underline mt-2 block text-center"
+                                       >
+                                         Resend OTP
+                                       </button>
+                                     </div>
+                                   )}
+                                   <div className="grid grid-cols-2 gap-2.5 mb-3">
+                                     <div>
+                                       <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                                         Password *
+                                       </label>
+                                       <input
+                                         type="password"
+                                         value={newAdminData.password}
+                                         onChange={(e) =>
+                                           handleNewAdminChange(
+                                             "password",
+                                             e.target.value,
+                                           )
+                                         }
+                                         className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all"
+                                         placeholder="Min 6 characters"
+                                       />
+                                     </div>
+                                     <div>
+                                       <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                                         Confirm *
+                                       </label>
+                                       <input
+                                         type="password"
+                                         value={newAdminData.confirmPassword}
+                                         onChange={(e) =>
+                                           handleNewAdminChange(
+                                             "confirmPassword",
+                                             e.target.value,
+                                           )
+                                         }
+                                         className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all"
+                                         placeholder="Confirm password"
+                                       />
+                                     </div>
+                                   </div>
+                                   <div className="flex gap-2">
+<button
+                                        onClick={() =>
+                                          handleAddAdminSubmit(tenant._id)
+                                        }
+                                        disabled={addingAdmin === tenant._id}
+                                        className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold py-2.5 rounded-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2"
                                       >
-                                        Resend OTP
-                                      </button>
-                                    </div>
-                                  )}
-                                  <div className="grid grid-cols-2 gap-2.5 mb-3">
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
-                                        Password *
-                                      </label>
-                                      <input
-                                        type="password"
-                                        value={newAdminData.password}
-                                        onChange={(e) =>
-                                          handleNewAdminChange(
-                                            "password",
-                                            e.target.value,
-                                          )
-                                        }
-                                        className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all"
-                                        placeholder="Min 6 characters"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1">
-                                        Confirm *
-                                      </label>
-                                      <input
-                                        type="password"
-                                        value={newAdminData.confirmPassword}
-                                        onChange={(e) =>
-                                          handleNewAdminChange(
-                                            "confirmPassword",
-                                            e.target.value,
-                                          )
-                                        }
-                                        className="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 transition-all"
-                                        placeholder="Confirm password"
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="flex gap-2">
-                                    <button
-                                      onClick={() =>
-                                        handleAddAdminSubmit(tenant._id)
-                                      }
-                                      disabled={
-                                        addingAdmin === tenant._id ||
-                                        !otpVerified
-                                      }
-                                      className="flex-1 bg-primary-600 hover:bg-primary-700 text-white text-sm font-bold py-2.5 rounded-xl transition-all disabled:opacity-60 flex items-center justify-center gap-2"
-                                    >
-                                      {addingAdmin === tenant._id ? (
-                                        <>
-                                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />{" "}
-                                          Adding...
-                                        </>
-                                      ) : (
-                                        <>
-                                          <UserPlus className="w-4 h-4" /> Add
-                                          Admin
-                                        </>
-                                      )}
-                                    </button>
-                                    <button
-                                      onClick={handleCancelAddAdmin}
-                                      className="px-4 py-2 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
-                                    >
-                                      Cancel
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
+                                       {addingAdmin === tenant._id ? (
+                                         <>
+                                           <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Adding...
+                                         </>
+                                       ) : (
+                                         <>
+                                           <UserPlus className="w-4 h-4" /> Add Admin
+                                         </>
+                                       )}
+                                     </button>
+                                     <button
+                                       onClick={handleCancelAddAdmin}
+                                       className="px-4 py-2 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 text-sm font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
+                                     >
+                                       Cancel
+                                     </button>
+                                   </div>
+                                 </div>
+                               )}
                             </div>
                           )}
                         </div>

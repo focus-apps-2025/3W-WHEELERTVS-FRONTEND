@@ -435,8 +435,25 @@ export default function DashboardNew() {
     try {
       const formsResponse = await apiClient.getForms({
         tenantId: tenantId,
-        limit: 20,
+        limit: 100, // Increased limit
       });
+
+      if (formsResponse.forms) {
+        // Manually fetch response counts for each form
+        const formsWithCounts = await Promise.all(
+          formsResponse.forms.map(async (form: any) => {
+            try {
+              const responses = await apiClient.getFormResponses(form.id || form._id);
+              return { ...form, responseCount: responses.responses.length };
+            } catch (error) {
+              console.error(`Failed to fetch responses for form ${form.id || form._id}`, error);
+              return { ...form, responseCount: form.responseCount || 0 }; // Fallback to existing count
+            }
+          })
+        );
+        formsResponse.forms = formsWithCounts;
+      }
+
       setFormsData(formsResponse);
       setFormsLoaded(true); // ✅ Mark as loaded
     } catch (error: any) {
@@ -683,9 +700,14 @@ export default function DashboardNew() {
           `Tenant ${tenant.companyName} has ${tenantForms.length} forms`,
         );
 
+        const totalResponses = tenantForms.reduce(
+          (sum: number, form: any) => sum + (form.responseCount || 0),
+          0,
+        );
+
         stats[tenant._id] = {
           totalForms: tenantForms.length,
-          totalResponses: 0,
+          totalResponses: totalResponses,
           performanceScore: currentUserScore,
         };
 
