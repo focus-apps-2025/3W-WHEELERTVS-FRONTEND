@@ -129,8 +129,9 @@ export default function CreateTenantModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!otpVerified) {
-      showError("Please verify your mobile number first");
+    // If a mobile number is provided, AND an OTP was sent, THEN it must be verified.
+    if (formData.adminMobile && otpSent && !otpVerified) {
+      showError("Please verify your mobile number with OTP.");
       return;
     }
     setLoading(true);
@@ -382,7 +383,7 @@ export default function CreateTenantModal({
               {/* Mobile + OTP */}
               <div>
                 <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 mb-1.5">
-                  Mobile Number *
+                  Mobile Number
                 </label>
                 <div className="flex gap-3">
                   <div className="relative flex-1">
@@ -395,7 +396,6 @@ export default function CreateTenantModal({
                       className={`${inputClass} pl-9 ${otpVerified ? "pr-9" : ""}`}
                       placeholder="9876543210"
                       disabled={otpVerified}
-                      required
                     />
                     {otpVerified && (
                       <CheckCircle className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />

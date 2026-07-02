@@ -396,8 +396,8 @@ export default function AdminManagement() {
       return;
     }
 
-    if (!otpVerified) {
-      showError("Please verify the mobile number first");
+    if (form.mobile && otpSent && !otpVerified) {
+      showError("Please verify mobile number with OTP, or clear the mobile number field.");
       return;
     }
 
@@ -927,7 +927,7 @@ export default function AdminManagement() {
 
                           <div className="mt-4">
                             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                              Mobile Number *
+                              Mobile Number
                             </label>
                             <div className="flex gap-2">
                               <div className="relative flex-1">
@@ -937,7 +937,6 @@ export default function AdminManagement() {
                                   type="tel"
                                   value={form.mobile}
                                   onChange={handleInputChange}
-                                  required
                                   disabled={otpSent && !otpVerified}
                                   className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-sm disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
                                   placeholder="Enter mobile number"
@@ -1132,7 +1131,7 @@ export default function AdminManagement() {
                         <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
                           <button
                             type="submit"
-                            disabled={saving || !otpVerified}
+                            disabled={saving || (form.mobile && otpSent && !otpVerified)}
                             className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-8 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-60 transition"
                           >
                             {saving ? (
