@@ -255,7 +255,6 @@ const PerformanceTable = ({
     totalRework,
     avgPerformance,
     statusTotals,
-    totalTotalResponses,
     totalDirectOk,
     totalReworkQCCompleted,
     totalDispatchPending,
@@ -329,19 +328,7 @@ const PerformanceTable = ({
         );
       });
 
-    const totalTotalResponses = performanceTableData.reduce(
-      (sum, row) => {
-        const userStatuses = inspectorStatusMap[row.name] || {};
-        const total = Object.entries(userStatuses).reduce((userSum, [status, count]) => {
-          if (status !== "Dispatched") {
-            return userSum + (count || 0);
-          }
-          return userSum;
-        }, 0);
-        return sum + total;
-      },
-      0,
-    );
+
 
     const totalDirectOk = performanceTableData.reduce(
       (sum, row) =>
@@ -379,7 +366,6 @@ const PerformanceTable = ({
       totalRework,
       avgPerformance,
       statusTotals,
-      totalTotalResponses,
       totalDirectOk,
       totalReworkQCCompleted,
       totalDispatchPending,
@@ -535,9 +521,6 @@ const PerformanceTable = ({
                  <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">
                    User Name
                  </th>
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-purple-600">
-                   Total Responses
-                 </th>
                  {performanceStatuses
                    .filter((status) => status !== "Dispatched")
                    .map((status) => (
@@ -597,23 +580,6 @@ const PerformanceTable = ({
                      <td className="px-2 py-1.5 font-medium text-gray-900 dark:text-white whitespace-nowrap">
                        {row.name}
                      </td>
-                     {(() => {
-                       const userStatuses = inspectorStatusMap[row.name] || {};
-                       const totalResponses = Object.entries(userStatuses).reduce((userSum, [status, count]) => {
-                         if (status !== "Dispatched") {
-                           return userSum + (count || 0);
-                         }
-                         return userSum;
-                       }, 0);
-                       const isZero = totalResponses === 0;
-                       return (
-                         <td
-                           className={`px-2 py-1.5 font-bold text-center tabular-nums transition-opacity ${isZero ? "opacity-20 text-gray-400" : "text-purple-600 dark:text-purple-400"}`}
-                         >
-                           {totalResponses}
-                         </td>
-                       );
-                     })()}
                     {performanceStatuses
                       .filter((status) => status !== "Dispatched")
                       .map((status) => {
@@ -864,9 +830,6 @@ const PerformanceTable = ({
                     {statusTotals[status] || 0}
                   </td>
                 ))}
-              <td className="px-2 py-1.5 text-center tabular-nums font-black text-purple-700 dark:text-purple-300">
-                {totalTotalResponses}
-              </td>
               <td className="px-2 py-1.5 text-center tabular-nums font-black text-violet-700 dark:text-violet-300">
                 {totalDispatchPending}
               </td>

@@ -2416,6 +2416,8 @@ export default function FormAnalyticsDashboard() {
   const [performanceTableLoading, setPerformanceTableLoading] = useState(false);
   const [performancePage, setPerformancePage] = useState(1);
   const [performancePageSize, setPerformancePageSize] = useState(10);
+  const [responsesPage, setResponsesPage] = useState(1);
+  const [responsesPageSize, setResponsesPageSize] = useState(20);
 
   // Fetch performance table data
   useEffect(() => {
@@ -3487,6 +3489,41 @@ export default function FormAnalyticsDashboard() {
 
     return result;
   }, [baseFilteredResponses, dateFilter, selectedInspectorForTrend]);
+
+  useEffect(() => {
+    setResponsesPage(1);
+  }, [dateFilter, selectedInspectorForTrend, id]);
+
+  const totalResponsesCount = filteredResponses.length;
+  const totalResponsesPages = Math.ceil(totalResponsesCount / responsesPageSize);
+  const currentResponsesPage = Math.min(responsesPage, Math.max(1, totalResponsesPages));
+  const responsesStartIndex = (currentResponsesPage - 1) * responsesPageSize;
+  const responsesEndIndex = responsesStartIndex + responsesPageSize;
+
+  const paginatedResponsesList = useMemo(() => {
+    return filteredResponses.slice(responsesStartIndex, responsesEndIndex);
+  }, [filteredResponses, responsesStartIndex, responsesEndIndex]);
+
+  const pageSizesList = useMemo(() => {
+    const base = [20, 50, 100];
+    if (totalResponsesCount <= 100) {
+      return base;
+    }
+    
+    const sizes = [...base];
+    if (totalResponsesCount <= 300) {
+      for (let s = 150; s <= Math.min(300, totalResponsesCount + 50); s += 50) {
+        sizes.push(s);
+      }
+    } else {
+      const steps = [200, 300, 500, 1000, 2000, 5000];
+      for (const step of steps) {
+        sizes.push(step);
+        if (step >= totalResponsesCount) break;
+      }
+    }
+    return Array.from(new Set(sizes)).sort((a, b) => a - b);
+  }, [totalResponsesCount]);
 
   // Find the primary chassis question to identify unique items/vehicles
   const chassisQuestionId = useMemo(() => {
@@ -8547,10 +8584,64 @@ export default function FormAnalyticsDashboard() {
                       All Responses
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                      Viewing {filteredResponses.length} responses
+                      Showing {totalResponsesCount > 0 ? responsesStartIndex + 1 : 0}-{Math.min(responsesEndIndex, totalResponsesCount)} of {totalResponsesCount} responses
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center relative">
+                    <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1.5 rounded-lg shadow-sm">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Show</span>
+                      <select
+                        value={responsesPageSize}
+                        onChange={(e) => {
+                          setResponsesPageSize(Number(e.target.value));
+                          setResponsesPage(1);
+                        }}
+                        className="bg-transparent text-xs font-bold text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer"
+                      >
+                        {pageSizesList.map((size) => (
+                          <option key={size} value={size}>
+                            {size}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {totalResponsesPages > 1 && (
+                      <div className="flex items-center gap-1 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-1 py-1 rounded-lg shadow-sm">
+                        <button
+                          onClick={() => setResponsesPage((prev) => Math.max(1, prev - 1))}
+                          disabled={currentResponsesPage === 1}
+                          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-30 rounded transition-colors"
+                          title="Previous Page"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                        </button>
+                        <div className="flex items-center text-xs font-bold text-gray-700 dark:text-gray-200 px-1">
+                          <input
+                            type="number"
+                            min={1}
+                            max={totalResponsesPages}
+                            value={responsesPage}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              if (val >= 1 && val <= totalResponsesPages) {
+                                setResponsesPage(val);
+                              }
+                            }}
+                            className="w-11 text-center bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500 mr-1 py-0.5 text-xs font-bold"
+                          />
+                          <span className="text-gray-400 dark:text-gray-500 font-normal">/ {totalResponsesPages}</span>
+                        </div>
+                        <button
+                          onClick={() => setResponsesPage((prev) => Math.min(totalResponsesPages, prev + 1))}
+                          disabled={currentResponsesPage === totalResponsesPages}
+                          className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 disabled:opacity-30 rounded transition-colors"
+                          title="Next Page"
+                        >
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                     <button
                       onClick={() =>
                         setShowResponsesFilter(!showResponsesFilter)
@@ -8757,12 +8848,12 @@ export default function FormAnalyticsDashboard() {
                                 checked={
                                   selectedResponseIds.length > 0 &&
                                   selectedResponseIds.length ===
-                                    filteredResponses.length
+                                    paginatedResponsesList.length
                                 }
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     setSelectedResponseIds(
-                                      filteredResponses.map((r) => r.id),
+                                      paginatedResponsesList.map((r) => r.id),
                                     );
                                   } else {
                                     setSelectedResponseIds([]);
@@ -8855,8 +8946,8 @@ export default function FormAnalyticsDashboard() {
                         </thead>
 
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                          {filteredResponses.length > 0 ? (
-                            filteredResponses.map(
+                          {paginatedResponsesList.length > 0 ? (
+                            paginatedResponsesList.map(
                               (response: Response, idx: number) => (
                                 <tr
                                   key={response.id}

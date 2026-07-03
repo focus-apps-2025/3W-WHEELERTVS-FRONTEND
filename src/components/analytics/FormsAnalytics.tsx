@@ -175,6 +175,7 @@ export default function FormsAnalytics() {
   const {
     data: responsesData,
     loading: responsesLoading,
+    error: responsesError,
     execute: refetchResponses,
   } = useResponses();
 
@@ -808,25 +809,34 @@ export default function FormsAnalytics() {
     };
   }, [openMenuId]);
 
-  if (loading) {
+  const isDataLoading = loading || responsesLoading || !formsData || !responsesData;
+  const combinedError = error || responsesError;
+
+  if (combinedError) {
     return (
       <div className="p-6">
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-primary-600">Loading forms...</p>
+          <p className="text-red-600">Error loading analytics data: {combinedError}</p>
+          <button
+            onClick={() => {
+              refetchForms();
+              refetchResponses();
+            }}
+            className="mt-4 btn-primary"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (isDataLoading) {
     return (
       <div className="p-6">
         <div className="text-center py-12">
-          <p className="text-red-600">Error loading forms: {error}</p>
-          <button onClick={() => refetchForms()} className="mt-4 btn-primary">
-            Try Again
-          </button>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-primary-600">Loading analytics...</p>
         </div>
       </div>
     );
