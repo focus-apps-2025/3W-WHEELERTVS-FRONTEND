@@ -158,6 +158,11 @@ interface FollowUpQuestion {
   trackResponseRank?: boolean;
   trackResponseQuestion?: boolean;
 }
+interface ChassisNumberEntry {
+  _id?: string;
+  chassisNumber: string;
+  partDescription?: string;
+}
 
 interface Form {
   _id: string;
@@ -172,6 +177,7 @@ interface Form {
   followUpQuestions?: FollowUpQuestion[];
   parentFormId?: string;
   parentFormTitle?: string;
+  chassisNumbers?: ChassisNumberEntry[];
 }
 
 type SectionPerformanceStat = {
@@ -2253,6 +2259,8 @@ export default function FormAnalyticsDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
 
+
+
   // Guest mode detection
   const isGuest = useMemo(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -2301,6 +2309,75 @@ export default function FormAnalyticsDashboard() {
   const [autoOpenSectionId, setAutoOpenSectionId] = useState<string | null>(
     null,
   );
+
+  const [editingChassisResponseId, setEditingChassisResponseId] = useState<string | null>(null);
+  const [chassisEditValue, setChassisEditValue] = useState<string>("");
+  const [isSavingChassis, setIsSavingChassis] = useState(false);
+  const chassisMasterOptions = useMemo(() => {
+    const opts: { value: string; label: string }[] = [];
+    const seen = new Set<string>();
+
+    if (Array.isArray(form?.chassisNumbers)) {
+      form!.chassisNumbers!.forEach((entry: any) => {
+        const num = entry?.chassisNumber;
+        if (num && !seen.has(String(num))) {
+          seen.add(String(num));
+          opts.push({
+            value: String(num),
+            label: entry.partDescription
+              ? `${num} — ${entry.partDescription}`
+              : String(num),
+          });
+        }
+      });
+    }
+
+    responses.forEach((r) => {
+      const num = r.answers?.chassis_number;
+      if (num && !seen.has(String(num))) {
+        seen.add(String(num));
+        opts.push({ value: String(num), label: String(num) });
+      }
+    });
+
+    return opts.sort((a, b) => a.label.localeCompare(b.label));
+  }, [form, responses]);
+
+  const handleStartChassisEdit = (response: Response) => {
+    setEditingChassisResponseId(response.id);
+    setChassisEditValue(response.answers?.chassis_number || "");
+  };
+
+  const handleCancelChassisEdit = () => {
+    setEditingChassisResponseId(null);
+    setChassisEditValue("");
+  };
+
+  const handleSaveChassisEdit = async (response: Response) => {
+    try {
+      setIsSavingChassis(true);
+      const updatedAnswers = {
+        ...response.answers,
+        chassis_number: chassisEditValue,
+      };
+      await apiClient.updateResponse(response.id, { answers: updatedAnswers });
+
+      setResponses((prev) =>
+        prev.map((r) =>
+          r.id === response.id ? { ...r, answers: updatedAnswers } : r,
+        ),
+      );
+
+      setEditingChassisResponseId(null);
+      setChassisEditValue("");
+      showToast("Chassis updated successfully!", "success");
+    } catch (err) {
+      console.error("Error updating chassis:", err);
+      showToast("Failed to update chassis. Please try again.", "error");
+    } finally {
+      setIsSavingChassis(false);
+    }
+  };
   const [analyticsView, setAnalyticsView] = useState<
     "question" | "section" | "table" | "responses" | "dashboard" | "comparison" | "overall"
   >(
@@ -3238,10 +3315,10 @@ export default function FormAnalyticsDashboard() {
             ...prev,
             [responseId]: latestReview.reviewer
               ? {
-                  id: latestReview.reviewer.id,
-                  name: latestReview.reviewer.name || "Reviewer",
-                  email: latestReview.reviewer.email || "",
-                }
+                id: latestReview.reviewer.id,
+                name: latestReview.reviewer.name || "Reviewer",
+                email: latestReview.reviewer.email || "",
+              }
               : null,
           }));
 
@@ -3249,9 +3326,9 @@ export default function FormAnalyticsDashboard() {
           setChatResponse((prev) =>
             prev
               ? {
-                  ...prev,
-                  review: latestReview,
-                }
+                ...prev,
+                review: latestReview,
+              }
               : null,
           );
 
@@ -3369,21 +3446,21 @@ export default function FormAnalyticsDashboard() {
                   zones: filteredAnswer[2] || "",
                   categories: filteredAnswer[3]
                     ? [
-                        {
-                          name: filteredAnswer[3],
-                          defects: filteredAnswer[4]
-                            ? [
-                                {
-                                  name: filteredAnswer[4],
-                                  details: {
-                                    remark: filteredAnswer[5] || "",
-                                    fileUrl: filteredAnswer[6] || "",
-                                  },
-                                },
-                              ]
-                            : [],
-                        },
-                      ]
+                      {
+                        name: filteredAnswer[3],
+                        defects: filteredAnswer[4]
+                          ? [
+                            {
+                              name: filteredAnswer[4],
+                              details: {
+                                remark: filteredAnswer[5] || "",
+                                fileUrl: filteredAnswer[6] || "",
+                              },
+                            },
+                          ]
+                          : [],
+                      },
+                    ]
                     : [],
                 };
               } else if (filteredAnswer?.zonesData) {
@@ -3509,7 +3586,7 @@ export default function FormAnalyticsDashboard() {
     if (totalResponsesCount <= 100) {
       return base;
     }
-    
+
     const sizes = [...base];
     if (totalResponsesCount <= 300) {
       for (let s = 150; s <= Math.min(300, totalResponsesCount + 50); s += 50) {
@@ -5241,9 +5318,9 @@ export default function FormAnalyticsDashboard() {
     const containerStyle =
       chartOrientation === "h"
         ? {
-            height: `${Math.max(450, processedQuestions.length * 40)}px`,
-            position: "relative" as const,
-          }
+          height: `${Math.max(450, processedQuestions.length * 40)}px`,
+          position: "relative" as const,
+        }
         : { height: "450px", position: "relative" as const };
 
     return (
@@ -5275,21 +5352,19 @@ export default function FormAnalyticsDashboard() {
             <div className="flex items-center bg-slate-100 dark:bg-gray-700 p-1 rounded-lg">
               <button
                 onClick={() => setChartSortOrder("default")}
-                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded transition-all ${
-                  chartSortOrder === "default"
-                    ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
-                    : "text-slate-500"
-                }`}
+                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded transition-all ${chartSortOrder === "default"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
               >
                 DEFAULT
               </button>
               <button
                 onClick={() => setChartSortOrder("percentage")}
-                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded transition-all ${
-                  chartSortOrder === "percentage"
-                    ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
-                    : "text-slate-500"
-                }`}
+                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded transition-all ${chartSortOrder === "percentage"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
               >
                 ISSUE %
               </button>
@@ -5300,11 +5375,10 @@ export default function FormAnalyticsDashboard() {
               <button
                 onClick={() => setChartOrientation("v")}
                 title="Vertical View"
-                className={`p-1 rounded transition-all ${
-                  chartOrientation === "v"
-                    ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
-                    : "text-slate-500"
-                }`}
+                className={`p-1 rounded transition-all ${chartOrientation === "v"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
               >
                 <svg
                   className="w-4 h-4"
@@ -5323,11 +5397,10 @@ export default function FormAnalyticsDashboard() {
               <button
                 onClick={() => setChartOrientation("h")}
                 title="Horizontal View"
-                className={`p-1 rounded transition-all ${
-                  chartOrientation === "h"
-                    ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
-                    : "text-slate-500"
-                }`}
+                className={`p-1 rounded transition-all ${chartOrientation === "h"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
               >
                 <svg
                   className="w-4 h-4 rotate-90"
@@ -5528,21 +5601,19 @@ export default function FormAnalyticsDashboard() {
             <div className="flex items-center bg-slate-100 dark:bg-gray-700 p-1 rounded-lg">
               <button
                 onClick={() => setTimeSeriesView("daily")}
-                className={`px-3 py-1 text-[10px] font-bold rounded transition-all ${
-                  timeSeriesView === "daily"
-                    ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
-                    : "text-slate-500"
-                }`}
+                className={`px-3 py-1 text-[10px] font-bold rounded transition-all ${timeSeriesView === "daily"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
               >
                 DAILY
               </button>
               <button
                 onClick={() => setTimeSeriesView("monthly")}
-                className={`px-3 py-1 text-[10px] font-bold rounded transition-all ${
-                  timeSeriesView === "monthly"
-                    ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
-                    : "text-slate-500"
-                }`}
+                className={`px-3 py-1 text-[10px] font-bold rounded transition-all ${timeSeriesView === "monthly"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
               >
                 MONTHLY
               </button>
@@ -5600,15 +5671,14 @@ export default function FormAnalyticsDashboard() {
                 fill="transparent"
                 strokeDasharray={strokeDasharray}
                 strokeDashoffset={strokeDashoffset}
-                className={`transition-all duration-1000 ease-out ${
-                  currentUserScore >= 80
-                    ? "text-green-500"
-                    : currentUserScore >= 60
-                      ? "text-yellow-500"
-                      : currentUserScore >= 40
-                        ? "text-orange-500"
-                        : "text-red-500"
-                }`}
+                className={`transition-all duration-1000 ease-out ${currentUserScore >= 80
+                  ? "text-green-500"
+                  : currentUserScore >= 60
+                    ? "text-yellow-500"
+                    : currentUserScore >= 40
+                      ? "text-orange-500"
+                      : "text-red-500"
+                  }`}
                 strokeLinecap="round"
               />
             </svg>
@@ -6297,11 +6367,11 @@ export default function FormAnalyticsDashboard() {
         responses.map((r) =>
           r.id === editingResponseId
             ? {
-                ...r,
-                answers: editFormData,
-                status: editFormStatus,
-                notes: editFormNotes,
-              }
+              ...r,
+              answers: editFormData,
+              status: editFormStatus,
+              notes: editFormNotes,
+            }
             : r,
         ),
       );
@@ -6439,7 +6509,7 @@ export default function FormAnalyticsDashboard() {
             !localFilterDate ||
             (row.date &&
               new Date(row.date).toISOString().slice(0, 10) ===
-                localFilterDate);
+              localFilterDate);
           return nameMatch && shiftMatch && dateMatch;
         });
         if (filteredSubItems.length === 0) return null;
@@ -6519,17 +6589,17 @@ export default function FormAnalyticsDashboard() {
             {(localFilterName !== "All" ||
               localFilterShift !== "All" ||
               localFilterDate) && (
-              <button
-                onClick={() => {
-                  setLocalFilterName("All");
-                  setLocalFilterShift("All");
-                  setLocalFilterDate("");
-                }}
-                className="text-[10px] font-bold text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg border border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 transition-colors"
-              >
-                Clear
-              </button>
-            )}
+                <button
+                  onClick={() => {
+                    setLocalFilterName("All");
+                    setLocalFilterShift("All");
+                    setLocalFilterDate("");
+                  }}
+                  className="text-[10px] font-bold text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg border border-red-200 hover:border-red-400 bg-red-50 hover:bg-red-100 transition-colors"
+                >
+                  Clear
+                </button>
+              )}
           </div>
         </div>
 
@@ -6654,18 +6724,17 @@ export default function FormAnalyticsDashboard() {
                               return (
                                 <td
                                   key={status}
-                                  className={`px-4 sm:px-6 py-5 text-center font-black tabular-nums transition-opacity ${
-                                    isZero
-                                      ? "opacity-20 text-gray-400"
-                                      : status === "Direct Ok" ||
-                                          status === "Rework Accepted"
-                                        ? "text-emerald-600 dark:text-emerald-400"
-                                        : status.startsWith("Rework")
-                                          ? "text-amber-600 dark:text-amber-400"
-                                          : status === "Rejected"
-                                            ? "text-rose-600 dark:text-rose-400"
-                                            : "text-blue-600 dark:text-blue-400"
-                                  }`}
+                                  className={`px-4 sm:px-6 py-5 text-center font-black tabular-nums transition-opacity ${isZero
+                                    ? "opacity-20 text-gray-400"
+                                    : status === "Direct Ok" ||
+                                      status === "Rework Accepted"
+                                      ? "text-emerald-600 dark:text-emerald-400"
+                                      : status.startsWith("Rework")
+                                        ? "text-amber-600 dark:text-amber-400"
+                                        : status === "Rejected"
+                                          ? "text-rose-600 dark:text-rose-400"
+                                          : "text-blue-600 dark:text-blue-400"
+                                    }`}
                                 >
                                   {count}
                                 </td>
@@ -6760,8 +6829,8 @@ export default function FormAnalyticsDashboard() {
       localFilterName === "All"
         ? performanceTableData
         : performanceTableData.filter(
-            (row: any) => row.name === localFilterName,
-          );
+          (row: any) => row.name === localFilterName,
+        );
 
     // Pagination logic
     const totalPerformanceItems = localFilteredPerformance.length;
@@ -6849,13 +6918,12 @@ export default function FormAnalyticsDashboard() {
                     </td>
                     <td className="px-4 sm:px-6 py-5 text-center">
                       <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-black tabular-nums shadow-sm ${
-                          row.performanceScore >= 80
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
-                            : row.performanceScore >= 50
-                              ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
-                              : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
-                        }`}
+                        className={`px-3 py-1 rounded-full text-[10px] font-black tabular-nums shadow-sm ${row.performanceScore >= 80
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+                          : row.performanceScore >= 50
+                            ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                          }`}
                       >
                         {row.performanceScore}%
                       </span>
@@ -6922,11 +6990,10 @@ export default function FormAnalyticsDashboard() {
                         )}
                         <button
                           onClick={() => setPerformancePage(pageNum)}
-                          className={`min-w-[32px] h-8 text-[10px] font-black rounded-xl transition-all ${
-                            performancePage === pageNum
-                              ? "bg-purple-600 text-white shadow-lg shadow-purple-500/30"
-                              : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50"
-                          }`}
+                          className={`min-w-[32px] h-8 text-[10px] font-black rounded-xl transition-all ${performancePage === pageNum
+                            ? "bg-purple-600 text-white shadow-lg shadow-purple-500/30"
+                            : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50"
+                            }`}
                         >
                           {pageNum}
                         </button>
@@ -7015,17 +7082,17 @@ export default function FormAnalyticsDashboard() {
           apiClient.updateResponse(response.id, { isDispatched: true })
         )
       );
-      
+
       // Update local state to reflect change immediately
       const dispatchedIds = pendingDispatchResponses.map(r => r.id);
       setResponses((prev) =>
         prev.map((r) =>
           dispatchedIds.includes(r.id)
             ? {
-                ...r,
-                isDispatched: true,
-                dispatchedAt: new Date().toISOString(),
-              }
+              ...r,
+              isDispatched: true,
+              dispatchedAt: new Date().toISOString(),
+            }
             : r
         )
       );
@@ -7066,44 +7133,40 @@ export default function FormAnalyticsDashboard() {
             <>
               <button
                 onClick={() => setAnalyticsView("dashboard")}
-                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${
-                  analyticsView === "dashboard"
-                    ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                    : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-                }`}
+                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "dashboard"
+                  ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                  : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                  }`}
               >
                 <BarChart3 className="w-4 h-4" />
                 Dashboard
               </button>
               <button
                 onClick={() => setAnalyticsView("question")}
-                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${
-                  analyticsView === "question"
-                    ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                    : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-                }`}
+                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "question"
+                  ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                  : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                  }`}
               >
                 <BarChart3 className="w-4 h-4" />
                 Questions
               </button>
               <button
                 onClick={() => setAnalyticsView("section")}
-                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${
-                  analyticsView === "section"
-                    ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                    : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-                }`}
+                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "section"
+                  ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                  : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                  }`}
               >
                 <FileText className="w-4 h-4" />
                 Sections
               </button>
               <button
                 onClick={() => setAnalyticsView("overall")}
-                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${
-                  analyticsView === "overall"
-                    ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                    : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-                }`}
+                className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "overall"
+                  ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                  : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                  }`}
               >
                 <BarChart3 className="w-4 h-4" />
                 Overall
@@ -7123,11 +7186,10 @@ export default function FormAnalyticsDashboard() {
 
             <button
               onClick={() => setAnalyticsView("responses")}
-              className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${
-                analyticsView === "responses"
-                  ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                  : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-              }`}
+              className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "responses"
+                ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+                : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
+                }`}
             >
               <UsersIcon className="w-4 h-4" />
               Responses
@@ -7177,11 +7239,10 @@ export default function FormAnalyticsDashboard() {
               )}
               <button
                 onClick={() => setShowFilterModal(true)}
-                className={`p-1.5 sm:p-2 rounded transition-colors relative ${
-                  appliedFilters.length > 0
-                    ? "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 bg-indigo-50 dark:bg-indigo-900/20"
-                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
-                }`}
+                className={`p-1.5 sm:p-2 rounded transition-colors relative ${appliedFilters.length > 0
+                  ? "text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 bg-indigo-50 dark:bg-indigo-900/20"
+                  : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+                  }`}
                 title="Advanced Filters"
               >
                 <Filter className="w-4 h-4" />
@@ -7401,18 +7462,18 @@ export default function FormAnalyticsDashboard() {
           {/* Question Distribution Chart */}
           {(questionPerformanceStats.length > 0 ||
             trendChartResponses.length > 0) && (
-            <div className="w-full" id="question-distribution-card">
-              <div className="w-full space-y-6">
-                <InspectionStatusLineChart />
-                <QuestionStatusDistributionChart />
-                <TimeBasedPerformanceGraph />
-                <DirectAcceptedPerformanceGraph />
-                {renderSummaryTable()}
-                {renderPerformanceTable()}
-                <InspectorPerformanceChart />
+              <div className="w-full" id="question-distribution-card">
+                <div className="w-full space-y-6">
+                  <InspectionStatusLineChart />
+                  <QuestionStatusDistributionChart />
+                  <TimeBasedPerformanceGraph />
+                  <DirectAcceptedPerformanceGraph />
+                  {renderSummaryTable()}
+                  {renderPerformanceTable()}
+                  <InspectorPerformanceChart />
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
       )}
 
@@ -7475,7 +7536,7 @@ export default function FormAnalyticsDashboard() {
                                     type="checkbox"
                                     checked={
                                       selectedSectionIds.length ===
-                                        filteredSectionStats.length &&
+                                      filteredSectionStats.length &&
                                       filteredSectionStats.length > 0
                                     }
                                     onChange={handleSelectAllSections}
@@ -7708,10 +7769,10 @@ export default function FormAnalyticsDashboard() {
                                         {summaryTotals?.yesCount || 0} (
                                         {summaryTotals?.total > 0
                                           ? (
-                                              (summaryTotals.yesCount /
-                                                summaryTotals.total) *
-                                              100
-                                            ).toFixed(0)
+                                            (summaryTotals.yesCount /
+                                              summaryTotals.total) *
+                                            100
+                                          ).toFixed(0)
                                           : 0}
                                         %)
                                       </td>
@@ -7719,10 +7780,10 @@ export default function FormAnalyticsDashboard() {
                                         {summaryTotals?.noCount || 0} (
                                         {summaryTotals?.total > 0
                                           ? (
-                                              (summaryTotals.noCount /
-                                                summaryTotals.total) *
-                                              100
-                                            ).toFixed(0)
+                                            (summaryTotals.noCount /
+                                              summaryTotals.total) *
+                                            100
+                                          ).toFixed(0)
                                           : 0}
                                         %)
                                       </td>
@@ -7730,10 +7791,10 @@ export default function FormAnalyticsDashboard() {
                                         {summaryTotals?.naCount || 0} (
                                         {summaryTotals?.total > 0
                                           ? (
-                                              (summaryTotals.naCount /
-                                                summaryTotals.total) *
-                                              100
-                                            ).toFixed(0)
+                                            (summaryTotals.naCount /
+                                              summaryTotals.total) *
+                                            100
+                                          ).toFixed(0)
                                           : 0}
                                         %)
                                       </td>
@@ -7742,18 +7803,18 @@ export default function FormAnalyticsDashboard() {
                                           {generateTableBarChart(
                                             summaryTotals.total > 0
                                               ? (summaryTotals.yesCount /
-                                                  summaryTotals.total) *
-                                                  100
+                                                summaryTotals.total) *
+                                              100
                                               : 0,
                                             summaryTotals.total > 0
                                               ? (summaryTotals.noCount /
-                                                  summaryTotals.total) *
-                                                  100
+                                                summaryTotals.total) *
+                                              100
                                               : 0,
                                             summaryTotals.total > 0
                                               ? (summaryTotals.naCount /
-                                                  summaryTotals.total) *
-                                                  100
+                                                summaryTotals.total) *
+                                              100
                                               : 0,
                                           )}
                                         </div>
@@ -7819,8 +7880,8 @@ export default function FormAnalyticsDashboard() {
                                     data: visibleSectionStats.map((stat) =>
                                       stat.total > 0
                                         ? ((stat.yes + (stat.accepted || 0)) /
-                                            stat.total) *
-                                          100
+                                          stat.total) *
+                                        100
                                         : 0,
                                     ),
                                     backgroundColor: "rgba(34, 197, 94, 0.2)",
@@ -7838,8 +7899,8 @@ export default function FormAnalyticsDashboard() {
                                     data: visibleSectionStats.map((stat) =>
                                       stat.total > 0
                                         ? ((stat.no + (stat.rejected || 0)) /
-                                            stat.total) *
-                                          100
+                                          stat.total) *
+                                        100
                                         : 0,
                                     ),
                                     backgroundColor: "rgba(239, 68, 68, 0.2)",
@@ -7857,8 +7918,8 @@ export default function FormAnalyticsDashboard() {
                                     data: visibleSectionStats.map((stat) =>
                                       stat.total > 0
                                         ? ((stat.na + (stat.rework || 0)) /
-                                            stat.total) *
-                                          100
+                                          stat.total) *
+                                        100
                                         : 0,
                                     ),
                                     backgroundColor: "rgba(156, 163, 175, 0.2)",
@@ -8081,12 +8142,12 @@ export default function FormAnalyticsDashboard() {
                                           const reworkWidth =
                                             total > 0
                                               ? (defect.reworkCount / total) *
-                                                100
+                                              100
                                               : 0;
                                           const rejectedWidth =
                                             total > 0
                                               ? (defect.rejectedCount / total) *
-                                                100
+                                              100
                                               : 0;
                                           const volumeWidth =
                                             (total / maxDefectCount) * 100;
@@ -8148,35 +8209,35 @@ export default function FormAnalyticsDashboard() {
                                                       >
                                                         {reworkLabelPct >
                                                           15 && (
-                                                          <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-amber-900">
-                                                            {reworkLabelPct.toFixed(
-                                                              0,
-                                                            )}
-                                                            %
-                                                          </span>
-                                                        )}
+                                                            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-amber-900">
+                                                              {reworkLabelPct.toFixed(
+                                                                0,
+                                                              )}
+                                                              %
+                                                            </span>
+                                                          )}
                                                       </div>
                                                     )}
                                                     {defect.rejectedCount >
                                                       0 && (
-                                                      <div
-                                                        style={{
-                                                          width: `${rejectedWidth}%`,
-                                                        }}
-                                                        className="h-full bg-gradient-to-r from-red-400 to-red-500 relative group/bar"
-                                                        title={`Rejected: ${defect.rejectedCount} (${rejectedLabelPct.toFixed(1)}%)`}
-                                                      >
-                                                        {rejectedLabelPct >
-                                                          15 && (
-                                                          <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white">
-                                                            {rejectedLabelPct.toFixed(
-                                                              0,
+                                                        <div
+                                                          style={{
+                                                            width: `${rejectedWidth}%`,
+                                                          }}
+                                                          className="h-full bg-gradient-to-r from-red-400 to-red-500 relative group/bar"
+                                                          title={`Rejected: ${defect.rejectedCount} (${rejectedLabelPct.toFixed(1)}%)`}
+                                                        >
+                                                          {rejectedLabelPct >
+                                                            15 && (
+                                                              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white">
+                                                                {rejectedLabelPct.toFixed(
+                                                                  0,
+                                                                )}
+                                                                %
+                                                              </span>
                                                             )}
-                                                            %
-                                                          </span>
-                                                        )}
-                                                      </div>
-                                                    )}
+                                                        </div>
+                                                      )}
                                                   </div>
                                                 </div>
                                               </div>
@@ -8252,21 +8313,19 @@ export default function FormAnalyticsDashboard() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setTableViewType("question")}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                      tableViewType === "question"
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
-                    }`}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all ${tableViewType === "question"
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
+                      }`}
                   >
                     Question Based
                   </button>
                   <button
                     onClick={() => setTableViewType("section")}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                      tableViewType === "section"
-                        ? "bg-indigo-600 text-white shadow-md"
-                        : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
-                    }`}
+                    className={`px-4 py-2 rounded-lg font-medium transition-all ${tableViewType === "section"
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
+                      }`}
                   >
                     Section Based
                   </button>
@@ -8412,8 +8471,8 @@ export default function FormAnalyticsDashboard() {
                                       const yesPercentage =
                                         total > 0
                                           ? ((yesCount / total) * 100).toFixed(
-                                              1,
-                                            )
+                                            1,
+                                          )
                                           : "0.0";
 
                                       const isFollowUp =
@@ -8423,16 +8482,14 @@ export default function FormAnalyticsDashboard() {
                                       return (
                                         <tr
                                           key={question.id}
-                                          className={`hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors ${
-                                            isFollowUp
-                                              ? "bg-purple-50 dark:bg-purple-900/20"
-                                              : "bg-white dark:bg-gray-800"
-                                          }`}
+                                          className={`hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors ${isFollowUp
+                                            ? "bg-purple-50 dark:bg-purple-900/20"
+                                            : "bg-white dark:bg-gray-800"
+                                            }`}
                                         >
                                           <td
-                                            className={`px-6 py-4 text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium max-w-sm ${
-                                              isFollowUp ? "pl-12" : ""
-                                            }`}
+                                            className={`px-6 py-4 text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium max-w-sm ${isFollowUp ? "pl-12" : ""
+                                              }`}
                                           >
                                             <div
                                               className="truncate"
@@ -8715,7 +8772,7 @@ export default function FormAnalyticsDashboard() {
                               onClick={() =>
                                 setSelectedResponsesSectionIds(
                                   form?.sections?.map((s: Section) => s.id) ||
-                                    [],
+                                  [],
                                 )
                               }
                               className="flex-1 px-2 py-1.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/30 hover:bg-indigo-200 dark:hover:bg-indigo-900/50 rounded transition-colors"
@@ -8848,7 +8905,7 @@ export default function FormAnalyticsDashboard() {
                                 checked={
                                   selectedResponseIds.length > 0 &&
                                   selectedResponseIds.length ===
-                                    paginatedResponsesList.length
+                                  paginatedResponsesList.length
                                 }
                                 onChange={(e) => {
                                   if (e.target.checked) {
@@ -9024,7 +9081,7 @@ export default function FormAnalyticsDashboard() {
                                               !responseTenantId ||
                                               (currentUserTenantId &&
                                                 responseTenantId.toString() ===
-                                                  currentUserTenantId.toString());
+                                                currentUserTenantId.toString());
                                             const isOwnTenant =
                                               isActualOwnTenant;
 
@@ -9133,7 +9190,7 @@ export default function FormAnalyticsDashboard() {
                                       const creatorId =
                                         typeof response.createdBy === "object"
                                           ? (response.createdBy as any)?._id ||
-                                            (response.createdBy as any)?.id
+                                          (response.createdBy as any)?.id
                                           : response.createdBy;
                                       const creatorIdStr = creatorId
                                         ? String(creatorId)
@@ -9145,7 +9202,7 @@ export default function FormAnalyticsDashboard() {
                                         response.createdBy === userEmail ||
                                         response.createdBy === userUsername ||
                                         response.submitterContact?.email ===
-                                          userEmail ||
+                                        userEmail ||
                                         (creatorIdStr &&
                                           creatorIdStr === userIdStr);
 
@@ -9213,11 +9270,11 @@ export default function FormAnalyticsDashboard() {
                                                   prev.map((r) =>
                                                     r.id === response.id
                                                       ? {
-                                                          ...r,
-                                                          isDispatched: true,
-                                                          dispatchedAt:
-                                                            new Date().toISOString(),
-                                                        }
+                                                        ...r,
+                                                        isDispatched: true,
+                                                        dispatchedAt:
+                                                          new Date().toISOString(),
+                                                      }
                                                       : r,
                                                   ),
                                                 );
@@ -9245,38 +9302,86 @@ export default function FormAnalyticsDashboard() {
                                   </td>
                                   <td className="px-6 py-3 text-sm font-bold border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
                                     <span
-                                      className={`px-2 py-1 rounded-full text-xs ${
-                                        responseStatuses[response.id] ===
+                                      className={`px-2 py-1 rounded-full text-xs ${responseStatuses[response.id] ===
                                         "Rejected"
-                                          ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                                          : responseStatuses[
-                                                response.id
-                                              ]?.includes("Rework") &&
-                                              responseStatuses[response.id] !==
-                                                "Rework Accepted"
-                                            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                                            : responseStatuses[response.id] ===
-                                                  "Direct Ok" ||
-                                                responseStatuses[
-                                                  response.id
-                                                ] === "Rework Accepted" ||
-                                                responseStatuses[
-                                                  response.id
-                                                ] === "Accepted"
-                                              ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                                              : responseStatuses[
-                                                    response.id
-                                                  ] === "Pending Review"
-                                                ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
-                                                : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
-                                      }`}
+                                        ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                        : responseStatuses[
+                                          response.id
+                                        ]?.includes("Rework") &&
+                                          responseStatuses[response.id] !==
+                                          "Rework Accepted"
+                                          ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                                          : responseStatuses[response.id] ===
+                                            "Direct Ok" ||
+                                            responseStatuses[
+                                            response.id
+                                            ] === "Rework Accepted" ||
+                                            responseStatuses[
+                                            response.id
+                                            ] === "Accepted"
+                                            ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                            : responseStatuses[
+                                              response.id
+                                            ] === "Pending Review"
+                                              ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
+                                              : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+                                        }`}
                                     >
                                       {responseStatuses[response.id] ||
                                         "Pending Review"}
                                     </span>
                                   </td>
                                   <td className="px-6 py-3 text-sm text-gray-900 dark:text-white font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
-                                    {response.answers?.chassis_number || "-"}
+                                    {editingChassisResponseId === response.id ? (
+                                      <div className="flex items-center gap-1.5">
+                                        <select
+                                          value={chassisEditValue}
+                                          onChange={(e) => setChassisEditValue(e.target.value)}
+                                          autoFocus
+                                          className="flex-1 px-2 py-1 text-xs border border-blue-400 dark:border-blue-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        >
+                                          <option value="">Select Chassis</option>
+                                          {chassisMasterOptions.map((opt) => (
+                                            <option key={opt.value} value={opt.value}>
+                                              {opt.label}
+                                            </option>
+                                          ))}
+                                          {chassisEditValue &&
+                                            !chassisMasterOptions.some((o) => o.value === chassisEditValue) && (
+                                              <option value={chassisEditValue}>
+                                                {chassisEditValue} (current)
+                                              </option>
+                                            )}
+                                        </select>
+                                        <button
+                                          onClick={() => handleSaveChassisEdit(response)}
+                                          disabled={isSavingChassis}
+                                          title="Save"
+                                          className="p-1 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors disabled:opacity-50"
+                                        >
+                                          <CheckCircle className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                          onClick={handleCancelChassisEdit}
+                                          disabled={isSavingChassis}
+                                          title="Cancel"
+                                          className="p-1 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                                        >
+                                          <XCircle className="w-4 h-4" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="flex items-center gap-1.5 group">
+                                        <span>{response.answers?.chassis_number || "-"}</span>
+                                        <button
+                                          onClick={() => handleStartChassisEdit(response)}
+                                          title="Edit Chassis"
+                                          className="p-1 text-gray-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded transition-all opacity-0 group-hover:opacity-100"
+                                        >
+                                          <Edit className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
+                                    )}
                                   </td>
                                   <td className="px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
                                     {(() => {
@@ -9284,36 +9389,35 @@ export default function FormAnalyticsDashboard() {
                                         (response as any).review ||
                                         (reviewedBy[response.id]
                                           ? {
-                                              status:
-                                                reviewedBy[response.id]
-                                                  ?.option ||
-                                                reviewedBy[response.id]?.status,
-                                              reviewer:
-                                                reviewedBy[response.id]?.name ||
-                                                reviewedBy[response.id]
-                                                  ?.reviewer ||
-                                                "Reviewer",
-                                              flaggedQuestions:
-                                                reviewedBy[response.id]
-                                                  ?.flaggedQuestions || [],
-                                            }
+                                            status:
+                                              reviewedBy[response.id]
+                                                ?.option ||
+                                              reviewedBy[response.id]?.status,
+                                            reviewer:
+                                              reviewedBy[response.id]?.name ||
+                                              reviewedBy[response.id]
+                                                ?.reviewer ||
+                                              "Reviewer",
+                                            flaggedQuestions:
+                                              reviewedBy[response.id]
+                                                ?.flaggedQuestions || [],
+                                          }
                                           : null);
 
                                       return reviewObj ? (
                                         <div className="flex flex-col gap-1">
                                           <div className="flex items-center gap-2">
                                             <span
-                                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${
-                                                String(reviewObj.status)
+                                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${String(reviewObj.status)
+                                                .toLowerCase()
+                                                .trim() === "accepted"
+                                                ? "bg-green-500/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"
+                                                : String(reviewObj.status)
                                                   .toLowerCase()
-                                                  .trim() === "accepted"
-                                                  ? "bg-green-500/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800"
-                                                  : String(reviewObj.status)
-                                                        .toLowerCase()
-                                                        .trim() === "rejected"
-                                                    ? "bg-red-500/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800"
-                                                    : "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800"
-                                              }`}
+                                                  .trim() === "rejected"
+                                                  ? "bg-red-500/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800"
+                                                  : "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800"
+                                                }`}
                                             >
                                               {reviewObj.status}
                                             </span>
@@ -9326,7 +9430,7 @@ export default function FormAnalyticsDashboard() {
                                           </div>
                                           {reviewObj.flaggedQuestions &&
                                             reviewObj.flaggedQuestions.length >
-                                              0 && (
+                                            0 && (
                                               <div className="mt-1 flex flex-wrap gap-1">
                                                 {reviewObj.flaggedQuestions.map(
                                                   (q: any, i: number) => (
@@ -9352,8 +9456,8 @@ export default function FormAnalyticsDashboard() {
                                   <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                                     {getResponseTimestamp(response)
                                       ? new Date(
-                                          getResponseTimestamp(response)!,
-                                        ).toLocaleString()
+                                        getResponseTimestamp(response)!,
+                                      ).toLocaleString()
                                       : "-"}
                                   </td>
                                   <td className="px-6 py-3 text-sm text-center font-bold text-blue-600 dark:text-blue-400 border border-gray-200 dark:border-gray-700 whitespace-nowrap">
@@ -9406,28 +9510,26 @@ export default function FormAnalyticsDashboard() {
                                             q.correctAnswer,
                                           )
                                             ? q.correctAnswer
-                                                .join(", ")
-                                                .toLowerCase()
+                                              .join(", ")
+                                              .toLowerCase()
                                             : String(
-                                                q.correctAnswer,
-                                              ).toLowerCase();
+                                              q.correctAnswer,
+                                            ).toLowerCase();
                                           isCorrect = answerStr === correctStr;
                                         }
 
                                         return (
                                           <td
                                             key={`${response.id}-${q.id}`}
-                                            className={`px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-64 break-words ${
-                                              isFollowUp
-                                                ? "bg-purple-50 dark:bg-purple-900/10"
-                                                : ""
-                                            } ${
-                                              hasCorrectAnswer && !isEditing
+                                            className={`px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-64 break-words ${isFollowUp
+                                              ? "bg-purple-50 dark:bg-purple-900/10"
+                                              : ""
+                                              } ${hasCorrectAnswer && !isEditing
                                                 ? isCorrect
                                                   ? "bg-green-100 dark:bg-green-900/30"
                                                   : "bg-red-100 dark:bg-red-900/30"
                                                 : ""
-                                            }`}
+                                              }`}
                                           >
                                             {isEditing ? (
                                               <input
@@ -9435,18 +9537,18 @@ export default function FormAnalyticsDashboard() {
                                                 value={
                                                   typeof editFormData[q.id] ===
                                                     "object" &&
-                                                  "status" in editFormData[q.id]
+                                                    "status" in editFormData[q.id]
                                                     ? editFormData[q.id].status
                                                     : editFormData[q.id]
                                                       ? typeof editFormData[
-                                                          q.id
-                                                        ] === "string"
+                                                        q.id
+                                                      ] === "string"
                                                         ? editFormData[q.id]
                                                         : JSON.stringify(
-                                                            editFormData[q.id],
-                                                            null,
-                                                            2,
-                                                          )
+                                                          editFormData[q.id],
+                                                          null,
+                                                          2,
+                                                        )
                                                       : ""
                                                 }
                                                 onChange={(e) => {
@@ -9454,10 +9556,10 @@ export default function FormAnalyticsDashboard() {
                                                   if (
                                                     editFormData[q.id] &&
                                                     typeof editFormData[
-                                                      q.id
+                                                    q.id
                                                     ] === "object" &&
                                                     "status" in
-                                                      editFormData[q.id]
+                                                    editFormData[q.id]
                                                   ) {
                                                     setEditFormData({
                                                       ...editFormData,
@@ -9487,7 +9589,7 @@ export default function FormAnalyticsDashboard() {
                                                 {renderAnswerDisplay(answer, q)}
                                                 {q.trackResponseRank &&
                                                   response.responseRanks?.[
-                                                    q.id
+                                                  q.id
                                                   ] && (
                                                     <span
                                                       className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(answer, darkMode)}`}
@@ -9495,7 +9597,7 @@ export default function FormAnalyticsDashboard() {
                                                       #
                                                       {
                                                         response.responseRanks[
-                                                          q.id
+                                                        q.id
                                                         ]
                                                       }
                                                     </span>
@@ -9606,8 +9708,8 @@ export default function FormAnalyticsDashboard() {
                   <p className="text-gray-900 dark:text-white">
                     {getResponseTimestamp(selectedResponse)
                       ? new Date(
-                          getResponseTimestamp(selectedResponse)!,
-                        ).toLocaleString()
+                        getResponseTimestamp(selectedResponse)!,
+                      ).toLocaleString()
                       : "N/A"}
                   </p>
                 </div>
@@ -9700,7 +9802,7 @@ export default function FormAnalyticsDashboard() {
                               )}
                               {question.trackResponseRank &&
                                 selectedResponse.responseRanks?.[
-                                  question.id
+                                question.id
                                 ] && (
                                   <span
                                     className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}
@@ -9708,7 +9810,7 @@ export default function FormAnalyticsDashboard() {
                                     #
                                     {
                                       selectedResponse.responseRanks[
-                                        question.id
+                                      question.id
                                       ]
                                     }
                                   </span>
@@ -9747,11 +9849,10 @@ export default function FormAnalyticsDashboard() {
               <div className="flex gap-1 bg-white dark:bg-gray-700 rounded-lg p-1 w-fit border border-gray-200 dark:border-gray-600">
                 <button
                   onClick={() => setComparisonViewMode("dashboard")}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                    comparisonViewMode === "dashboard"
-                      ? "text-white shadow-sm"
-                      : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
-                  }`}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${comparisonViewMode === "dashboard"
+                    ? "text-white shadow-sm"
+                    : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
+                    }`}
                   style={{
                     backgroundColor:
                       comparisonViewMode === "dashboard"
@@ -9764,11 +9865,10 @@ export default function FormAnalyticsDashboard() {
                 </button>
                 <button
                   onClick={() => setComparisonViewMode("responses")}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${
-                    comparisonViewMode === "responses"
-                      ? "text-white shadow-sm"
-                      : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
-                  }`}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 text-sm font-medium rounded-md transition-all duration-200 ${comparisonViewMode === "responses"
+                    ? "text-white shadow-sm"
+                    : "text-gray-900 dark:text-gray-100 hover:text-black dark:hover:text-white"
+                    }`}
                   style={{
                     backgroundColor:
                       comparisonViewMode === "responses"
@@ -9888,13 +9988,13 @@ export default function FormAnalyticsDashboard() {
                             <p className="text-xs text-gray-600 dark:text-gray-400">
                               {getResponseTimestamp(response)
                                 ? new Date(
-                                    getResponseTimestamp(response)!,
-                                  ).toLocaleDateString("en-US", {
-                                    month: "short",
-                                    day: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })
+                                  getResponseTimestamp(response)!,
+                                ).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
                                 : "N/A"}
                             </p>
                             <p className="text-2xl font-bold text-blue-900 dark:text-blue-300 mt-2">
@@ -10201,11 +10301,11 @@ export default function FormAnalyticsDashboard() {
                                   <span className="text-xs font-semibold text-gray-600 dark:text-gray-400 leading-tight">
                                     {getResponseTimestamp(response)
                                       ? new Date(
-                                          getResponseTimestamp(response)!,
-                                        ).toLocaleDateString("en-US", {
-                                          month: "short",
-                                          day: "numeric",
-                                        })
+                                        getResponseTimestamp(response)!,
+                                      ).toLocaleDateString("en-US", {
+                                        month: "short",
+                                        day: "numeric",
+                                      })
                                       : "N/A"}
                                   </span>
                                 </div>
@@ -10272,17 +10372,17 @@ export default function FormAnalyticsDashboard() {
                                           {response.responseRanks?.[
                                             question.id
                                           ] && (
-                                            <span
-                                              className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}
-                                            >
-                                              #
-                                              {
-                                                response.responseRanks[
+                                              <span
+                                                className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}
+                                              >
+                                                #
+                                                {
+                                                  response.responseRanks[
                                                   question.id
-                                                ]
-                                              }
-                                            </span>
-                                          )}
+                                                  ]
+                                                }
+                                              </span>
+                                            )}
                                         </div>
                                       ) : (
                                         <span className="text-xs text-gray-400 dark:text-gray-500">
@@ -10488,14 +10588,14 @@ export default function FormAnalyticsDashboard() {
                   !responseTenantId ||
                   (currentUserTenantId &&
                     responseTenantId.toString() ===
-                      currentUserTenantId.toString());
+                    currentUserTenantId.toString());
 
                 const isActualOwnTenant =
                   user?.role === "superadmin" ||
                   !responseTenantId ||
                   (currentUserTenantId &&
                     responseTenantId.toString() ===
-                      currentUserTenantId.toString());
+                    currentUserTenantId.toString());
 
                 return (
                   <>
@@ -10632,13 +10732,12 @@ export default function FormAnalyticsDashboard() {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 animate-fadeIn ${
-            toast.type === "success"
-              ? "bg-green-500 dark:bg-green-600"
-              : toast.type === "info"
-                ? "bg-blue-500 dark:bg-blue-600"
-                : "bg-red-500 dark:bg-red-600"
-          }`}
+          className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-50 animate-fadeIn ${toast.type === "success"
+            ? "bg-green-500 dark:bg-green-600"
+            : toast.type === "info"
+              ? "bg-blue-500 dark:bg-blue-600"
+              : "bg-red-500 dark:bg-red-600"
+            }`}
         >
           <div className="flex items-center gap-2">
             {toast.type === "success" ? (
@@ -10749,9 +10848,9 @@ export default function FormAnalyticsDashboard() {
                     const scoreVal =
                       performanceScores[chatResponse?.submittedBy || ""] ??
                       performanceScores[
-                        (chatResponse?.createdBy as any)?._id ||
-                          (chatResponse?.createdBy as string) ||
-                          ""
+                      (chatResponse?.createdBy as any)?._id ||
+                      (chatResponse?.createdBy as string) ||
+                      ""
                       ];
 
                     return (
@@ -10773,11 +10872,11 @@ export default function FormAnalyticsDashboard() {
                     !reviewedBy[chatResponse?.id || ""] &&
                     (responseStatuses[chatResponse?.id] === "Direct Ok" ||
                       responseStatuses[chatResponse?.id] ===
-                        "Rework Accepted" ||
+                      "Rework Accepted" ||
                       responseStatuses[chatResponse?.id] === "Accepted" ||
                       responseStatuses[chatResponse?.id] === "Pending Review" ||
                       responseStatuses[chatResponse?.id] ===
-                        "Rework Completed") &&
+                      "Rework Completed") &&
                     (() => {
                       const userEmail = user?.email || "";
                       const userUsername = user?.username || "";
@@ -10786,7 +10885,7 @@ export default function FormAnalyticsDashboard() {
                       const creatorId =
                         typeof chatResponse?.createdBy === "object"
                           ? (chatResponse.createdBy as any)?._id ||
-                            (chatResponse.createdBy as any)?.id
+                          (chatResponse.createdBy as any)?.id
                           : chatResponse?.createdBy;
                       const creatorIdStr = creatorId ? String(creatorId) : "";
 
@@ -10801,11 +10900,10 @@ export default function FormAnalyticsDashboard() {
                       /* Pending state: show label + cancel */
                       <div className="flex items-center gap-2">
                         <span
-                          className={`px-3 py-1 text-xs font-bold rounded ${
-                            pendingReviewOption === "Rejected"
-                              ? "bg-red-500/30 text-red-100 border border-red-400"
-                              : "bg-yellow-500/30 text-yellow-100 border border-yellow-400"
-                          }`}
+                          className={`px-3 py-1 text-xs font-bold rounded ${pendingReviewOption === "Rejected"
+                            ? "bg-red-500/30 text-red-100 border border-red-400"
+                            : "bg-yellow-500/30 text-yellow-100 border border-yellow-400"
+                            }`}
                         >
                           {pendingReviewOption === "Rejected" ? "❌" : "🔄"}{" "}
                           {pendingReviewOption} — Select questions below
@@ -10830,7 +10928,7 @@ export default function FormAnalyticsDashboard() {
                         const creatorId =
                           typeof chatResponse?.createdBy === "object"
                             ? (chatResponse.createdBy as any)?._id ||
-                              (chatResponse.createdBy as any)?.id
+                            (chatResponse.createdBy as any)?.id
                             : chatResponse?.createdBy;
                         const creatorIdStr = creatorId ? String(creatorId) : "";
 
@@ -10856,13 +10954,12 @@ export default function FormAnalyticsDashboard() {
                                       setPendingReviewOption(option);
                                     }
                                   }}
-                                  className={`px-3 py-1 text-xs font-bold rounded transition-all border ${
-                                    option === "Accepted"
-                                      ? "bg-green-500/30 border-green-400 text-green-100 hover:bg-green-500/50"
-                                      : option === "Rejected"
-                                        ? "bg-red-500/30 border-red-400 text-red-100 hover:bg-red-500/50"
-                                        : "bg-yellow-500/30 border-yellow-400 text-yellow-100 hover:bg-yellow-500/50"
-                                  }`}
+                                  className={`px-3 py-1 text-xs font-bold rounded transition-all border ${option === "Accepted"
+                                    ? "bg-green-500/30 border-green-400 text-green-100 hover:bg-green-500/50"
+                                    : option === "Rejected"
+                                      ? "bg-red-500/30 border-red-400 text-red-100 hover:bg-red-500/50"
+                                      : "bg-yellow-500/30 border-yellow-400 text-yellow-100 hover:bg-yellow-500/50"
+                                    }`}
                                 >
                                   {option === "Accepted"
                                     ? "✅"
@@ -10993,8 +11090,8 @@ export default function FormAnalyticsDashboard() {
                                             questions: checked
                                               ? [...prev.questions, q.id]
                                               : prev.questions.filter(
-                                                  (id) => id !== q.id,
-                                                ),
+                                                (id) => id !== q.id,
+                                              ),
                                           }));
                                         }}
                                         className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
@@ -11015,7 +11112,7 @@ export default function FormAnalyticsDashboard() {
                                             }
                                             value={
                                               chatFilters.suggestedAnswers?.[
-                                                q.id
+                                              q.id
                                               ] || {}
                                             }
                                             onChange={(val) =>
@@ -11113,15 +11210,14 @@ export default function FormAnalyticsDashboard() {
                         className={`flex flex-col ${String(msg.from?._id || msg.from) === String(user?._id || (user as any)?.id) ? "items-end" : "items-start"} animate-in fade-in slide-in-from-bottom-2 duration-300`}
                       >
                         <div
-                          className={`max-w-[90%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${
-                            String(msg.from?._id || msg.from) ===
+                          className={`max-w-[90%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed shadow-sm ${String(msg.from?._id || msg.from) ===
                             String(user?._id || (user as any)?.id)
-                              ? "bg-[#dcf8c6] text-gray-900 rounded-br-lg rounded-tr-lg rounded-tl-sm"
-                              : "bg-white dark:bg-gray-100 text-gray-900 border border-gray-100 dark:border-gray-700 rounded-bl-lg rounded-tl-lg rounded-tr-sm"
-                          }`}
+                            ? "bg-[#dcf8c6] text-gray-900 rounded-br-lg rounded-tr-lg rounded-tl-sm"
+                            : "bg-white dark:bg-gray-100 text-gray-900 border border-gray-100 dark:border-gray-700 rounded-bl-lg rounded-tl-lg rounded-tr-sm"
+                            }`}
                         >
                           {msg.questionContexts &&
-                          msg.questionContexts.length > 0 ? (
+                            msg.questionContexts.length > 0 ? (
                             <div className="space-y-3">
                               {msg.questionContexts.map(
                                 (ctx: any, idx: number) => (
@@ -11195,7 +11291,7 @@ export default function FormAnalyticsDashboard() {
                         <div className="flex items-center gap-1 mt-1.5 px-1 opacity-60">
                           <span className="text-[9px] font-medium text-gray-500 dark:text-gray-400">
                             {String(msg.from?._id || msg.from) ===
-                            String(user?._id || (user as any)?.id)
+                              String(user?._id || (user as any)?.id)
                               ? "You"
                               : msg.from?.name || "Inspector"}{" "}
                             •{" "}
@@ -11206,21 +11302,21 @@ export default function FormAnalyticsDashboard() {
                           </span>
                           {String(msg.from?._id || msg.from) !==
                             String(user?._id || (user as any)?.id) && (
-                            <button
-                              onClick={() => {
-                                setNewMessage(
-                                  `Replying to: "${msg.message.substring(0, 30)}..." \n`,
-                                );
-                                const textarea =
-                                  document.querySelector("textarea");
-                                if (textarea) textarea.focus();
-                              }}
-                              className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:underline ml-2 pointer-events-auto"
-                            >
-                              <Reply className="w-3 h-3" />
-                              Reply
-                            </button>
-                          )}
+                              <button
+                                onClick={() => {
+                                  setNewMessage(
+                                    `Replying to: "${msg.message.substring(0, 30)}..." \n`,
+                                  );
+                                  const textarea =
+                                    document.querySelector("textarea");
+                                  if (textarea) textarea.focus();
+                                }}
+                                className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:underline ml-2 pointer-events-auto"
+                              >
+                                <Reply className="w-3 h-3" />
+                                Reply
+                              </button>
+                            )}
                         </div>
                       </div>
                     ))
@@ -11238,7 +11334,7 @@ export default function FormAnalyticsDashboard() {
                   const creatorId =
                     typeof chatResponse?.createdBy === "object"
                       ? (chatResponse.createdBy as any)?._id ||
-                        (chatResponse.createdBy as any)?.id
+                      (chatResponse.createdBy as any)?.id
                       : chatResponse?.createdBy;
                   const creatorIdStr = creatorId ? String(creatorId) : "";
 
@@ -11286,13 +11382,12 @@ export default function FormAnalyticsDashboard() {
                           }
                         }}
                         disabled={isSendingMessage || !newMessage.trim()}
-                        className={`w-full flex items-center justify-center gap-2 px-6 py-3.5 text-white text-sm font-black rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-xl ${
-                          pendingReviewOption && !isSubmitter
-                            ? pendingReviewOption === "Rejected"
-                              ? "bg-red-600 hover:bg-red-700 shadow-red-200 dark:shadow-none"
-                              : "bg-yellow-600 hover:bg-yellow-700 shadow-yellow-200 dark:shadow-none"
-                            : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200 dark:shadow-none"
-                        }`}
+                        className={`w-full flex items-center justify-center gap-2 px-6 py-3.5 text-white text-sm font-black rounded-2xl disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-xl ${pendingReviewOption && !isSubmitter
+                          ? pendingReviewOption === "Rejected"
+                            ? "bg-red-600 hover:bg-red-700 shadow-red-200 dark:shadow-none"
+                            : "bg-yellow-600 hover:bg-yellow-700 shadow-yellow-200 dark:shadow-none"
+                          : "bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200 dark:shadow-none"
+                          }`}
                       >
                         {isSendingMessage ? (
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
