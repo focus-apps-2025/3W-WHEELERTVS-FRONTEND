@@ -179,10 +179,119 @@ export default function AllResponses() {
   const navigate = useNavigate();
   const { showSuccess, showError, showConfirm } = useNotification();
   const { logo } = useLogo();
+  const getSimpleString = (value: any): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "object") {
+      if (value.chassisNumber) return value.chassisNumber;
+      if (value.status) return value.status;
+      return JSON.stringify(value);
+    }
+    return String(value);
+  };
+
+  const getInitialMappedResponses = () => {
+    const cachedResponses = apiClient.getCachedData<any>("/responses?limit=1000");
+    const cachedForms = apiClient.getCachedData<any>("/forms");
+    if (!cachedResponses?.responses || !cachedForms?.forms) return [];
+
+    const formsMapObj = cachedForms.forms.reduce((map: Record<string, Form>, form: any) => {
+      if (form?._id) map[form._id] = form;
+      if (form?.id) map[form.id] = form;
+      return map;
+    }, {});
+
+    const dealerQuestionMap = new Map<string, string>();
+    cachedForms.forms.forEach((form: any) => {
+      const formId = form._id || form.id;
+      if (!formId) return;
+
+      if (form.sections && form.sections.length > 0) {
+        const firstSection = form.sections[0];
+        if (firstSection.questions && firstSection.questions.length > 0) {
+          for (const question of firstSection.questions) {
+            const questionText = (
+              question.text ||
+              question.label ||
+              ""
+            ).toLowerCase();
+            const isDealerField =
+              questionText.includes("dealer") ||
+              questionText.includes("distributor") ||
+              questionText.includes("agent") ||
+              questionText.includes("store") ||
+              questionText.includes("business");
+
+            if (isDealerField) {
+              dealerQuestionMap.set(formId, question.id);
+              break;
+            }
+          }
+        }
+      }
+    });
+
+    const hasAnswerValueLocal = (val: any) => {
+      if (val === null || val === undefined || val === "") return false;
+      if (typeof val === "object") {
+        return val.status !== null && val.status !== undefined && val.status !== "";
+      }
+      return true;
+    };
+
+    const extractDealerName = (
+      response: Response,
+      form: Form | undefined,
+    ): string => {
+      if (!form || !response.answers) return "Unknown";
+
+      const formId = form._id || form.id;
+      if (!formId) return "Unknown";
+
+      const dealerQuestionId = dealerQuestionMap.get(formId);
+      if (dealerQuestionId) {
+        const answer = response.answers[dealerQuestionId];
+        if (answer && hasAnswerValueLocal(answer)) {
+          return getSimpleString(answer);
+        }
+      }
+
+      if (form.sections && form.sections.length > 0) {
+        const firstSection = form.sections[0];
+        if (firstSection.questions && firstSection.questions.length > 0) {
+          for (const question of firstSection.questions) {
+            const answer = response.answers[question.id];
+            if (answer && hasAnswerValueLocal(answer)) {
+              return getSimpleString(answer);
+            }
+          }
+        }
+      }
+
+      return "Unknown";
+    };
+
+    return cachedResponses.responses.map((response: any) => {
+      const form = formsMapObj[response.questionId];
+      const dName = extractDealerName(response, form);
+
+      return {
+        ...response,
+        formTitle: form?.title || "Unknown Form",
+        dealerName: dName,
+      };
+    });
+  };
+
   const [responses, setResponses] = useState<
     (Response & { formTitle: string; dealerName?: string })[]
-  >([]);
-  const [loading, setLoading] = useState(true);
+  >(() => getInitialMappedResponses());
+  const [forms, setForms] = useState<Form[]>(() => apiClient.getCachedData<any>("/forms")?.forms || []);
+  const [loading, setLoading] = useState(() => {
+    const hasResponses = apiClient.getCachedData("/responses?limit=1000") !== null;
+    const hasForms = apiClient.getCachedData("/forms") !== null;
+    return !(hasResponses && hasForms);
+  });
   const [error, setError] = useState<string | null>(null);
   const [selectedResponse, setSelectedResponse] = useState<
     (Response & { formTitle: string }) | null
@@ -199,6 +308,8 @@ export default function AllResponses() {
   const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
   const [showFormFilter, setShowFormFilter] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const [exportingExcel, setExportingExcel] = useState(false);
   const [deletingResponseId, setDeletingResponseId] = useState<string | null>(
@@ -255,6 +366,10 @@ export default function AllResponses() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedFormIds]);
 
   useEffect(() => {
     if (viewMode !== "responses" || !pendingSectionId) {
@@ -705,10 +820,26 @@ export default function AllResponses() {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
+      const responsesKey = "/responses?limit=1000";
+      const formsKey = "/forms";
+
+      const isResponsesFresh = apiClient.isCacheFresh(responsesKey, 30);
+      const isFormsFresh = apiClient.isCacheFresh(formsKey, 30);
+
+      if (isResponsesFresh && isFormsFresh) {
+        console.log("[AllResponses] Cache is fresh (<30s). Skipping background API calls.");
+        setLoading(false);
+        return;
+      }
+
+      const hasResponses = apiClient.getCachedData(responsesKey) !== null;
+      const hasForms = apiClient.getCachedData(formsKey) !== null;
+      if (!(hasResponses && hasForms)) {
+        setLoading(true);
+      }
       const [responsesData, formsData] = await Promise.all([
-        apiClient.getResponses(),
-        apiClient.getForms(),
+        apiClient.getResponses({ limit: 1000, forceNetwork: true }),
+        apiClient.getForms({ forceNetwork: true }),
       ]);
 
       const formsMap = formsData.forms.reduce(
@@ -719,6 +850,8 @@ export default function AllResponses() {
         },
         {},
       );
+
+      setForms(formsData.forms);
 
       // Pre-calculate dealer question IDs for each form
       const dealerQuestionMap = new Map<string, string>();
@@ -838,19 +971,19 @@ export default function AllResponses() {
   // Get unique forms from responses
   const uniqueForms = useMemo(() => {
     const formMap = new Map<string, { id: string; title: string }>();
-    responses.forEach((response) => {
-      const key = response.questionId || response.formId || "";
+    forms.forEach((form) => {
+      const key = form.id || form._id || "";
       if (key && !formMap.has(key)) {
         formMap.set(key, {
           id: key,
-          title: response.formTitle,
+          title: form.title,
         });
       }
     });
     return Array.from(formMap.values()).sort((a, b) =>
       a.title.localeCompare(b.title),
     );
-  }, [responses]);
+  }, [forms]);
 
   // Initialize selectedFormIds with all forms on first load only - REMOVED to allow auto-update
   // Defaulting to empty array [] means "All Forms" and will automatically include new forms
@@ -872,7 +1005,14 @@ export default function AllResponses() {
     });
   }, [responses, searchQuery, selectedFormIds]);
 
-  const groupedResponses = groupResponsesByDate(filteredResponses);
+  const paginatedResponses = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredResponses.slice(startIndex, startIndex + pageSize);
+  }, [filteredResponses, currentPage, pageSize]);
+
+  const groupedResponses = groupResponsesByDate(paginatedResponses);
+
+  const totalPages = Math.ceil(filteredResponses.length / pageSize);
 
   const groupResponsesBySection = useMemo(() => {
     if (!selectedForm?.sections) return {};
@@ -3516,6 +3656,28 @@ export default function AllResponses() {
               </div>
             </div>
           ))}
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-xl border border-blue-100 dark:border-blue-800/30 mt-6 shadow-sm">
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 transition-all duration-200"
+            >
+              Previous
+            </button>
+            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">
+              Page {currentPage} of {totalPages} (Total {filteredResponses.length} requests)
+            </span>
+            <button
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 transition-all duration-200"
+            >
+              Next
+            </button>
+          </div>
+        )}
 
         {groupedResponses && Object.keys(groupedResponses).length === 0 && (
           <div className="text-center py-16 bg-gradient-to-br from-blue-50 to-indigo-50/50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-2xl border border-blue-100 dark:border-blue-800/30">

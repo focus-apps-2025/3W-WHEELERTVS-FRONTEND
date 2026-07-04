@@ -64,24 +64,29 @@ export default function AttendanceAnalytics() {
       if (shiftsRes?.data) setShifts(shiftsRes.data);
       if (summaryRes?.data) setSummary(summaryRes.data);
 
-      const stats: Record<string, { present: number, absent: number }> = {};
-      for (const shift of shiftsRes?.data || []) {
+      const shiftPromises = (shiftsRes?.data || []).map(async (shift: any) => {
         try {
           const report = await apiClient.getHRAttendanceReport({
             startDate: selectedDate,
             endDate: selectedDate,
-            shiftId: shift._id
+            shiftId: shift._id,
           });
-          
           const logs = report?.data?.detailedLogs || [];
-          stats[shift._id] = {
+          return {
+            id: shift._id,
             present: logs.filter((l: any) => l.status === 'present' || l.status === 'late').length,
-            absent: logs.filter((l: any) => l.status === 'absent').length
+            absent: logs.filter((l: any) => l.status === 'absent').length,
           };
         } catch (e) {
-          stats[shift._id] = { present: 0, absent: 0 };
+          return { id: shift._id, present: 0, absent: 0 };
         }
-      }
+      });
+
+      const results = await Promise.all(shiftPromises);
+      const stats: Record<string, { present: number, absent: number }> = {};
+      results.forEach((r) => {
+        stats[r.id] = { present: r.present, absent: r.absent };
+      });
       setShiftStats(stats);
     } catch (error: any) {
       showError(error.message || "Failed to fetch attendance analytics");

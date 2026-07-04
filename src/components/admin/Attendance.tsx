@@ -161,8 +161,97 @@ let tempEditId: string | null = null;
 
 export default function Attendance() {
   const { user } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [userAttendance, setUserAttendance] = useState<UserAttendance[]>([]);
+  const getInitialAttendance = () => {
+    const today = new Date();
+    const y = today.getFullYear();
+    const m = today.getMonth();
+    const start = new Date(y, m, 1);
+    const end = new Date(y, m + 1, 0);
+    const sDate = start.toISOString().split("T")[0];
+    const eDate = end.toISOString().split("T")[0];
+    const cacheKey = `/attendance/report?startDate=${sDate}&endDate=${eDate}`;
+
+    const cached = apiClient.getCachedData<any>(cacheKey);
+    const logs = cached?.detailedLogs || cached?.data?.detailedLogs || [];
+    if (logs && logs.length > 0) {
+      const userMap = new Map<string, UserAttendance>();
+      const cachedInspectors = apiClient.getCachedData<any>("/attendance/inspectors") || [];
+      const inspectorsList = Array.isArray(cachedInspectors) ? cachedInspectors : cachedInspectors?.data || [];
+      const nameToInspector = new Map(
+        inspectorsList.map((i: any) => [`${i.firstName} ${i.lastName}`.trim(), i])
+      );
+
+      logs.forEach((log: any) => {
+        const userName = log.inspector;
+        if (!userName) return;
+
+        const nameParts = userName.split(" ");
+        const matched = nameToInspector.get(userName.trim());
+        const realUserId = matched?._id || "";
+
+        if (!userMap.has(userName)) {
+          userMap.set(userName, {
+            userId: realUserId || userName,
+            firstName: nameParts[0] || "",
+            lastName: nameParts.slice(1).join(" ") || "",
+            username: matched?.username || "",
+            role: matched?.role || "inspector",
+            tenantId: log.tenant
+              ? { _id: "", name: log.tenant, companyName: log.tenant }
+              : undefined,
+            attendance: {},
+          });
+        }
+
+        const userObj = userMap.get(userName)!;
+        const loginDate = log.date;
+
+        if (loginDate) {
+          userObj.attendance[loginDate] = {
+            _id: log._id || "",
+            userId: {
+              _id: realUserId,
+              firstName: nameParts[0] || "",
+              lastName: nameParts.slice(1).join(" ") || "",
+              username: matched?.username || "",
+              email: matched?.email || "",
+              role: matched?.role || "inspector",
+            },
+            tenantId: undefined,
+            loginTime: log.checkIn,
+            logoutTime: log.checkOut,
+            workingHours: log.hours || 0,
+            isPresent: log.status === "absent"
+              ? false
+              : (log.status === "present" || log.status === "late" || (log.hours || 0) > 0 || !!log.checkIn),
+            presentStatus: log.status || "present",
+            shiftName: log.shift || "No shift",
+            checkInTime: log.checkIn,
+            checkOutTime: log.checkOut,
+            isActive: false,
+            lastActiveTime: null,
+            location: log.location ? { address: log.location } : undefined,
+            date: loginDate,
+          };
+        }
+      });
+
+      return Array.from(userMap.values());
+    }
+    return [];
+  };
+
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const start = new Date(y, m, 1);
+  const end = new Date(y, m + 1, 0);
+  const sDate = start.toISOString().split("T")[0];
+  const eDate = end.toISOString().split("T")[0];
+  const initialCacheKey = `/attendance/report?startDate=${sDate}&endDate=${eDate}`;
+
+  const [loading, setLoading] = useState(() => !apiClient.getCachedData(initialCacheKey));
+  const [userAttendance, setUserAttendance] = useState<UserAttendance[]>(() => getInitialAttendance());
   const [searchTerm, setSearchTerm] = useState("");
   const [hideSuperadmin, setHideSuperadmin] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -201,7 +290,10 @@ export default function Attendance() {
   // New Tab & Swapping state
   const [activeTab, setActiveTab] = useState<"attendance" | "report-response">("attendance");
   const [reportResponseData, setReportResponseData] = useState<any[]>([]);
-  const [inspectorsList, setInspectorsList] = useState<any[]>([]);
+  const [inspectorsList, setInspectorsList] = useState<any[]>(() => {
+    const cached = apiClient.getCachedData<any>("/attendance/inspectors");
+    return Array.isArray(cached) ? cached : cached?.data || [];
+  });
   useEffect(() => {
     apiClient.getInspectors().then((res) => {
       const list = Array.isArray(res) ? res : res?.data || [];
@@ -713,7 +805,16 @@ export default function Attendance() {
   // Fetch attendance data using HR report endpoint
   useEffect(() => {
     const fetchAttendance = async () => {
-      setLoading(true);
+      const cacheKey = `/attendance/report?startDate=${startDate}&endDate=${endDate}`;
+      if (apiClient.isCacheFresh(cacheKey, 30)) {
+        setLoading(false);
+        return;
+      }
+
+      const hasCache = apiClient.getCachedData(cacheKey) !== null;
+      if (!hasCache) {
+        setLoading(true);
+      }
       try {
         console.log(
           "Fetching HR attendance report from",
@@ -724,6 +825,7 @@ export default function Attendance() {
         const response = await apiClient.getHRAttendanceReport({
           startDate,
           endDate,
+          forceNetwork: true,
         });
 
         console.log("HR Report full response:", response);
@@ -1918,7 +2020,7 @@ export default function Attendance() {
                         <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-0 bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[150px]">
                           User Name
                         </th>
-                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-[150px] bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[100px]">
+                        <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider sticky left-[150px] bg-gray-50 dark:bg-gray-700/50 z-10 min-w-[150px]">
                           Status
                         </th>
                         {visibleDates.map((d) => (
@@ -1977,8 +2079,8 @@ export default function Attendance() {
                               </td>
 
                               {/* Status Summary Column */}
-                              <td className="px-2 py-2 sticky left-[150px] bg-white dark:bg-gray-800 z-10">
-                                <div className="text-[10px] font-medium space-y-1">
+                              <td className="px-2 py-1 sticky left-[150px] bg-white dark:bg-gray-800 z-10">
+                                <div className="text-[10px] font-medium space-y-0">
                                   {STATUS_CONFIG.map(({ key, label, color }) => (
                                     <div key={key} className={`${color}`}>
                                       {label}
@@ -2033,13 +2135,17 @@ export default function Attendance() {
 
                               {/* SWAP Button */}
                               <td className="px-3 py-3 text-center sticky right-0 bg-white dark:bg-gray-800 z-10">
-                                <button
-                                  onClick={() => handleOpenSwapModal(user)}
-                                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-900/50 transition-colors text-xs font-medium"
-                                >
-                                  <ArrowLeftRight className="w-4 h-4" />
-                                  Swap
-                                </button>
+                                {canEditAttendanceTime ? (
+                                  <button
+                                    onClick={() => handleOpenSwapModal(user)}
+                                    className="inline-flex items-center gap-1 px-3 py-1.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-900/50 transition-colors text-xs font-medium"
+                                  >
+                                    <ArrowLeftRight className="w-4 h-4" />
+                                    Swap
+                                  </button>
+                                ) : (
+                                  <span className="text-gray-300 text-xs">-</span>
+                                )}
                               </td>
                             </tr>
                           ))}
@@ -2145,13 +2251,15 @@ export default function Attendance() {
                                 <p className="text-xs text-gray-500">@{user.username}</p>
                               </div>
                             </div>
-                            <button
-                              onClick={() => handleOpenSwapModal(user)}
-                              className="px-3 py-1.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-lg text-xs font-medium flex items-center gap-1"
-                            >
-                              <ArrowLeftRight className="w-3 h-3" />
-                              Swap
-                            </button>
+                            {canEditAttendanceTime && (
+                              <button
+                                onClick={() => handleOpenSwapModal(user)}
+                                className="px-3 py-1.5 bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 rounded-lg text-xs font-medium flex items-center gap-1"
+                              >
+                                <ArrowLeftRight className="w-3 h-3" />
+                                Swap
+                              </button>
+                            )}
                           </div>
 
                           {/* Status Summary for Mobile */}

@@ -172,12 +172,6 @@ export default function FormsAnalytics() {
     execute: refetchForms,
   } = useForms(!isAnswerTemplateOpen);
 
-  const {
-    data: responsesData,
-    loading: responsesLoading,
-    error: responsesError,
-    execute: refetchResponses,
-  } = useResponses();
 
   const deleteMutation = useMutation((id: string) => apiClient.deleteForm(id), {
     onSuccess: () => {
@@ -340,42 +334,42 @@ export default function FormsAnalytics() {
   useEffect(() => {
     const fetchInviteCounts = async () => {
       try {
-        const counts: Record<string, number> = {};
-
-        // Loop through forms and get invite stats only for owned forms
-        for (const form of forms) {
+        const invitePromises = forms.map(async (form) => {
           const formId = form.id || form._id;
-          if (formId) {
-            // Check if user can access this form's invite stats
-            const ownerTenantId =
-              typeof form.tenantId === "object"
-                ? form.tenantId?._id
-                : form.tenantId;
-            const isOwner =
-              user?.role === "superadmin" ||
-              !form.tenantId ||
-              ownerTenantId === user?.tenantId;
+          if (!formId) return { id: null, count: 0 };
 
-            if (isOwner) {
-              try {
-                const response = await apiClient.getInviteStats(formId);
-                if (response.success) {
-                  counts[formId] = response.data.invites?.total || 0;
-                }
-              } catch (error) {
-                // If access denied or other error, skip this form
-                console.warn(
-                  `Failed to fetch invite stats for form ${formId}:`,
-                  error,
-                );
-                counts[formId] = 0;
+          const ownerTenantId =
+            typeof form.tenantId === "object"
+              ? form.tenantId?._id
+              : form.tenantId;
+          const isOwner =
+            user?.role === "superadmin" ||
+            !form.tenantId ||
+            ownerTenantId === user?.tenantId;
+
+          if (isOwner) {
+            try {
+              const response = await apiClient.getInviteStats(formId);
+              if (response.success) {
+                return { id: formId, count: response.data.invites?.total || 0 };
               }
-            } else {
-              // User doesn't own this form, set count to 0
-              counts[formId] = 0;
+            } catch (error) {
+              console.warn(
+                `Failed to fetch invite stats for form ${formId}:`,
+                error,
+              );
             }
           }
-        }
+          return { id: formId, count: 0 };
+        });
+
+        const results = await Promise.all(invitePromises);
+        const counts: Record<string, number> = {};
+        results.forEach((r) => {
+          if (r.id) {
+            counts[r.id] = r.count;
+          }
+        });
 
         setInviteCounts(counts);
       } catch (error) {
@@ -432,59 +426,6 @@ export default function FormsAnalytics() {
     return titleMatch || descriptionMatch;
   });
 
-  const responseCounts = useMemo(() => {
-    let allResponses =
-      (responsesData as ResponseData | undefined)?.responses || [];
-
-    // Apply Inspector Visibility Rules
-    if (user?.role === "inspector") {
-      const currentUserEmail = user?.email || "";
-      const currentUserUsername = user?.username || "";
-      const currentUserId = user?._id || user?.id;
-      const currentUserTenantId = user?.tenantId;
-
-      allResponses = allResponses.filter((response: any) => {
-        const submittedBy = response.submittedBy || "";
-        const createdBy = response.createdBy || "";
-        const submitterEmail = response.submitterContact?.email || "";
-        const responseTenantId = response.tenantId;
-
-        // Check if current user is the submitter (can see own responses)
-        const isOwnSubmission =
-          submittedBy === currentUserEmail ||
-          submittedBy === currentUserUsername ||
-          createdBy === currentUserEmail ||
-          createdBy === currentUserUsername ||
-          submitterEmail === currentUserEmail ||
-          (currentUserId &&
-            (response.createdBy === currentUserId ||
-              (response.createdBy &&
-                response.createdBy._id === currentUserId)));
-
-        // Check if response is from different tenant
-        const isDifferentTenant =
-          !responseTenantId ||
-          (currentUserTenantId &&
-            responseTenantId.toString() !== currentUserTenantId.toString());
-
-        // Check if response is from same tenant but different user
-        const isSameTenantOtherUser =
-          !isOwnSubmission &&
-          responseTenantId &&
-          currentUserTenantId &&
-          responseTenantId.toString() === currentUserTenantId.toString();
-
-        return isOwnSubmission || (isDifferentTenant && !isSameTenantOtherUser);
-      });
-    }
-
-    return allResponses.reduce<Record<string, number>>((acc, response: any) => {
-      if (response.questionId) {
-        acc[response.questionId] = (acc[response.questionId] || 0) + 1;
-      }
-      return acc;
-    }, {});
-  }, [responsesData, user]);
 
   const groupedForms = useMemo(() => {
     const result = filteredForms.reduce(
@@ -579,9 +520,7 @@ export default function FormsAnalytics() {
 
   const allForms = filteredForms.length;
   const totalResponses = filteredForms.reduce((sum, form) => {
-    const formId = form.id || form._id;
-    const count = responseCounts[formId] || 0;
-    return sum + count;
+    return sum + (form.responseCount || 0);
   }, 0);
 
   const handleDelete = async (id: string, title: string) => {
@@ -809,8 +748,8 @@ export default function FormsAnalytics() {
     };
   }, [openMenuId]);
 
-  const isDataLoading = loading || responsesLoading || !formsData || !responsesData;
-  const combinedError = error || responsesError;
+  const isDataLoading = loading || !formsData;
+  const combinedError = error;
 
   if (combinedError) {
     return (
@@ -820,7 +759,6 @@ export default function FormsAnalytics() {
           <button
             onClick={() => {
               refetchForms();
-              refetchResponses();
             }}
             className="mt-4 btn-primary"
           >
@@ -1055,7 +993,7 @@ export default function FormsAnalytics() {
             if (!parent) return null;
 
             const formId = parent.id || parent._id;
-            const responseCount = responseCounts[formId] || 0;
+            const responseCount = parent.responseCount || 0;
             const isLocationEnabled = parent.locationEnabled !== false;
 
             const ownerTenantId =
@@ -1565,9 +1503,7 @@ export default function FormsAnalytics() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {children.map((child, index) => {
                         const childId = child.id || child._id;
-                        const childResponseCount = childId
-                          ? responseCounts[childId] || 0
-                          : 0;
+                        const childResponseCount = child.responseCount || 0;
 
                         return (
                           <div

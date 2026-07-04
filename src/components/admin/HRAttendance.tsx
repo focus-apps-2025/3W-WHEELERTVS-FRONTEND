@@ -20,19 +20,32 @@ import {
 } from 'lucide-react';
 
 export default function HRAttendance() {
-  const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<any>(null);
-  const [showLocationModal, setShowLocationModal] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
+  const initialStartDate = new Date(new Date().setDate(1)).toISOString().split('T')[0];
+  const initialEndDate = new Date().toISOString().split('T')[0];
+  const reportCacheKey = `/attendance/report?startDate=${initialStartDate}&endDate=${initialEndDate}`;
+
   const [filters, setFilters] = useState({
-    startDate: new Date(new Date().setDate(1)).toISOString().split('T')[0], // 1st of current month
-    endDate: new Date().toISOString().split('T')[0],
+    startDate: initialStartDate,
+    endDate: initialEndDate,
     inspectorId: '',
     status: '',
     shiftId: ''
   });
-  const [shifts, setShifts] = useState<any[]>([]);
-  const [inspectors, setInspectors] = useState<any[]>([]);
+  const [data, setData] = useState<any>(() => {
+    const cached = apiClient.getCachedData<any>(reportCacheKey);
+    return cached?.data || cached || null;
+  });
+  const [loading, setLoading] = useState(() => !apiClient.getCachedData(reportCacheKey));
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
+  const [shifts, setShifts] = useState<any[]>(() => {
+    const cached = apiClient.getCachedData<any>("/hr/shifts");
+    return cached?.data || [];
+  });
+  const [inspectors, setInspectors] = useState<any[]>(() => {
+    const cached = apiClient.getCachedData<any>("/users?role=inspector&limit=1000");
+    return cached?.users || [];
+  });
 
   useEffect(() => {
     fetchMetadata();
@@ -41,9 +54,19 @@ export default function HRAttendance() {
 
   const fetchMetadata = async () => {
     try {
+      const shiftsKey = "/hr/shifts";
+      const inspectorsKey = "/users?role=inspector&limit=1000";
+
+      const isShiftsFresh = apiClient.isCacheFresh(shiftsKey, 30);
+      const isInspectorsFresh = apiClient.isCacheFresh(inspectorsKey, 30);
+
+      if (isShiftsFresh && isInspectorsFresh) {
+        return;
+      }
+
       const [shiftsRes, inspectorsRes] = await Promise.all([
-        apiClient.getShifts(),
-        apiClient.getUsers({ role: 'inspector', limit: 1000 })
+        apiClient.getShifts({ forceNetwork: true }),
+        apiClient.getUsers({ role: 'inspector', limit: 1000, forceNetwork: true } as any)
       ]);
       setShifts(shiftsRes?.data || []);
       setInspectors(inspectorsRes?.users || []);
@@ -53,10 +76,26 @@ export default function HRAttendance() {
   };
 
   const fetchReport = async () => {
-    setLoading(true);
+    const query = new URLSearchParams();
+    if (filters.startDate) query.set("startDate", filters.startDate);
+    if (filters.endDate) query.set("endDate", filters.endDate);
+    if (filters.inspectorId) query.set("inspectorId", filters.inspectorId);
+    if (filters.status) query.set("status", filters.status);
+    if (filters.shiftId) query.set("shiftId", filters.shiftId);
+    
+    const cacheKey = `/attendance/report?${query.toString()}`;
+    if (apiClient.isCacheFresh(cacheKey, 30)) {
+      setLoading(false);
+      return;
+    }
+
+    const hasCache = apiClient.getCachedData(cacheKey) !== null;
+    if (!hasCache) {
+      setLoading(true);
+    }
     try {
       console.log('Fetching report with filters:', filters);
-      const response = await apiClient.getHRAttendanceReport(filters);
+      const response = await apiClient.getHRAttendanceReport({ ...filters, forceNetwork: true });
       console.log('Report response:', response);
       console.log('Report response.data:', response?.data);
       setData(response?.data || response);

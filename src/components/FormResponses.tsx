@@ -225,7 +225,7 @@ export default function FormResponses() {
     try {
       setLoading(true);
       const [responsesData, formData] = await Promise.all([
-        apiClient.getResponses(),
+        apiClient.getResponses({ formIds: id }),
         apiClient.getForm(id!),
       ]);
 

@@ -362,14 +362,11 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
       if (!id) {
         throw new Error("Response ID is required");
       }
-      const responsesData = await apiClient.getResponses();
-      const selectedResponse = responsesData.responses.find(
-        (r: any) => r._id === id || r.id === id || String(r._id) === id || String(r.id) === id
-      );
+      const responseData = await apiClient.getResponse(id);
+      const selectedResponse = responseData.response;
 
       if (!selectedResponse) {
         console.error("Response not found. Looking for ID:", id);
-        console.error("Available response IDs:", responsesData.responses.map((r: any) => ({ _id: r._id, id: r.id })));
         throw new Error(`Response with ID "${id}" not found. Please check if the response exists.`);
       }
 
@@ -621,14 +618,9 @@ const handleBulkDownloadZip = async () => {
       throw new Error("Form identifier not found for this response.");
     }
 
-    // Fetch all responses for this form
-    const responsesData = await apiClient.getResponses();
-    const filteredResponses = responsesData.responses.filter(
-      (r: Response) => {
-        const rFormId = r.questionId || r.formId || (r as any).formIdentifier;
-        return rFormId === formIdentifier || String(rFormId) === String(formIdentifier);
-      }
-    );
+    // Fetch responses for this form only
+    const responsesData = await apiClient.getResponses({ formIds: formIdentifier });
+    const filteredResponses = responsesData.responses;
 
     if (filteredResponses.length === 0) {
       throw new Error("No responses found for this form.");

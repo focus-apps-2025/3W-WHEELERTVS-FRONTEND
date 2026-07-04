@@ -6,6 +6,7 @@ import {
   MessageSquare,
   TrendingUp,
   Key,
+  Edit,
 } from "lucide-react";
 import { apiClient } from "../../api/client";
 import ChangeTenantPasswordModal from "./ChangeTenantPasswordModal";
@@ -14,12 +15,14 @@ interface TenantDetailsModalProps {
   tenant: any;
   onClose: () => void;
   onUpdate: () => void;
+  onEditClick: () => void;
 }
 
 export default function TenantDetailsModal({
   tenant,
   onClose,
   onUpdate,
+  onEditClick,
 }: TenantDetailsModalProps) {
   const [stats, setStats] = useState({
     users: 0,
@@ -227,7 +230,14 @@ export default function TenantDetailsModal({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-neutral-200 dark:border-gray-700 px-6 py-4 flex justify-end">
+        <div className="border-t border-neutral-200 dark:border-gray-700 px-6 py-4 flex justify-end gap-3">
+          <button
+            onClick={onEditClick}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold text-sm rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
+          >
+            <Edit className="w-4 h-4" />
+            Edit Tenant
+          </button>
           <button onClick={onClose} className="btn-primary">
             Close
           </button>

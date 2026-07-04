@@ -43,8 +43,39 @@ export default function InternalTrackingPage() {
   const navigate = useNavigate();
   const { user, tenant: currentTenant } = useAuth();
   const { showError } = useNotification();
-  const [loading, setLoading] = useState(true);
-  const [allowedTenants, setAllowedTenants] = useState<TenantScore[]>([]);
+  const getInitialAllowedTenants = () => {
+    const cached = apiClient.getCachedData<any>("/internal-tracking/performance?");
+    const payload = cached?.data ?? cached;
+    if (payload && Array.isArray(payload.tenants)) {
+      const tenantList = payload.tenants as any[];
+      const users: any[] = payload.users || [];
+      return tenantList.map((t: any) => {
+        const tenantUsers = users.filter((u: any) => u.tenantId === t._id);
+        const avgPerformance =
+          tenantUsers.length > 0
+            ? Math.round(
+                tenantUsers.reduce(
+                  (sum: number, u: any) => sum + (u.performanceScore || 0),
+                  0,
+                ) / tenantUsers.length,
+              )
+            : 0;
+
+        return {
+          id: t._id,
+          name: t.name,
+          companyName: t.companyName || t.name,
+          slug: t.slug,
+          userCount: tenantUsers.length,
+          averagePerformance: avgPerformance,
+        };
+      });
+    }
+    return [];
+  };
+
+  const [allowedTenants, setAllowedTenants] = useState<TenantScore[]>(() => getInitialAllowedTenants());
+  const [loading, setLoading] = useState(() => !apiClient.getCachedData("/internal-tracking/performance?"));
   const [noAccess, setNoAccess] = useState(false);
 
   const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
@@ -61,10 +92,19 @@ export default function InternalTrackingPage() {
   }, []);
 
   const fetchAllowedTenantsPerformance = async () => {
-    setLoading(true);
+    const cacheKey = "/internal-tracking/performance?";
+    if (apiClient.isCacheFresh(cacheKey, 30)) {
+      setLoading(false);
+      return;
+    }
+
+    const hasCache = apiClient.getCachedData(cacheKey) !== null;
+    if (!hasCache) {
+      setLoading(true);
+    }
     setNoAccess(false);
     try {
-      const response = await apiClient.getInternalTrackingPerformance();
+      const response = await apiClient.getInternalTrackingPerformance({ forceNetwork: true });
       const payload = response?.data ?? response;
 
       if (payload && Array.isArray(payload.tenants)) {

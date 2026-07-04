@@ -54,11 +54,54 @@ class ApiClient {
   setToken(token: string) {
     this.token = token;
     localStorage.setItem("auth_token", token);
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("api_cache:")) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (_) { }
   }
 
   clearToken() {
     this.token = null;
     localStorage.removeItem("auth_token");
+    try {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("api_cache:")) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch (_) { }
+  }
+
+  public getCachedData<T>(endpoint: string): T | null {
+    try {
+      const cacheKey = `api_cache:${endpoint}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        const TTL = 2 * 60 * 1000; // 2 minutes TTL
+        if (Date.now() - timestamp < TTL) {
+          return data as T;
+        }
+      }
+    } catch (_) { }
+    return null;
+  }
+
+  public isCacheFresh(endpoint: string, freshnessSeconds = 30): boolean {
+    try {
+      const cacheKey = `api_cache:${endpoint}`;
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < freshnessSeconds * 1000) {
+          return true;
+        }
+      }
+    } catch (_) { }
+    return false;
   }
 
   public getBaseUrl() {
@@ -67,8 +110,57 @@ class ApiClient {
 
   public async request<T>(
     endpoint: string,
-    options: RequestInit & { timeout?: number } = {},
+    options: RequestInit & { timeout?: number; forceNetwork?: boolean } = {},
   ): Promise<T> {
+    const method = (options.method || "GET").toUpperCase();
+    const CACHE_BLACKLIST = [
+      "/auth/me",
+      "/auth/status",
+      "/auth/login",
+      "/users/me",
+      "/chat",
+      "/messages",
+      "/notifications",
+      "/otp",
+      "/verify",
+    ];
+
+    const isCacheable =
+      method === "GET" &&
+      !CACHE_BLACKLIST.some((path) => endpoint.includes(path));
+
+    const cacheKey = `api_cache:${endpoint}`;
+
+    if (isCacheable && !options.forceNetwork) {
+      try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          const TTL = 2 * 60 * 1000; // 2 minutes TTL
+          if (Date.now() - timestamp < TTL) {
+            console.log(`[CACHE HIT] Returning cached data for: ${endpoint}`);
+            return data as T;
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to read from cache:", err);
+      }
+    }
+
+    const isMutation = ["POST", "PUT", "DELETE", "PATCH"].includes(method);
+    if (isMutation) {
+      try {
+        Object.keys(localStorage).forEach((key) => {
+          if (key.startsWith("api_cache:")) {
+            localStorage.removeItem(key);
+          }
+        });
+        console.log("[CACHE INVALIDATION] Cleared all GET cache keys due to mutation request.");
+      } catch (err) {
+        console.warn("Failed to clear cache:", err);
+      }
+    }
+
     const url = `${this.baseUrl}${endpoint}`;
 
     const headers: Record<string, string> = {
@@ -127,6 +219,25 @@ class ApiClient {
         throw new ApiError(response.status, data, errorMessage);
       }
 
+      if (isCacheable) {
+        try {
+          localStorage.setItem(
+            cacheKey,
+            JSON.stringify({ data: data.data, timestamp: Date.now() })
+          );
+        } catch (err) {
+          console.warn("Failed to write to cache:", err);
+          // If storage is full, clean our cache keys to free up space
+          try {
+            Object.keys(localStorage).forEach((key) => {
+              if (key.startsWith("api_cache:")) {
+                localStorage.removeItem(key);
+              }
+            });
+          } catch (_) { }
+        }
+      }
+
       return data.data as T;
     } catch (error) {
       clearTimeout(timeoutId);
@@ -147,7 +258,7 @@ class ApiClient {
   // HTTP Helper Methods
   public async get<T>(
     endpoint: string,
-    options: RequestInit = {},
+    options: RequestInit & { timeout?: number; forceNetwork?: boolean } = {},
   ): Promise<{ success: boolean; data: T; message?: string }> {
     const data = await this.request<T>(endpoint, { ...options, method: "GET" });
     return { success: true, data };
@@ -408,6 +519,7 @@ class ApiClient {
     page?: number;
     limit?: number;
     tenantId?: string;
+    forceNetwork?: boolean;
   }) {
     const query = new URLSearchParams();
 
@@ -433,7 +545,9 @@ class ApiClient {
 
     const endpoint = `/users${query.toString() ? `?${query.toString()}` : ""}`;
 
-    return this.request<{ users: any[]; pagination: any }>(endpoint);
+    return this.request<{ users: any[]; pagination: any }>(endpoint, {
+      forceNetwork: params?.forceNetwork,
+    });
   }
 
   async createUser(userData: any) {
@@ -703,21 +817,39 @@ class ApiClient {
   }
 
   // Responses
-  async getResponses(params?: { formIds?: string; limit?: number }) {
+  async getResponses(params?: { formIds?: string; limit?: number; forceNetwork?: boolean }) {
     const query = new URLSearchParams();
     query.set("limit", (params?.limit ?? 50000).toString());
     if (params?.formIds) {
       query.set("formIds", params.formIds);
     }
     return this.request<{ responses: any[]; pagination?: any }>(
-      `/responses?${query.toString()}`, { timeout: 60000 }
+      `/responses?${query.toString()}`, { timeout: 60000, forceNetwork: params?.forceNetwork }
     );
   }
 
-  async getFormResponses(formId: string, options?: { analytics?: boolean }) {
-    const query = options?.analytics ? "?analytics=true" : "";
-    return this.request<{ responses: any[] }>(
-      `/responses/form/${formId}${query}`,
+  async getFormResponses(
+    formId: string,
+    options?: {
+      analytics?: boolean;
+      page?: number;
+      limit?: number;
+      status?: string;
+      includePartial?: boolean;
+      forceNetwork?: boolean;
+    },
+  ) {
+    const query = new URLSearchParams();
+    if (options?.analytics) query.set("analytics", "true");
+    if (options?.page) query.set("page", options.page.toString());
+    if (options?.limit) query.set("limit", options.limit.toString());
+    if (options?.status) query.set("status", options.status);
+    if (options?.includePartial) query.set("includePartial", "true");
+
+    const queryString = query.toString() ? `?${query.toString()}` : "";
+    return this.request<{ responses: any[]; form: any; pagination: any }>(
+      `/responses/form/${formId}${queryString}`,
+      { forceNetwork: options?.forceNetwork }
     );
   }
 
@@ -2199,8 +2331,8 @@ class ApiClient {
     });
   }
 
-  async getShifts() {
-    return this.request<{ data: any[] }>("/hr/shifts");
+  async getShifts(options?: { forceNetwork?: boolean }) {
+    return this.request<{ data: any[] }>("/hr/shifts", { forceNetwork: options?.forceNetwork });
   }
 
   async updateShift(id: string, shiftData: any) {
@@ -2737,6 +2869,39 @@ class ApiClient {
       console.error("📥 [API] swapResponses error:", error);
       throw error;
     }
+  }
+
+  async getAllFormResponses(
+    formId: string,
+    options?: { status?: string; includePartial?: boolean; analytics?: boolean; forceNetwork?: boolean },
+  ) {
+    // Deliberately large: the backend has no server-side cap on `limit`
+    // (it used to default to 10000 with no issue), so fetching in one
+    // big request avoids the round-trip overhead of many small pages —
+    // each request re-runs auth/tenant-access middleware, so 10 requests
+    // of 500 is much slower in practice than 1 request of 5000, even
+    // though the total data transferred is the same. Only forms with
+    // more than this many responses will need a second round-trip.
+    const pageLimit = 5000;
+    let page = 1;
+    let allResponses: any[] = [];
+    let totalPages = 1;
+    let form: any = undefined;
+
+    do {
+      const result = await this.getFormResponses(formId, {
+        ...options,
+        page,
+        limit: pageLimit,
+        forceNetwork: options?.forceNetwork,
+      });
+      allResponses = allResponses.concat(result.responses || []);
+      form = result.form ?? form;
+      totalPages = result.pagination?.totalPages ?? 1;
+      page += 1;
+    } while (page <= totalPages);
+
+    return { responses: allResponses, form };
   }
 }
 

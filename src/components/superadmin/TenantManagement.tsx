@@ -26,7 +26,8 @@ import { useNotification } from "../../context/NotificationContext";
 import { apiClient } from "../../api/client";
 import CreateTenantModal from "./CreateTenantModal";
 import TenantDetailsModal from "./TenantDetailsModal";
-import { X, UserPlus } from "lucide-react";
+import EditTenantModal from "./EditTenantModal";
+import { X, UserPlus, Edit } from "lucide-react";
 import SuperAdminUserResponseDashboard from "./SuperAdminUserResponseDashboard";
 
 interface Tenant {
@@ -77,6 +78,7 @@ export default function TenantManagement() {
   const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [tenantToDelete, setTenantToDelete] = useState<{
     id: string;
@@ -1301,6 +1303,16 @@ placeholder="admin@company.com"
                             View Details
                           </button>
                           <button
+                            onClick={() => {
+                              setEditingTenant(tenant);
+                              setShowEditModal(true);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-200 dark:border-gray-700 font-semibold py-2.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all text-sm"
+                          >
+                            <Edit className="w-4 h-4" />
+                            Edit
+                          </button>
+                          <button
                             onClick={() => handleToggleStatus(tenant._id)}
                             className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all border ${tenant.isActive
                               ? "bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900 hover:bg-red-100 dark:hover:bg-red-950/50"
@@ -1336,6 +1348,26 @@ placeholder="admin@company.com"
               setSelectedTenant(null);
             }}
             onUpdate={fetchTenants}
+            onEditClick={() => {
+              setShowDetailsModal(false);
+              setEditingTenant(selectedTenant);
+              setShowEditModal(true);
+              setSelectedTenant(null);
+            }}
+          />
+        )}
+        {showEditModal && editingTenant && (
+          <EditTenantModal
+            tenant={editingTenant}
+            onClose={() => {
+              setShowEditModal(false);
+              setEditingTenant(null);
+            }}
+            onSuccess={() => {
+              setShowEditModal(false);
+              setEditingTenant(null);
+              fetchTenants();
+            }}
           />
         )}
 

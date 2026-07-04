@@ -16,12 +16,21 @@ export function useApi<T>(
   apiFunction: (...args: any[]) => Promise<T>,
   immediate: boolean = false,
   pollInterval?: number,
-  enabled: boolean = true
+  enabled: boolean = true,
+  cacheEndpoint?: string
 ): UseApiReturn<T> {
-  const [state, setState] = useState<UseApiState<T>>({
-    data: null,
-    loading: false,
-    error: null,
+  const [state, setState] = useState<UseApiState<T>>(() => {
+    if (cacheEndpoint) {
+      const cached = apiClient.getCachedData<T>(cacheEndpoint);
+      if (cached) {
+        return { data: cached, loading: false, error: null };
+      }
+    }
+    return {
+      data: null,
+      loading: immediate && enabled,
+      error: null,
+    };
   });
 
   // Store the latest apiFunction in a ref to avoid stale closures
@@ -30,7 +39,10 @@ export function useApi<T>(
 
   const execute = useCallback(
     async (...args: any[]): Promise<T | null> => {
-      setState((prev) => ({ ...prev, loading: true, error: null }));
+      const hasCache = cacheEndpoint && apiClient.getCachedData(cacheEndpoint) !== null;
+      if (!hasCache) {
+        setState((prev) => ({ ...prev, loading: true, error: null }));
+      }
 
       try {
         const result = await apiFunctionRef.current(...args);
@@ -43,7 +55,7 @@ export function useApi<T>(
         return null;
       }
     },
-    [] // No dependencies since we use ref
+    [cacheEndpoint]
   );
 
   const reset = useCallback(() => {
@@ -74,23 +86,23 @@ export function useApi<T>(
 
 // Specific hooks for common operations
 export function useForms(enabled: boolean = true) {
-  return useApi(apiClient.getForms.bind(apiClient), true, 0, enabled);
+  return useApi(apiClient.getForms.bind(apiClient), true, 0, enabled, "/forms");
 }
 
 export function useResponses() {
-  return useApi(apiClient.getResponses.bind(apiClient), true);
+  return useApi(apiClient.getResponses.bind(apiClient), true, 0, true, "/responses");
 }
 
 export function useUsers() {
-  return useApi(apiClient.getUsers.bind(apiClient), true);
+  return useApi(apiClient.getUsers.bind(apiClient), true, 0, true, "/users");
 }
 
 export function useRoles() {
-  return useApi(apiClient.getRoles.bind(apiClient), true);
+  return useApi(apiClient.getRoles.bind(apiClient), true, 0, true, "/roles");
 }
 
 export function useDashboardAnalytics() {
-  return useApi(apiClient.getDashboardAnalytics.bind(apiClient), true);
+  return useApi(apiClient.getDashboardAnalytics.bind(apiClient), true, 0, true, "/analytics/dashboard");
 }
 
 export function useFormAnalytics(formId: string) {
@@ -98,7 +110,7 @@ export function useFormAnalytics(formId: string) {
     () => apiClient.getFormAnalytics(formId),
     [formId]
   );
-  return useApi(getFormAnalytics, !!formId);
+  return useApi(getFormAnalytics, !!formId, 0, true, `/forms/${formId}/analytics`);
 }
 
 export function useFormResponses(formId: string) {
@@ -106,7 +118,7 @@ export function useFormResponses(formId: string) {
     () => apiClient.getFormResponses(formId),
     [formId]
   );
-  return useApi(getFormResponses, !!formId);
+  return useApi(getFormResponses, !!formId, 0, true, `/responses/form/${formId}`);
 }
 
 // Hook for mutations with optimistic updates

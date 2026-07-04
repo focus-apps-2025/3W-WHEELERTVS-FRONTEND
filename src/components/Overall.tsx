@@ -430,8 +430,163 @@ export default function Overall() {
   const { tenant } = useAuth();
   const navigate = useNavigate();
   const formFilterRef = React.useRef<HTMLDivElement>(null);
-  const [responses, setResponses] = useState<Response[]>([]);
-  const [loading, setLoading] = useState(true);
+  const getSimpleString = (value: any): string => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value;
+    if (typeof value === "object") {
+      if (value.chassisNumber) return value.chassisNumber;
+      if (value.status) return value.status;
+      return JSON.stringify(value);
+    }
+    return String(value);
+  };
+
+  const getInitialMappedResponses = () => {
+    const cachedResponses = apiClient.getCachedData<any>("/responses?limit=1000");
+    const cachedForms = apiClient.getCachedData<any>("/forms");
+    if (!cachedResponses?.responses || !cachedForms?.forms) return [];
+
+    const formsMapObj = cachedForms.forms.reduce((map: Record<string, Form>, form: any) => {
+      if (form?._id) map[form._id] = form;
+      if (form?.id) map[form.id] = form;
+      return map;
+    }, {});
+
+    const formQuestionTextsMap: Record<string, Record<string, string>> = {};
+    cachedForms.forms.forEach((form: any) => {
+      const questionTexts: Record<string, string> = {};
+      const fid = form._id || form.id;
+      if (!fid) return;
+      if (form.sections?.length > 0) {
+        for (const section of form.sections) {
+          if (section.questions?.length > 0) {
+            for (const q of section.questions) {
+              if (q.id) {
+                questionTexts[q.id] = q.text || q.label || `Question: ${q.id.substring(0, 8)}`;
+              }
+              if (q.followUpQuestions) {
+                for (const fq of q.followUpQuestions) {
+                  if (fq.id) {
+                    questionTexts[fq.id] = fq.text || fq.label || `Follow-up: ${fq.id.substring(0, 8)}`;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      formQuestionTextsMap[fid] = questionTexts;
+    });
+
+    const dealerQuestionMap = new Map<string, string>();
+    Object.values(formsMapObj).forEach((form: any) => {
+      const fid = form._id || form.id;
+      if (!fid) return;
+      if (form.sections?.length > 0) {
+        const first = form.sections[0];
+        if (first.questions?.length > 0) {
+          for (const q of first.questions) {
+            const txt = (q.text || q.label || "").toLowerCase();
+            if (
+              txt.includes("dealer") ||
+              txt.includes("distributor") ||
+              txt.includes("store") ||
+              txt.includes("business")
+            ) {
+              dealerQuestionMap.set(fid, q.id);
+              break;
+            }
+          }
+        }
+      }
+    });
+
+    const hasAnswerValueLocal = (val: any) => {
+      if (val === null || val === undefined || val === "") return false;
+      if (typeof val === "object") {
+        return val.status !== null && val.status !== undefined && val.status !== "";
+      }
+      return true;
+    };
+
+    const extractDealer = (response: any, form: Form | undefined) => {
+      if (!form || !response.answers) return { name: null, rank: null };
+      const fid = form._id || form.id;
+      if (!fid) return { name: null, rank: null };
+      const dqid = dealerQuestionMap.get(fid);
+      if (dqid) {
+        const ans = response.answers[dqid];
+        if (ans && hasAnswerValueLocal(ans)) {
+          return {
+            name: getSimpleString(ans),
+            rank: response.responseRanks?.[dqid] || null,
+          };
+        }
+      }
+      if (form.sections?.length > 0) {
+        const first = form.sections[0];
+        if (first.questions?.length > 0) {
+          for (const q of first.questions) {
+            const ans = response.answers[q.id];
+            if (ans && hasAnswerValueLocal(ans)) {
+              return {
+                name: getSimpleString(ans),
+                rank: response.responseRanks?.[q.id] || null,
+              };
+            }
+          }
+        }
+      }
+      return { name: null, rank: null };
+    };
+
+    return cachedResponses.responses.map((r: any) => {
+      const actualFormId = r.questionId || r.formId;
+      const form = formsMapObj[actualFormId];
+      const dealer = extractDealer(r, form);
+
+      let firstQ = "Unknown Question";
+      let firstA = "N/A";
+      const questionTexts = formQuestionTextsMap[actualFormId] || {};
+
+      if (form && form.sections?.length > 0) {
+        if (form.sections[0]?.questions?.[0]) {
+          const q = form.sections[0].questions[0];
+          firstQ = q.text || q.label || q.id || "Unknown Question";
+          firstA = getSimpleString(r.answers?.[q.id]) || "N/A";
+        }
+      }
+
+      return {
+        ...r,
+        actualFormId: actualFormId,
+        formTitle: form?.title || "Unknown Form",
+        dealerName: dealer.name || "Unknown",
+        dealerRank: dealer.rank,
+        firstQuestionText: firstQ,
+        firstAnswerValue: firstA,
+        questionTexts: questionTexts,
+      };
+    });
+  };
+
+  const getInitialFormsMap = () => {
+    const cachedForms = apiClient.getCachedData<any>("/forms");
+    if (!cachedForms?.forms) return new Map<string, Form>();
+    const formsMapObj = cachedForms.forms.reduce((map: Record<string, Form>, form: any) => {
+      if (form?._id) map[form._id] = form;
+      if (form?.id) map[form.id] = form;
+      return map;
+    }, {});
+    return new Map(Object.entries(formsMapObj));
+  };
+
+  const [responses, setResponses] = useState<Response[]>(() => getInitialMappedResponses());
+  const [loading, setLoading] = useState(() => {
+    const hasResponses = apiClient.getCachedData("/responses?limit=1000") !== null;
+    const hasForms = apiClient.getCachedData("/forms") !== null;
+    return !(hasResponses && hasForms);
+  });
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFormIds, setSelectedFormIds] = useState<string[]>([]);
@@ -567,7 +722,7 @@ export default function Overall() {
   }, [filteredResponses, defectDateFilter]);
 
 
-  const [formsMap, setFormsMap] = useState<Map<string, Form>>(new Map());
+  const [formsMap, setFormsMap] = useState<Map<string, Form>>(() => getInitialFormsMap());
 
 
 
@@ -1921,11 +2076,27 @@ export default function Overall() {
   // ─── Fetch ─────────────────────────────────────────────────────────────────
   const fetchData = async () => {
     try {
-      setLoading(true);
+      const responsesKey = "/responses?limit=1000";
+      const formsKey = "/forms";
+
+      const isResponsesFresh = apiClient.isCacheFresh(responsesKey, 30);
+      const isFormsFresh = apiClient.isCacheFresh(formsKey, 30);
+
+      if (isResponsesFresh && isFormsFresh) {
+        console.log("[Overall] Cache is fresh (<30s). Skipping background API calls.");
+        setLoading(false);
+        return;
+      }
+
+      const hasResponses = apiClient.getCachedData(responsesKey) !== null;
+      const hasForms = apiClient.getCachedData(formsKey) !== null;
+      if (!(hasResponses && hasForms)) {
+        setLoading(true);
+      }
       setError(null);
       const [responsesData, formsData] = await Promise.all([
-        apiClient.getResponses(),
-        apiClient.getForms(),
+        apiClient.getResponses({ limit: 1000, forceNetwork: true }),
+        apiClient.getForms({ forceNetwork: true }),
       ]);
 
       const formsMapObj = formsData.forms.reduce((map: Record<string, Form>, form: any) => {
@@ -1934,8 +2105,36 @@ export default function Overall() {
         return map;
       }, {});
 
-      // ✅ ADD THIS LINE - Populate formsMap state
+      // ✅ Populate formsMap state
       setFormsMap(new Map(Object.entries(formsMapObj)));
+
+      // Pre-calculate formQuestionTextsMap once outside responses loops
+      const formQuestionTextsMap: Record<string, Record<string, string>> = {};
+      formsData.forms.forEach((form: any) => {
+        const questionTexts: Record<string, string> = {};
+        const fid = form._id || form.id;
+        if (!fid) return;
+        if (form.sections?.length > 0) {
+          for (const section of form.sections) {
+            if (section.questions?.length > 0) {
+              for (const q of section.questions) {
+                if (q.id) {
+                  questionTexts[q.id] = q.text || q.label || `Question: ${q.id.substring(0, 8)}`;
+                }
+                if (q.followUpQuestions) {
+                  for (const fq of q.followUpQuestions) {
+                    if (fq.id) {
+                      questionTexts[fq.id] = fq.text || fq.label || `Follow-up: ${fq.id.substring(0, 8)}`;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        formQuestionTextsMap[fid] = questionTexts;
+      });
+
       const dealerQuestionMap = new Map<string, string>();
       Object.values(formsMapObj).forEach((form: any) => {
         const fid = form._id || form.id;
@@ -1997,32 +2196,9 @@ export default function Overall() {
 
         let firstQ = "Unknown Question";
         let firstA = "N/A";
-        const questionTexts: Record<string, string> = {};
+        const questionTexts = formQuestionTextsMap[actualFormId] || {};
 
         if (form && form.sections?.length > 0) {
-          // IMPORTANT: Loop through ALL sections and questions
-          for (const section of form.sections) {
-            if (section.questions?.length > 0) {
-              for (const q of section.questions) {
-                // Store the mapping using the question's actual ID from the form
-                if (q.id) {
-                  questionTexts[q.id] = q.text || q.label || `Question: ${q.id.substring(0, 8)}`;
-                  console.log(`Mapping: ${q.id} -> "${q.text}"`);
-                }
-
-                // Also handle follow-up questions
-                if (q.followUpQuestions) {
-                  for (const fq of q.followUpQuestions) {
-                    if (fq.id) {
-                      questionTexts[fq.id] = fq.text || fq.label || `Follow-up: ${fq.id.substring(0, 8)}`;
-                      console.log(`Mapping follow-up: ${fq.id} -> "${fq.text}"`);
-                    }
-                  }
-                }
-              }
-            }
-          }
-
           // Get first question for display
           if (form.sections[0]?.questions?.[0]) {
             const q = form.sections[0].questions[0];
@@ -2030,9 +2206,6 @@ export default function Overall() {
             firstA = renderAnswerDisplay(r.answers?.[q.id]) || "N/A";
           }
         }
-
-        // Log what we're storing for this response
-        console.log(`Response ${r._id} (${form?.title}) has ${Object.keys(questionTexts).length} question mappings`);
 
         return {
           ...r,

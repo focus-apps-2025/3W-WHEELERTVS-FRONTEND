@@ -265,8 +265,12 @@ export default function DashboardNew() {
   const navigate = useNavigate();
   const { user, tenant: currentTenant } = useAuth();
   const [userPerformanceScore, setUserPerformanceScore] = useState(100);
-  const [formsData, setFormsData] = useState<any>(null);
-  const [formsLoading, setFormsLoading] = useState(false);
+  const [formsData, setFormsData] = useState<any>(() => {
+    return apiClient.getCachedData("/forms?limit=100") || null;
+  });
+  const [formsLoading, setFormsLoading] = useState(() => {
+    return !apiClient.getCachedData("/forms?limit=100");
+  });
   const [formsError, setFormsError] = useState<string | null>(null);
 
 
@@ -274,8 +278,13 @@ export default function DashboardNew() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // New states for tenant management
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [tenantsLoading, setTenantsLoading] = useState(false);
+  const [tenants, setTenants] = useState<Tenant[]>(() => {
+    const cached = apiClient.getCachedData<any>("/tenants");
+    return cached?.tenants || [];
+  });
+  const [tenantsLoading, setTenantsLoading] = useState(() => {
+    return !apiClient.getCachedData("/tenants");
+  });
   const [tenantsError, setTenantsError] = useState<string | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
   const [tenantStats, setTenantStats] = useState<Record<string, TenantStats>>(
@@ -293,8 +302,12 @@ export default function DashboardNew() {
   const [summaryEndDate, setSummaryEndDate] = useState(() => {
     return new Date().toISOString().split("T")[0];
   });
-  const [myReviewStats, setMyReviewStats] = useState<any>(null);
-  const [myReviewStatsLoading, setMyReviewStatsLoading] = useState(false);
+  const [myReviewStats, setMyReviewStats] = useState<any>(() => {
+    return apiClient.getCachedData("/analytics/my-review-stats") || null;
+  });
+  const [myReviewStatsLoading, setMyReviewStatsLoading] = useState(() => {
+    return !apiClient.getCachedData("/analytics/my-review-stats");
+  });
   const [showSummaryTable, setShowSummaryTable] = useState(false);
   const [allUsers, setAllUsers] = useState<any[]>([]);
 
@@ -425,34 +438,28 @@ export default function DashboardNew() {
     }
   }, [selectedTenant, viewMode, formsLoaded]);
 
-  // In loadFormsForTenant, after successful load:
   const loadFormsForTenant = useCallback(async (tenantId: string) => {
     if (!tenantId) return;
 
-    setFormsLoading(true);
+    const cacheKey = `/forms?tenantId=${tenantId}&limit=100`;
+    if (apiClient.isCacheFresh(cacheKey, 30)) {
+      setFormsLoading(false);
+      setFormsLoaded(true);
+      return;
+    }
+
+    const hasCache = apiClient.getCachedData(cacheKey) !== null;
+    if (!hasCache) {
+      setFormsLoading(true);
+    }
     setFormsError(null);
 
     try {
       const formsResponse = await apiClient.getForms({
         tenantId: tenantId,
-        limit: 100, // Increased limit
+        limit: 100,
+        forceNetwork: true
       });
-
-      if (formsResponse.forms) {
-        // Manually fetch response counts for each form
-        const formsWithCounts = await Promise.all(
-          formsResponse.forms.map(async (form: any) => {
-            try {
-              const responses = await apiClient.getFormResponses(form.id || form._id);
-              return { ...form, responseCount: responses.responses.length };
-            } catch (error) {
-              console.error(`Failed to fetch responses for form ${form.id || form._id}`, error);
-              return { ...form, responseCount: form.responseCount || 0 }; // Fallback to existing count
-            }
-          })
-        );
-        formsResponse.forms = formsWithCounts;
-      }
 
       setFormsData(formsResponse);
       setFormsLoaded(true); // ✅ Mark as loaded
@@ -515,11 +522,20 @@ export default function DashboardNew() {
         return;
       }
 
-      setTenantsLoading(true);
+      const cacheKey = "/tenants";
+      if (apiClient.isCacheFresh(cacheKey, 30)) {
+        setTenantsLoading(false);
+        return;
+      }
+
+      const hasCache = apiClient.getCachedData(cacheKey) !== null;
+      if (!hasCache) {
+        setTenantsLoading(true);
+      }
       setTenantsError(null);
       try {
         console.log("Fetching tenants for superadmin...");
-        const response = await apiClient.getTenants();
+        const response = await apiClient.request<{ tenants: any[] }>(cacheKey, { forceNetwork: true });
         console.log("Tenants API response:", response);
 
         if (response && response.tenants) {
@@ -650,9 +666,18 @@ export default function DashboardNew() {
   // Fetch my review stats
   useEffect(() => {
     const fetchMyStats = async () => {
-      setMyReviewStatsLoading(true);
+      const cacheKey = "/analytics/my-review-stats";
+      if (apiClient.isCacheFresh(cacheKey, 30)) {
+        setMyReviewStatsLoading(false);
+        return;
+      }
+
+      const hasCache = apiClient.getCachedData(cacheKey) !== null;
+      if (!hasCache) {
+        setMyReviewStatsLoading(true);
+      }
       try {
-        const response = await apiClient.getMyReviewStats();
+        const response = await apiClient.getMyReviewStats({ forceNetwork: true });
         if (response.success) {
           setMyReviewStats(response.data);
         }
