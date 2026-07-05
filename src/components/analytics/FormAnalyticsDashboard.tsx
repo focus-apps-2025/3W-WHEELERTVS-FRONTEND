@@ -44,6 +44,7 @@ import {
   Camera,
   Loader2,
   Maximize,
+  RotateCcw,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Pie, Doughnut, Radar } from "react-chartjs-2";
@@ -130,6 +131,12 @@ interface Response {
   timeSpent?: number;
   submitterContact?: {
     email?: string;
+  };
+  biwReview?: {
+    status: "Accepted" | "Rejected" | "Reworked";
+    reviewedBy?: string;
+    reviewedByName?: string;
+    reviewedAt?: string;
   };
 }
 
@@ -803,6 +810,39 @@ const getRankStyle = (answer: any, darkMode: boolean = false) => {
   ];
   const color = colors[Math.abs(hash) % colors.length];
   return darkMode ? color.d : color.l;
+};
+const getBiwPerformanceLabel = (score: number) => {
+  if (score < 60) {
+    return {
+      label: "Not Met Performer",
+      className:
+        "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
+    };
+  } else if (score < 70) {
+    return {
+      label: "Partially Met Performer",
+      className:
+        "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400",
+    };
+  } else if (score < 80) {
+    return {
+      label: "Met Expectation",
+      className:
+        "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400",
+    };
+  } else if (score < 90) {
+    return {
+      label: "Exceeded Performance",
+      className:
+        "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400",
+    };
+  } else {
+    return {
+      label: "Exemplary Performer",
+      className:
+        "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400",
+    };
+  }
 };
 
 const computeSectionPerformanceStats = (
@@ -2444,6 +2484,145 @@ export default function FormAnalyticsDashboard() {
       setIsSavingChassis(false);
     }
   };
+
+  // Whether the currently logged-in user is the one who submitted this
+  // response (used to block a submitter from BIW-reviewing their own work —
+  // mirrors the same submitter check already used for the Dispatch column).
+  // Exceptions: admins/superadmins can review anything (including their own
+  // submissions), and "Excel Import" responses have no real submitter, so
+  // anyone can review those too.
+  const isSubmitterOfResponse = (response: Response) => {
+    if (user?.role === "admin" || user?.role === "superadmin") return false;
+    if (response.submittedBy === "Excel Import") return false;
+
+    const userEmail = user?.email || "";
+    const userUsername = user?.username || "";
+    const userIdStr = user?._id
+      ? String(user._id)
+      : user?.id
+        ? String(user.id)
+        : "";
+    const creatorId =
+      typeof response.createdBy === "object"
+        ? (response.createdBy as any)?._id || (response.createdBy as any)?.id
+        : response.createdBy;
+    const creatorIdStr = creatorId ? String(creatorId) : "";
+
+    return (
+      response.submittedBy === userEmail ||
+      response.submittedBy === userUsername ||
+      response.createdBy === userEmail ||
+      response.createdBy === userUsername ||
+      response.submitterContact?.email === userEmail ||
+      (creatorIdStr && creatorIdStr === userIdStr)
+    );
+  };
+
+  // BIW Review: any reviewer other than the submitter can mark a response as
+  // Accepted / Rejected / Reworked from the Responses table. Selecting one
+  // option saves it to the response (biwReview) and unsets the others —
+  // acts like a single-select despite being rendered as three checkboxes.
+  // The server is authoritative on reviewedBy/reviewedAt and re-checks the
+  // "not your own submission" rule, so we only send the status here.
+  const handleBiwReviewChange = async (
+    response: Response,
+    status: "Accepted" | "Rejected" | "Reworked",
+  ) => {
+    if (isSubmitterOfResponse(response)) {
+      showToast("You cannot BIW review your own submission", "error");
+      return;
+    }
+
+    // Clicking the already-selected option clears the review; otherwise set it.
+    const isUnselecting = response.biwReview?.status === status;
+    const payload = isUnselecting ? null : { status };
+
+    try {
+      setBiwSavingResponseId(response.id);
+      const result = await apiClient.updateResponse(response.id, {
+        biwReview: payload,
+      });
+
+      const savedBiwReview = (result as any)?.response?.biwReview ?? undefined;
+
+      setResponses((prev) =>
+        prev.map((r) =>
+          r.id === response.id ? { ...r, biwReview: savedBiwReview } : r,
+        ),
+      );
+      setTableResponses((prev) =>
+        prev.map((r) =>
+          r.id === response.id ? { ...r, biwReview: savedBiwReview } : r,
+        ),
+      );
+
+      showToast(
+        isUnselecting
+          ? "BIW review cleared"
+          : `Marked as ${status} (BIW Review)`,
+        "success",
+      );
+    } catch (err: any) {
+      console.error("Error saving BIW review:", err);
+      const message =
+        err?.message || "Failed to save BIW review. Please try again.";
+      showToast(message, "error");
+    } finally {
+      setBiwSavingResponseId(null);
+    }
+  };
+
+  // Bulk auto-fill: instead of looping through every response client-side,
+  // this calls the backend's single bulk-update endpoint (see
+  // apiClient.autoFillChassisNumbers / responseController.autoFillChassisNumbers),
+  // which fills every response with no chassis_number using the first
+  // configured chassis option, in one database call. Triggered manually via
+  // the button in the "Selected Chassis" column header.
+  const [isAutoFillingChassis, setIsAutoFillingChassis] = useState(false);
+
+  const handleAutoFillAllChassis = async () => {
+    if (!chassisMasterOptions.length) {
+      showToast("No chassis numbers are configured for this form.", "error");
+      return;
+    }
+    if (!id) return;
+
+    const confirmed = window.confirm(
+      `This will set every response that currently has no chassis number to "${chassisMasterOptions[0].label}". Continue?`,
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsAutoFillingChassis(true);
+      const result = await apiClient.autoFillChassisNumbers(id);
+      const defaultValue = result.defaultValue ?? chassisMasterOptions[0].value;
+      const modifiedCount = result.modifiedCount ?? 0;
+
+      // Reflect the change locally right away instead of waiting on a refetch
+      setResponses((prev) =>
+        prev.map((r) => {
+          const current = r.answers?.chassis_number;
+          const isEmpty = !current || String(current).trim() === "";
+          return isEmpty
+            ? { ...r, answers: { ...r.answers, chassis_number: defaultValue } }
+            : r;
+        }),
+      );
+
+      showToast(
+        modifiedCount > 0
+          ? `Auto-filled ${modifiedCount} response(s) with "${defaultValue}".`
+          : "All responses already have a chassis number.",
+        "success",
+      );
+    } catch (err) {
+      console.error("Error auto-filling chassis numbers:", err);
+      showToast("Failed to auto-fill chassis numbers. Please try again.", "error");
+    } finally {
+      setIsAutoFillingChassis(false);
+    }
+  };
+
   const [analyticsView, setAnalyticsView] = useState<
     "question" | "section" | "table" | "responses" | "dashboard" | "comparison" | "overall"
   >(
@@ -2518,6 +2697,57 @@ export default function FormAnalyticsDashboard() {
   const [selectedInspectorForTrend, setSelectedInspectorForTrend] =
     useState<string>("Overall");
   const [localFilterName, setLocalFilterName] = useState<string>("All");
+
+  // BIW Review Table data — computed client-side from the full `responses`
+  // dataset (not the server-paginated `tableResponses`), grouped by
+  // submitter, the same way the User Name rows are read in the Performance
+  // Table. Accepted/Rejected/Reworked/Total Reviewed here only count BIW
+  // review clicks, not the regular review flow.
+  const biwReviewTableData = useMemo(() => {
+    const byUser = new Map<
+      string,
+      {
+        name: string;
+        totalSubmitted: number;
+        dispatched: number;
+        accepted: number;
+        rejected: number;
+        rework: number;
+      }
+    >();
+
+    responses.forEach((response) => {
+      const name =
+        response.submittedBy || response.createdBy || "Anonymous";
+      if (!byUser.has(name)) {
+        byUser.set(name, {
+          name,
+          totalSubmitted: 0,
+          dispatched: 0,
+          accepted: 0,
+          rejected: 0,
+          rework: 0,
+        });
+      }
+      const stats = byUser.get(name)!;
+      stats.totalSubmitted += 1;
+      if (response.isDispatched) stats.dispatched += 1;
+
+      const biwStatus = response.biwReview?.status;
+      if (biwStatus === "Accepted") stats.accepted += 1;
+      else if (biwStatus === "Rejected") stats.rejected += 1;
+      else if (biwStatus === "Reworked") stats.rework += 1;
+    });
+
+    return Array.from(byUser.values()).map((stats) => {
+      const totalReviewed = stats.accepted + stats.rejected + stats.rework;
+      const performanceScore =
+        totalReviewed > 0
+          ? Math.round((stats.accepted / totalReviewed) * 100)
+          : 0;
+      return { ...stats, totalReviewed, performanceScore };
+    });
+  }, [responses]);
   const [localFilterShift, setLocalFilterShift] = useState<string>("All");
   const [localFilterDate, setLocalFilterDate] = useState<string>("");
   const [dateFilter, setDateFilter] = useState<{
@@ -2561,6 +2791,66 @@ export default function FormAnalyticsDashboard() {
   const [performancePageSize, setPerformancePageSize] = useState(10);
   const [responsesPage, setResponsesPage] = useState(1);
   const [responsesPageSize, setResponsesPageSize] = useState(20);
+
+  // BIW Review — a second, independent accept/reject/rework check that any
+  // reviewer (other than the response's own submitter) can apply from the
+  // Responses table. Saved to the response via biwReview and rolled up into
+  // its own "BIW Review Table" (mirrors the main Performance Table).
+  const [biwSavingResponseId, setBiwSavingResponseId] = useState<string | null>(
+    null,
+  );
+  const [biwReviewPage, setBiwReviewPage] = useState(1);
+  const [biwReviewPageSize, setBiwReviewPageSize] = useState(10);
+
+  // Server-side pagination for the "Responses" table tab. Instead of relying
+  // on the full `responses` array already loaded for analytics, this tab
+  // fetches only the current page directly from the backend
+  // (getResponsesByForm already supports page/limit + returns a `pagination`
+  // object), so opening this tab with a form that has thousands of
+  // responses doesn't require the whole dataset up front.
+  //
+  // NOTE: the existing date/inspector/location/column/cascading filters
+  // below are computed against the full in-memory `responses` array for the
+  // charts and other analytics tabs. They are NOT (yet) sent to the backend,
+  // so they won't filter this server-paginated table — only pagination
+  // (page + page size) is server-side for now.
+  const [tableResponses, setTableResponses] = useState<Response[]>([]);
+  const [tableResponsesTotal, setTableResponsesTotal] = useState(0);
+  const [isLoadingTableResponses, setIsLoadingTableResponses] = useState(false);
+
+  useEffect(() => {
+    if (analyticsView !== "responses" || !id) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        setIsLoadingTableResponses(true);
+        const result = await apiClient.getFormResponses(id, {
+          page: responsesPage,
+          limit: responsesPageSize,
+          forceNetwork: true,
+        });
+        if (cancelled) return;
+        setTableResponses(result.responses || []);
+        setTableResponsesTotal(
+          result.pagination?.totalResponses ?? (result.responses || []).length,
+        );
+      } catch (err) {
+        console.error("Error fetching paginated responses:", err);
+        if (!cancelled) {
+          setTableResponses([]);
+          setTableResponsesTotal(0);
+        }
+      } finally {
+        if (!cancelled) setIsLoadingTableResponses(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [analyticsView, id, responsesPage, responsesPageSize]);
 
   // Fetch performance table data
   useEffect(() => {
@@ -3652,15 +3942,11 @@ export default function FormAnalyticsDashboard() {
     setResponsesPage(1);
   }, [dateFilter, selectedInspectorForTrend, id]);
 
-  const totalResponsesCount = filteredResponses.length;
-  const totalResponsesPages = Math.ceil(totalResponsesCount / responsesPageSize);
-  const currentResponsesPage = Math.min(responsesPage, Math.max(1, totalResponsesPages));
-  const responsesStartIndex = (currentResponsesPage - 1) * responsesPageSize;
-  const responsesEndIndex = responsesStartIndex + responsesPageSize;
-
-  const paginatedResponsesList = useMemo(() => {
-    return filteredResponses.slice(responsesStartIndex, responsesEndIndex);
-  }, [filteredResponses, responsesStartIndex, responsesEndIndex]);
+  const totalResponsesCount = tableResponsesTotal;
+  const totalResponsesPages = Math.max(1, Math.ceil(totalResponsesCount / responsesPageSize));
+  const currentResponsesPage = Math.min(responsesPage, totalResponsesPages);
+  const responsesStartIndex = totalResponsesCount > 0 ? (currentResponsesPage - 1) * responsesPageSize : 0;
+  const responsesEndIndex = responsesStartIndex + tableResponses.length;
 
   const pageSizesList = useMemo(() => {
     const base = [20, 50, 100];
@@ -7092,16 +7378,24 @@ export default function FormAnalyticsDashboard() {
                       {row.rework}
                     </td>
                     <td className="px-4 sm:px-6 py-5 text-center">
-                      <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-black tabular-nums shadow-sm ${row.performanceScore >= 80
-                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
-                          : row.performanceScore >= 50
-                            ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
-                            : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
-                          }`}
-                      >
-                        {row.performanceScore}%
-                      </span>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <span
+                          className={`px-3 py-1 rounded-full text-[10px] font-black tabular-nums shadow-sm ${row.performanceScore >= 80
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+                            : row.performanceScore >= 50
+                              ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
+                              : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                            }`}
+                        >
+                          {row.performanceScore}%
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wide whitespace-nowrap ${getBiwPerformanceLabel(row.performanceScore).className
+                            }`}
+                        >
+                          {getBiwPerformanceLabel(row.performanceScore).label}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -7183,6 +7477,208 @@ export default function FormAnalyticsDashboard() {
                     )
                   }
                   disabled={performancePage === totalPerformancePages}
+                  className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderBiwReviewTable = () => {
+    if (user?.role !== "admin" && user?.role !== "superadmin") return null;
+
+    if (biwReviewTableData.length === 0) return null;
+
+    const localFilteredBiw =
+      localFilterName === "All"
+        ? biwReviewTableData
+        : biwReviewTableData.filter(
+          (row: any) => row.name === localFilterName,
+        );
+
+    const totalBiwItems = localFilteredBiw.length;
+    const totalBiwPages = Math.ceil(totalBiwItems / biwReviewPageSize);
+    const biwStartIndex = (biwReviewPage - 1) * biwReviewPageSize;
+    const biwEndIndex = biwStartIndex + biwReviewPageSize;
+    const paginatedBiw = localFilteredBiw.slice(biwStartIndex, biwEndIndex);
+
+    return (
+      <div className="mt-12 border-t border-gray-100 dark:border-gray-700 pt-8">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-2 h-8 bg-purple-600 rounded-full shadow-sm shadow-purple-500/20"></div>
+          <div>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white leading-none mb-1">
+              BIW Review Table
+            </h3>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+              Performance based on BIW review checkmarks
+            </p>
+          </div>
+        </div>
+
+        <div className="relative bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-md sticky top-0 z-10 text-gray-500 dark:text-gray-400 uppercase text-[10px] font-black tracking-[0.15em]">
+                <tr>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">
+                    User Name
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">
+                    Total Submitted
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-blue-600">
+                    Dispatched
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">
+                    Total Reviewed
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-green-600">
+                    Accepted
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-red-600">
+                    Rejected
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-orange-600">
+                    Reworked
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">
+                    Performance Score
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                {paginatedBiw.map((row, idx) => (
+                  <tr
+                    key={idx}
+                    className="hover:bg-purple-50/30 dark:hover:bg-purple-900/10 transition-colors"
+                  >
+                    <td className="px-4 sm:px-6 py-5 font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                      {row.name}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center tabular-nums">
+                      {row.totalSubmitted}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-blue-600 dark:text-blue-400 tabular-nums">
+                      {row.dispatched || 0}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center tabular-nums">
+                      {row.totalReviewed}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-green-600 tabular-nums">
+                      {row.accepted}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-red-600 tabular-nums">
+                      {row.rejected}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-orange-600 tabular-nums">
+                      {row.rework}
+                    </td>
+                   <td className="px-4 sm:px-6 py-5 text-center">
+  <div className="flex flex-col items-center gap-1.5">
+    <span
+      className={`px-3 py-1 rounded-full text-[10px] font-black tabular-nums shadow-sm ${row.performanceScore >= 80
+        ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+        : row.performanceScore >= 50
+          ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
+          : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+        }`}
+    >
+      {row.performanceScore}%
+    </span>
+    <span
+      className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wide whitespace-nowrap ${getBiwPerformanceLabel(row.performanceScore).className
+        }`}
+    >
+      {getBiwPerformanceLabel(row.performanceScore).label}
+    </span>
+  </div>
+</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalBiwPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 bg-gray-50/50 dark:bg-gray-900/50 border-t border-gray-50 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  Show
+                </label>
+                <select
+                  value={biwReviewPageSize}
+                  onChange={(e) => {
+                    setBiwReviewPageSize(Number(e.target.value));
+                    setBiwReviewPage(1);
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all shadow-sm"
+                >
+                  {[5, 10, 20, 50].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  {biwStartIndex + 1}-{Math.min(biwEndIndex, totalBiwItems)} of{" "}
+                  {totalBiwItems}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() =>
+                    setBiwReviewPage((prev) => Math.max(1, prev - 1))
+                  }
+                  disabled={biwReviewPage === 1}
+                  className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from(
+                    { length: totalBiwPages },
+                    (_, i) => i + 1,
+                  )
+                    .filter(
+                      (num) =>
+                        totalBiwPages <= 5 ||
+                        Math.abs(num - biwReviewPage) <= 1 ||
+                        num === 1 ||
+                        num === totalBiwPages,
+                    )
+                    .map((pageNum, idx, arr) => (
+                      <React.Fragment key={pageNum}>
+                        {idx > 0 && arr[idx - 1] !== pageNum - 1 && (
+                          <span className="text-gray-300 mx-1">...</span>
+                        )}
+                        <button
+                          onClick={() => setBiwReviewPage(pageNum)}
+                          className={`min-w-[32px] h-8 text-[10px] font-black rounded-xl transition-all ${biwReviewPage === pageNum
+                            ? "bg-purple-600 text-white shadow-lg shadow-purple-500/30"
+                            : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50"
+                            }`}
+                        >
+                          {pageNum}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                </div>
+
+                <button
+                  onClick={() =>
+                    setBiwReviewPage((prev) =>
+                      Math.min(totalBiwPages, prev + 1),
+                    )
+                  }
+                  disabled={biwReviewPage === totalBiwPages}
                   className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -7645,6 +8141,7 @@ export default function FormAnalyticsDashboard() {
                   <DirectAcceptedPerformanceGraph />
                   {renderSummaryTable()}
                   {renderPerformanceTable()}
+                  {renderBiwReviewTable()}
                   <InspectorPerformanceChart />
                 </div>
               </div>
@@ -8816,7 +9313,9 @@ export default function FormAnalyticsDashboard() {
                       All Responses
                     </h3>
                     <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
-                      Showing {totalResponsesCount > 0 ? responsesStartIndex + 1 : 0}-{Math.min(responsesEndIndex, totalResponsesCount)} of {totalResponsesCount} responses
+                      {isLoadingTableResponses
+                        ? "Loading…"
+                        : `Showing ${totalResponsesCount > 0 ? responsesStartIndex + 1 : 0}-${Math.min(responsesEndIndex, totalResponsesCount)} of ${totalResponsesCount} responses`}
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center relative">
@@ -9080,12 +9579,12 @@ export default function FormAnalyticsDashboard() {
                                 checked={
                                   selectedResponseIds.length > 0 &&
                                   selectedResponseIds.length ===
-                                  paginatedResponsesList.length
+                                  tableResponses.length
                                 }
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     setSelectedResponseIds(
-                                      paginatedResponsesList.map((r) => r.id),
+                                      tableResponses.map((r) => r.id),
                                     );
                                   } else {
                                     setSelectedResponseIds([]);
@@ -9119,10 +9618,27 @@ export default function FormAnalyticsDashboard() {
                               Status
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
-                              Selected Chassis
+                              <div className="flex items-center gap-1.5">
+                                <span>Selected Chassis</span>
+                                <button
+                                  onClick={handleAutoFillAllChassis}
+                                  disabled={isAutoFillingChassis || !chassisMasterOptions.length}
+                                  title="Auto-fill every response with no chassis number using the first option"
+                                  className="p-1 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed normal-case tracking-normal"
+                                >
+                                  {isAutoFillingChassis ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              </div>
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Review
+                            </th>
+                            <th className="text-center px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-purple-50 dark:bg-purple-900/20">
+                              BIW Review
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                               Timestamp
@@ -9175,8 +9691,8 @@ export default function FormAnalyticsDashboard() {
                         </thead>
 
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                          {paginatedResponsesList.length > 0 ? (
-                            paginatedResponsesList.map(
+                          {tableResponses.length > 0 ? (
+                            tableResponses.map(
                               (response: Response, idx: number) => (
                                 <tr
                                   key={response.id}
@@ -9605,6 +10121,95 @@ export default function FormAnalyticsDashboard() {
                                         <span className="text-gray-400 italic text-xs">
                                           No review yet
                                         </span>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="px-4 py-3 border border-gray-200 dark:border-gray-700 min-w-40 bg-purple-50/50 dark:bg-purple-900/10">
+                                    {(() => {
+                                      const isSubmitter =
+                                        isSubmitterOfResponse(response);
+                                      const currentStatus =
+                                        response.biwReview?.status;
+                                      const isSaving =
+                                        biwSavingResponseId === response.id;
+
+                                      const options: {
+                                        status:
+                                        | "Accepted"
+                                        | "Rejected"
+                                        | "Reworked";
+                                        label: string;
+                                        icon: any;
+                                        activeClass: string;
+                                      }[] = [
+                                          {
+                                            status: "Accepted",
+                                            label: "Accept",
+                                            icon: CheckCircle,
+                                            activeClass:
+                                              "text-green-600 dark:text-green-400",
+                                          },
+                                          {
+                                            status: "Rejected",
+                                            label: "Reject",
+                                            icon: XCircle,
+                                            activeClass:
+                                              "text-red-600 dark:text-red-400",
+                                          },
+                                          {
+                                            status: "Reworked",
+                                            label: "Rework",
+                                            icon: RotateCcw,
+                                            activeClass:
+                                              "text-orange-600 dark:text-orange-400",
+                                          },
+                                        ];
+
+                                      return (
+                                        <div className="flex flex-col gap-1.5">
+                                          {options.map((opt) => {
+                                            const Icon = opt.icon;
+                                            const checked =
+                                              currentStatus === opt.status;
+                                            return (
+                                              <label
+                                                key={opt.status}
+                                                title={
+                                                  isSubmitter
+                                                    ? "You cannot BIW review your own submission"
+                                                    : opt.label
+                                                }
+                                                className={`flex items-center gap-1.5 text-xs font-medium ${isSubmitter
+                                                  ? "opacity-40 cursor-not-allowed"
+                                                  : "cursor-pointer"
+                                                  } ${checked ? opt.activeClass : "text-gray-500 dark:text-gray-400"}`}
+                                              >
+                                                <input
+                                                  type="checkbox"
+                                                  checked={checked}
+                                                  disabled={
+                                                    isSubmitter || isSaving
+                                                  }
+                                                  onChange={() =>
+                                                    handleBiwReviewChange(
+                                                      response,
+                                                      opt.status,
+                                                    )
+                                                  }
+                                                  className="w-3.5 h-3.5 rounded cursor-pointer accent-current disabled:cursor-not-allowed"
+                                                />
+                                                <Icon className="w-3.5 h-3.5" />
+                                                <span>{opt.label}</span>
+                                              </label>
+                                            );
+                                          })}
+                                          {isSaving && (
+                                            <span className="flex items-center gap-1 text-[10px] text-gray-400">
+                                              <Loader2 className="w-3 h-3 animate-spin" />
+                                              Saving...
+                                            </span>
+                                          )}
+                                        </div>
                                       );
                                     })()}
                                   </td>

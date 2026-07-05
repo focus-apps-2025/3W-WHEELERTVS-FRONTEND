@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+// add CheckCircle, XCircle, RotateCcw to your lucide-react import
 import {
   FileText,
   ChevronLeft,
@@ -21,6 +22,9 @@ import {
   Eye,
   ChevronUp,
   ChevronDown,
+  CheckCircle,
+  XCircle,
+  RotateCcw,
 } from "lucide-react";
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 import { Doughnut } from "react-chartjs-2";
@@ -361,6 +365,349 @@ export default function DashboardNew() {
     },
     [isUserActive, getUserNameAliases],
   );
+
+
+  const [showBiwTable, setShowBiwTable] = useState(false);
+  const [biwResponses, setBiwResponses] = useState<any[]>([]);
+  const [biwLoading, setBiwLoading] = useState(false);
+  const [biwPage, setBiwPage] = useState(1);
+  const [biwPageSize, setBiwPageSize] = useState(10);
+
+  // Replace the existing useEffect for fetching BIW data
+  useEffect(() => {
+    if (!showBiwTable) return;
+
+    const fetchBiwSummary = async () => {
+      setBiwLoading(true);
+      try {
+        // Use the new dedicated endpoint
+        const response = await apiClient.getBiwSummary({ forceNetwork: true });
+        console.log('[BIW] Summary response:', response);
+
+        if (response?.data) {
+          // The data is already grouped and ready to display
+          const data = Array.isArray(response.data) ? response.data : [];
+          console.log(`[BIW] Total users: ${data.length}`);
+          console.log(`[BIW] Total responses: ${response.totalResponses || 'N/A'}`);
+          setBiwResponses(data);
+        } else {
+          setBiwResponses([]);
+        }
+      } catch (error) {
+        console.error("Error fetching BIW summary:", error);
+        setBiwResponses([]);
+      } finally {
+        setBiwLoading(false);
+      }
+    };
+
+    fetchBiwSummary();
+  }, [showBiwTable]);
+
+  // Simplify biwReviewTableData - data is already grouped from backend
+  const biwReviewTableData = useMemo(() => {
+    // If data is already grouped from the backend, just return it
+    if (biwResponses.length > 0 && 'totalSubmitted' in biwResponses[0]) {
+      return biwResponses;
+    }
+
+    // Fallback: group data manually (in case the endpoint returns raw responses)
+    const byUser = new Map<string, {
+      name: string;
+      totalSubmitted: number;
+      dispatched: number;
+      accepted: number;
+      rejected: number;
+      rework: number;
+    }>();
+
+    const filteredResponses = biwResponses.filter((response: any) => {
+      if (isSuperAdmin) return true;
+
+      const responseTenantId = response.tenantId?._id || response.tenantId;
+      const isSameTenant = responseTenantId === currentTenant?._id ||
+        responseTenantId === currentTenant?.slug;
+
+      if (!isSameTenant) return false;
+
+      const submittedBy = response.submittedBy || response.createdBy || "";
+      if (submittedBy === "Excel Import" ||
+        submittedBy === "System" ||
+        submittedBy === "Admin Import") {
+        return false;
+      }
+
+      return true;
+    });
+
+    filteredResponses.forEach((response: any) => {
+      const name = response.submittedBy || response.createdBy || "Anonymous";
+
+      if (!byUser.has(name)) {
+        byUser.set(name, {
+          name,
+          totalSubmitted: 0,
+          dispatched: 0,
+          accepted: 0,
+          rejected: 0,
+          rework: 0,
+        });
+      }
+
+      const stats = byUser.get(name)!;
+      stats.totalSubmitted += 1;
+      if (response.isDispatched) stats.dispatched += 1;
+
+      const biwStatus = response.biwReview?.status;
+      if (biwStatus === "Accepted") {
+        stats.accepted += 1;
+      } else if (biwStatus === "Rejected") {
+        stats.rejected += 1;
+      } else if (biwStatus === "Reworked") {
+        stats.rework += 1;
+      }
+    });
+
+    return Array.from(byUser.values()).map((stats) => {
+      const totalReviewed = stats.accepted + stats.rejected + stats.rework;
+      const performanceScore = totalReviewed > 0
+        ? Math.round((stats.accepted / totalReviewed) * 100)
+        : 0;
+      return { ...stats, totalReviewed, performanceScore };
+    });
+  }, [biwResponses, isSuperAdmin, currentTenant]);
+
+  const renderBiwReviewTable = () => {
+    if (!showBiwTable) {
+      return (
+        <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-2 h-8 bg-purple-600 rounded-full shadow-sm shadow-purple-500/20"></div>
+            <div>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white leading-none mb-1">
+                BIW Review Table
+              </h3>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                Performance based on BIW review checkmarks
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowBiwTable(true)}
+            className="w-full py-8 bg-purple-50 dark:bg-purple-900/10 border-2 border-dashed border-purple-300 dark:border-purple-700 rounded-3xl hover:bg-purple-100 dark:hover:bg-purple-900/20 transition-all group"
+          >
+            <div className="flex flex-col items-center gap-3">
+              <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-full group-hover:scale-110 transition-transform">
+                <CheckCircle className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-purple-700 dark:text-purple-300">
+                  Load BIW Review Table
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  View BIW review performance across all forms
+                </p>
+              </div>
+            </div>
+          </button>
+        </div>
+      );
+    }
+
+    if (biwLoading) {
+      return (
+        <div className="mt-12 text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-purple-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-500 text-sm">Loading BIW review data...</p>
+        </div>
+      );
+    }
+
+    if (biwReviewTableData.length === 0) {
+      return (
+        <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-700 text-center py-8 text-gray-500 text-sm">
+          No BIW review data available yet.
+        </div>
+      );
+    }
+
+    const totalBiwItems = biwReviewTableData.length;
+    const totalBiwPages = Math.max(1, Math.ceil(totalBiwItems / biwPageSize));
+    const biwStartIndex = (biwPage - 1) * biwPageSize;
+    const biwEndIndex = biwStartIndex + biwPageSize;
+    const paginatedBiw = biwReviewTableData.slice(biwStartIndex, biwEndIndex);
+    console.log("[BIW] biwReviewTableData:", biwReviewTableData);
+    console.log("[BIW] totalBiwItems:", totalBiwItems, "paginatedBiw:", paginatedBiw);
+
+    return (
+      <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-2 h-8 bg-purple-600 rounded-full shadow-sm shadow-purple-500/20"></div>
+          <div>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white leading-none mb-1">
+              BIW Review Table
+            </h3>
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+              Performance based on BIW review checkmarks (all forms)
+            </p>
+          </div>
+        </div>
+
+        <div className="relative bg-white dark:bg-gray-800 rounded-3xl border border-gray-100 dark:border-gray-700 shadow-xl shadow-gray-200/50 dark:shadow-none overflow-hidden">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-gray-700">
+            <table className="w-full text-sm text-left border-collapse">
+              <thead className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-md sticky top-16 z-10 text-gray-500 dark:text-gray-400 uppercase text-[10px] font-black tracking-[0.15em]">
+                <tr>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap">
+                    User Name
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">
+                    Total Submitted
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-blue-600">
+                    Dispatched
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">
+                    Total Reviewed
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-green-600">
+                    Accepted
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-red-600">
+                    Rejected
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center text-orange-600">
+                    Reworked
+                  </th>
+                  <th className="px-4 sm:px-6 py-5 border-b border-gray-100 dark:border-gray-700 whitespace-nowrap text-center">
+                    Performance Score
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-gray-700">
+                {paginatedBiw.map((row, idx) => (
+                  <tr
+                    key={idx}
+                    className="hover:bg-purple-50/30 dark:hover:bg-purple-900/10 transition-colors"
+                  >
+                    <td className="px-4 sm:px-6 py-5 font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                      {row.name}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center tabular-nums">
+                      {row.totalSubmitted}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-blue-600 dark:text-blue-400 tabular-nums">
+                      {row.dispatched || 0}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center tabular-nums">
+                      {row.totalReviewed}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-green-600 tabular-nums">
+                      {row.accepted}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-red-600 tabular-nums">
+                      {row.rejected}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 font-black text-center text-orange-600 tabular-nums">
+                      {row.rework}
+                    </td>
+                    <td className="px-4 sm:px-6 py-5 text-center">
+                      <span
+                        className={`px-3 py-1 rounded-full text-[10px] font-black tabular-nums shadow-sm ${row.performanceScore >= 80
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+                          : row.performanceScore >= 50
+                            ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
+                            : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                          }`}
+                      >
+                        {row.performanceScore}%
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {totalBiwPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-6 bg-gray-50/50 dark:bg-gray-900/50 border-t border-gray-50 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  Show
+                </label>
+                <select
+                  value={biwPageSize}
+                  onChange={(e) => {
+                    setBiwPageSize(Number(e.target.value));
+                    setBiwPage(1);
+                  }}
+                  className="px-3 py-1.5 text-xs font-bold border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 transition-all shadow-sm"
+                >
+                  {[5, 10, 20, 50].map((size) => (
+                    <option key={size} value={size}>
+                      {size}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  {biwStartIndex + 1}-{Math.min(biwEndIndex, totalBiwItems)} of{" "}
+                  {totalBiwItems}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setBiwPage((prev) => Math.max(1, prev - 1))}
+                  disabled={biwPage === 1}
+                  className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalBiwPages }, (_, i) => i + 1)
+                    .filter(
+                      (num) =>
+                        totalBiwPages <= 5 ||
+                        Math.abs(num - biwPage) <= 1 ||
+                        num === 1 ||
+                        num === totalBiwPages,
+                    )
+                    .map((pageNum, idx, arr) => (
+                      <React.Fragment key={pageNum}>
+                        {idx > 0 && arr[idx - 1] !== pageNum - 1 && (
+                          <span className="text-gray-300 mx-1">...</span>
+                        )}
+                        <button
+                          onClick={() => setBiwPage(pageNum)}
+                          className={`min-w-[32px] h-8 text-[10px] font-black rounded-xl transition-all ${biwPage === pageNum
+                            ? "bg-purple-600 text-white shadow-lg shadow-purple-500/30"
+                            : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50"
+                            }`}
+                        >
+                          {pageNum}
+                        </button>
+                      </React.Fragment>
+                    ))}
+                </div>
+
+                <button
+                  onClick={() =>
+                    setBiwPage((prev) => Math.min(totalBiwPages, prev + 1))
+                  }
+                  disabled={biwPage === totalBiwPages}
+                  className="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl disabled:opacity-30 transition-all hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   const activeUserNames = useMemo(
     () => buildActiveUserNames(allUsers),
@@ -1304,67 +1651,67 @@ export default function DashboardNew() {
     });
   };
 
-const renderSummaryTable = () => {
-  // Pagination logic (defined early to ensure availability in all branches)
-  const totalSummaryItems = groupedSummary.length;
-  const totalSummaryPages = Math.max(1, Math.ceil(totalSummaryItems / summaryPageSize));
-  const startIndex = (summaryPage - 1) * summaryPageSize;
-  const endIndex = startIndex + summaryPageSize;
-  const paginatedSummary = groupedSummary.slice(startIndex, endIndex);
+  const renderSummaryTable = () => {
+    // Pagination logic (defined early to ensure availability in all branches)
+    const totalSummaryItems = groupedSummary.length;
+    const totalSummaryPages = Math.max(1, Math.ceil(totalSummaryItems / summaryPageSize));
+    const startIndex = (summaryPage - 1) * summaryPageSize;
+    const endIndex = startIndex + summaryPageSize;
+    const paginatedSummary = groupedSummary.slice(startIndex, endIndex);
 
-  if (!showSummaryTable) {
-    return (
-      <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-2 h-8 bg-blue-600 rounded-full shadow-sm shadow-blue-500/20"></div>
-          <div>
-            <h3 className="text-xl font-black text-gray-900 dark:text-white leading-none mb-1">
-              Inspection Summary
-            </h3>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-              Real-time inspection data
-            </p>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setShowSummaryTable(true)}
-          className="w-full py-8 bg-blue-50 dark:bg-blue-900/10 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-3xl hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-all group"
-        >
-          <div className="flex flex-col items-center gap-3">
-            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full group-hover:scale-110 transition-transform">
-              <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
+    if (!showSummaryTable) {
+      return (
+        <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="w-2 h-8 bg-blue-600 rounded-full shadow-sm shadow-blue-500/20"></div>
             <div>
-              <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
-                Load Inspection Summary
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                View inspection performance data
+              <h3 className="text-xl font-black text-gray-900 dark:text-white leading-none mb-1">
+                Inspection Summary
+              </h3>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+                Real-time inspection data
               </p>
             </div>
           </div>
-        </button>
-      </div>
-    );
-  }
 
-  if (summaryLoading) {
-    return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-        <p className="text-gray-500 text-sm">Loading summary...</p>
-      </div>
-    );
-  }
+          <button
+            onClick={() => setShowSummaryTable(true)}
+            className="w-full py-8 bg-blue-50 dark:bg-blue-900/10 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-3xl hover:bg-blue-100 dark:hover:bg-blue-900/20 transition-all group"
+          >
+            <div className="flex flex-col items-center gap-3">
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-full group-hover:scale-110 transition-transform">
+                <FileText className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-blue-700 dark:text-blue-300">
+                  Load Inspection Summary
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  View inspection performance data
+                </p>
+              </div>
+            </div>
+          </button>
+        </div>
+      );
+    }
 
-  if (groupedSummary.length === 0) {
-    return (
-      <div className="text-center py-8 text-gray-500 text-sm">
-        No inspection data available for the current summary.
-      </div>
-    );
-  }
+    if (summaryLoading) {
+      return (
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-500 text-sm">Loading summary...</p>
+        </div>
+      );
+    }
+
+    if (groupedSummary.length === 0) {
+      return (
+        <div className="text-center py-8 text-gray-500 text-sm">
+          No inspection data available for the current summary.
+        </div>
+      );
+    }
 
     return (
       <div className="mt-12 pt-8 border-t border-gray-100 dark:border-gray-700">
@@ -1946,6 +2293,9 @@ const renderSummaryTable = () => {
 
         {/* Performance Table - Visible for admins and superadmins */}
         <PerformanceTable />
+
+        {!isInspector && renderBiwReviewTable()}
+
 
 
       </div>

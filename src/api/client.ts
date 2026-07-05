@@ -955,6 +955,20 @@ class ApiClient {
     return result;
   }
 
+  async autoFillChassisNumbers(formId: string) {
+    console.log("API Client: Auto-filling chassis numbers for form", formId);
+    const result = await this.request<{
+      defaultValue: string;
+      matchedCount: number;
+      modifiedCount: number;
+    }>(`/responses/form/${formId}/auto-fill-chassis`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    console.log("API Client: Auto-fill chassis result", result);
+    return result;
+  }
+
   async deleteResponse(id: string) {
     return this.request(`/responses/${id}`, {
       method: "DELETE",
@@ -2903,6 +2917,21 @@ class ApiClient {
 
     return { responses: allResponses, form };
   }
+  async getBiwSummary(params?: { forceNetwork?: boolean }) {
+  return this.get<{
+    data: Array<{
+      name: string;
+      totalSubmitted: number;
+      dispatched: number;
+      accepted: number;
+      rejected: number;
+      rework: number;
+      totalReviewed: number;
+      performanceScore: number;
+    }>;
+    totalResponses: number;
+  }>("/biw-summary", { forceNetwork: params?.forceNetwork });
+}
 }
 
 // Create and export a singleton instance
