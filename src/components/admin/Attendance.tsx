@@ -156,6 +156,33 @@ const getDatesInMonth = (year: number, month: number) => {
 };
 
 const ITEMS_PER_PAGE = 10;
+
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return "-";
+  const parts = dateStr.split("-");
+  if (parts.length < 3) return dateStr;
+  const [yyyy, mm, dd] = parts;
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+const getMostFrequentShift = (attendance: { [date: string]: AttendanceRecord }) => {
+  if (!attendance) return "No shift";
+  const counts: Record<string, number> = {};
+  Object.values(attendance).forEach(rec => {
+    if (rec.shiftName) {
+      counts[rec.shiftName] = (counts[rec.shiftName] || 0) + 1;
+    }
+  });
+  let maxCount = 0;
+  let mostFrequent = "No shift";
+  Object.entries(counts).forEach(([shift, count]) => {
+    if (count > maxCount) {
+      maxCount = count;
+      mostFrequent = shift;
+    }
+  });
+  return mostFrequent;
+};
 let tempEditId: string | null = null;
 
 
@@ -288,7 +315,7 @@ export default function Attendance() {
 
 
   // New Tab & Swapping state
-  const [activeTab, setActiveTab] = useState<"attendance" | "report-response">("attendance");
+  const [activeTab, setActiveTab] = useState<"attendance" | "report-response" | "calendar-grid" | "attendance-summary">("attendance");
   const [reportResponseData, setReportResponseData] = useState<any[]>([]);
   const [inspectorsList, setInspectorsList] = useState<any[]>(() => {
     const cached = apiClient.getCachedData<any>("/attendance/inspectors");
@@ -966,6 +993,47 @@ export default function Attendance() {
   }, [filteredUsers, currentPage]);
 
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE);
+
+  const grandTotals = useMemo(() => {
+    let totalPresent = 0;
+    let totalHalfDay = 0;
+    let totalAbsent = 0;
+    let totalHoursDecimal = 0;
+
+    filteredUsers.forEach((user) => {
+      visibleDates.forEach((d) => {
+        const record = user.attendance?.[d.dateString];
+        if (record) {
+          if (record.isPresent) {
+            if (record.presentStatus === "half-day" || record.presentStatus === "halfday") {
+              totalHalfDay += 1;
+            } else {
+              totalPresent += 1;
+            }
+          } else {
+            if (record.presentStatus !== "weekly-off" && record.presentStatus !== "weekly_off") {
+              totalAbsent += 1;
+            }
+          }
+        }
+      });
+
+      Object.values(user.attendance || {}).forEach((rec) => {
+        totalHoursDecimal += rec.workingHours || 0;
+      });
+    });
+
+    const wholeHours = Math.floor(totalHoursDecimal);
+    const minutes = Math.round((totalHoursDecimal - wholeHours) * 60);
+    const formattedHours = `${wholeHours}h ${minutes}m`;
+
+    return {
+      present: totalPresent,
+      halfDay: totalHalfDay,
+      absent: totalAbsent,
+      hours: formattedHours
+    };
+  }, [filteredUsers, visibleDates]);
 
   // Handle month navigation
   const handlePrevMonth = () => {
@@ -1715,6 +1783,24 @@ export default function Attendance() {
             >
               Report Response
             </button>
+            <button
+              onClick={() => setActiveTab("calendar-grid")}
+              className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-all ${activeTab === "calendar-grid"
+                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-bold"
+                : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                }`}
+            >
+              Attendance Calendar
+            </button>
+            <button
+              onClick={() => setActiveTab("attendance-summary")}
+              className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-all ${activeTab === "attendance-summary"
+                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-bold"
+                : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                }`}
+            >
+              Attendance Summary
+            </button>
           </nav>
         </div>
 
@@ -1753,7 +1839,7 @@ export default function Attendance() {
               </button>
             </div>
 
-            {activeTab === "attendance" && (
+            {(activeTab === "attendance" || activeTab === "calendar-grid" || activeTab === "attendance-summary") && (
               <button
                 onClick={handleExport}
                 disabled={exporting}
@@ -1997,6 +2083,497 @@ export default function Attendance() {
                         </div>
                       );
                     })
+                  )}
+                </div>
+              </>
+            )
+          ) : activeTab === "calendar-grid" ? (
+            // ═══════════════════════════════════════════════════════════════
+            // CALENDAR GRID TABLE
+            // ═══════════════════════════════════════════════════════════════
+            loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+              </div>
+            ) : (
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full min-w-[1400px] border-collapse border border-gray-200 dark:border-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+                      <tr>
+                        <th rowSpan={2} className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider sticky left-0 bg-gray-50 dark:bg-gray-700/50 z-20 min-w-[180px]">
+                          Employee Name
+                        </th>
+                        <th rowSpan={2} className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider sticky left-[180px] bg-gray-50 dark:bg-gray-700/50 z-20 min-w-[150px]">
+                          Role
+                        </th>
+                        {visibleDates.map((d) => (
+                          <th
+                            key={d.dateString}
+                            className={`px-1 py-1 border border-gray-200 dark:border-gray-700 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 min-w-[40px] ${d.isToday ? "bg-primary-50 dark:bg-primary-900/20" : ""}`}
+                          >
+                            {d.day}
+                          </th>
+                        ))}
+                        <th rowSpan={2} className="px-2 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider bg-green-50 dark:bg-green-900/20 sticky right-[160px] z-10 min-w-[40px]">
+                          P
+                        </th>
+                        <th rowSpan={2} className="px-2 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider bg-orange-50 dark:bg-orange-900/20 sticky right-[120px] z-10 min-w-[40px]">
+                          HA
+                        </th>
+                        <th rowSpan={2} className="px-2 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider bg-red-50 dark:bg-red-900/20 sticky right-[80px] z-10 min-w-[40px]">
+                          A
+                        </th>
+                        <th rowSpan={2} className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider sticky right-0 bg-gray-50 dark:bg-gray-700/50 z-20 min-w-[80px]">
+                          Hours
+                        </th>
+                      </tr>
+                      <tr>
+                        {visibleDates.map((d) => (
+                          <th
+                            key={`wk-${d.dateString}`}
+                            className={`px-1 py-0.5 border border-gray-200 dark:border-gray-700 text-center text-[9px] font-medium text-gray-500 dark:text-gray-400 ${d.isWeekend ? "text-red-500" : ""} ${d.isToday ? "bg-primary-50 dark:bg-primary-900/20" : ""}`}
+                          >
+                            {d.dayOfWeek}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {filteredUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan={visibleDates.length + 6} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                            No attendance records found for this month
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedUsers.map((user) => {
+                          let pCount = 0;
+                          let haCount = 0;
+                          let aCount = 0;
+                          let totalHoursDecimal = 0;
+
+                          visibleDates.forEach((d) => {
+                            const record = user.attendance?.[d.dateString];
+                            if (record) {
+                              if (record.isPresent) {
+                                if (record.presentStatus === "half-day" || record.presentStatus === "halfday") {
+                                  haCount += 1;
+                                } else {
+                                  pCount += 1;
+                                }
+                              } else {
+                                if (record.presentStatus !== "weekly-off" && record.presentStatus !== "weekly_off") {
+                                  aCount += 1;
+                                }
+                              }
+                            }
+                          });
+
+                          Object.values(user.attendance || {}).forEach((rec) => {
+                            totalHoursDecimal += rec.workingHours || 0;
+                          });
+
+                          const wholeHours = Math.floor(totalHoursDecimal);
+                          const minutes = Math.round((totalHoursDecimal - wholeHours) * 60);
+                          const formattedHours = `${wholeHours}h ${minutes}m`;
+
+                          return (
+                            <tr key={user.userId} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                              <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 sticky left-0 bg-white dark:bg-gray-800 z-10 font-bold text-sm text-gray-900 dark:text-white">
+                                {user.firstName} {user.lastName}
+                              </td>
+                              <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 sticky left-[180px] bg-white dark:bg-gray-800 z-10 text-xs text-gray-600 dark:text-gray-400 font-medium">
+                                {user.role}
+                              </td>
+                              {visibleDates.map((d) => {
+                                const record = user.attendance?.[d.dateString];
+                                let symbol = "-";
+                                let cellClass = "text-gray-400 dark:text-gray-600";
+
+                                if (record) {
+                                  if (record.isPresent) {
+                                    if (record.presentStatus === "half-day" || record.presentStatus === "halfday") {
+                                      symbol = "HA";
+                                      cellClass = "text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/20 font-bold";
+                                    } else {
+                                      symbol = "P";
+                                      cellClass = "text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/20 font-bold";
+                                    }
+                                  } else {
+                                    if (record.presentStatus === "weekly-off" || record.presentStatus === "weekly_off") {
+                                      symbol = "W";
+                                      cellClass = "text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/20 font-bold";
+                                    } else {
+                                      symbol = "A";
+                                      cellClass = "text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/20 font-bold";
+                                    }
+                                  }
+                                } else {
+                                  if (d.date.getDay() === 0) {
+                                    symbol = "S";
+                                    cellClass = "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/20 font-bold";
+                                  }
+                                }
+
+                                return (
+                                  <td
+                                    key={d.dateString}
+                                    className={`px-1 py-1 border border-gray-200 dark:border-gray-700 text-center text-xs ${cellClass}`}
+                                  >
+                                    {symbol}
+                                  </td>
+                                );
+                              })}
+                              <td className="px-2 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/10 sticky right-[160px] z-10">
+                                {pCount}
+                              </td>
+                              <td className="px-2 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-bold text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/10 sticky right-[120px] z-10">
+                                {haCount}
+                              </td>
+                              <td className="px-2 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-bold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/10 sticky right-[80px] z-10">
+                                {aCount}
+                              </td>
+                              <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-bold text-gray-900 dark:text-white sticky right-0 bg-white dark:bg-gray-800 z-10">
+                                {formattedHours}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Table View */}
+                <div className="lg:hidden p-4 space-y-4">
+                  {filteredUsers.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">No records found</div>
+                  ) : (
+                    paginatedUsers.map((user) => {
+                      let pCount = 0;
+                      let haCount = 0;
+                      let aCount = 0;
+                      let totalHoursDecimal = 0;
+
+                      visibleDates.forEach((d) => {
+                        const record = user.attendance?.[d.dateString];
+                        if (record) {
+                          if (record.isPresent) {
+                            if (record.presentStatus === "half-day" || record.presentStatus === "halfday") {
+                              haCount += 1;
+                            } else {
+                              pCount += 1;
+                            }
+                          } else {
+                            if (record.presentStatus !== "weekly-off" && record.presentStatus !== "weekly_off") {
+                              aCount += 1;
+                            }
+                          }
+                        }
+                      });
+
+                      Object.values(user.attendance || {}).forEach((rec) => {
+                        totalHoursDecimal += rec.workingHours || 0;
+                      });
+
+                      const wholeHours = Math.floor(totalHoursDecimal);
+                      const minutes = Math.round((totalHoursDecimal - wholeHours) * 60);
+                      const formattedHours = `${wholeHours}h ${minutes}m`;
+
+                      return (
+                        <div key={user.userId} className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-3 shadow-sm">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-bold text-gray-900 dark:text-white">{user.firstName} {user.lastName}</h4>
+                              <p className="text-xs text-gray-500">@{user.username} | {user.role}</p>
+                            </div>
+                            <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{formattedHours}</span>
+                          </div>
+                          
+                          <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                            <div className="bg-green-50 dark:bg-green-950/20 p-2 rounded-lg">
+                              <span className="text-gray-500 dark:text-gray-400 block text-[10px] uppercase">P</span>
+                              <span className="font-bold text-green-600 dark:text-green-400">{pCount}</span>
+                            </div>
+                            <div className="bg-orange-50 dark:bg-orange-950/20 p-2 rounded-lg">
+                              <span className="text-gray-500 dark:text-gray-400 block text-[10px] uppercase">HA</span>
+                              <span className="font-bold text-orange-600 dark:text-orange-400">{haCount}</span>
+                            </div>
+                            <div className="bg-red-50 dark:bg-red-950/20 p-2 rounded-lg">
+                              <span className="text-gray-500 dark:text-gray-400 block text-[10px] uppercase">A</span>
+                              <span className="font-bold text-red-600 dark:text-red-400">{aCount}</span>
+                            </div>
+                            <div className="bg-blue-50 dark:bg-blue-950/20 p-2 rounded-lg">
+                              <span className="text-gray-500 dark:text-gray-400 block text-[10px] uppercase">Days</span>
+                              <span className="font-bold text-blue-600 dark:text-blue-400">{visibleDates.length}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )
+          ) : activeTab === "attendance-summary" ? (
+            // ═══════════════════════════════════════════════════════════════
+            // ATTENDANCE SUMMARY TABLE
+            // ═══════════════════════════════════════════════════════════════
+            loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+              </div>
+            ) : (
+              <>
+                {/* Desktop Summary View */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-200 dark:border-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
+                      <tr>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider min-w-[60px]">
+                          S.No
+                        </th>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          Vendor Name
+                        </th>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          Name
+                        </th>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          Shift Allotment
+                        </th>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          From
+                        </th>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-left text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          To
+                        </th>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          Actual Org Working Days
+                        </th>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider bg-green-50 dark:bg-green-900/10">
+                          Present
+                        </th>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider bg-orange-50 dark:bg-orange-900/10">
+                          Half Day
+                        </th>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider bg-red-50 dark:bg-red-900/10">
+                          Absent
+                        </th>
+                        <th className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          Hours
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                      {filteredUsers.length === 0 ? (
+                        <tr>
+                          <td colSpan={11} className="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
+                            No records found for this period
+                          </td>
+                        </tr>
+                      ) : (
+                        <>
+                          {paginatedUsers.map((user, idx) => {
+                            let pCount = 0;
+                            let haCount = 0;
+                            let aCount = 0;
+                            let totalHoursDecimal = 0;
+
+                            visibleDates.forEach((d) => {
+                              const record = user.attendance?.[d.dateString];
+                              if (record) {
+                                if (record.isPresent) {
+                                  if (record.presentStatus === "half-day" || record.presentStatus === "halfday") {
+                                    haCount += 1;
+                                  } else {
+                                    pCount += 1;
+                                  }
+                                } else {
+                                  if (record.presentStatus !== "weekly-off" && record.presentStatus !== "weekly_off") {
+                                    aCount += 1;
+                                  }
+                                }
+                              }
+                            });
+
+                            Object.values(user.attendance || {}).forEach((rec) => {
+                              totalHoursDecimal += rec.workingHours || 0;
+                            });
+
+                            const wholeHours = Math.floor(totalHoursDecimal);
+                            const minutes = Math.round((totalHoursDecimal - wholeHours) * 60);
+                            const formattedHours = `${wholeHours}h ${minutes}m`;
+                            const shiftAllotment = getMostFrequentShift(user.attendance);
+
+                            const formattedFrom = formatDate(startDate);
+                            const formattedTo = formatDate(endDate);
+
+                            return (
+                              <tr key={user.userId} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-white">
+                                  {(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}
+                                </td>
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-white font-medium">
+                                  {user.tenantId?.companyName || user.tenantId?.name || "No Vendor"}
+                                </td>
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-sm text-gray-900 dark:text-white font-semibold">
+                                  {user.firstName} {user.lastName}
+                                </td>
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+                                  {shiftAllotment}
+                                </td>
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+                                  {formattedFrom}
+                                </td>
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+                                  {formattedTo}
+                                </td>
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
+                                  {visibleDates.length}
+                                </td>
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-sm text-green-600 dark:text-green-400 font-bold bg-green-50/10">
+                                  {pCount}
+                                </td>
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-sm text-orange-600 dark:text-orange-400 font-bold bg-orange-50/10">
+                                  {haCount}
+                                </td>
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-sm text-red-600 dark:text-red-400 font-bold bg-red-50/10">
+                                  {aCount}
+                                </td>
+                                <td className="px-3 py-3 border border-gray-200 dark:border-gray-700 text-center text-sm text-gray-900 dark:text-white font-bold">
+                                  {formattedHours}
+                                </td>
+                              </tr>
+                            );
+                          })}
+
+                          {/* GRAND TOTAL ROW */}
+                          <tr className="bg-blue-50 dark:bg-blue-900/20 font-bold border-t-2 border-blue-300 dark:border-blue-700">
+                            <td colSpan={7} className="px-3 py-4 border border-gray-200 dark:border-gray-700 text-right text-sm text-blue-700 dark:text-blue-300 uppercase tracking-wider font-extrabold">
+                              TOTAL:
+                            </td>
+                            <td className="px-3 py-4 border border-gray-200 dark:border-gray-700 text-center text-sm text-green-600 dark:text-green-400 font-extrabold bg-green-50/10">
+                              {grandTotals.present}
+                            </td>
+                            <td className="px-3 py-4 border border-gray-200 dark:border-gray-700 text-center text-sm text-orange-600 dark:text-orange-400 font-extrabold bg-orange-50/10">
+                              {grandTotals.halfDay}
+                            </td>
+                            <td className="px-3 py-4 border border-gray-200 dark:border-gray-700 text-center text-sm text-red-600 dark:text-red-400 font-extrabold bg-red-50/10">
+                              {grandTotals.absent}
+                            </td>
+                            <td className="px-3 py-4 border border-gray-200 dark:border-gray-700 text-center text-sm text-gray-900 dark:text-white font-extrabold">
+                              {grandTotals.hours}
+                            </td>
+                          </tr>
+                        </>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Summary View */}
+                <div className="lg:hidden p-4 space-y-4">
+                  {filteredUsers.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">No records found</div>
+                  ) : (
+                    <>
+                      {paginatedUsers.map((user, idx) => {
+                        let pCount = 0;
+                        let haCount = 0;
+                        let aCount = 0;
+                        let totalHoursDecimal = 0;
+
+                        visibleDates.forEach((d) => {
+                          const record = user.attendance?.[d.dateString];
+                          if (record) {
+                            if (record.isPresent) {
+                              if (record.presentStatus === "half-day" || record.presentStatus === "halfday") {
+                                haCount += 1;
+                              } else {
+                                pCount += 1;
+                              }
+                            } else {
+                              if (record.presentStatus !== "weekly-off" && record.presentStatus !== "weekly_off") {
+                                aCount += 1;
+                              }
+                            }
+                          }
+                        });
+
+                        Object.values(user.attendance || {}).forEach((rec) => {
+                          totalHoursDecimal += rec.workingHours || 0;
+                        });
+
+                        const wholeHours = Math.floor(totalHoursDecimal);
+                        const minutes = Math.round((totalHoursDecimal - wholeHours) * 60);
+                        const formattedHours = `${wholeHours}h ${minutes}m`;
+                        const shiftAllotment = getMostFrequentShift(user.attendance);
+
+                        return (
+                          <div key={user.userId} className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2 shadow-sm">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <span className="text-[10px] font-bold text-gray-400 block">#{ (currentPage - 1) * ITEMS_PER_PAGE + idx + 1 }</span>
+                                <h4 className="font-bold text-gray-900 dark:text-white">{user.firstName} {user.lastName}</h4>
+                                <p className="text-xs text-gray-500">{user.tenantId?.companyName || user.tenantId?.name || "No Vendor"}</p>
+                              </div>
+                              <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{formattedHours}</span>
+                            </div>
+                            
+                            <div className="border-t border-gray-100 dark:border-gray-700 pt-2 mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                              <div>
+                                <span className="text-gray-400 block text-[10px]">Shift</span>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">{shiftAllotment}</span>
+                              </div>
+                              <div>
+                                <span className="text-gray-400 block text-[10px]">Period</span>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300">{formatDate(startDate)} - {formatDate(endDate)}</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 text-center text-xs mt-2">
+                              <div className="bg-green-50 dark:bg-green-950/20 p-1.5 rounded-lg">
+                                <span className="text-gray-400 block text-[9px] uppercase">P</span>
+                                <span className="font-bold text-green-600 dark:text-green-400">{pCount}</span>
+                              </div>
+                              <div className="bg-orange-50 dark:bg-orange-950/20 p-1.5 rounded-lg">
+                                <span className="text-gray-400 block text-[9px] uppercase">HA</span>
+                                <span className="font-bold text-orange-600 dark:text-orange-400">{haCount}</span>
+                              </div>
+                              <div className="bg-red-50 dark:bg-red-950/20 p-1.5 rounded-lg">
+                                <span className="text-gray-400 block text-[9px] uppercase">A</span>
+                                <span className="font-bold text-red-600 dark:text-red-400">{aCount}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      
+                      <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-xl border-2 border-blue-200 dark:border-blue-800 space-y-2 shadow-sm">
+                        <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm">GRAND TOTALS</h4>
+                        <div className="grid grid-cols-4 gap-2 text-center text-xs">
+                          <div className="bg-white dark:bg-gray-800 p-2 rounded-lg shadow-sm">
+                            <span className="text-gray-400 block text-[10px] uppercase font-semibold">P</span>
+                            <span className="font-bold text-green-600 dark:text-green-400 text-sm">{grandTotals.present}</span>
+                          </div>
+                          <div className="bg-white dark:bg-gray-800 p-2 rounded-lg shadow-sm">
+                            <span className="text-gray-400 block text-[10px] uppercase font-semibold">HA</span>
+                            <span className="font-bold text-orange-600 dark:text-orange-400 text-sm">{grandTotals.halfDay}</span>
+                          </div>
+                          <div className="bg-white dark:bg-gray-800 p-2 rounded-lg shadow-sm">
+                            <span className="text-gray-400 block text-[10px] uppercase font-semibold">A</span>
+                            <span className="font-bold text-red-600 dark:text-red-400 text-sm">{grandTotals.absent}</span>
+                          </div>
+                          <div className="bg-white dark:bg-gray-800 p-2 rounded-lg shadow-sm">
+                            <span className="text-gray-400 block text-[10px] uppercase font-semibold">Hours</span>
+                            <span className="font-bold text-gray-900 dark:text-white text-xs">{grandTotals.hours}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               </>
