@@ -975,6 +975,19 @@ class ApiClient {
     });
   }
 
+  async bulkUpdateBiwReview(ids: string[], status: "Accepted" | "Rejected" | "Reworked" | null) {
+    console.log("API Client: Bulk updating BIW reviews", { ids, status });
+    return this.request<{
+      success: boolean;
+      message: string;
+      updatedCount: number;
+      skippedCount: number;
+    }>(`/responses/bulk-biw-review`, {
+      method: "PATCH",
+      body: JSON.stringify({ ids, status }),
+    });
+  }
+
   async assignResponse(id: string, assignedTo: string) {
     return this.request(`/responses/${id}/assign`, {
       method: "PATCH",

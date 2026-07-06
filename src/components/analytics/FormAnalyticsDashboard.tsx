@@ -2572,6 +2572,128 @@ export default function FormAnalyticsDashboard() {
     }
   };
 
+  const executeBulkBiwReviewUpdate = async () => {
+    if (biwBulkUpdateTargetIds.length === 0) return;
+
+    try {
+      setIsBulkBiwUpdating(true);
+      const result = await apiClient.bulkUpdateBiwReview(biwBulkUpdateTargetIds, biwBulkUpdateStatus);
+
+      // Update local state
+      setResponses((prev) =>
+        prev.map((r) => {
+          if (biwBulkUpdateTargetIds.includes(r.id)) {
+            return {
+              ...r,
+              biwReview: biwBulkUpdateStatus === null ? undefined : {
+                status: biwBulkUpdateStatus,
+                reviewedBy: user?._id || user?.id,
+                reviewedByName: user?.username || user?.email || 'Reviewer',
+                reviewedAt: new Date().toISOString()
+              }
+            };
+          }
+          return r;
+        })
+      );
+      setTableResponses((prev) =>
+        prev.map((r) => {
+          if (biwBulkUpdateTargetIds.includes(r.id)) {
+            return {
+              ...r,
+              biwReview: biwBulkUpdateStatus === null ? undefined : {
+                status: biwBulkUpdateStatus,
+                reviewedBy: user?._id || user?.id,
+                reviewedByName: user?.username || user?.email || 'Reviewer',
+                reviewedAt: new Date().toISOString()
+              }
+            };
+          }
+          return r;
+        })
+      );
+
+      setSelectedResponseIds([]);
+      showToast(
+        biwBulkUpdateStatus === null
+          ? `Cleared BIW review for ${result?.updatedCount ?? biwBulkUpdateTargetIds.length} response(s)`
+          : `Marked ${result?.updatedCount ?? biwBulkUpdateTargetIds.length} response(s) as ${biwBulkUpdateStatus} (BIW Review)` +
+            ((result?.skippedCount ?? biwBulkUpdateSkippedCount) > 0 ? ` (${result?.skippedCount ?? biwBulkUpdateSkippedCount} skipped)` : ""),
+        "success"
+      );
+    } catch (err: any) {
+      console.error("Error bulk updating BIW reviews:", err);
+      showToast(err?.message || "Failed to bulk update BIW reviews", "error");
+    } finally {
+      setIsBulkBiwUpdating(false);
+      setShowBiwBulkUpdateModal(false);
+    }
+  };
+
+  const handleBulkBiwReviewUpdate = (status: "Accepted" | "Rejected" | "Reworked" | null) => {
+    if (selectedResponseIds.length === 0) return;
+
+    const validResponseIds: string[] = [];
+    let selfSubmissionsCount = 0;
+
+    selectedResponseIds.forEach((id) => {
+      const resp = responses.find((r) => r.id === id);
+      if (resp) {
+        if (status !== null && isSubmitterOfResponse(resp)) {
+          selfSubmissionsCount++;
+        } else {
+          validResponseIds.push(id);
+        }
+      }
+    });
+
+    if (validResponseIds.length === 0) {
+      showToast(
+        "You cannot BIW review your own submissions. All selected items were skipped.",
+        "error"
+      );
+      return;
+    }
+
+    setBiwBulkUpdateStatus(status);
+    setBiwBulkUpdateTargetIds(validResponseIds);
+    setBiwBulkUpdateSkippedCount(selfSubmissionsCount);
+    setShowBiwBulkUpdateModal(true);
+  };
+
+  const handleBulkBiwReviewUpdateAll = (status: "Accepted" | "Rejected" | "Reworked" | null) => {
+    if (tableResponses.length === 0) return;
+
+    const allIds = tableResponses.map((r) => r.id);
+
+    const validResponseIds: string[] = [];
+    let selfSubmissionsCount = 0;
+
+    allIds.forEach((id) => {
+      const resp = responses.find((r) => r.id === id);
+      if (resp) {
+        if (status !== null && isSubmitterOfResponse(resp)) {
+          selfSubmissionsCount++;
+        } else {
+          validResponseIds.push(id);
+        }
+      }
+    });
+
+    if (validResponseIds.length === 0) {
+      showToast(
+        "You cannot BIW review your own submissions. All items were skipped.",
+        "error"
+      );
+      return;
+    }
+
+    setBiwBulkUpdateStatus(status);
+    setBiwBulkUpdateTargetIds(validResponseIds);
+    setBiwBulkUpdateSkippedCount(selfSubmissionsCount);
+    setShowBiwBulkUpdateModal(true);
+  };
+
   // Bulk auto-fill: instead of looping through every response client-side,
   // this calls the backend's single bulk-update endpoint (see
   // apiClient.autoFillChassisNumbers / responseController.autoFillChassisNumbers),
@@ -2801,6 +2923,11 @@ export default function FormAnalyticsDashboard() {
   );
   const [biwReviewPage, setBiwReviewPage] = useState(1);
   const [biwReviewPageSize, setBiwReviewPageSize] = useState(10);
+  const [isBulkBiwUpdating, setIsBulkBiwUpdating] = useState(false);
+  const [showBiwBulkUpdateModal, setShowBiwBulkUpdateModal] = useState(false);
+  const [biwBulkUpdateStatus, setBiwBulkUpdateStatus] = useState<"Accepted" | "Rejected" | "Reworked" | null>(null);
+  const [biwBulkUpdateTargetIds, setBiwBulkUpdateTargetIds] = useState<string[]>([]);
+  const [biwBulkUpdateSkippedCount, setBiwBulkUpdateSkippedCount] = useState(0);
 
   // Server-side pagination for the "Responses" table tab. Instead of relying
   // on the full `responses` array already loaded for analytics, this tab
@@ -6550,7 +6677,7 @@ export default function FormAnalyticsDashboard() {
       responses.forEach((response: Response) => {
         const rowData: any[] = [
           getResponseTimestamp(response)
-            ? new Date(getResponseTimestamp(response)!).toLocaleString()
+            ? new Date(getResponseTimestamp(response)!).toLocaleDateString("en-US")
             : "-",
           responseStatuses[response.id] || "-",
           response.answers?.chassis_number || "-",
@@ -9404,15 +9531,75 @@ export default function FormAnalyticsDashboard() {
                       <span className="hidden xs:inline">Export</span>
                     </button>
                     {selectedResponseIds.length > 0 && !isGuest && (
-                      <button
-                        onClick={() => setShowBulkDeleteConfirm(true)}
-                        className="px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        <span className="hidden xs:inline">
-                          Delete ({selectedResponseIds.length})
-                        </span>
-                      </button>
+                      <>
+                        <button
+                          onClick={() => handleBulkBiwReviewUpdate("Accepted")}
+                          disabled={isBulkBiwUpdating}
+                          className="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150"
+                          title="Bulk Accept (BIW Review)"
+                        >
+                          {isBulkBiwUpdating ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <CheckCircle className="w-4 h-4" />
+                          )}
+                          <span className="hidden md:inline">BIW Accept</span>
+                          <span className="md:hidden">Accept</span>
+                        </button>
+                        <button
+                          onClick={() => handleBulkBiwReviewUpdate("Rejected")}
+                          disabled={isBulkBiwUpdating}
+                          className="px-3 sm:px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150"
+                          title="Bulk Reject (BIW Review)"
+                        >
+                          {isBulkBiwUpdating ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <XCircle className="w-4 h-4" />
+                          )}
+                          <span className="hidden md:inline">BIW Reject</span>
+                          <span className="md:hidden">Reject</span>
+                        </button>
+                        <button
+                          onClick={() => handleBulkBiwReviewUpdate("Reworked")}
+                          disabled={isBulkBiwUpdating}
+                          className="px-3 sm:px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150"
+                          title="Bulk Rework (BIW Review)"
+                        >
+                          {isBulkBiwUpdating ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RotateCcw className="w-4 h-4" />
+                          )}
+                          <span className="hidden md:inline">BIW Rework</span>
+                          <span className="md:hidden">Rework</span>
+                        </button>
+                        <button
+                          onClick={() => handleBulkBiwReviewUpdate(null)}
+                          disabled={isBulkBiwUpdating}
+                          className="px-3 sm:px-4 py-2 bg-gray-500 hover:bg-gray-600 disabled:opacity-50 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150"
+                          title="Bulk Clear BIW Review"
+                        >
+                          {isBulkBiwUpdating ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                          <span className="hidden md:inline">BIW Clear</span>
+                          <span className="md:hidden">Clear</span>
+                        </button>
+                        <button
+                          onClick={() => setShowBulkDeleteConfirm(true)}
+                          disabled={isBulkBiwUpdating}
+                          className="px-3 sm:px-4 py-2 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2 animate-in fade-in zoom-in-95 duration-150"
+                          title="Delete selected responses"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          <span className="hidden xs:inline">
+                            Delete ({selectedResponseIds.length})
+                          </span>
+                        </button>
+                      </>
                     )}
 
                     {showResponsesFilter && (
@@ -9637,8 +9824,28 @@ export default function FormAnalyticsDashboard() {
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Review
                             </th>
-                            <th className="text-center px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-purple-50 dark:bg-purple-900/20">
-                              BIW Review
+                            <th className="text-center px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-44 whitespace-nowrap bg-purple-50 dark:bg-purple-900/20">
+                              <div className="flex flex-col items-center gap-1.5 justify-center">
+                                <span>BIW Review</span>
+                                <select
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (val) {
+                                      const status = val === "Clear" ? null : val as "Accepted" | "Rejected" | "Reworked";
+                                      handleBulkBiwReviewUpdateAll(status);
+                                      e.target.value = "";
+                                    }
+                                  }}
+                                  disabled={isBulkBiwUpdating || tableResponses.length === 0}
+                                  className="px-2 py-1 text-[10px] font-black border border-purple-200 dark:border-purple-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none normal-case tracking-normal cursor-pointer shadow-sm hover:border-purple-400 transition-colors"
+                                >
+                                  <option value="">Bulk Status</option>
+                                  <option value="Accepted">Accept All</option>
+                                  <option value="Rejected">Reject All</option>
+                                  <option value="Reworked">Rework All</option>
+                                  <option value="Clear">Clear All</option>
+                                </select>
+                              </div>
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                               Timestamp
@@ -10217,7 +10424,7 @@ export default function FormAnalyticsDashboard() {
                                     {getResponseTimestamp(response)
                                       ? new Date(
                                         getResponseTimestamp(response)!,
-                                      ).toLocaleString()
+                                      ).toLocaleDateString("en-US")
                                       : "-"}
                                   </td>
                                   <td className="px-6 py-3 text-sm text-center font-bold text-blue-600 dark:text-blue-400 border border-gray-200 dark:border-gray-700 whitespace-nowrap">
@@ -10469,7 +10676,7 @@ export default function FormAnalyticsDashboard() {
                     {getResponseTimestamp(selectedResponse)
                       ? new Date(
                         getResponseTimestamp(selectedResponse)!,
-                      ).toLocaleString()
+                      ).toLocaleDateString("en-US")
                       : "N/A"}
                   </p>
                 </div>
@@ -11253,6 +11460,78 @@ export default function FormAnalyticsDashboard() {
                     </>
                   ) : (
                     <>Delete {selectedResponseIds.length} Response(s)</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk BIW Review Confirmation Modal */}
+      {showBiwBulkUpdateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-sm w-full animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-6">
+              <div className={`flex items-center justify-center w-12 h-12 mx-auto rounded-full mb-4 ${
+                biwBulkUpdateStatus === "Accepted"
+                  ? "bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400"
+                  : biwBulkUpdateStatus === "Rejected"
+                    ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                    : biwBulkUpdateStatus === "Reworked"
+                      ? "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
+                      : "bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-400"
+              }`}>
+                {biwBulkUpdateStatus === "Accepted" && <CheckCircle className="w-6 h-6" />}
+                {biwBulkUpdateStatus === "Rejected" && <XCircle className="w-6 h-6" />}
+                {biwBulkUpdateStatus === "Reworked" && <RotateCcw className="w-6 h-6" />}
+                {biwBulkUpdateStatus === null && <Trash2 className="w-6 h-6" />}
+              </div>
+              
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white text-center mb-2">
+                {biwBulkUpdateStatus === null ? "Clear BIW Reviews" : `Mark BIW Reviews as ${biwBulkUpdateStatus}`}
+              </h3>
+              
+              <p className="text-sm text-gray-600 dark:text-gray-400 text-center mb-4">
+                Are you sure you want to {biwBulkUpdateStatus === null ? "clear the BIW review for" : `mark as ${biwBulkUpdateStatus}`} {biwBulkUpdateTargetIds.length} response(s)?
+              </p>
+              
+              {biwBulkUpdateSkippedCount > 0 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 text-center bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg mb-4">
+                  Note: {biwBulkUpdateSkippedCount} submission(s) will be skipped because you cannot review your own work.
+                </p>
+              )}
+              
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={() => {
+                    setShowBiwBulkUpdateModal(false);
+                  }}
+                  disabled={isBulkBiwUpdating}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium disabled:opacity-50 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={executeBulkBiwReviewUpdate}
+                  disabled={isBulkBiwUpdating}
+                  className={`px-4 py-2 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center gap-2 text-sm ${
+                    biwBulkUpdateStatus === "Accepted"
+                      ? "bg-green-600 hover:bg-green-700"
+                      : biwBulkUpdateStatus === "Rejected"
+                        ? "bg-red-600 hover:bg-red-700"
+                        : biwBulkUpdateStatus === "Reworked"
+                          ? "bg-orange-600 hover:bg-orange-700"
+                          : "bg-gray-600 hover:bg-gray-700"
+                  }`}
+                >
+                  {isBulkBiwUpdating ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                      Updating...
+                    </>
+                  ) : (
+                    "Confirm"
                   )}
                 </button>
               </div>
