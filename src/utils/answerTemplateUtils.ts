@@ -1,7 +1,8 @@
 import type { Question, FollowUpQuestion } from "../types";
 import * as XLSX from "xlsx-js-style";
+import JSZip from "jszip";
 
-const { utils, writeFile } = XLSX;
+const { utils, write } = XLSX;
 
 // Define Section locally since it's not exported
 type Section = {
@@ -107,7 +108,7 @@ function parseNumber(value: unknown) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-export function generateAnswerTemplate(form: Question) {
+export async function generateAnswerTemplate(form: Question) {
   console.log("🔄 Generating new row-based answer template...");
 
   if (!form.sections || form.sections.length === 0) {
@@ -134,17 +135,36 @@ export function generateAnswerTemplate(form: Question) {
 
   console.log(`📋 Found ${allQuestions.length} questions to create as columns.`);
 
-  // 2. Create Header Rows
-  const visibleHeader: string[] = [
-    // "Submitter Name",
-    // "Submitter Email",
-    // "Submitted At (Optional)",
-  ];
-  const idHeader: string[] = [
-    // "submitterName",
-    // "submitterEmail",
-    // "submittedAt",
-  ];
+  // 2. Create Header Rows dynamically
+  const columns: {
+    label: string;
+    id: string;
+    type?: string;
+    options?: string[];
+    required?: boolean;
+  }[] = [];
+
+  // Add mandatory Submitted Date column
+  columns.push({
+    label: "Submitted Date *",
+    id: "submittedAt",
+    type: "date",
+    required: true,
+  });
+
+  // Add Selected Chassis column if form has chassis numbers configured
+  if (form.chassisNumbers && form.chassisNumbers.length > 0) {
+    const chassisOptions = form.chassisNumbers.map((cn: any) =>
+      typeof cn === "string" ? cn : cn.chassisNumber
+    );
+    columns.push({
+      label: "Selected Chassis",
+      id: "chassis_number",
+      type: "select",
+      options: chassisOptions,
+      required: false,
+    });
+  }
 
   const headerCounts: { [key: string]: number } = {};
 
@@ -158,10 +178,17 @@ export function generateAnswerTemplate(form: Question) {
       headerCounts[headerText] = 1;
     }
     
-    visibleHeader.push(headerText);
-    idHeader.push(q.id);
+    columns.push({
+      label: headerText,
+      id: q.id,
+      type: q.type,
+      options: q.options,
+      required: q.required,
+    });
   });
-  
+
+  const visibleHeader = columns.map((col) => col.label);
+  const idHeader = columns.map((col) => col.id);
   const data: (string | number)[][] = [visibleHeader, idHeader];
 
   // Add a few example rows
@@ -206,15 +233,17 @@ export function generateAnswerTemplate(form: Question) {
       worksheet[cellRef].s = idHeaderStyle;
   });
 
-  // Add comments to question headers
-  allQuestions.forEach((q, index) => {
-      const cellRef = utils.encode_cell({ r: 0, c: index }); // Changed from index + 2 to index
-      const commentLines = [];
-      commentLines.push(`Type: ${q.type}`);
-      if (q.options && q.options.length > 0) {
-          commentLines.push(`Options: ${q.options.join(", ")}`);
+  // Add comments to headers
+  columns.forEach((col, index) => {
+      const cellRef = utils.encode_cell({ r: 0, c: index });
+      const commentLines: string[] = [];
+      if (col.type) {
+        commentLines.push(`Type: ${col.type}`);
       }
-      if (q.required) {
+      if (col.options && col.options.length > 0) {
+          commentLines.push(`Options: ${col.options.join(", ")}`);
+      }
+      if (col.required) {
           commentLines.push("Required: YES");
       }
       
@@ -262,11 +291,83 @@ export function generateAnswerTemplate(form: Question) {
     .replace(/[^a-z0-9]+/gi, "-")
     .toLowerCase()}-bulk-response-template.xlsx`;
 
-  writeFile(workbook, fileName);
-
-  console.log(`✅ New template saved as: ${fileName}`);
+  // Post-process the generated Excel file to fix SheetJS's hardcoded comment anchor shift
+  const excelBuffer = write(workbook, { bookType: "xlsx", type: "array" });
+  
+  try {
+    const zip = await JSZip.loadAsync(excelBuffer);
+    const vmlFileKey = Object.keys(zip.files).find(name => name.includes('vmlDrawing'));
+    if (vmlFileKey) {
+      let vmlContent = await zip.file(vmlFileKey)!.async("string");
+      
+      // Shift Anchor col1 and col2 left by 1 to align comment box visually with its host cell
+      vmlContent = vmlContent.replace(
+        /<x:Anchor>(\d+),(\d+),(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)<\/x:Anchor>/g,
+        (match, col1, o1, r1, o2, col2, o3, r2, o4) => {
+          const c1 = parseInt(col1, 10);
+          const c2 = parseInt(col2, 10);
+          return `<x:Anchor>${c1 - 1},${o1},${r1},${o2},${c2 - 1},${o3},${r2},${o4}</x:Anchor>`;
+        }
+      );
+      
+      zip.file(vmlFileKey, vmlContent);
+    }
+    
+    const finalBlob = await zip.generateAsync({ type: "blob" });
+    
+    // Trigger download in browser
+    const url = window.URL.createObjectURL(finalBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    
+    console.log(`✅ New template saved as: ${fileName}`);
+  } catch (err) {
+    console.error("Error post-processing VML comments, falling back to standard write:", err);
+    XLSX.writeFile(workbook, fileName);
+  }
   return fileName;
 }
+function parseExcelDate(value: any): Date | null {
+  if (value instanceof Date) {
+    return isNaN(value.getTime()) ? null : value;
+  }
+  if (typeof value === "number") {
+    const date = new Date(Math.round((value - 25569) * 86400 * 1000));
+    return isNaN(date.getTime()) ? null : date;
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    
+    // 1. Try standard Javascript date parsing (handles YYYY-MM-DD, MM/DD/YYYY)
+    const parsed = new Date(trimmed);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+    
+    // 2. Fallback to DD/MM/YYYY or DD-MM-YYYY formats (standard in UK/India)
+    const match = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
+    if (match) {
+      const day = parseInt(match[1], 10);
+      const month = parseInt(match[2], 10) - 1; // Months are 0-indexed
+      let year = parseInt(match[3], 10);
+      if (year < 100) {
+        year += year < 50 ? 2000 : 1900; // handle 2-digit years
+      }
+      const customDate = new Date(year, month, day);
+      if (!isNaN(customDate.getTime())) {
+        return customDate;
+      }
+    }
+  }
+  return null;
+}
+
 // Parses the new row-based answer workbook
 export async function parseAnswerWorkbook(
   file: File,
@@ -316,6 +417,7 @@ export async function parseAnswerWorkbook(
       answers: { [key: string]: any };
       submittedBy: string;
       submitterContact: { email: string };
+      submittedAt?: string;
     } = {
       answers: {},
       submittedBy: "Excel Import",
@@ -330,13 +432,35 @@ export async function parseAnswerWorkbook(
         singleResponse.submittedBy = cellValue || "Excel Import";
       } else if (id === "submitterEmail") {
         singleResponse.submitterContact.email = cellValue;
+      } else if (id === "submittedAt") {
+        singleResponse.submittedAt = cellValue;
       } else {
-        // It's a question ID
+        // It's a question ID or chassis_number
         if (cellValue !== "" && cellValue !== null && cellValue !== undefined) {
              singleResponse.answers[id] = cellValue;
         }
       }
     });
+
+    // Validate submittedAt is present and valid
+    if (!singleResponse.submittedAt) {
+      throw new Error(`Row ${rowIndex + 3}: Submitted Date is mandatory.`);
+    }
+    const parsedDate = parseExcelDate(singleResponse.submittedAt);
+    if (!parsedDate) {
+      throw new Error(`Row ${rowIndex + 3}: Invalid Submitted Date format.`);
+    }
+    singleResponse.submittedAt = parsedDate.toISOString();
+
+
+    // Default to the first chassis option if not specified and options are available
+    if (form.chassisNumbers && form.chassisNumbers.length > 0) {
+      const firstChassis = form.chassisNumbers[0];
+      const defaultChassis = typeof firstChassis === "string" ? firstChassis : firstChassis?.chassisNumber;
+      if (!singleResponse.answers["chassis_number"] && defaultChassis) {
+        singleResponse.answers["chassis_number"] = defaultChassis;
+      }
+    }
 
     responses.push(singleResponse);
   });

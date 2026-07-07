@@ -110,13 +110,13 @@ export default function AnswerTemplateImport({
     clearImportState();
   };
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
     if (!selectedForm) {
       showError("Please select a form first", "Error");
       return;
     }
     try {
-      generateAnswerTemplate(selectedForm);
+      await generateAnswerTemplate(selectedForm);
       showSuccess("Template downloaded successfully", "Success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to download template";
