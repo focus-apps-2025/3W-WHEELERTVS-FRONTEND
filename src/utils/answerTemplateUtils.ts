@@ -152,6 +152,14 @@ export async function generateAnswerTemplate(form: Question) {
     required: true,
   });
 
+  // Add Users column next to Submitted Date
+  columns.push({
+    label: "Users",
+    id: "submitterName",
+    type: "string",
+    required: false,
+  });
+
   // Add Selected Chassis column if form has chassis numbers configured
   if (form.chassisNumbers && form.chassisNumbers.length > 0) {
     const chassisOptions = form.chassisNumbers.map((cn: any) =>

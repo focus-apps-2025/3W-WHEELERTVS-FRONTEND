@@ -2419,6 +2419,7 @@ export default function FormAnalyticsDashboard() {
   const [editingChassisResponseId, setEditingChassisResponseId] = useState<string | null>(null);
   const [chassisEditValue, setChassisEditValue] = useState<string>("");
   const [isSavingChassis, setIsSavingChassis] = useState(false);
+  const [updatingUserResponseId, setUpdatingUserResponseId] = useState<string | null>(null);
   const chassisMasterOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [];
     const seen = new Set<string>();
@@ -2482,6 +2483,49 @@ export default function FormAnalyticsDashboard() {
       showToast("Failed to update chassis. Please try again.", "error");
     } finally {
       setIsSavingChassis(false);
+    }
+  };
+
+  const handleUpdateResponseUser = async (responseId: string, userId: string) => {
+    try {
+      setUpdatingUserResponseId(responseId);
+      const payload = {
+        submittedByUserId: userId || null
+      };
+      const result = await apiClient.updateResponse(responseId, payload);
+      if (result && result.data && result.data.response) {
+        const updated = result.data.response;
+        setResponses((prev) =>
+          prev.map((r) =>
+            r.id === responseId
+              ? {
+                  ...r,
+                  createdBy: updated.createdBy,
+                  submittedBy: updated.submittedBy,
+                  submitterContact: updated.submitterContact
+                }
+              : r
+          )
+        );
+        setTableResponses((prev) =>
+          prev.map((r) =>
+            r.id === responseId
+              ? {
+                  ...r,
+                  createdBy: updated.createdBy,
+                  submittedBy: updated.submittedBy,
+                  submitterContact: updated.submitterContact
+                }
+              : r
+          )
+        );
+        showToast("Inspector assigned successfully", "success");
+      }
+    } catch (error: any) {
+      console.error("Error updating response user:", error);
+      showToast(error?.message || "Failed to assign inspector", "error");
+    } finally {
+      setUpdatingUserResponseId(null);
     }
   };
 
@@ -9850,6 +9894,9 @@ export default function FormAnalyticsDashboard() {
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                               Timestamp
                             </th>
+                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
+                              Users
+                            </th>
                             <th className="text-center px-4 py-3 font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Time Taken
                             </th>
@@ -10426,6 +10473,30 @@ export default function FormAnalyticsDashboard() {
                                         getResponseTimestamp(response)!,
                                       ).toLocaleDateString("en-US")
                                       : "-"}
+                                  </td>
+                                  <td className="px-4 py-2 border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-white dark:bg-gray-800">
+                                    <div className="flex items-center gap-2">
+                                      <select
+                                        value={
+                                          typeof response.createdBy === "object"
+                                            ? (response.createdBy as any)?._id || (response.createdBy as any)?.id || ""
+                                            : response.createdBy || ""
+                                        }
+                                        onChange={(e) => handleUpdateResponseUser(response.id, e.target.value)}
+                                        disabled={updatingUserResponseId === response.id}
+                                        className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500 cursor-pointer shadow-sm w-full"
+                                      >
+                                        <option value="">Excel Import (Not Assigned)</option>
+                                        {allInspectors.map((inspector) => (
+                                          <option key={inspector._id} value={inspector._id}>
+                                            {`${inspector.firstName || ""} ${inspector.lastName || ""}`.trim() || inspector.username || inspector.email}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      {updatingUserResponseId === response.id && (
+                                        <Loader2 className="w-3.5 h-3.5 text-primary-600 animate-spin flex-shrink-0" />
+                                      )}
+                                    </div>
                                   </td>
                                   <td className="px-6 py-3 text-sm text-center font-bold text-blue-600 dark:text-blue-400 border border-gray-200 dark:border-gray-700 whitespace-nowrap">
                                     {(() => {
