@@ -6697,7 +6697,7 @@ export default function FormAnalyticsDashboard() {
 
   const handleExportToExcel = () => {
     try {
-      const headerRow: any[] = ["Timestamp", "Status", "Chassis Number"];
+      const headerRow: any[] = ["Timestamp", "Submitted By", "Status", "Chassis Number"];
       const columnInfo: Array<{
         questionId: string;
         isFollowUp: boolean;
@@ -6725,6 +6725,7 @@ export default function FormAnalyticsDashboard() {
           getResponseTimestamp(response)
             ? new Date(getResponseTimestamp(response)!).toLocaleDateString("en-US")
             : "-",
+          response.submittedBy || response.createdBy || "Anonymous",
           responseStatuses[response.id] || "-",
           response.answers?.chassis_number || "-",
         ];
@@ -6836,8 +6837,22 @@ export default function FormAnalyticsDashboard() {
           },
         };
 
+        // Style Submitted By column
+        const submittedByCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 1 });
+        ws[submittedByCellRef].s = {
+          fill: { fgColor: { rgb: "FFF9FAFB" } },
+          font: { bold: false },
+          alignment: { horizontal: "left", vertical: "center" },
+          border: {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          },
+        };
+
         // Style Status column
-        const statusCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 1 });
+        const statusCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 2 });
         const currentStatus = responseStatuses[response.id] || "-";
         let statusBgColor = "FFF9FAFB"; // Default
 
@@ -6866,7 +6881,7 @@ export default function FormAnalyticsDashboard() {
         };
 
         // Style Chassis Number column
-        const chassisCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 2 });
+        const chassisCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 3 });
         ws[chassisCellRef].s = {
           fill: { fgColor: { rgb: "FFF9FAFB" } },
           font: { bold: false },
@@ -6881,7 +6896,7 @@ export default function FormAnalyticsDashboard() {
 
         // Style Question columns
         for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 3 });
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 4 });
           const info = columnInfo[colIdx];
           const answer = response.answers?.[info.questionId];
 
@@ -6934,6 +6949,7 @@ export default function FormAnalyticsDashboard() {
 
       ws["!cols"] = [
         { wch: 22 }, // Timestamp
+        { wch: 25 }, // Submitted By
         { wch: 15 }, // Status
         { wch: 18 }, // Chassis Number
         ...columnInfo.map(() => ({ wch: 35 })),
