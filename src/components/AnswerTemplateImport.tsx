@@ -55,6 +55,22 @@ export default function AnswerTemplateImport({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const socketRef = useRef<any>(null);
   const [batchId, setBatchId] = useState<string>();
+  const [allInspectors, setAllInspectors] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchInspectors = async () => {
+      try {
+        const res = await apiClient.getUsersHierarchy({ role: "Inspector" });
+        if (res && res.users) {
+          setAllInspectors(res.users);
+        }
+      } catch (err) {
+        console.error("Error fetching inspectors in import modal:", err);
+      }
+    };
+    fetchInspectors();
+  }, [isOpen]);
 
   const forms = formsData?.forms || [];
   const parentForms = Array.from(
@@ -116,7 +132,7 @@ export default function AnswerTemplateImport({
       return;
     }
     try {
-      await generateAnswerTemplate(selectedForm);
+      await generateAnswerTemplate(selectedForm, allInspectors);
       showSuccess("Template downloaded successfully", "Success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to download template";

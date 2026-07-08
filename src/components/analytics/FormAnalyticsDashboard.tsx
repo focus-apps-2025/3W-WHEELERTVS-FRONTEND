@@ -2941,6 +2941,8 @@ export default function FormAnalyticsDashboard() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedResponseIds, setSelectedResponseIds] = useState<string[]>([]);
+  const [selectedDispatchIds, setSelectedDispatchIds] = useState<string[]>([]);
+  const [selectedBiwIds, setSelectedBiwIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [showBulkDispatchConfirm, setShowBulkDispatchConfirm] = useState(false);
   const [showActionMenuModal, setShowActionMenuModal] = useState(false);
@@ -7907,12 +7909,14 @@ export default function FormAnalyticsDashboard() {
 
   const pendingDispatchResponses = dispatchableResponses.filter(response => !response.isDispatched);
 
-  const isAllDispatchableDispatched = dispatchableResponses.length > 0 && pendingDispatchResponses.length === 0;
+  const isAllDispatchableSelected = dispatchableResponses.length > 0 && selectedDispatchIds.length === pendingDispatchResponses.length && pendingDispatchResponses.length > 0;
 
   const handleHeaderDispatchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
       if (pendingDispatchResponses.length === 0) return;
-      setShowBulkDispatchConfirm(true);
+      setSelectedDispatchIds(pendingDispatchResponses.map(r => r.id));
+    } else {
+      setSelectedDispatchIds([]);
     }
   };
 
@@ -7920,16 +7924,15 @@ export default function FormAnalyticsDashboard() {
     setIsBulkDispatching(true);
     try {
       await Promise.all(
-        pendingDispatchResponses.map(response =>
-          apiClient.updateResponse(response.id, { isDispatched: true })
+        selectedDispatchIds.map(id =>
+          apiClient.updateResponse(id, { isDispatched: true })
         )
       );
 
       // Update local state to reflect change immediately
-      const dispatchedIds = pendingDispatchResponses.map(r => r.id);
       setResponses((prev) =>
         prev.map((r) =>
-          dispatchedIds.includes(r.id)
+          selectedDispatchIds.includes(r.id)
             ? {
               ...r,
               isDispatched: true,
@@ -7938,6 +7941,7 @@ export default function FormAnalyticsDashboard() {
             : r
         )
       );
+      setSelectedDispatchIds([]);
       setShowBulkDispatchConfirm(false);
     } catch (error) {
       console.error("Failed to batch enable dispatch:", error);
@@ -9828,19 +9832,28 @@ export default function FormAnalyticsDashboard() {
                               <span>Actions</span>
                             </th>
                             <th className="text-center px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-24 whitespace-nowrap bg-gray-100 dark:bg-gray-800">
-                              <div className="flex flex-col items-center gap-1.5 justify-center">
-                                <span>Dispatch</span>
-                                <label className="flex items-center gap-1.5 cursor-pointer font-normal text-[10px] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 normal-case">
-                                  <input
-                                    type="checkbox"
-                                    checked={isAllDispatchableDispatched}
-                                    disabled={dispatchableResponses.length === 0 || pendingDispatchResponses.length === 0 || isBulkDispatching}
-                                    onChange={handleHeaderDispatchChange}
-                                    className="w-3.5 h-3.5 text-green-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-green-600"
-                                  />
-                                  <span>Select All</span>
-                                </label>
-                              </div>
+                                <div className="flex flex-col items-center gap-1.5 justify-center">
+                                  <span>Dispatch</span>
+                                  <label className="flex items-center gap-1.5 cursor-pointer font-normal text-[10px] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 normal-case">
+                                    <input
+                                      type="checkbox"
+                                      checked={isAllDispatchableSelected}
+                                      disabled={dispatchableResponses.length === 0 || pendingDispatchResponses.length === 0 || isBulkDispatching}
+                                      onChange={handleHeaderDispatchChange}
+                                      className="w-3.5 h-3.5 text-green-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-green-600"
+                                    />
+                                    <span>Select All</span>
+                                  </label>
+                                  {selectedDispatchIds.length > 0 && (
+                                    <button
+                                      onClick={() => setShowBulkDispatchConfirm(true)}
+                                      className="mt-1 bg-green-600 hover:bg-green-700 text-white text-[10px] px-2 py-0.5 rounded shadow transition-colors"
+                                      title={`Dispatch ${selectedDispatchIds.length} selected items`}
+                                    >
+                                      Proceed ({selectedDispatchIds.length})
+                                    </button>
+                                  )}
+                                </div>
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Submitted by
@@ -9871,32 +9884,67 @@ export default function FormAnalyticsDashboard() {
                             <th className="text-center px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-44 whitespace-nowrap bg-purple-50 dark:bg-purple-900/20">
                               <div className="flex flex-col items-center gap-1.5 justify-center">
                                 <span>BIW Review</span>
+                                <label className="flex items-center gap-1.5 cursor-pointer font-normal text-[10px] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 normal-case">
+                                  <input
+                                    type="checkbox"
+                                    checked={tableResponses.length > 0 && selectedBiwIds.length === tableResponses.length}
+                                    disabled={tableResponses.length === 0 || isBulkBiwUpdating}
+                                    onChange={(e) => {
+                                      if (e.target.checked) setSelectedBiwIds(tableResponses.map(r => r.id));
+                                      else setSelectedBiwIds([]);
+                                    }}
+                                    className="w-3.5 h-3.5 text-purple-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-purple-600"
+                                  />
+                                  <span>Select All</span>
+                                </label>
                                 <select
                                   onChange={(e) => {
                                     const val = e.target.value;
                                     if (val) {
                                       const status = val === "Clear" ? null : val as "Accepted" | "Rejected" | "Reworked";
-                                      handleBulkBiwReviewUpdateAll(status);
+                                      if (selectedBiwIds.length === 0) {
+                                        showToast("Please select items using checkboxes first", "error");
+                                      } else {
+                                        // Reuse existing logic, but for selectedBiwIds
+                                        const validResponseIds: string[] = [];
+                                        let selfSubmissionsCount = 0;
+                                        selectedBiwIds.forEach((id) => {
+                                          const resp = responses.find((r) => r.id === id);
+                                          if (resp) {
+                                            if (status !== null && isSubmitterOfResponse(resp)) {
+                                              selfSubmissionsCount++;
+                                            } else {
+                                              validResponseIds.push(id);
+                                            }
+                                          }
+                                        });
+                                        if (validResponseIds.length === 0) {
+                                          showToast("You cannot BIW review your own submissions. All selected items were skipped.", "error");
+                                        } else {
+                                          setBiwBulkUpdateStatus(status);
+                                          setBiwBulkUpdateTargetIds(validResponseIds);
+                                          setBiwBulkUpdateSkippedCount(selfSubmissionsCount);
+                                          setShowBiwBulkUpdateModal(true);
+                                        }
+                                      }
                                       e.target.value = "";
                                     }
                                   }}
                                   disabled={isBulkBiwUpdating || tableResponses.length === 0}
                                   className="px-2 py-1 text-[10px] font-black border border-purple-200 dark:border-purple-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none normal-case tracking-normal cursor-pointer shadow-sm hover:border-purple-400 transition-colors"
                                 >
-                                  <option value="">Bulk Status</option>
-                                  <option value="Accepted">Accept All</option>
-                                  <option value="Rejected">Reject All</option>
-                                  <option value="Reworked">Rework All</option>
-                                  <option value="Clear">Clear All</option>
+                                  <option value="">Apply to Selected...</option>
+                                  <option value="Accepted">Accept Selected</option>
+                                  <option value="Rejected">Reject Selected</option>
+                                  <option value="Reworked">Rework Selected</option>
+                                  <option value="Clear">Clear Selected</option>
                                 </select>
                               </div>
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
                               Timestamp
                             </th>
-                            <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
-                              Users
-                            </th>
+
                             <th className="text-center px-4 py-3 font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               Time Taken
                             </th>
@@ -10178,44 +10226,18 @@ export default function FormAnalyticsDashboard() {
                                       return (
                                         <input
                                           type="checkbox"
-                                          checked={false}
+                                          checked={selectedDispatchIds.includes(response.id)}
                                           disabled={isBulkDispatching}
-                                          onChange={async (e) => {
-                                            if (
-                                              e.target.checked &&
-                                              !response.isDispatched
-                                            ) {
-                                              try {
-                                                await apiClient.updateResponse(
-                                                  response.id,
-                                                  { isDispatched: true },
-                                                );
-                                                // Update local state to reflect change immediately
-                                                setResponses((prev) =>
-                                                  prev.map((r) =>
-                                                    r.id === response.id
-                                                      ? {
-                                                        ...r,
-                                                        isDispatched: true,
-                                                        dispatchedAt:
-                                                          new Date().toISOString(),
-                                                      }
-                                                      : r,
-                                                  ),
-                                                );
-                                              } catch (error) {
-                                                console.error(
-                                                  "Failed to enable dispatch:",
-                                                  error,
-                                                );
-                                                alert(
-                                                  "Failed to enable dispatch. Please try again.",
-                                                );
-                                              }
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            if (e.target.checked) {
+                                              setSelectedDispatchIds(prev => [...prev, response.id]);
+                                            } else {
+                                              setSelectedDispatchIds(prev => prev.filter(id => id !== response.id));
                                             }
                                           }}
                                           className="w-4 h-4 text-green-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-green-600"
-                                          title="Enable dispatch (only submitter can do this)"
+                                          title="Select for dispatch"
                                         />
                                       );
                                     })()}
@@ -10421,6 +10443,19 @@ export default function FormAnalyticsDashboard() {
 
                                       return (
                                         <div className="flex flex-col gap-1.5">
+                                          <div className="flex items-center gap-2 mb-1 border-b border-gray-200 dark:border-gray-700 pb-1">
+                                            <input
+                                              type="checkbox"
+                                              checked={selectedBiwIds.includes(response.id)}
+                                              onChange={(e) => {
+                                                if (e.target.checked) setSelectedBiwIds(prev => [...prev, response.id]);
+                                                else setSelectedBiwIds(prev => prev.filter(id => id !== response.id));
+                                              }}
+                                              className="w-3.5 h-3.5 text-purple-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-purple-600"
+                                              title="Select for bulk review"
+                                            />
+                                            <span className="text-[10px] text-gray-500 font-semibold uppercase">Select</span>
+                                          </div>
                                           {options.map((opt) => {
                                             const Icon = opt.icon;
                                             const checked =
@@ -10474,30 +10509,7 @@ export default function FormAnalyticsDashboard() {
                                       ).toLocaleDateString("en-US")
                                       : "-"}
                                   </td>
-                                  <td className="px-4 py-2 border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-white dark:bg-gray-800">
-                                    <div className="flex items-center gap-2">
-                                      <select
-                                        value={
-                                          typeof response.createdBy === "object"
-                                            ? (response.createdBy as any)?._id || (response.createdBy as any)?.id || ""
-                                            : response.createdBy || ""
-                                        }
-                                        onChange={(e) => handleUpdateResponseUser(response.id, e.target.value)}
-                                        disabled={updatingUserResponseId === response.id}
-                                        className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-primary-500 cursor-pointer shadow-sm w-full"
-                                      >
-                                        <option value="">Excel Import (Not Assigned)</option>
-                                        {allInspectors.map((inspector) => (
-                                          <option key={inspector._id} value={inspector._id}>
-                                            {`${inspector.firstName || ""} ${inspector.lastName || ""}`.trim() || inspector.username || inspector.email}
-                                          </option>
-                                        ))}
-                                      </select>
-                                      {updatingUserResponseId === response.id && (
-                                        <Loader2 className="w-3.5 h-3.5 text-primary-600 animate-spin flex-shrink-0" />
-                                      )}
-                                    </div>
-                                  </td>
+
                                   <td className="px-6 py-3 text-sm text-center font-bold text-blue-600 dark:text-blue-400 border border-gray-200 dark:border-gray-700 whitespace-nowrap">
                                     {(() => {
                                       // Check both timeSpent (backend) and totalTimeSpent (frontend type)

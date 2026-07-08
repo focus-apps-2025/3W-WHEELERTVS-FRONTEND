@@ -108,8 +108,14 @@ function parseNumber(value: unknown) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-export async function generateAnswerTemplate(form: Question) {
+export async function generateAnswerTemplate(form: Question, inspectors?: any[]) {
   console.log("🔄 Generating new row-based answer template...");
+  
+  const inspectorNames = inspectors
+    ? inspectors.map((i) =>
+        `${i.firstName || ""} ${i.lastName || ""}`.trim() || i.username || i.email
+      )
+    : [];
 
   if (!form.sections || form.sections.length === 0) {
     throw new Error("Form has no sections or questions");
@@ -156,7 +162,8 @@ export async function generateAnswerTemplate(form: Question) {
   columns.push({
     label: "Users",
     id: "submitterName",
-    type: "string",
+    type: "select",
+    options: inspectorNames,
     required: false,
   });
 
@@ -245,11 +252,23 @@ export async function generateAnswerTemplate(form: Question) {
   columns.forEach((col, index) => {
       const cellRef = utils.encode_cell({ r: 0, c: index });
       const commentLines: string[] = [];
-      if (col.type) {
-        commentLines.push(`Type: ${col.type}`);
-      }
-      if (col.options && col.options.length > 0) {
+      if (col.id === "submitterName") {
+        commentLines.push("Type: select");
+        if (col.options && col.options.length > 0) {
+          commentLines.push("Available Inspectors (Copy name exactly):");
+          col.options.forEach((name) => {
+            commentLines.push(`- ${name}`);
+          });
+        } else {
+          commentLines.push("No inspectors registered yet.");
+        }
+      } else {
+        if (col.type) {
+          commentLines.push(`Type: ${col.type}`);
+        }
+        if (col.options && col.options.length > 0) {
           commentLines.push(`Options: ${col.options.join(", ")}`);
+        }
       }
       if (col.required) {
           commentLines.push("Required: YES");
