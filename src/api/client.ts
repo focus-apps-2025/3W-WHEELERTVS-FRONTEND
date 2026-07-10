@@ -8,13 +8,16 @@ const API_BASE_URL = (() => {
     hostname.startsWith("10.") ||
     hostname.startsWith("172.");
 
+  const isRenderFrontend = hostname === "focus3rdeye.netlify.app";
+
   const baseUrl = isLocal
     ? "http://127.0.0.1:5000/api"
+    : isRenderFrontend
+    ? "https://threew-wheeler-backend.onrender.com/api"
     : "https://3wheelertvsbackend.focusengineeringapp.com/api";
 
   console.log(
-    `🔗 API Base URL: ${baseUrl} (Environment: ${isLocal ? "Local" : "Production"
-    })`,
+    `🔗 API Base URL: ${baseUrl} (Environment: ${isLocal ? "Local" : "Production"})`,
   );
   return baseUrl;
 })();
