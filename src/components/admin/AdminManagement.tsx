@@ -117,6 +117,68 @@ export default function AdminManagement() {
 
   const [activeTab, setActiveTab] = useState<"admins" | "responses">("admins");
   const [performanceScores, setPerformanceScores] = useState<Record<string, number>>({});
+  const [shifts, setShifts] = useState<any[]>([]);
+
+  // Load shifts for assignment
+  useEffect(() => {
+    const fetchShifts = async () => {
+      try {
+        const response = await apiClient.getShifts();
+        if (response && response.data) {
+          setShifts(response.data);
+        } else if (response) {
+          setShifts(response as any);
+        }
+      } catch (error) {
+        console.error("Error fetching shifts:", error);
+      }
+    };
+    if (isAdmin) {
+      fetchShifts();
+    }
+  }, [isAdmin]);
+
+  const getUserShiftId = (userId: string) => {
+    const userShift = shifts.find((s) =>
+      s.assignedInspectors?.some((ins: any) =>
+        (typeof ins === "string" ? ins : ins._id || ins) === userId
+      )
+    );
+    return userShift?._id || "";
+  };
+
+  const handleAssignShift = async (userId: string, newShiftId: string) => {
+    setUpdatingId(userId);
+    try {
+      const oldShiftId = getUserShiftId(userId);
+
+      // 1. Remove from old shift if any
+      if (oldShiftId) {
+        await apiClient.removeInspectorsFromShift(oldShiftId, [userId]);
+      }
+
+      // 2. Assign to new shift if selected (not "")
+      if (newShiftId) {
+        await apiClient.assignInspectorsToShift(newShiftId, [userId]);
+        showSuccess("Shift assigned successfully");
+      } else if (oldShiftId) {
+        showSuccess("Shift removed successfully");
+      }
+
+      // 3. Reload shifts to get updated assignments
+      const response = await apiClient.getShifts({ forceNetwork: true });
+      if (response && response.data) {
+        setShifts(response.data);
+      } else if (response) {
+        setShifts(response as any);
+      }
+    } catch (error: any) {
+      console.error("Error assigning shift:", error);
+      showError(error.message || "Failed to assign shift");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
   const TabNavigation = () => (
     <div className="mb-6 border-b border-gray-200 dark:border-gray-700 overflow-x-auto no-scrollbar">
       <nav className="flex space-x-4 sm:space-x-8 min-w-max px-2" aria-label="Tabs">
@@ -1238,6 +1300,9 @@ export default function AdminManagement() {
                                Role
                              </th>
                              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                               Shift
+                             </th>
+                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                                Performance Score
                              </th>
                              <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -1342,6 +1407,29 @@ export default function AdminManagement() {
                                         : admin.role}
                                    </span>
                                  </td>
+                                  <td className="px-6 py-4">
+                                    {admin.role === "inspector" ? (
+                                      <select
+                                        value={getUserShiftId(admin._id)}
+                                        onChange={(e) =>
+                                          handleAssignShift(admin._id, e.target.value)
+                                        }
+                                        disabled={updatingId === admin._id}
+                                        className="text-xs rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-[140px] p-1.5 shadow-sm"
+                                      >
+                                        <option value="">None</option>
+                                        {shifts.map((s) => (
+                                          <option key={s._id} value={s._id}>
+                                            {s.displayName || s.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <span className="text-gray-400 dark:text-gray-600 text-xs">
+                                        —
+                                      </span>
+                                    )}
+                                  </td>
                                  <td className="px-6 py-4">
                                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
                                      {(performanceScores[admin._id] || 0)}%
@@ -1520,6 +1608,28 @@ export default function AdminManagement() {
                                 {admin.role}
                               </span>
                             </div>
+                            {admin.role === "inspector" && (
+                              <div className="col-span-2">
+                                <p className="text-gray-500 mb-1 font-bold uppercase tracking-wider text-[10px]">
+                                  Shift
+                                </p>
+                                <select
+                                  value={getUserShiftId(admin._id)}
+                                  onChange={(e) =>
+                                    handleAssignShift(admin._id, e.target.value)
+                                  }
+                                  disabled={updatingId === admin._id}
+                                  className="text-xs rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-full p-1.5 shadow-sm"
+                                >
+                                  <option value="">None</option>
+                                  {shifts.map((s) => (
+                                    <option key={s._id} value={s._id}>
+                                      {s.displayName || s.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
                             <div>
                               <p className="text-gray-500 mb-1 font-bold uppercase tracking-wider text-[10px]">
                                 Score

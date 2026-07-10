@@ -4,25 +4,22 @@ import {
   Upload,
   X,
   CheckCircle,
-  AlertCircle,
   FileText,
   Send,
   Loader,
   AlertTriangle,
-  Image as ImageIcon,
+  Link2,
 } from "lucide-react";
 import { useForms } from "../hooks/useApi";
 import { apiClient } from "../api/client";
 import { useNotification } from "../context/NotificationContext";
 import {
   generateAnswerTemplate,
+  generateFollowUpAnswerTemplate,
   parseAnswerWorkbook,
   isImageUrl,
-  isGoogleDriveUrl,
-  isCloudinaryUrl,
 } from "../utils/answerTemplateUtils";
 import type { Question } from "../types";
-import ImagePreviewGrid from "./ImagePreviewGrid";
 import SubmissionProgressModal from "./SubmissionProgressModal";
 import { io } from "socket.io-client";
 
@@ -31,6 +28,7 @@ interface AnswerTemplateImportProps {
   onClose: () => void;
   onSuccess?: () => void;
 }
+
 
 export default function AnswerTemplateImport({
   isOpen,
@@ -57,6 +55,21 @@ export default function AnswerTemplateImport({
   const [batchId, setBatchId] = useState<string>();
   const [allInspectors, setAllInspectors] = useState<any[]>([]);
 
+  // ── Template 2 form state ─────────────────────────────────────────────────
+  const [selectedForm2Id, setSelectedForm2Id] = useState<string>("");
+  const [selectedForm2, setSelectedForm2] = useState<Question | null>(null);
+  const [parsedResponses2, setParsedResponses2] = useState<any[] | null>(null);
+  const [isImporting2, setIsImporting2] = useState(false);
+  const fileInputRef2 = useRef<HTMLInputElement | null>(null);
+
+  // ── Follow-up form state ──────────────────────────────────────────────────
+  // Map: childFormId → { parsedResponses, isImporting, fileInputRef }
+  const [followUpStates, setFollowUpStates] = useState<
+    Record<string, { parsedResponses: any[] | null; isImporting: boolean }>
+  >({});
+  // We keep one ref-map outside state to avoid re-render issues
+  const followUpFileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
   useEffect(() => {
     if (!isOpen) return;
     const fetchInspectors = async () => {
@@ -80,6 +93,15 @@ export default function AnswerTemplateImport({
         .map((form) => [form.id || form._id, form])
     ).values()
   ).sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+
+  // Derive child/follow-up forms for the selected parent
+  const childForms: Question[] = selectedForm
+    ? (forms.filter(
+        (f) =>
+          f.parentFormId &&
+          (f.parentFormId === (selectedForm.id || (selectedForm as any)._id))
+      ) as unknown as Question[])
+    : [];
 
   // Socket connection logic
   useEffect(() => {
@@ -119,11 +141,28 @@ export default function AnswerTemplateImport({
     };
   }, [isOpen, submissionId, batchId]);
 
+  const clearImportState = () => {
+    setParsedResponses(null);
+    setParsedResponses2(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    if (fileInputRef2.current) {
+      fileInputRef2.current.value = "";
+    }
+  };
+
   const handleFormSelect = (formId: string) => {
     setSelectedFormId(formId);
     const form = parentForms.find((f) => (f.id || f._id) === formId);
     setSelectedForm(form || null);
+    // Template 2 (Follow-up) always uses the same form as the Main form,
+    // so both templates are shown for a single form selection.
+    setSelectedForm2Id(formId);
+    setSelectedForm2(form || null);
     clearImportState();
+    setFollowUpStates({});
+    followUpFileInputRefs.current = {};
   };
 
   const handleDownloadTemplate = async () => {
@@ -140,10 +179,13 @@ export default function AnswerTemplateImport({
     }
   };
 
-  const clearImportState = () => {
-    setParsedResponses(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+  const handleDownloadFollowUpTemplate = async (childForm: Question) => {
+    try {
+      await generateAnswerTemplate(childForm, allInspectors);
+      showSuccess(`Follow-up template for "${childForm.title}" downloaded`, "Success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to download follow-up template";
+      showError(message, "Download Failed");
     }
   };
 
@@ -180,10 +222,99 @@ export default function AnswerTemplateImport({
     }
   };
 
+  // ── Follow-up file handler ─────────────────────────────────────────────────
+  const handleFollowUpFileChange = async (
+    event: ChangeEvent<HTMLInputElement>,
+    childForm: Question
+  ) => {
+    const file = event.target.files?.[0];
+    const childId = childForm.id || (childForm as any)._id;
+    if (!file || !childForm) return;
+
+    setFollowUpStates((prev) => ({
+      ...prev,
+      [childId]: { ...(prev[childId] || {}), parsedResponses: null, isImporting: true },
+    }));
+
+    try {
+      const responses = await parseAnswerWorkbook(file, childForm);
+      setFollowUpStates((prev) => ({
+        ...prev,
+        [childId]: { parsedResponses: responses, isImporting: false },
+      }));
+      showSuccess(`Follow-up template parsed: ${responses.length} response(s) loaded`, "Parse Complete");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to parse follow-up template";
+      setFollowUpStates((prev) => ({
+        ...prev,
+        [childId]: { parsedResponses: null, isImporting: false },
+      }));
+      showError(message, "Follow-up Import Failed");
+    } finally {
+      // Clear the file input so the same file can be re-selected
+      const el = followUpFileInputRefs.current[childId];
+      if (el) el.value = "";
+    }
+  };
+
   const handleImportClick = () => {
     if (isImporting || !selectedForm) return;
     fileInputRef.current?.click();
   };
+
+  // ── Template 2 handlers ───────────────────────────────────────────────────
+  const handleDownloadTemplate2 = async () => {
+    if (!selectedForm2) {
+      showError("Please select a form first", "Error");
+      return;
+    }
+    try {
+      await generateFollowUpAnswerTemplate(selectedForm2, allInspectors);
+      showSuccess("Follow-up Template 2 downloaded successfully", "Success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to download template";
+      showError(message, "Download Failed");
+    }
+  };
+
+  const clearImportState2 = () => {
+    setParsedResponses2(null);
+    if (fileInputRef2.current) {
+      fileInputRef2.current.value = "";
+    }
+  };
+
+  const handleFileInputChange2 = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !selectedForm2) return;
+
+    setIsImporting2(true);
+    try {
+      const responses = await parseAnswerWorkbook(file, selectedForm2);
+      setParsedResponses2(responses);
+      showSuccess("Template 2 parsed successfully!", "Parse Complete");
+    } catch (error: any) {
+      const message = error instanceof Error ? error.message : "Failed to import template";
+      showError(message, "Import Failed");
+      clearImportState2();
+    } finally {
+      setIsImporting2(false);
+    }
+  };
+
+  const handleImportClick2 = () => {
+    if (isImporting2 || !selectedForm2) return;
+    fileInputRef2.current?.click();
+  };
+
+  const getTotalImageCount2 = () => {
+    if (!parsedResponses2) return 0;
+    return parsedResponses2.reduce((acc, response) => {
+      return acc + Object.values(response.answers).filter(val => typeof val === 'string' && isImageUrl(val)).length;
+    }, 0);
+  };
+
+  // ── Template 2 handlers end ───────────────────────────────────────────────
 
   const getTotalImageCount = () => {
     if (!parsedResponses) return 0;
@@ -192,9 +323,17 @@ export default function AnswerTemplateImport({
     }, 0);
   };
 
+  // Check if all child forms with required follow-up data are ready
+  const allRequiredFollowUpsUploaded = childForms.every((cf) => {
+    const childId = cf.id || (cf as any)._id;
+    // If no follow-up was uploaded for this child, it's still OK (not enforced per-row)
+    // But warn: at least must have parsed responses if child form exists
+    return true; // Not blocking submission; users may skip a specific child form upload
+  });
+
   const handleFinalSubmit = async () => {
-    if (!selectedForm || !parsedResponses) {
-      showError("Missing form or parsed responses", "Error");
+    if (!selectedForm || (!parsedResponses && !parsedResponses2)) {
+      showError("Please upload at least one template (Main or Template 2)", "Error");
       return;
     }
 
@@ -210,13 +349,69 @@ export default function AnswerTemplateImport({
     }
     
     try {
-      const responsePayload = {
-        questionId: selectedForm.id || selectedForm._id,
-        batchId: newBatchId,
-        responses: parsedResponses,
-      };
+      const submitResults: any[] = [];
 
-      await apiClient.batchImportResponses(responsePayload);
+      // 1. Submit main form responses (only if there is data)
+      if (parsedResponses && parsedResponses.length > 0 && selectedForm) {
+        const responsePayload = {
+          questionId: selectedForm.id || (selectedForm as any)._id,
+          batchId: newBatchId,
+          responses: parsedResponses,
+        };
+        submitResults.push(await apiClient.batchImportResponses(responsePayload));
+      }
+
+      // 2. Submit Template 2 responses (if any)
+      if (parsedResponses2 && parsedResponses2.length > 0 && selectedForm2) {
+        const t2Payload = {
+          questionId: selectedForm2.id || (selectedForm2 as any)._id,
+          batchId: `${newBatchId}-t2`,
+          responses: parsedResponses2,
+        };
+        submitResults.push(await apiClient.batchImportResponses(t2Payload));
+      }
+
+      // 3. Submit each follow-up form's responses (if uploaded)
+      const followUpSubmissions: Promise<any>[] = [];
+      for (const childForm of childForms) {
+        const childId = childForm.id || (childForm as any)._id;
+        const childState = followUpStates[childId];
+        if (childState?.parsedResponses && childState.parsedResponses.length > 0) {
+          const childBatchId = `${newBatchId}-fu-${childId}`;
+          const childPayload = {
+            questionId: childId,
+            batchId: childBatchId,
+            responses: childState.parsedResponses,
+          };
+          followUpSubmissions.push(apiClient.batchImportResponses(childPayload));
+        }
+      }
+
+      if (followUpSubmissions.length > 0) {
+        submitResults.push(...(await Promise.all(followUpSubmissions)));
+      }
+
+      // Surface any per-row failures returned by the backend
+      const failedRows = submitResults.reduce(
+        (acc, r) => acc + (r?.failed ?? 0),
+        0
+      );
+      const backendErrors = submitResults
+        .flatMap((r) => (Array.isArray(r?.errors) ? r.errors : []))
+        .filter(Boolean);
+
+      if (failedRows > 0) {
+        const detail =
+          backendErrors.length > 0
+            ? `: ${backendErrors
+                .slice(0, 3)
+                .map((e: any) => (typeof e === "string" ? e : e.error))
+                .join(" | ")}`
+            : "";
+        throw new Error(
+          `${failedRows} row(s) failed to import${detail}`
+        );
+      }
 
       setProgressStatus("complete");
       setProgressMessage("✓ All responses submitted successfully!");
@@ -226,6 +421,7 @@ export default function AnswerTemplateImport({
         onSuccess?.();
         onClose();
         clearImportState();
+        setFollowUpStates({});
       }, 1500);
 
     } catch (error: any) {
@@ -262,9 +458,10 @@ export default function AnswerTemplateImport({
           </div>
 
           <div className="flex-1 overflow-y-auto p-8 space-y-6">
+            {/* ── Step 1: Select Form ── */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                1. Select Form
+                1. Select Main Form
               </label>
               <select
                 value={selectedFormId}
@@ -282,54 +479,268 @@ export default function AnswerTemplateImport({
 
             {selectedForm && (
               <>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                    2. Download & Fill Template
-                  </label>
-                  <button onClick={handleDownloadTemplate} className="w-full btn-secondary flex items-center justify-center gap-2">
-                    <Download className="w-5 h-5" />
-                    Download Template for "{selectedForm.title}"
-                  </button>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                    3. Upload Filled Template
-                  </label>
-                  <input ref={fileInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleFileInputChange} />
-                  <button onClick={handleImportClick} disabled={isImporting} className="w-full btn-primary flex items-center justify-center gap-2">
-                    {isImporting ? <Loader className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
-                    {isImporting ? 'Parsing File...' : 'Upload File'}
-                  </button>
-                </div>
-              </>
-            )}
+                {/* ── Step 2: Main Form Template ── */}
+                <div className="rounded-xl border-2 border-blue-100 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/30 p-5 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                        <span className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                          {selectedForm?.title} — Main Form
+                        </span>
+                        <span className="ml-auto text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full">
+                          Primary
+                        </span>
+                      </div>
 
-            {parsedResponses && (
-              <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex items-start gap-3 bg-emerald-50 dark:bg-emerald-900/30 border-2 border-emerald-200 dark:border-emerald-700 rounded-xl p-4">
-                  <CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h3 className="font-semibold text-emerald-900 dark:text-emerald-100">File Parsed Successfully</h3>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
-                      Found <strong>{parsedResponses.length}</strong> responses to import.
-                    </p>
-                    <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
-                      Found <strong>{getTotalImageCount()}</strong> total images.
-                    </p>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                          Download &amp; Fill Template
+                        </label>
+                        <button onClick={handleDownloadTemplate} className="w-full btn-secondary flex items-center justify-center gap-2">
+                          <Download className="w-5 h-5" />
+                          {selectedForm && `Download Template for "${selectedForm.title}"`}
+                        </button>
+                      </div>
+                     
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                          Upload Filled Template
+                        </label>
+                    <input ref={fileInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleFileInputChange} />
+                    <button onClick={handleImportClick} disabled={isImporting} className="w-full btn-primary flex items-center justify-center gap-2">
+                      {isImporting ? <Loader className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                      {isImporting ? 'Parsing File...' : 'Upload File'}
+                    </button>
                   </div>
+
+                  {parsedResponses && (
+                    <div className="flex items-start gap-3 bg-emerald-50 dark:bg-emerald-900/30 border-2 border-emerald-200 dark:border-emerald-700 rounded-xl p-4">
+                      <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                          Main form: {parsedResponses.length} response(s) ready
+                        </p>
+                        <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
+                          {getTotalImageCount()} image(s) detected
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex gap-3 pt-4">
-                  <button onClick={clearImportState} disabled={isSubmitting} className="btn-secondary w-1/2">
-                    Back
-                  </button>
-                  <button onClick={handleFinalSubmit} disabled={isSubmitting} className="btn-primary w-1/2 flex items-center justify-center gap-2">
-                    {isSubmitting ? <Loader className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-                    {isSubmitting ? 'Submitting...' : `Submit ${parsedResponses.length} Responses`}
-                  </button>
+                {/* ── Template 2 (Optional Secondary Form) ── */}
+                <div className="rounded-xl border-2 border-purple-100 dark:border-purple-900 bg-purple-50/50 dark:bg-purple-950/30 p-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    {selectedForm2 && (selectedForm2.id || (selectedForm2 as any)._id) === selectedFormId ? (
+                      <span className="text-sm font-semibold text-purple-800 dark:text-purple-200">
+                        Template 2 — Follow-up Questions
+                      </span>
+                    ) : (
+                      <span className="text-sm font-semibold text-purple-800 dark:text-purple-200">
+                        Template 2 — Secondary Form (Optional)
+                      </span>
+                    )}
+                  </div>
+
+                  {selectedForm2 && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                          {(selectedForm2.id || (selectedForm2 as any)._id) === selectedFormId
+                            ? "Download & Fill Follow-up Template"
+                            : "Download & Fill Template 2"}
+                        </label>
+                        <button onClick={handleDownloadTemplate2} className="w-full btn-secondary flex items-center justify-center gap-2">
+                          <Download className="w-5 h-5" />
+                          {(selectedForm2.id || (selectedForm2 as any)._id) === selectedFormId
+                            ? `Download Follow-up Template for "${selectedForm2.title}"`
+                            : `Download Template for "${selectedForm2.title}"`}
+                        </button>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
+                          Upload Filled Template
+                        </label>
+                        <input ref={fileInputRef2} type="file" accept=".xlsx" className="hidden" onChange={handleFileInputChange2} />
+                        <button onClick={handleImportClick2} disabled={isImporting2} className="w-full btn-primary flex items-center justify-center gap-2">
+                          {isImporting2 ? <Loader className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />}
+                          {isImporting2 ? 'Parsing File...' : 'Upload File'}
+                        </button>
+                      </div>
+
+                      {parsedResponses2 && (
+                        <div className="flex items-start gap-3 bg-emerald-50 dark:bg-emerald-900/30 border-2 border-emerald-200 dark:border-emerald-700 rounded-xl p-4">
+                          <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                              {(selectedForm2.id || (selectedForm2 as any)._id) === selectedFormId
+                                ? "Follow-up:"
+                                : "Template 2:"} {parsedResponses2.length} response(s) ready
+                            </p>
+                            <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-0.5">
+                              {getTotalImageCount2()} image(s) detected
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
-              </div>
+
+                {/* ── Follow-up Templates (mandatory if child forms exist) ── */}
+                {childForms.length > 0 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Link2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                      <span className="text-sm font-semibold text-amber-700 dark:text-amber-300">
+                        Follow-up Questions Detected
+                      </span>
+                      <span className="ml-auto text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full">
+                        {childForms.length} required
+                      </span>
+                    </div>
+
+                    {childForms.map((childForm, idx) => {
+                      const childId = childForm.id || (childForm as any)._id;
+                      const childState = followUpStates[childId] || { parsedResponses: null, isImporting: false };
+
+                      return (
+                        <div
+                          key={childId}
+                          className="rounded-xl border-2 border-amber-100 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/30 p-5 space-y-4"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Link2 className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                            <span className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                              {childForm.title}
+                            </span>
+                            <span className="ml-auto text-xs bg-amber-600 text-white px-2 py-0.5 rounded-full">
+                              Mandatory
+                            </span>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                              Form: <span className="text-amber-700 dark:text-amber-300">{childForm.title}</span>
+                            </label>
+                            <button
+                              onClick={() => handleDownloadFollowUpTemplate(childForm)}
+                              className="w-full btn-secondary flex items-center justify-center gap-2 text-sm"
+                            >
+                              <Download className="w-4 h-4" />
+                              Download Follow-up Template for "{childForm.title}"
+                            </button>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                              Upload filled follow-up template
+                            </label>
+                            {/* Hidden file input per child form */}
+                            <input
+                              ref={(el) => { followUpFileInputRefs.current[childId] = el; }}
+                              type="file"
+                              accept=".xlsx"
+                              className="hidden"
+                              onChange={(e) => handleFollowUpFileChange(e, childForm)}
+                            />
+                            <button
+                              onClick={() => followUpFileInputRefs.current[childId]?.click()}
+                              disabled={childState.isImporting}
+                              className="w-full btn-primary flex items-center justify-center gap-2 text-sm"
+                            >
+                              {childState.isImporting
+                                ? <Loader className="w-4 h-4 animate-spin" />
+                                : <Upload className="w-4 h-4" />}
+                              {childState.isImporting ? 'Parsing...' : 'Upload Follow-up File'}
+                            </button>
+                          </div>
+
+                          {childState.parsedResponses && (
+                            <div className="flex items-start gap-3 bg-emerald-50 dark:bg-emerald-900/30 border-2 border-emerald-200 dark:border-emerald-700 rounded-xl p-3">
+                              <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                                {childState.parsedResponses.length} follow-up response(s) ready
+                              </p>
+                            </div>
+                          )}
+
+                          {!childState.parsedResponses && !childState.isImporting && (
+                            <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                              <p className="text-xs text-amber-700 dark:text-amber-300">
+                                This follow-up form has no data uploaded yet. Please download, fill, and upload the template above.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── Submit / Back section ── */}
+                {(parsedResponses || parsedResponses2) && (
+                  <div className="space-y-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    {/* Summary card */}
+                    <div className="flex items-start gap-3 bg-emerald-50 dark:bg-emerald-900/30 border-2 border-emerald-200 dark:border-emerald-700 rounded-xl p-4">
+                      <CheckCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h3 className="font-semibold text-emerald-900 dark:text-emerald-100">Ready to Submit</h3>
+                        <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                          Main: <strong>{parsedResponses?.length ?? 0}</strong> response(s)
+                          {" · "}Template 2:{" "}
+                          <strong>
+                            {selectedForm2 ? (parsedResponses2?.length ?? 0) : 0}
+                          </strong> response(s)
+                          {childForms.length > 0 && (
+                            <>
+                              {" · "}Follow-ups:{" "}
+                              {childForms.map((cf, i) => {
+                                const childId = cf.id || (cf as any)._id;
+                                const count = followUpStates[childId]?.parsedResponses?.length ?? 0;
+                                return (
+                                  <strong key={childId}>
+                                    {i > 0 ? ", " : ""}
+                                    {cf.title}: {count}
+                                  </strong>
+                                );
+                              })}
+                            </>
+                          )}
+                        </p>
+                        <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                          Total images: <strong>{getTotalImageCount() + getTotalImageCount2()}</strong>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Warning if any child form has no data */}
+                    {childForms.some((cf) => {
+                      const childId = cf.id || (cf as any)._id;
+                      return !followUpStates[childId]?.parsedResponses;
+                    }) && (
+                      <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
+                        <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-amber-700 dark:text-amber-300">
+                          Some follow-up templates have not been uploaded. You can still submit, but those follow-up responses will be skipped.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                      <button onClick={clearImportState} disabled={isSubmitting} className="btn-secondary w-1/2">
+                        Back
+                      </button>
+                      <button onClick={handleFinalSubmit} disabled={isSubmitting} className="btn-primary w-1/2 flex items-center justify-center gap-2">
+                        {isSubmitting ? <Loader className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                        {isSubmitting ? 'Submitting...' : 'Submit All Responses'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

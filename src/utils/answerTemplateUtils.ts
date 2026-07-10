@@ -108,6 +108,319 @@ function parseNumber(value: unknown) {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+function collectNestedFollowUpQuestions(
+  questions: FollowUpQuestion[],
+  result: FollowUpQuestion[] = []
+): FollowUpQuestion[] {
+  if (!questions) return result;
+  for (const q of questions) {
+    if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+      q.followUpQuestions.forEach((fu) => {
+        result.push(fu);
+        if (fu.followUpQuestions && fu.followUpQuestions.length > 0) {
+          collectNestedFollowUpQuestions(fu.followUpQuestions, result);
+        }
+      });
+    }
+  }
+  return result;
+}
+
+function collectZoneQuestions(
+  questions: FollowUpQuestion[],
+  result: FollowUpQuestion[] = []
+): FollowUpQuestion[] {
+  if (!questions) return result;
+  for (const q of questions) {
+    if (q.type === "zone-in" || q.type === "zone-out") {
+      result.push(q);
+    }
+    if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+      collectZoneQuestions(q.followUpQuestions, result);
+    }
+  }
+  return result;
+}
+
+export async function generateFollowUpAnswerTemplate(
+  form: Question,
+  inspectors?: any[]
+) {
+  console.log("🔄 Generating follow-up only answer template...");
+
+  const inspectorNames = inspectors
+    ? inspectors.map((i) =>
+        `${i.firstName || ""} ${i.lastName || ""}`.trim() || i.username || i.email
+      )
+    : [];
+
+  if (!form.sections || form.sections.length === 0) {
+    throw new Error("Form has no sections or questions");
+  }
+
+  // Collect all top-level questions to build parent labels
+  const topLevelQuestions: FollowUpQuestion[] = [];
+  const collectTopLevel = (questions: FollowUpQuestion[]) => {
+    if (!questions) return;
+    for (const q of questions) {
+      topLevelQuestions.push(q);
+      if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+        collectTopLevel(q.followUpQuestions);
+      }
+    }
+  };
+  form.sections.forEach((section) => {
+    if (section.questions) {
+      collectTopLevel(section.questions);
+    }
+  });
+
+  // Collect ONLY nested follow-up questions (not top-level)
+  const nestedQuestions = collectNestedFollowUpQuestions(topLevelQuestions);
+
+  // Also treat Zone In / Zone Out questions as follow-up questions for Template 2
+  const zoneQuestions = collectZoneQuestions(topLevelQuestions);
+
+  // Merge nested follow-ups and zone questions, deduplicated by id
+  const followUpMap = new Map<string, FollowUpQuestion>();
+  [...nestedQuestions, ...zoneQuestions].forEach((q) => {
+    followUpMap.set(q.id, q);
+  });
+  const followUpQuestions = Array.from(followUpMap.values());
+
+  console.log(
+    `📋 Found ${topLevelQuestions.length} main questions, ${nestedQuestions.length} nested follow-up questions, and ${zoneQuestions.length} Zone In/Out questions.`
+  );
+
+  if (followUpQuestions.length === 0) {
+    throw new Error(
+      "No follow-up questions found in this form. Template 2 requires at least one main question with nested follow-up questions."
+    );
+  }
+
+  // Build columns
+  const columns: {
+    label: string;
+    id: string;
+    type?: string;
+    options?: string[];
+    required?: boolean;
+  }[] = [];
+
+  columns.push({
+    label: "Submitted Date *",
+    id: "submittedAt",
+    type: "date",
+    required: true,
+  });
+
+  columns.push({
+    label: "Users",
+    id: "submitterName",
+    type: "select",
+    options: inspectorNames,
+    required: false,
+  });
+
+  if (form.chassisNumbers && form.chassisNumbers.length > 0) {
+    const chassisOptions = form.chassisNumbers.map((cn: any) =>
+      typeof cn === "string" ? cn : cn.chassisNumber
+    );
+    columns.push({
+      label: "Selected Chassis",
+      id: "chassis_number",
+      type: "select",
+      options: chassisOptions,
+      required: false,
+    });
+  }
+
+  followUpQuestions.forEach((q) => {
+    let headerText = q.text || `Untitled Question (ID: ${q.id})`;
+
+    columns.push({
+      label: headerText,
+      id: q.id,
+      type: q.type,
+      options: q.options,
+      required: q.required,
+    });
+
+    // For Zone In / Zone Out questions, also emit their follow-up fields
+    // (Remark and Evidence Photo) as separate columns, exactly like the
+    // form UI shows them when a status is selected.
+    if (q.type === "zone-in" || q.type === "zone-out") {
+      columns.push({
+        label: `${headerText} - Remark`,
+        id: `${q.id}__remark`,
+        type: "paragraph",
+        required: false,
+      });
+      columns.push({
+        label: `${headerText} - Evidence Photo`,
+        id: `${q.id}__evidence`,
+        type: "image",
+        required: q.required,
+      });
+    }
+  });
+
+  const visibleHeader = columns.map((col) => col.label);
+  const idHeader = columns.map((col) => col.id);
+  const data: (string | number)[][] = [visibleHeader, idHeader];
+
+  const numExampleRows = 3;
+  for (let i = 0; i < numExampleRows; i++) {
+    data.push(new Array(visibleHeader.length).fill(""));
+  }
+
+  const worksheet = utils.aoa_to_sheet(data);
+  const workbook = utils.book_new();
+  utils.book_append_sheet(workbook, worksheet, "Follow-up Responses");
+
+  const headerStyle = {
+    font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+    fill: { fgColor: { rgb: "1D4ED8" } },
+    alignment: { horizontal: "center", vertical: "center", wrapText: true },
+    border: {
+      top: { style: "thin", color: { rgb: "000000" } },
+      bottom: { style: "thin", color: { rgb: "000000" } },
+      left: { style: "thin", color: { rgb: "000000" } },
+      right: { style: "thin", color: { rgb: "000000" } },
+    },
+  };
+
+  const idHeaderStyle = {
+    font: { color: { rgb: "EBF1FC" } },
+    fill: { fgColor: { rgb: "EBF1FC" } },
+  };
+
+  visibleHeader.forEach((_, c) => {
+    const cellRef = utils.encode_cell({ r: 0, c });
+    if (!worksheet[cellRef]) worksheet[cellRef] = { t: "s", v: "" };
+    worksheet[cellRef].s = headerStyle;
+  });
+
+  idHeader.forEach((_, c) => {
+    const cellRef = utils.encode_cell({ r: 1, c });
+    if (!worksheet[cellRef]) worksheet[cellRef] = { t: "s", v: "" };
+    worksheet[cellRef].s = idHeaderStyle;
+  });
+
+  columns.forEach((col, index) => {
+    const cellRef = utils.encode_cell({ r: 0, c: index });
+    const commentLines: string[] = [];
+    if (col.id === "submitterName") {
+      commentLines.push("Type: select");
+      if (col.options && col.options.length > 0) {
+        commentLines.push("Available Inspectors (Copy name exactly):");
+        col.options.forEach((name) => {
+          commentLines.push(`- ${name}`);
+        });
+      } else {
+        commentLines.push("No inspectors registered yet.");
+      }
+    } else {
+      if (col.type) {
+        commentLines.push(`Type: ${col.type}`);
+      }
+      if (col.options && col.options.length > 0) {
+        commentLines.push(`Options: ${col.options.join(", ")}`);
+      }
+    }
+    if (col.required) {
+      commentLines.push("Required: YES");
+    }
+
+    if (worksheet[cellRef] && commentLines.length > 0) {
+      worksheet[cellRef].c = [{ a: "System", t: commentLines.join("\n") }];
+    }
+  });
+
+  for (let r = 2; r < data.length; r++) {
+    const isEven = r % 2 === 0;
+    const rowStyle = {
+      fill: { fgColor: { rgb: isEven ? "FFFFFF" : "F3F4F6" } },
+      border: {
+        top: { style: "thin", color: { rgb: "E5E7EB" } },
+        bottom: { style: "thin", color: { rgb: "E5E7EB" } },
+        left: { style: "thin", color: { rgb: "E5E7EB" } },
+        right: { style: "thin", color: { rgb: "E5E7EB" } },
+      },
+    };
+    for (let c = 0; c < visibleHeader.length; c++) {
+      const cellRef = utils.encode_cell({ r, c });
+      if (!worksheet[cellRef]) worksheet[cellRef] = { t: "s", v: "" };
+      worksheet[cellRef].s = rowStyle;
+    }
+  }
+
+  const colWidths = visibleHeader.map((header) => ({
+    wch: header.length > 20 ? 30 : 20,
+  }));
+  worksheet["!cols"] = colWidths;
+  worksheet["!rows"] = [
+    { hpx: 40 },
+    { hpx: 0 },
+  ];
+
+  worksheet["!freeze"] = {
+    xSplit: 0,
+    ySplit: 2,
+    topLeftCell: "A3",
+    activePane: "bottomRight",
+  };
+
+  const fileName = `${
+    (form.title || "form")
+      .replace(/[^a-z0-9]+/gi, "-")
+      .toLowerCase()
+  }-followup-template.xlsx`;
+
+  const excelBuffer = write(workbook, { bookType: "xlsx", type: "array" });
+
+  try {
+    const zip = await JSZip.loadAsync(excelBuffer);
+    const vmlFileKey = Object.keys(zip.files).find((name) =>
+      name.includes("vmlDrawing")
+    );
+    if (vmlFileKey) {
+      let vmlContent = await zip.file(vmlFileKey)!.async("string");
+
+      vmlContent = vmlContent.replace(
+        /<x:Anchor>(\d+),(\d+),(\d+),(\d+),(\d+),(\d+),(\d+),(\d+)<\/x:Anchor>/g,
+        (match, col1, o1, r1, o2, col2, o3, r2, o4) => {
+          const c1 = parseInt(col1, 10);
+          const c2 = parseInt(col2, 10);
+          return `<x:Anchor>${c1 - 1},${o1},${r1},${o2},${c2 - 1},${o3},${r2},${o4}</x:Anchor>`;
+        }
+      );
+
+      zip.file(vmlFileKey, vmlContent);
+    }
+
+    const finalBlob = await zip.generateAsync({ type: "blob" });
+
+    const url = window.URL.createObjectURL(finalBlob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    console.log(`✅ Follow-up template saved as: ${fileName}`);
+  } catch (err) {
+    console.error(
+      "Error post-processing VML comments, falling back to standard write:",
+      err
+    );
+    XLSX.writeFile(workbook, fileName);
+  }
+  return fileName;
+}
+
 export async function generateAnswerTemplate(form: Question, inspectors?: any[]) {
   console.log("🔄 Generating new row-based answer template...");
   

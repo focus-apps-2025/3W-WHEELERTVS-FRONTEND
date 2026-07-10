@@ -38,6 +38,14 @@ export default function HRAttendance() {
   const [loading, setLoading] = useState(() => !apiClient.getCachedData(reportCacheKey));
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
+  const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
+
+  const toggleRow = (idx: number) => {
+    setExpandedRows((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
+  };
   const [shifts, setShifts] = useState<any[]>(() => {
     const cached = apiClient.getCachedData<any>("/hr/shifts");
     return cached?.data || [];
@@ -293,52 +301,103 @@ export default function HRAttendance() {
                       </tr>
                     ) : (
                       data?.detailedLogs?.map((log: any, idx: number) => (
-                        <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="font-bold text-gray-900">{log.date}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-xs font-bold">
-                                {log.inspector?.charAt(0) || '?'}
+                        <React.Fragment key={idx}>
+                          <tr className="hover:bg-gray-50/50 transition-colors border-b border-gray-50">
+                            <td className="px-6 py-4">
+                              <div className="font-bold text-gray-900">{log.date}</div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center text-xs font-bold">
+                                  {log.inspector?.charAt(0) || '?'}
+                                </div>
+                                <span className="font-bold text-gray-700">{log.inspector}</span>
                               </div>
-                              <span className="font-bold text-gray-700">{log.inspector}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-1.5 text-gray-600 text-sm">
-                              <Clock size={14} />
-                              {log.shift}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 font-medium text-gray-600">{log.checkIn || '-'}</td>
-                          <td className="px-6 py-4 font-medium text-gray-600">{log.checkOut || '-'}</td>
-                          <td className="px-6 py-4 font-black text-blue-600 text-sm">{log.hours}h</td>
-                          <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                              log.status === 'present' ? 'bg-green-100 text-green-700' : 
-                              log.status === 'late' ? 'bg-yellow-100 text-yellow-700' :
-                              log.status === 'half-day' ? 'bg-orange-100 text-orange-700' :
-                              'bg-red-100 text-red-700'
-                            }`}>
-                              {log.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-center">
-                            {log.location && (
-                              <button 
-                                title={log.location}
-                                className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition"
-                                onClick={() => {
-                                  setSelectedLocation(log.location);
-                                  setShowLocationModal(true);
-                                }}
-                              >
-                                <MapPin size={18} />
-                              </button>
-                            )}
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-1.5 text-gray-600 text-sm">
+                                <Clock size={14} />
+                                {log.shift}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 font-medium text-gray-600">{log.checkIn || '-'}</td>
+                            <td className="px-6 py-4 font-medium text-gray-600">{log.checkOut || '-'}</td>
+                            <td className="px-6 py-4 font-black text-blue-600 text-sm">{log.hours}h</td>
+                            <td className="px-6 py-4">
+                              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                log.status === 'present' ? 'bg-green-100 text-green-700' : 
+                                log.status === 'late' ? 'bg-yellow-100 text-yellow-700' :
+                                log.status === 'half-day' ? 'bg-orange-100 text-orange-700' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {log.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {log.location && (
+                                  <button 
+                                    title={log.location}
+                                    className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition"
+                                    onClick={() => {
+                                      setSelectedLocation(log.location);
+                                      setShowLocationModal(true);
+                                    }}
+                                  >
+                                    <MapPin size={18} />
+                                  </button>
+                                )}
+                                {log.punches && log.punches.length > 0 && (
+                                  <button
+                                    onClick={() => toggleRow(idx)}
+                                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition flex items-center gap-1"
+                                    title="View Punch History"
+                                  >
+                                    <Clock size={18} />
+                                    <span className="text-xs font-bold">{log.punches.length}</span>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                          {expandedRows[idx] && log.punches && (
+                            <tr className="bg-gray-50/30">
+                              <td colSpan={8} className="px-8 py-4">
+                                <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+                                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">
+                                    Login & Logout History (Timeline)
+                                  </h4>
+                                  <div className="relative pl-6 border-l-2 border-blue-100 space-y-4">
+                                    {log.punches.map((punch: any, pIdx: number) => (
+                                      <div key={pIdx} className="relative">
+                                        {/* Dot */}
+                                        <div className={`absolute -left-[31px] top-1 w-3.5 h-3.5 rounded-full border-2 border-white flex items-center justify-center ${
+                                          punch.type === 'in' ? 'bg-green-500' : 'bg-red-500'
+                                        }`} />
+                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                                          <div>
+                                            <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] mr-2 ${
+                                              punch.type === 'in' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                                            }`}>
+                                              Clock {punch.type === 'in' ? 'In' : 'Out'}
+                                            </span>
+                                            <span className="font-bold text-gray-900">{punch.time || '-'}</span>
+                                          </div>
+                                          {punch.place && (
+                                            <span className="text-gray-500 flex items-center gap-1 truncate max-w-md">
+                                              <MapPin size={12} className="flex-shrink-0" />
+                                              {punch.place}
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))
                     )}
                   </tbody>
@@ -394,21 +453,72 @@ export default function HRAttendance() {
                         </div>
                       </div>
 
-                      {log.location && (
+                      {(log.location || (log.punches && log.punches.length > 0)) && (
                         <div className="pt-3 border-t border-gray-50 flex justify-between items-center">
-                          <div className="flex items-center gap-1.5 text-[10px] text-gray-500 truncate max-w-[80%]">
-                            <MapPin size={12} className="text-red-400" />
-                            {log.location}
+                          <div className="flex items-center gap-1.5 text-[10px] text-gray-500 truncate max-w-[60%]">
+                            {log.location ? (
+                              <>
+                                <MapPin size={12} className="text-red-400" />
+                                {log.location}
+                              </>
+                            ) : (
+                              <span className="italic text-gray-400">No primary location</span>
+                            )}
                           </div>
-                          <button 
-                            className="text-[10px] font-black text-blue-600 uppercase tracking-widest"
-                            onClick={() => {
-                              setSelectedLocation(log.location);
-                              setShowLocationModal(true);
-                            }}
-                          >
-                            View
-                          </button>
+                          <div className="flex items-center gap-3">
+                            {log.location && (
+                              <button 
+                                className="text-[10px] font-black text-blue-600 uppercase tracking-widest"
+                                onClick={() => {
+                                  setSelectedLocation(log.location);
+                                  setShowLocationModal(true);
+                                }}
+                              >
+                                Map
+                              </button>
+                            )}
+                            {log.punches && log.punches.length > 0 && (
+                              <button 
+                                className="text-[10px] font-black text-gray-500 hover:text-blue-600 uppercase tracking-widest flex items-center gap-1"
+                                onClick={() => toggleRow(idx)}
+                              >
+                                History ({log.punches.length})
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {expandedRows[idx] && log.punches && (
+                        <div className="mt-3 pt-3 border-t border-gray-100 bg-gray-50/50 p-3 rounded-xl space-y-3">
+                          <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                            Punch History
+                          </h4>
+                          <div className="relative pl-4 border-l border-blue-100 space-y-3">
+                            {log.punches.map((punch: any, pIdx: number) => (
+                              <div key={pIdx} className="relative text-[11px]">
+                                {/* Dot */}
+                                <div className={`absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full border border-white ${
+                                  punch.type === 'in' ? 'bg-green-500' : 'bg-red-500'
+                                }`} />
+                                <div className="space-y-0.5">
+                                  <div className="flex items-center gap-2">
+                                    <span className={`font-black uppercase tracking-wider text-[9px] px-1 py-0.2 rounded ${
+                                      punch.type === 'in' ? 'bg-green-50 text-green-700' : 'bg-red-550 bg-red-50 text-red-700'
+                                    }`}>
+                                      {punch.type === 'in' ? 'In' : 'Out'}
+                                    </span>
+                                    <span className="font-bold text-gray-900">{punch.time || '-'}</span>
+                                  </div>
+                                  {punch.place && (
+                                    <p className="text-gray-500 text-[10px] truncate max-w-full">
+                                      {punch.place}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </div>

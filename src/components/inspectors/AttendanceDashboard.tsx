@@ -505,21 +505,35 @@ export default function AttendanceDashboard({
               )}
             </div>
 
-            {!attendance?.checkInTime ? (
-              <button
-                //disabled={!shift || !location || !isWithinRadius || punching}
-                disabled={!shift || !location || !isWithinRadius || punching}
-                onClick={handlePunchIn}
-                className="w-full h-20 bg-green-600 hover:bg-green-700 disabled:bg-gray-200 text-white rounded-3xl font-black text-xl shadow-lg shadow-green-100 transition-all flex items-center justify-center gap-3 active:scale-95"
-              >
-                {punching ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <LogIn size={28} />
+            {!attendance?.checkInTime || attendance?.checkOutTime ? (
+              <div className="space-y-4">
+                {attendance?.checkOutTime && (
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-2xl text-center space-y-2">
+                    <p className="text-xs text-gray-500 font-bold uppercase tracking-widest">
+                      Last Clocked Out At
+                    </p>
+                    <p className="text-xl font-black text-gray-800">
+                      {formatLocalTime(attendance.checkOutTime)}
+                    </p>
+                    <p className="text-xs text-gray-500 font-medium">
+                      Total Working Hours: <span className="font-bold text-gray-700">{attendance.workingHours} hrs</span>
+                    </p>
+                  </div>
                 )}
-                Clock In
-              </button>
-            ) : !attendance?.checkOutTime ? (
+                <button
+                  disabled={!shift || !location || !isWithinRadius || punching}
+                  onClick={handlePunchIn}
+                  className="w-full h-20 bg-green-600 hover:bg-green-700 disabled:bg-gray-200 text-white rounded-3xl font-black text-xl shadow-lg shadow-green-100 transition-all flex items-center justify-center gap-3 active:scale-95"
+                >
+                  {punching ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <LogIn size={28} />
+                  )}
+                  {attendance?.checkOutTime ? "Clock In Again" : "Clock In"}
+                </button>
+              </div>
+            ) : (
               <div className="space-y-4">
                 <div className="p-4 bg-blue-50 border border-blue-100 rounded-2xl text-center">
                   <p className="text-xs text-blue-600 font-bold uppercase tracking-widest mb-1">
@@ -545,34 +559,6 @@ export default function AttendanceDashboard({
                   )}
                   Clock Out
                 </button>
-              </div>
-            ) : (
-              <div className="p-8 bg-gray-100 border border-gray-200 rounded-3xl text-center">
-                <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle2 size={32} />
-                </div>
-                <h3 className="text-xl font-bold text-gray-900">
-                  Shift Completed!
-                </h3>
-                <p className="text-gray-500 mt-1">
-                  You have successfully clocked out for today.
-                </p>
-                <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-bold text-gray-400 uppercase tracking-widest border-t pt-4">
-                  <div>
-                    <div>Punch In</div>
-                    <div className="text-gray-900 text-sm mt-1">
-                      {formatLocalTime(attendance.checkInTime)}
-
-                    </div>
-                  </div>
-                  <div>
-                    <div>Punch Out</div>
-                    <div className="text-gray-900 text-sm mt-1">
-                      {formatLocalTime(attendance.checkOutTime)}
-
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
           </div>
