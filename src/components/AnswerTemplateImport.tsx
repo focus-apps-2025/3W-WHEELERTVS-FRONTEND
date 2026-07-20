@@ -22,6 +22,7 @@ import {
 import type { Question } from "../types";
 import SubmissionProgressModal from "./SubmissionProgressModal";
 import { io } from "socket.io-client";
+import { useNavigate } from "react-router-dom";
 
 interface AnswerTemplateImportProps {
   isOpen: boolean;
@@ -35,6 +36,7 @@ export default function AnswerTemplateImport({
   onClose,
   onSuccess,
 }: AnswerTemplateImportProps) {
+  const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
   const { data: formsData } = useForms();
   const [selectedFormId, setSelectedFormId] = useState<string>("");
@@ -422,6 +424,9 @@ export default function AnswerTemplateImport({
         onClose();
         clearImportState();
         setFollowUpStates({});
+        if (selectedFormId) {
+          navigate(`/forms/${selectedFormId}/analytics`);
+        }
       }, 1500);
 
     } catch (error: any) {

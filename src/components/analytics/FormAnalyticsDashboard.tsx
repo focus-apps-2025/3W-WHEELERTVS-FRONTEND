@@ -45,6 +45,7 @@ import {
   Loader2,
   Maximize,
   RotateCcw,
+  Search,
 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { Pie, Doughnut, Radar } from "react-chartjs-2";
@@ -144,6 +145,20 @@ interface Response {
 const getResponseTimestamp = (response: Response): string | undefined => {
   return response.timestamp || response.createdAt;
 };
+
+// Helper function to flatten section questions to include follow-up questions
+const flattenQuestions = (questions: any[]): any[] => {
+  const flattened: any[] = [];
+  if (!questions) return flattened;
+  questions.forEach((q) => {
+    flattened.push(q);
+    if (q.followUpQuestions && q.followUpQuestions.length > 0) {
+      flattened.push(...flattenQuestions(q.followUpQuestions));
+    }
+  });
+  return flattened;
+};
+
 
 interface Section {
   weightage(weightage: any): unknown;
@@ -2706,9 +2721,9 @@ export default function FormAnalyticsDashboard() {
   };
 
   const handleBulkBiwReviewUpdateAll = (status: "Accepted" | "Rejected" | "Reworked" | null) => {
-    if (tableResponses.length === 0) return;
+    if (currentTableResponses.length === 0) return;
 
-    const allIds = tableResponses.map((r) => r.id);
+    const allIds = currentTableResponses.map((r) => r.id);
 
     const validResponseIds: string[] = [];
     let selfSubmissionsCount = 0;
@@ -2990,6 +3005,169 @@ export default function FormAnalyticsDashboard() {
   const [tableResponses, setTableResponses] = useState<Response[]>([]);
   const [tableResponsesTotal, setTableResponsesTotal] = useState(0);
   const [isLoadingTableResponses, setIsLoadingTableResponses] = useState(false);
+  const [responsesSearchQuery, setResponsesSearchQuery] = useState("");
+  const [tableFixedFilters, setTableFixedFilters] = useState<Record<string, string[] | null>>({});
+
+  const escapeRegExp = (str: string) => {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  };
+
+  const highlightText = (text: any, search: string) => {
+    const str = text == null ? "" : String(text);
+    if (!search || !search.trim() || !str) return <>{str}</>;
+    const parts = str.split(new RegExp(`(${escapeRegExp(search)})`, "gi"));
+    return (
+      <>
+        {parts.map((part, i) =>
+          part.toLowerCase() === search.toLowerCase() ? (
+            <mark key={i} className="bg-yellow-200 dark:bg-yellow-800/80 text-gray-900 dark:text-white px-0.5 rounded">
+              {part}
+            </mark>
+          ) : (
+            part
+          )
+        )}
+      </>
+    );
+  };
+
+  // Unique values for fixed column filters
+  const fixedColumnUniqueValues = useMemo(() => {
+    const submitters = new Set<string>();
+    const statuses = new Set<string>();
+    const chassisNums = new Set<string>();
+    const reviewStatuses = new Set<string>();
+    const biwStatuses = new Set<string>();
+
+    responses.forEach((r) => {
+      const name = r.submittedBy ||
+        (typeof r.createdBy === "string" ? r.createdBy : (r.createdBy as any)?.username || (r.createdBy as any)?.email) ||
+        "Anonymous";
+      if (name) submitters.add(String(name));
+
+      const st = r.status || "Pending Review";
+      statuses.add(st);
+
+      const chassis = r.answers?.chassis_number;
+      if (chassis) chassisNums.add(String(chassis));
+
+      const reviewSt = (r as any).review?.status || (r as any).biwReview?.status;
+      if (reviewSt) reviewStatuses.add(String(reviewSt));
+
+      const biwSt = (r as any).biwReview?.status;
+      if (biwSt) biwStatuses.add(String(biwSt));
+    });
+
+    return {
+      submitter: Array.from(submitters).sort(),
+      status: Array.from(statuses).sort(),
+      chassis: Array.from(chassisNums).sort(),
+      review: Array.from(reviewStatuses).sort(),
+      biw: Array.from(biwStatuses).sort(),
+    };
+  }, [responses]);
+
+  const searchedResponses = useMemo(() => {
+    const hasSearch = responsesSearchQuery.trim().length > 0;
+    const hasFixedFilters = Object.values(tableFixedFilters).some(v => v !== null && v !== undefined);
+
+    if (!hasSearch && !hasFixedFilters) {
+      return null;
+    }
+
+    let filtered = responses;
+
+    // Apply text search
+    if (hasSearch) {
+      const query = responsesSearchQuery.toLowerCase().trim();
+      filtered = filtered.filter((response) => {
+        if (response.submittedBy && response.submittedBy.toLowerCase().includes(query)) return true;
+
+        const creatorName = typeof response.createdBy === "object"
+          ? (response.createdBy as any)?.username || (response.createdBy as any)?.email
+          : String(response.createdBy || "");
+        if (creatorName && creatorName.toLowerCase().includes(query)) return true;
+
+        if (response.status && response.status.toLowerCase().includes(query)) return true;
+        if ((response as any).biwReview?.status && String((response as any).biwReview.status).toLowerCase().includes(query)) return true;
+        if (response.answers?.chassis_number && String(response.answers.chassis_number).toLowerCase().includes(query)) return true;
+
+        if (response.answers) {
+          for (const value of Object.values(response.answers)) {
+            if (value !== null && value !== undefined) {
+              if (Array.isArray(value)) {
+                if (value.some(v => String(v).toLowerCase().includes(query))) return true;
+              } else if (typeof value === "object") {
+                if (JSON.stringify(value).toLowerCase().includes(query)) return true;
+              } else if (String(value).toLowerCase().includes(query)) {
+                return true;
+              }
+            }
+          }
+        }
+        return false;
+      });
+    }
+
+    // Apply fixed column filters
+    if (hasFixedFilters) {
+      filtered = filtered.filter((response) => {
+        // Submitter filter
+        const submitterFilter = tableFixedFilters["__submitter"];
+        if (submitterFilter !== null && submitterFilter !== undefined) {
+          const name = response.submittedBy ||
+            (typeof response.createdBy === "string" ? response.createdBy : (response.createdBy as any)?.username || (response.createdBy as any)?.email) ||
+            "Anonymous";
+          if (!submitterFilter.includes(String(name))) return false;
+        }
+
+        // Status filter
+        const statusFilter = tableFixedFilters["__status"];
+        if (statusFilter !== null && statusFilter !== undefined) {
+          const st = response.status || "Pending Review";
+          if (!statusFilter.includes(st)) return false;
+        }
+
+        // Chassis filter
+        const chassisFilter = tableFixedFilters["__chassis"];
+        if (chassisFilter !== null && chassisFilter !== undefined) {
+          const ch = response.answers?.chassis_number ? String(response.answers.chassis_number) : "";
+          if (!chassisFilter.includes(ch)) return false;
+        }
+
+        // Review filter
+        const reviewFilter = tableFixedFilters["__review"];
+        if (reviewFilter !== null && reviewFilter !== undefined) {
+          const rv = (response as any).review?.status || "";
+          if (!reviewFilter.includes(rv)) return false;
+        }
+
+        // BIW Review filter
+        const biwFilter = tableFixedFilters["__biw"];
+        if (biwFilter !== null && biwFilter !== undefined) {
+          const bw = (response as any).biwReview?.status || "";
+          if (!biwFilter.includes(bw)) return false;
+        }
+
+        return true;
+      });
+    }
+
+    return filtered;
+  }, [responses, responsesSearchQuery, tableFixedFilters]);
+
+  const paginatedSearchedResponses = useMemo(() => {
+    if (!searchedResponses) return [];
+    const startIndex = (responsesPage - 1) * responsesPageSize;
+    return searchedResponses.slice(startIndex, startIndex + responsesPageSize);
+  }, [searchedResponses, responsesPage, responsesPageSize]);
+
+  const currentTableResponses = searchedResponses ? paginatedSearchedResponses : tableResponses;
+  const currentTableResponsesTotal = searchedResponses ? searchedResponses.length : tableResponsesTotal;
+
+  useEffect(() => {
+    setResponsesPage(1);
+  }, [responsesSearchQuery]);
 
   useEffect(() => {
     if (analyticsView !== "responses" || !id) return;
@@ -4115,11 +4293,11 @@ export default function FormAnalyticsDashboard() {
     setResponsesPage(1);
   }, [dateFilter, selectedInspectorForTrend, id]);
 
-  const totalResponsesCount = tableResponsesTotal;
+  const totalResponsesCount = currentTableResponsesTotal;
   const totalResponsesPages = Math.max(1, Math.ceil(totalResponsesCount / responsesPageSize));
   const currentResponsesPage = Math.min(responsesPage, totalResponsesPages);
   const responsesStartIndex = totalResponsesCount > 0 ? (currentResponsesPage - 1) * responsesPageSize : 0;
-  const responsesEndIndex = responsesStartIndex + tableResponses.length;
+  const responsesEndIndex = responsesStartIndex + currentTableResponses.length;
 
   const pageSizesList = useMemo(() => {
     const base = [20, 50, 100];
@@ -4535,7 +4713,7 @@ export default function FormAnalyticsDashboard() {
     });
 
     form?.sections?.forEach((section) => {
-      section.questions?.forEach((q: any) => {
+      flattenQuestions(section.questions)?.forEach((q: any) => {
         if (!sets.has(q.id)) {
           const s = new Set<string>([""]);
           sets.set(q.id, s);
@@ -4601,7 +4779,7 @@ export default function FormAnalyticsDashboard() {
     return true;
   };
 
-  const renderAnswerDisplay = (value: any, question?: any): React.ReactNode => {
+  const renderAnswerDisplay = (value: any, question?: any, searchQuery?: string): React.ReactNode => {
     const ensureAbsoluteFileSource = (input: string) => {
       if (!input) {
         return "";
@@ -4747,7 +4925,7 @@ export default function FormAnalyticsDashboard() {
 
       const trimmed = value.trim();
       return trimmed ? (
-        trimmed
+        searchQuery ? highlightText(trimmed, searchQuery) : trimmed
       ) : (
         <span className="text-gray-400">No response</span>
       );
@@ -4767,7 +4945,7 @@ export default function FormAnalyticsDashboard() {
             }
             return (
               <span key={index} className="text-sm">
-                {String(entry)}
+                {searchQuery ? highlightText(String(entry), searchQuery) : String(entry)}
               </span>
             );
           }
@@ -5119,7 +5297,7 @@ export default function FormAnalyticsDashboard() {
                       <span
                         className={`px-2 py-1 ${colorClass} text-xs rounded font-medium`}
                       >
-                        {part.value}
+                        {searchQuery ? highlightText(part.value, searchQuery) : part.value}
                       </span>
                     )}
                   </div>
@@ -5141,9 +5319,9 @@ export default function FormAnalyticsDashboard() {
               className="flex flex-col gap-0.5 border-l-2 border-gray-100 dark:border-gray-800 pl-2"
             >
               <span className="text-[10px] font-bold opacity-70 uppercase tracking-tighter text-blue-800 dark:text-blue-300">
-                {k}
+                {searchQuery ? highlightText(k, searchQuery) : k}
               </span>
-              {renderAnswerDisplay(v)}
+              {renderAnswerDisplay(v, undefined, searchQuery)}
             </div>
           ))}
         </div>
@@ -5152,7 +5330,7 @@ export default function FormAnalyticsDashboard() {
 
     return (
       <pre className="text-xs whitespace-pre-wrap">
-        {JSON.stringify(value, null, 2)}
+        {searchQuery ? highlightText(JSON.stringify(value, null, 2), searchQuery) : JSON.stringify(value, null, 2)}
       </pre>
     );
   };
@@ -9510,6 +9688,27 @@ export default function FormAnalyticsDashboard() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center relative">
+                    {/* Search Input */}
+                    <div className="relative flex items-center">
+                      <Search className="absolute left-3 w-4 h-4 text-gray-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search anything..."
+                        value={responsesSearchQuery}
+                        onChange={(e) => setResponsesSearchQuery(e.target.value)}
+                        className="pl-9 pr-8 py-1.5 text-xs font-semibold bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 w-[180px] sm:w-[240px] text-gray-900 dark:text-white placeholder-gray-400"
+                      />
+                      {responsesSearchQuery && (
+                        <button
+                          onClick={() => setResponsesSearchQuery("")}
+                          className="absolute right-2.5 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          title="Clear Search"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
                     <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1.5 rounded-lg shadow-sm">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Show</span>
                       <select
@@ -9830,12 +10029,12 @@ export default function FormAnalyticsDashboard() {
                                 checked={
                                   selectedResponseIds.length > 0 &&
                                   selectedResponseIds.length ===
-                                  tableResponses.length
+                                  currentTableResponses.length
                                 }
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     setSelectedResponseIds(
-                                      tableResponses.map((r) => r.id),
+                                      currentTableResponses.map((r) => r.id),
                                     );
                                   } else {
                                     setSelectedResponseIds([]);
@@ -9872,10 +10071,28 @@ export default function FormAnalyticsDashboard() {
                                 </div>
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
-                              Submitted by
+                              <div className="flex items-center justify-between gap-2">
+                                <span>Submitted by</span>
+                                <TableColumnFilter
+                                  columnId="__submitter"
+                                  title="Submitted by"
+                                  options={fixedColumnUniqueValues.submitter}
+                                  selectedValues={tableFixedFilters["__submitter"] || null}
+                                  onFilterChange={(colId, values) => setTableFixedFilters(prev => ({ ...prev, [colId]: values }))}
+                                />
+                              </div>
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
-                              Status
+                              <div className="flex items-center justify-between gap-2">
+                                <span>Status</span>
+                                <TableColumnFilter
+                                  columnId="__status"
+                                  title="Status"
+                                  options={fixedColumnUniqueValues.status}
+                                  selectedValues={tableFixedFilters["__status"] || null}
+                                  onFilterChange={(colId, values) => setTableFixedFilters(prev => ({ ...prev, [colId]: values }))}
+                                />
+                              </div>
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
                               <div className="flex items-center gap-1.5">
@@ -9895,7 +10112,16 @@ export default function FormAnalyticsDashboard() {
                               </div>
                             </th>
                             <th className="text-left px-6 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
-                              Review
+                              <div className="flex items-center justify-between gap-2">
+                                <span>Review</span>
+                                <TableColumnFilter
+                                  columnId="__review"
+                                  title="Review Status"
+                                  options={fixedColumnUniqueValues.review}
+                                  selectedValues={tableFixedFilters["__review"] || null}
+                                  onFilterChange={(colId, values) => setTableFixedFilters(prev => ({ ...prev, [colId]: values }))}
+                                />
+                              </div>
                             </th>
                             <th className="text-center px-4 py-3 font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border border-gray-200 dark:border-gray-700 min-w-44 whitespace-nowrap bg-purple-50 dark:bg-purple-900/20">
                               <div className="flex flex-col items-center gap-1.5 justify-center">
@@ -9903,10 +10129,10 @@ export default function FormAnalyticsDashboard() {
                                 <label className="flex items-center gap-1.5 cursor-pointer font-normal text-[10px] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 normal-case">
                                   <input
                                     type="checkbox"
-                                    checked={tableResponses.length > 0 && selectedBiwIds.length === tableResponses.length}
-                                    disabled={tableResponses.length === 0 || isBulkBiwUpdating}
+                                    checked={currentTableResponses.length > 0 && selectedBiwIds.length === currentTableResponses.length}
+                                    disabled={currentTableResponses.length === 0 || isBulkBiwUpdating}
                                     onChange={(e) => {
-                                      if (e.target.checked) setSelectedBiwIds(tableResponses.map(r => r.id));
+                                      if (e.target.checked) setSelectedBiwIds(currentTableResponses.map(r => r.id));
                                       else setSelectedBiwIds([]);
                                     }}
                                     className="w-3.5 h-3.5 text-purple-600 border-gray-300 dark:border-gray-600 rounded cursor-pointer accent-purple-600"
@@ -9946,7 +10172,7 @@ export default function FormAnalyticsDashboard() {
                                       e.target.value = "";
                                     }
                                   }}
-                                  disabled={isBulkBiwUpdating || tableResponses.length === 0}
+                                  disabled={isBulkBiwUpdating || currentTableResponses.length === 0}
                                   className="px-2 py-1 text-[10px] font-black border border-purple-200 dark:border-purple-700 rounded bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 focus:outline-none normal-case tracking-normal cursor-pointer shadow-sm hover:border-purple-400 transition-colors"
                                 >
                                   <option value="">Apply to Selected...</option>
@@ -9969,7 +10195,7 @@ export default function FormAnalyticsDashboard() {
                                 selectedResponsesSectionIds.includes(
                                   section.id,
                                 ) &&
-                                section.questions?.map((q: any) => {
+                                flattenQuestions(section.questions)?.map((q: any) => {
                                   const isFollowUp =
                                     q.parentId || q.showWhen?.questionId;
                                   const columnOptions = uniqueColumnValues.get(q.id) || [];
@@ -10009,8 +10235,8 @@ export default function FormAnalyticsDashboard() {
                         </thead>
 
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                          {tableResponses.length > 0 ? (
-                            tableResponses.map(
+                          {currentTableResponses.length > 0 ? (
+                            currentTableResponses.map(
                               (response: Response, idx: number) => (
                                 <tr
                                   key={response.id}
@@ -10259,9 +10485,12 @@ export default function FormAnalyticsDashboard() {
                                     })()}
                                   </td>
                                   <td className="px-6 py-3 text-sm text-gray-900 dark:text-white font-bold border border-gray-200 dark:border-gray-700 min-w-48 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
-                                    {response.submittedBy ||
-                                      response.createdBy ||
-                                      "Anonymous"}
+                                    {highlightText(
+                                      response.submittedBy ||
+                                      (typeof response.createdBy === "string" ? response.createdBy : (response.createdBy as any)?.username || (response.createdBy as any)?.email) ||
+                                      "Anonymous",
+                                      responsesSearchQuery
+                                    )}
                                   </td>
                                   <td className="px-6 py-3 text-sm font-bold border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
                                     <span
@@ -10290,8 +10519,7 @@ export default function FormAnalyticsDashboard() {
                                               : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
                                         }`}
                                     >
-                                      {responseStatuses[response.id] ||
-                                        "Pending Review"}
+                                      {highlightText(responseStatuses[response.id] || "Pending Review", responsesSearchQuery)}
                                     </span>
                                   </td>
                                   <td className="px-6 py-3 text-sm text-gray-900 dark:text-white font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
@@ -10335,7 +10563,7 @@ export default function FormAnalyticsDashboard() {
                                       </div>
                                     ) : (
                                       <div className="flex items-center gap-1.5 group">
-                                        <span>{response.answers?.chassis_number || "-"}</span>
+                                        <span>{highlightText(response.answers?.chassis_number || "-", responsesSearchQuery)}</span>
                                         <button
                                           onClick={() => handleStartChassisEdit(response)}
                                           title="Edit Chassis"
@@ -10382,12 +10610,12 @@ export default function FormAnalyticsDashboard() {
                                                   : "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border border-yellow-200 dark:border-yellow-800"
                                                 }`}
                                             >
-                                              {reviewObj.status}
+                                              {highlightText(reviewObj.status, responsesSearchQuery)}
                                             </span>
                                             <span className="text-xs text-gray-500 dark:text-gray-400">
                                               by{" "}
                                               <span className="font-semibold text-gray-700 dark:text-gray-300">
-                                                {reviewObj.reviewer}
+                                                {highlightText(reviewObj.reviewer, responsesSearchQuery)}
                                               </span>
                                             </span>
                                           </div>
@@ -10551,7 +10779,7 @@ export default function FormAnalyticsDashboard() {
                                       selectedResponsesSectionIds.includes(
                                         section.id,
                                       ) &&
-                                      section.questions?.map((q: any) => {
+                                      flattenQuestions(section.questions)?.map((q: any) => {
                                         const isFollowUp =
                                           q.parentId || q.showWhen?.questionId;
                                         const isEditing =
@@ -10652,7 +10880,7 @@ export default function FormAnalyticsDashboard() {
                                               />
                                             ) : (
                                               <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
-                                                {renderAnswerDisplay(answer, q)}
+                                                {renderAnswerDisplay(answer, q, responsesSearchQuery)}
                                                 {q.trackResponseRank &&
                                                   response.responseRanks?.[
                                                   q.id
@@ -10687,7 +10915,7 @@ export default function FormAnalyticsDashboard() {
                                       selectedResponsesSectionIds.includes(
                                         sec.id,
                                       )
-                                        ? acc + (sec.questions?.length || 0)
+                                        ? acc + (flattenQuestions(sec.questions)?.length || 0)
                                         : acc,
                                     0,
                                   ) || 0)
@@ -10809,19 +11037,23 @@ export default function FormAnalyticsDashboard() {
                     {section.title}
                   </h3>
                   <div className="space-y-4">
-                    {section.questions?.map((question: any) => {
+                    {flattenQuestions(section.questions)?.map((question: any) => {
                       const answer = selectedResponse.answers?.[question.id];
                       return (
                         <div
                           key={question.id}
-                          className="border-l-4 border-blue-300 dark:border-blue-700 pl-4"
+                          className={`border-l-4 ${
+                            question.parentId || question.showWhen?.questionId
+                              ? "border-purple-300 dark:border-purple-700 ml-6"
+                              : "border-blue-300 dark:border-blue-700"
+                          } pl-4`}
                         >
                           <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
                             {question.text}
                           </p>
                           <div className="text-gray-900 dark:text-gray-100 flex flex-col gap-1">
                             {hasAnswerValue(answer) ? (
-                              renderAnswerDisplay(answer, question)
+                              renderAnswerDisplay(answer, question, responsesSearchQuery)
                             ) : (
                               <span className="text-gray-400">No response</span>
                             )}
@@ -10860,7 +11092,7 @@ export default function FormAnalyticsDashboard() {
                             </p>
                             <div className="text-gray-900 dark:text-gray-100 flex flex-col gap-1">
                               {hasAnswerValue(answer) ? (
-                                renderAnswerDisplay(answer, question)
+                                renderAnswerDisplay(answer, question, responsesSearchQuery)
                               ) : (
                                 <span className="text-gray-400">
                                   No response
@@ -11381,7 +11613,7 @@ export default function FormAnalyticsDashboard() {
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {form?.sections?.flatMap((section) =>
-                          section.questions?.map((question, qIdx) => {
+                          flattenQuestions(section.questions)?.map((question, qIdx) => {
                             const last5Responses = filteredResponses
                               .filter((r) => getResponseTimestamp(r))
                               .sort((a, b) => {
@@ -11406,7 +11638,11 @@ export default function FormAnalyticsDashboard() {
                               >
                                 <td className="sticky left-0 z-10 px-4 py-3 font-medium text-gray-900 dark:text-white border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 min-w-60">
                                   <div className="flex flex-col">
-                                    <span className="text-sm font-semibold break-words whitespace-normal">
+                                    <span className={`text-sm font-semibold break-words whitespace-normal ${
+                                      question.parentId || question.showWhen?.questionId
+                                        ? "pl-4 text-purple-600 dark:text-purple-400 font-medium"
+                                        : ""
+                                    }`}>
                                       {question.text || "Question"}
                                     </span>
                                     {question.description && (

@@ -426,12 +426,47 @@ export default function FormUploadsView() {
     }
   };
 
+  // Detect if a value is a file/image URL or data URL
+  const isFileOrImageValue = (val: any): boolean => {
+    if (!val) return false;
+    if (typeof val === 'string') {
+      const v = val.trim();
+      if (!v) return false;
+      if (v.startsWith('data:image/') || v.startsWith('data:application/')) return true;
+      if (v.startsWith('http') || v.startsWith('//') || v.startsWith('/') || v.startsWith('uploads/')) return true;
+      return false;
+    }
+    if (Array.isArray(val)) return val.some((item: any) => isFileOrImageValue(item));
+    if (typeof val === 'object' && val !== null) {
+      return Object.values(val).some((item: any) => isFileOrImageValue(item));
+    }
+    return false;
+  };
+
+  // Extract all file URLs from an answer value
+  const extractFileUrls = (val: any): string[] => {
+    if (!val) return [];
+    if (typeof val === 'string') {
+      const v = val.trim();
+      return isFileOrImageValue(v) ? [v] : [];
+    }
+    if (Array.isArray(val)) {
+      return val.flatMap((item: any) => extractFileUrls(item));
+    }
+    if (typeof val === 'object' && val !== null) {
+      return Object.values(val).flatMap((item: any) => extractFileUrls(item));
+    }
+    return [];
+  };
+
+  const FILE_QUESTION_TYPES = new Set(['file', 'image', 'photo', 'camera', 'upload', 'picture', 'signature']);
+
   const fetchData = async () => {
     try {
       setLoading(true);
       const [formData, responsesData] = await Promise.all([
         apiClient.getForm(id!),
-        apiClient.getFormResponses(id!)
+        apiClient.getFormResponses(id!, { limit: 10000, page: 1 })
       ]);
 
       if (!formData.form) {
@@ -441,10 +476,11 @@ export default function FormUploadsView() {
 
       setForm(formData.form);
       setResponses(responsesData.responses || []);
-      
-      // Initially expand all questions
-      const fileQuestions = getAllFileQuestions(formData.form);
-      setExpandedQuestions(new Set(fileQuestions.map(q => q.id)));
+
+      // Initially expand all questions that have file uploads
+      const allResponses = responsesData.responses || [];
+      const fileQuestions = getAllFileQuestions(formData.form, allResponses);
+      setExpandedQuestions(new Set(fileQuestions.map((q: Question) => q.id)));
     } catch (err) {
       showError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
@@ -452,54 +488,58 @@ export default function FormUploadsView() {
     }
   };
 
-  const getAllFileQuestions = (form: Form): Question[] => {
+
+  const getAllFileQuestions = (form: Form, allResponses?: Response[]): Question[] => {
     const questions: Question[] = [];
-    
+    const seen = new Set<string>();
+
+    const isFileQuestion = (q: Question): boolean => {
+      if (FILE_QUESTION_TYPES.has((q.type || '').toLowerCase())) return true;
+      if (allResponses) {
+        return allResponses.some(r => isFileOrImageValue(r.answers?.[q.id]));
+      }
+      return false;
+    };
+
     if (form.sections) {
       form.sections.forEach(section => {
         if (section.questions) {
           section.questions.forEach(q => {
-            if (q.type === 'file') {
+            if (!seen.has(q.id) && isFileQuestion(q)) {
+              seen.add(q.id);
               questions.push(q);
             }
           });
         }
       });
     }
-    
+
     if (form.followUpQuestions) {
       form.followUpQuestions.forEach(q => {
-        if (q.type === 'file') {
+        if (!seen.has(q.id) && isFileQuestion(q)) {
+          seen.add(q.id);
           questions.push(q);
         }
       });
     }
-    
+
     return questions;
   };
+
 
   const questionUploads = useMemo(() => {
     if (!form || !responses.length) return [];
 
-    const fileQuestions = getAllFileQuestions(form);
+    const fileQuestions = getAllFileQuestions(form, responses);
     const results: QuestionUploads[] = [];
 
     fileQuestions.forEach(question => {
       const uploads: UploadItem[] = [];
-      
+
       responses.forEach(response => {
         const answer = response.answers[question.id];
-        if (answer) {
-          if (Array.isArray(answer)) {
-            answer.forEach(url => {
-              if (typeof url === 'string' && url.trim() !== '') {
-                uploads.push({ url, response });
-              }
-            });
-          } else if (typeof answer === 'string' && answer.trim() !== '') {
-            uploads.push({ url: answer, response });
-          }
-        }
+        const urls = extractFileUrls(answer);
+        urls.forEach(url => uploads.push({ url, response }));
       });
 
       if (uploads.length > 0) {
@@ -512,63 +552,47 @@ export default function FormUploadsView() {
 
   const submissionUploads = useMemo(() => {
     if (!form || !responses.length) return [];
-    
+
     return responses.map(response => {
       const name = getSubmitterName(response);
       const uploads: { question: Question; url: string }[] = [];
-      
-      const fileQuestions = getAllFileQuestions(form);
+
+      const fileQuestions = getAllFileQuestions(form, responses);
       fileQuestions.forEach(q => {
         const answer = response.answers[q.id];
-        if (answer) {
-          if (Array.isArray(answer)) {
-            answer.forEach(url => {
-              if (typeof url === 'string' && url.trim()) {
-                uploads.push({ question: q, url });
-              }
-            });
-          } else if (typeof answer === 'string' && answer.trim()) {
-            uploads.push({ question: q, url: answer });
-          }
-        }
+        const urls = extractFileUrls(answer);
+        urls.forEach(url => uploads.push({ question: q, url }));
       });
-      
+
       return { response, name, uploads };
     }).filter(s => s.uploads.length > 0);
   }, [form, responses, getSubmitterName]);
 
   const sectionUploads = useMemo(() => {
     if (!form || !responses.length) return [];
-    
+
     const results: { section: Section; uploads: { question: Question; upload: UploadItem }[] }[] = [];
-    
+
     form.sections?.forEach(section => {
       const uploads: { question: Question; upload: UploadItem }[] = [];
       section.questions.forEach(question => {
-        if (question.type === 'file') {
-          responses.forEach(response => {
-            const answer = response.answers[question.id];
-            if (answer) {
-              if (Array.isArray(answer)) {
-                answer.forEach(url => {
-                   if (typeof url === 'string' && url.trim()) {
-                     uploads.push({ question, upload: { url, response } });
-                   }
-                });
-              } else if (typeof answer === 'string' && answer.trim()) {
-                uploads.push({ question, upload: { url: answer, response } });
-              }
-            }
-          });
-        }
+        const hasUploads = responses.some(r => isFileOrImageValue(r.answers?.[question.id]));
+        if (!hasUploads && !FILE_QUESTION_TYPES.has((question.type || '').toLowerCase())) return;
+
+        responses.forEach(response => {
+          const answer = response.answers[question.id];
+          const urls = extractFileUrls(answer);
+          urls.forEach(url => uploads.push({ question, upload: { url, response } }));
+        });
       });
       if (uploads.length > 0) {
         results.push({ section, uploads });
       }
     });
-    
+
     return results;
   }, [form, responses]);
+
 
   const filteredQuestionUploads = useMemo(() => {
     if (!searchTerm.trim()) return questionUploads;

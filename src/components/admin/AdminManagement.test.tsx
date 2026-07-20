@@ -5,6 +5,12 @@ import { useAuth } from "../../context/AuthContext";
 import { apiClient } from "../../api/client";
 
 vi.mock("../../context/AuthContext");
+vi.mock("../../context/NotificationContext", () => ({
+  useNotification: () => ({
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
+  }),
+}));
 vi.mock("../../api/client", () => {
   const fn = () => vi.fn();
   return {

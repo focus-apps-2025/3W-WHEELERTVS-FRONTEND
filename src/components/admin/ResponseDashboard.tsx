@@ -227,7 +227,7 @@ function FollowUpQuestionsTable({
                         key={node.id}
                         className={`px-4 py-3 text-left text-xs font-bold uppercase tracking-wider border-b border-r border-gray-200 dark:border-gray-700 min-w-[180px] ${
                           node.level === 1
-                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
+                            ? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-300'
                             : node.level === 2
                             ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
                             : 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300'
@@ -242,7 +242,7 @@ function FollowUpQuestionsTable({
                           </div>
                           <span className={`text-[10px] font-normal px-1.5 py-0.5 rounded-full w-fit ${
                             node.level === 1
-                              ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-500 dark:text-blue-400'
+                              ? 'bg-primary-100 dark:bg-primary-900/40 text-primary-500 dark:text-primary-400'
                               : 'bg-purple-100 dark:bg-purple-900/40 text-purple-500 dark:text-purple-400'
                           }`}>
                             {node.level === 1 ? 'Follow-up' : `Nested L${node.level}`}
@@ -326,7 +326,7 @@ function FollowUpQuestionsTable({
                                 !isRelevant
                                   ? 'bg-gray-50/60 dark:bg-gray-800/40'
                                   : node.level === 1
-                                  ? 'bg-blue-50/20 dark:bg-blue-900/5'
+                                  ? 'bg-primary-50/20 dark:bg-primary-900/5'
                                   : 'bg-purple-50/20 dark:bg-purple-900/5'
                               }`}
                             >
@@ -378,7 +378,7 @@ function FollowUpQuestionsTable({
                         const answerValue = resp.followUpData[node.id];
                         return (
                           <div key={node.id} className={`p-2.5 rounded-lg ${
-                            node.level === 1 ? 'bg-blue-50/50 dark:bg-blue-900/10' : 'bg-purple-50/50 dark:bg-purple-900/10 ml-4'
+                            node.level === 1 ? 'bg-primary-50/50 dark:bg-primary-900/10' : 'bg-purple-50/50 dark:bg-purple-900/10 ml-4'
                           }`}>
                             <div className="flex items-center gap-1.5 mb-1">
                               {node.level > 1 && <span className="text-gray-400 text-xs">↳</span>}
@@ -399,7 +399,7 @@ function FollowUpQuestionsTable({
             {/* Legend */}
             <div className="px-5 py-3 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4">
               <div className="flex items-center gap-1.5">
-                <div className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-300" />
+                <div className="w-3 h-3 rounded-sm bg-primary-100 border border-primary-300" />
                 <span className="text-xs text-gray-500">Level 1 Follow-up</span>
               </div>
               <div className="flex items-center gap-1.5">
@@ -502,7 +502,7 @@ function DonutChart({ data }: { data: { [key: string]: number } }) {
 
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function ResponseDashboard() {
+export default function ResponseDashboard({ isEmbedded = false }: { isEmbedded?: boolean }) {
   const { user, tenant } = useAuth();
   const navigate = useNavigate();
   const { showError, showSuccess } = useNotification();
@@ -874,23 +874,25 @@ export default function ResponseDashboard() {
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className={isEmbedded ? "w-full px-6 md:px-8 py-6 bg-gray-50/60 dark:bg-gray-900/40 rounded-b-2xl" : "min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6 md:p-8"}>
+      <div className={isEmbedded ? "w-full" : "max-w-7xl mx-auto"}>
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100">
-            Users Response Dashboard
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Track performance metrics of users under {tenant?.name || 'your tenant'}
-          </p>
-        </div>
+        {!isEmbedded && (
+          <div className="mb-8">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100">
+              Users Response Dashboard
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">
+              Track performance metrics of users under {tenant?.name || 'your tenant'}
+            </p>
+          </div>
+        )}
 
         {/* Stats Cards - Enhanced with Active Hours */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           {[
-            { label: 'Total Users', value: totalStats.totalAdmins, icon: <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" />, bg: 'bg-blue-100 dark:bg-blue-900/30' },
+            { label: 'Total Users', value: totalStats.totalAdmins, icon: <Users className="w-5 h-5 text-primary-600 dark:text-primary-400" />, bg: 'bg-primary-100 dark:bg-primary-900/30' },
             { label: 'Active Users', value: totalStats.activeAdmins, icon: <CheckCircle className="w-5 h-5 text-purple-600 dark:text-purple-400" />, bg: 'bg-purple-100 dark:bg-purple-900/30' },
             /*{ label: 'Avg Response Time', value: formatResponseTime(totalStats.avgResponseTime), icon: <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />, bg: 'bg-yellow-100 dark:bg-yellow-900/30' },*/
             { label: 'Total Submissions', value: totalStats.totalTenantSubmissions, icon: <FileText className="w-5 h-5 text-green-600 dark:text-green-400" />, bg: 'bg-green-100 dark:bg-green-900/30' },
@@ -915,15 +917,15 @@ export default function ResponseDashboard() {
         {userWiseSubmissions.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm mb-8">
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" />
+              <FileText className="w-5 h-5 text-primary-500" />
               Forms Submitted by User (Actual Submitters)
             </h3>
             <div className="space-y-3">
               {userWiseSubmissions.map((u, i) => (
                 <div key={i} className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg transition">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                    <div className="w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center">
+                      <span className="text-xs font-semibold text-primary-600 dark:text-primary-400">
                         {u.userName && u.userName !== 'Unassigned'
                           ? u.userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
                           : '?'}
@@ -959,20 +961,20 @@ export default function ResponseDashboard() {
                     type="date"
                     value={dateRange.start}
                     onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
-                    className="flex-1 sm:w-36 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="flex-1 sm:w-36 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 outline-none"
                   />
                   <span className="text-gray-400 text-sm">to</span>
                   <input
                     type="date"
                     value={dateRange.end}
                     onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
-                    className="flex-1 sm:w-36 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="flex-1 sm:w-36 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 outline-none"
                   />
                 </div>
               </div>
               <button
                 onClick={loadAdminPerformances}
-                className="w-full sm:w-auto px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition shadow-md hover:shadow-lg"
+                className="w-full sm:w-auto px-6 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-semibold transition shadow-md hover:shadow-lg"
               >
                 Apply Filter
               </button>
@@ -985,7 +987,7 @@ export default function ResponseDashboard() {
                   placeholder="Search users…"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full pl-9 pr-4 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:ring-2 focus:ring-primary-500 outline-none"
                 />
               </div>
               <button
@@ -1020,7 +1022,7 @@ export default function ResponseDashboard() {
                 {loading ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center">
-                      <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto" />
+                      <Loader2 className="w-8 h-8 animate-spin text-primary-500 mx-auto" />
                       <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Loading user data…</p>
                     </td>
                   </tr>
@@ -1041,7 +1043,7 @@ export default function ResponseDashboard() {
                       {/* Admin */}
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
+                          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm flex-shrink-0">
                             {admin.firstName[0]}{admin.lastName[0]}
                           </div>
                           <div className="min-w-0">
@@ -1067,7 +1069,7 @@ export default function ResponseDashboard() {
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                           admin.role === 'admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' 
-                          : admin.role === 'subadmin' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                          : admin.role === 'subadmin' ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400'
                           : admin.role === 'inspector' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
                           : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
                         }`}>
@@ -1075,7 +1077,7 @@ export default function ResponseDashboard() {
                         </span>
                       </td>
                       {/* Forms Submitted */}
-                      <td className="px-6 py-4 text-sm font-semibold text-blue-600 dark:text-blue-400">
+                      <td className="px-6 py-4 text-sm font-semibold text-primary-600 dark:text-primary-400">
                         {admin.metrics.personallySubmitted}
                       </td>
                       {/* Active Hours */}
@@ -1124,7 +1126,7 @@ export default function ResponseDashboard() {
           <div className="lg:hidden divide-y divide-gray-200 dark:divide-gray-700">
             {loading ? (
               <div className="px-6 py-12 text-center">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto" />
+                <Loader2 className="w-8 h-8 animate-spin text-primary-500 mx-auto" />
                 <p className="text-gray-500 dark:text-gray-400 mt-2 text-sm">Loading user data…</p>
               </div>
             ) : paginatedPerformances.length === 0 ? (
@@ -1141,7 +1143,7 @@ export default function ResponseDashboard() {
                 >
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold shadow-sm">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center text-white font-semibold shadow-sm">
                         {admin.firstName[0]}{admin.lastName[0]}
                       </div>
                       <div className="min-w-0">
@@ -1167,7 +1169,7 @@ export default function ResponseDashboard() {
                       <p className="text-gray-500 mb-0.5 font-bold uppercase tracking-wider text-[10px]">Role</p>
                       <span className={`inline-flex px-2 py-0.5 rounded-full font-medium ${
                         admin.role === 'admin' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' 
-                        : admin.role === 'subadmin' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                        : admin.role === 'subadmin' ? 'bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-400'
                         : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
                       }`}>
                         {admin.role}
@@ -1175,7 +1177,7 @@ export default function ResponseDashboard() {
                     </div>
                     <div>
                       <p className="text-gray-500 mb-0.5 font-bold uppercase tracking-wider text-[10px]">Submissions</p>
-                      <p className="font-bold text-blue-600 dark:text-blue-400">{admin.metrics.personallySubmitted}</p>
+                      <p className="font-bold text-primary-600 dark:text-primary-400">{admin.metrics.personallySubmitted}</p>
                     </div>
                     <div>
                       <p className="text-gray-500 mb-0.5 font-bold uppercase tracking-wider text-[10px]">Active Time</p>
@@ -1224,7 +1226,7 @@ export default function ResponseDashboard() {
             {/* Modal Header */}
             <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-8 py-5 flex items-center justify-between z-10">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
                   {selectedAdmin.firstName[0]}{selectedAdmin.lastName[0]}
                 </div>
                 <div>
@@ -1234,7 +1236,7 @@ export default function ResponseDashboard() {
                   <p className="text-sm text-gray-500 dark:text-gray-400">
                     {selectedAdmin.email} · <span className="capitalize">{selectedAdmin.role}</span>
                     {selectedAdmin.metrics.lastActiveDate && (
-                      <span className="ml-2 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full">
+                      <span className="ml-2 text-xs bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300 px-2 py-0.5 rounded-full">
                         Last active: {selectedAdmin.metrics.lastActiveDate} {selectedAdmin.metrics.lastActiveTime}
                       </span>
                     )}
@@ -1253,7 +1255,7 @@ export default function ResponseDashboard() {
                 <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Performance Summary</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                   {[
-                    { label: 'Total Forms Submitted', value: selectedAdmin.metrics.formsSubmitted, color: 'text-blue-600 dark:text-blue-400', icon: <FileText className="w-4 h-4" /> },
+                    { label: 'Total Forms Submitted', value: selectedAdmin.metrics.formsSubmitted, color: 'text-primary-600 dark:text-primary-400', icon: <FileText className="w-4 h-4" /> },
                     /*{ label: 'Approved', value: selectedAdmin.metrics.formsApproved, color: 'text-green-600 dark:text-green-400', icon: <CheckCircle className="w-4 h-4" /> },
                     { label: 'Rejected', value: selectedAdmin.metrics.formsRejected, color: 'text-red-600 dark:text-red-400', icon: <XCircle className="w-4 h-4" /> },
                     { label: 'Pending', value: selectedAdmin.metrics.pendingForms, color: 'text-yellow-600 dark:text-yellow-400', icon: <Clock className="w-4 h-4" /> },*/
@@ -1285,8 +1287,8 @@ export default function ResponseDashboard() {
                     <FileText className="w-4 h-4" />
                     Forms Submitted by {selectedAdmin.firstName}
                   </h3>
-                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-                    <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  <div className="bg-primary-50 dark:bg-primary-900/20 border border-primary-200 dark:border-primary-800 rounded-xl p-4">
+                    <p className="text-2xl font-bold text-primary-600 dark:text-primary-400">
                       {selectedAdmin.metrics.formsSubmitted} Total Forms Submitted
                     </p>
                     {selectedAdmin.formsByUser[0]?.forms && selectedAdmin.formsByUser[0].forms.length > 0 && (
@@ -1302,7 +1304,7 @@ export default function ResponseDashboard() {
               {/* Response Details from API */}
               {detailsLoading ? (
                 <div className="flex flex-col items-center py-10">
-                  <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                  <Loader2 className="w-8 h-8 animate-spin text-primary-500" />
                   <p className="text-sm text-gray-400 mt-2">Loading response details…</p>
                 </div>
               ) : responseDetails ? (
@@ -1312,7 +1314,7 @@ export default function ResponseDashboard() {
                     <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">Response Status Breakdown</h3>
                     <div className="grid grid-cols-3 gap-4">
                       {[
-                        { label: 'Total Responses', value: responseDetails.totalResponses, icon: <FileText className="w-5 h-5 text-blue-500" />, bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800' },
+                        { label: 'Total Responses', value: responseDetails.totalResponses, icon: <FileText className="w-5 h-5 text-primary-500" />, bg: 'bg-primary-50 dark:bg-primary-900/20', border: 'border-primary-200 dark:border-primary-800' },
                         /* { label: 'Verified', value: responseDetails.statusBreakdown.verified, icon: <CheckCircle className="w-5 h-5 text-green-500" />, bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800' },
                          { label: 'Rejected', value: responseDetails.statusBreakdown.rejected, icon: <XCircle className="w-5 h-5 text-red-500" />, bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800' },*/
                       ].map((item) => (
@@ -1382,7 +1384,7 @@ export default function ResponseDashboard() {
           case 'approved': return <ThumbsUp className="w-4 h-4 text-green-600" />;
           case 'rejected': return <ThumbsDown className="w-4 h-4 text-red-600" />;
           case 'reworked': return <RefreshCw className="w-4 h-4 text-yellow-600" />;
-          default: return <BarChart2 className="w-4 h-4 text-blue-600" />;
+          default: return <BarChart2 className="w-4 h-4 text-primary-600" />;
         }
       };
       
@@ -1459,7 +1461,7 @@ export default function ResponseDashboard() {
                                   </>
                                 )}
                                 <td className="px-4 py-3 text-gray-900 dark:text-gray-100 font-bold">{row.responseCount}</td>
-                                <td className="px-4 py-3 text-blue-600 dark:text-blue-400 font-medium">
+                                <td className="px-4 py-3 text-primary-600 dark:text-primary-400 font-medium">
                                   {row.totalTimeSpent ? 
                                     (row.totalTimeSpent > 60 ? 
                                       `${Math.floor(row.totalTimeSpent / 60)}m ${row.totalTimeSpent % 60}s` : 
@@ -1470,7 +1472,7 @@ export default function ResponseDashboard() {
                                 <td className="px-4 py-3 text-right">
                                   <button
                                     onClick={() => navigate(`/forms/${row.formId}/analytics?view=responses`)}
-                                    className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-md transition-colors"
+                                    className="inline-flex items-center gap-1.5 text-xs font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-blue-300 bg-primary-50 dark:bg-primary-900/30 px-2 py-1 rounded-md transition-colors"
                                   >
                                     <BarChart2 className="w-3.5 h-3.5" />
                                     View
@@ -1492,7 +1494,7 @@ export default function ResponseDashboard() {
                               </h4>
                               <button
                                 onClick={() => navigate(`/forms/${row.formId}/analytics?view=responses`)}
-                                className="flex-shrink-0 p-1.5 bg-blue-600 text-white rounded-lg"
+                                className="flex-shrink-0 p-1.5 bg-primary-600 text-white rounded-lg"
                               >
                                 <BarChart2 className="w-4 h-4" />
                               </button>
@@ -1532,7 +1534,7 @@ export default function ResponseDashboard() {
                               </div>
                               <div className="text-xs">
                                 <span className="text-gray-500 font-medium">Total Time: </span>
-                                <span className="text-blue-600 dark:text-blue-400 font-bold">
+                                <span className="text-primary-600 dark:text-primary-400 font-bold">
                                   {row.totalTimeSpent ? 
                                     (row.totalTimeSpent > 60 ? 
                                       `${Math.floor(row.totalTimeSpent / 60)}m ${row.totalTimeSpent % 60}s` : 
@@ -1572,8 +1574,8 @@ export default function ResponseDashboard() {
                         {responseDetails.personalSubmissions.map((sub) => (
                           <div key={sub.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-900/40 rounded-xl border border-gray-100 dark:border-gray-700/50">
                             <div className="flex items-center gap-3">
-                              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                              <div className="p-2 bg-primary-100 dark:bg-primary-900/30 rounded-lg">
+                                <FileText className="w-4 h-4 text-primary-600 dark:text-primary-400" />
                               </div>
                               <div>
                                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{sub.formTitle}</p>
@@ -1623,7 +1625,7 @@ export default function ResponseDashboard() {
                           <p className="text-xs text-gray-400 truncate">
                             {activity.formName} · {new Date(activity.timestamp).toLocaleString()}
                             {activity.durationMinutes && activity.durationMinutes > 0 ? (
-                              <span className="ml-2 font-semibold text-blue-500">
+                              <span className="ml-2 font-semibold text-primary-500">
                                 · Time taken: {activity.durationMinutes} mins
                               </span>
                             ) : null}
@@ -1759,7 +1761,7 @@ export default function ResponseDashboard() {
                   onClick={() => handleBulkAssign(admin._id)}
                   className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition text-left"
                 >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-500 to-purple-500 flex items-center justify-center text-white font-semibold text-sm">
                     {admin.firstName?.[0]}{admin.lastName?.[0]}
                   </div>
                   <div>

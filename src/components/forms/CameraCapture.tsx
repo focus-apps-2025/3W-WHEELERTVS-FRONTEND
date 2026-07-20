@@ -26,22 +26,48 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, disab
       try {
         setIsCameraReady(false);
         setError(null);
+
+        // Check if camera api is supported (secure context, etc)
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setError('Camera access is not supported by your browser or connection. Please use a modern browser (like Chrome or Safari) and ensure you are using a secure (HTTPS) connection.');
+          return;
+        }
         
         // Stop any existing tracks
         if (videoRef.current && videoRef.current.srcObject) {
           const oldStream = videoRef.current.srcObject as MediaStream;
           oldStream.getTracks().forEach(track => track.stop());
+          videoRef.current.srcObject = null;
         }
 
-        // Simplified constraints - remove exact and width/height to avoid OverconstrainedError
-        const constraints = {
-          video: facingMode === 'environment' 
-            ? { facingMode: 'environment' } 
-            : { facingMode: 'user' }
-        };
+        // Try exact environment constraint first to force rear camera on mobile (90% case)
+        let constraints;
+        if (facingMode === 'environment') {
+          constraints = {
+            video: {
+              facingMode: { exact: 'environment' }
+            }
+          };
+        } else {
+          constraints = {
+            video: {
+              facingMode: 'user'
+            }
+          };
+        }
 
         console.log('Requesting camera with constraints:', constraints);
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints);
+        } catch (exactErr) {
+          console.warn('Failed with exact constraint, trying ideal/fallback', exactErr);
+          const fallbackConstraints = {
+            video: facingMode === 'environment' 
+              ? { facingMode: { ideal: 'environment' } } 
+              : { facingMode: 'user' }
+          };
+          stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+        }
         
         if (videoRef.current && isMounted) {
           videoRef.current.srcObject = stream;
@@ -89,13 +115,15 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, disab
             }
           } catch (fallbackErr) {
             console.error('Fallback camera error:', fallbackErr);
-            setError('Unable to access camera. Please check permissions and ensure no other app is using the camera.');
+            setError('Unable to access camera. Please check camera permissions in your device settings, or copy the link and open it in your phone\'s main browser (Safari / Chrome) instead of an in-app browser.');
           }
         }
       }
     };
 
-    startCamera();
+    if (!capturedImage) {
+      startCamera();
+    }
 
     return () => {
       isMounted = false;
@@ -105,9 +133,10 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, disab
       if (videoRef.current && videoRef.current.srcObject) {
         const oldStream = videoRef.current.srcObject as MediaStream;
         oldStream.getTracks().forEach(track => track.stop());
+        videoRef.current.srcObject = null;
       }
     };
-  }, [facingMode,capturedImage]);
+  }, [facingMode, capturedImage]);
 
   const switchCamera = () => {
     setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
@@ -153,6 +182,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, disab
         if (video.srcObject) {
           const stream = video.srcObject as MediaStream;
           stream.getTracks().forEach(track => track.stop());
+          video.srcObject = null;
         }
         setIsCameraReady(false);
       }

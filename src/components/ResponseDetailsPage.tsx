@@ -421,43 +421,9 @@ const [pdfDownloadProgress, setPdfDownloadProgress] = useState<number | null>(nu
     }
   };
 
-  const handleEditResponse = async () => {
-    if (!response) return;
-
-    setEditingResponse(response);
-    setEditingForm(null);
-    setEditingFormLoading(true);
-    try {
-      const formIdentifier = response.questionId || response.formId;
-      if (!formIdentifier) {
-        throw new Error("Missing form identifier for response");
-      }
-      const formData = await apiClient.getForm(formIdentifier);
-      const loadedForm = formData.form;
-
-      if (loadedForm?.sections) {
-        loadedForm.sections.forEach((section: any) => {
-          if (section.questions) {
-            section.questions.forEach((question: any) => {
-              if (!Array.isArray(question.followUpQuestions)) {
-                question.followUpQuestions = [];
-              }
-            });
-          }
-        });
-      }
-
-      if (!Array.isArray(loadedForm.followUpQuestions)) {
-        loadedForm.followUpQuestions = [];
-      }
-
-      setEditingForm(loadedForm);
-    } catch (err) {
-      console.error("Failed to load form for editing:", err);
-      showError("Failed to load form for editing. Please try again.");
-      setEditingResponse(null);
-    } finally {
-      setEditingFormLoading(false);
+  const handleEditResponse = () => {
+    if (id) {
+      navigate(`/responses/${id}/edit-form`);
     }
   };
 

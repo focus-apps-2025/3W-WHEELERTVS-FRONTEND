@@ -248,6 +248,9 @@ export default function FileInput({
   const stopCamera = useCallback(() => {
     if (cameraStream) {
       cameraStream.getTracks().forEach((track) => track.stop());
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
       setCameraStream(null);
       setVideoReady(false);
     }

@@ -513,6 +513,21 @@ export async function generateAnswerTemplate(form: Question, inspectors?: any[])
       options: q.options,
       required: q.required,
     });
+
+    if (q.type === "zone-in" || q.type === "zone-out") {
+      columns.push({
+        label: `${headerText} - Remark`,
+        id: `${q.id}__remark`,
+        type: "paragraph",
+        required: false,
+      });
+      columns.push({
+        label: `${headerText} - Evidence Photo`,
+        id: `${q.id}__evidence`,
+        type: "image",
+        required: q.required,
+      });
+    }
   });
 
   const visibleHeader = columns.map((col) => col.label);
@@ -802,6 +817,10 @@ export async function parseAnswerWorkbook(
       }
     }
 
+    // Format answers using the standard form formatter
+    const formatted = formatAnswersForSubmission(form, singleResponse.answers);
+    singleResponse.answers = formatted.answers;
+
     responses.push(singleResponse);
   });
 
@@ -957,6 +976,27 @@ export function formatAnswersForSubmission(
           typeof answerValue === "string"
         ) {
           answers[question.id] = parseChassisAnswer(answerValue, question.type);
+        } else if (
+          question.type === "zone-in" ||
+          question.type === "zone-out"
+        ) {
+          const qId = question.id;
+          const statusVal = parsedAnswers[qId] !== undefined ? String(parsedAnswers[qId]).trim() : "";
+          const remarkVal = parsedAnswers[`${qId}__remark`] !== undefined ? String(parsedAnswers[`${qId}__remark`]).trim() : "";
+          const evidenceVal = parsedAnswers[`${qId}__evidence`] !== undefined ? String(parsedAnswers[`${qId}__evidence`]).trim() : "";
+
+          if (statusVal || remarkVal || evidenceVal) {
+            const chassisVal = parsedAnswers["chassis_number"] || "";
+            answers[qId] = {
+              chassisNumber: chassisVal,
+              status: statusVal,
+              remark: remarkVal,
+              evidenceUrl: isImageUrl(evidenceVal) ? convertGoogleDriveLink(evidenceVal) : evidenceVal,
+            };
+          }
+          // Clean up the temporary __remark and __evidence keys to avoid polluting
+          delete answers[`${qId}__remark`];
+          delete answers[`${qId}__evidence`];
         } else if (question.type === "multipleChoice") {
           answers[question.id] = answerValue;
         } else if (question.type === "number" || question.type === "rating") {
