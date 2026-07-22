@@ -1,20 +1,20 @@
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { 
-  AlertCircle, 
-  Camera, 
-  CheckCircle, 
-  ChevronRight, 
-  RotateCcw, 
-  XCircle, 
-  Layers, 
-  MessageSquare, 
-  Upload, 
-  Loader2, 
-  X, 
-  ChevronDown, 
-  FolderOpen, 
-  Tag 
+import {
+  AlertCircle,
+  Camera,
+  CheckCircle,
+  ChevronRight,
+  RotateCcw,
+  XCircle,
+  Layers,
+  MessageSquare,
+  Upload,
+  Loader2,
+  X,
+  ChevronDown,
+  FolderOpen,
+  Tag
 } from "lucide-react";
 import { apiClient } from "../../api/client";
 import CameraCapture from "./CameraCapture";
@@ -32,31 +32,31 @@ interface ChassisWithoutZoneProps {
 
 const DEFECT_DATA: Record<string, string[]> = {
   "Painting defects": [
-    "Paint uncover", "Low DFT", "Colour missmatch", "Cissing mark", 
-    "Paint rundown", "Orange peel", "Dry spray", "Rough finish", 
+    "Paint uncover", "Low DFT", "Colour missmatch", "Cissing mark",
+    "Paint rundown", "Orange peel", "Dry spray", "Rough finish",
     "High DFT", "Dirt inclusion", "Blisters", "Bubbling"
   ],
   "Welding defects": [
-    "Porosity", "Pin hole", "Spatters", "Burnthrough", "crack", 
-    "Unfill", "Undercut", "Excess weld", "Chipping mark", "Sharp edge", 
-    "Spot missing", "Spot welding shift", "Edge spot", "Edge spot burr", 
-    "Weld shift", "No nugget formation", "Welding stick", 
+    "Porosity", "Pin hole", "Spatters", "Burnthrough", "crack",
+    "Unfill", "Undercut", "Excess weld", "Chipping mark", "Sharp edge",
+    "Spot missing", "Spot welding shift", "Edge spot", "Edge spot burr",
+    "Weld shift", "No nugget formation", "Welding stick",
     "Plug welding missing", "Plug welding burn through", "Spot failure"
   ],
   "Fitment defects": [
-    "Hole misalignment", "Bracket misalignment", "Gap issue", "Interference", 
-    "Bolt not assembling", "Part not assembly", "Thread damage", 
-    "Mouting point shift", "Weld bead interference", "Clearance issue", 
-    "Nut missing", "Nut offset", "Bolt missing", "Bolt lossen", 
+    "Hole misalignment", "Bracket misalignment", "Gap issue", "Interference",
+    "Bolt not assembling", "Part not assembly", "Thread damage",
+    "Mouting point shift", "Weld bead interference", "Clearance issue",
+    "Nut missing", "Nut offset", "Bolt missing", "Bolt lossen",
     "Assembly not seating", "Bracket tilt"
   ],
   "Sealant defects": [
-    "Sealant missing", "Incomplete sealant", "Uneven bead", "Excess sealant", 
-    "Selant overflow", "Sealant lifting", "Sealant gap", 
+    "Sealant missing", "Incomplete sealant", "Uneven bead", "Excess sealant",
+    "Selant overflow", "Sealant lifting", "Sealant gap",
     "Discontinuous sealant", "Sealant crack", "Water leakage", "Sealant peeling"
   ],
   "Handling defects": [
-    "Dent", "Bend", "Paint damage", "Scratch", "Rust due to storage", 
+    "Dent", "Bend", "Paint damage", "Scratch", "Rust due to storage",
     "Packing damage", "Transit damage", "Part rubbing damage"
   ]
 };
@@ -105,11 +105,11 @@ const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
-          buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+        buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     };
-    
+
     const updatePosition = () => {
       if (buttonRef.current && isOpen) {
         const rect = buttonRef.current.getBoundingClientRect();
@@ -124,11 +124,11 @@ const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     window.addEventListener('scroll', updatePosition);
     window.addEventListener('resize', updatePosition);
-    
+
     if (isOpen) {
       updatePosition();
     }
-    
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('scroll', updatePosition);
@@ -182,9 +182,9 @@ const MultiSelectDropdown: React.FC<MultiSelectDropdownProps> = ({
         </span>
         <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
-      
+
       {isOpen && !disabled && createPortal(
-        <div 
+        <div
           ref={dropdownRef}
           style={{
             position: 'absolute',
@@ -291,7 +291,7 @@ const DefectDetails: React.FC<DefectDetailsProps> = ({
             {defectName}
           </span>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Remark Input */}
           <div className="space-y-1.5">
@@ -306,7 +306,7 @@ const DefectDetails: React.FC<DefectDetailsProps> = ({
               className="w-full px-3 py-2 bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-700 rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-h-[80px] resize-none"
             />
           </div>
-          
+
           {/* File Upload with Camera Option */}
           <div className="space-y-1.5">
             <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-tight">
@@ -344,11 +344,10 @@ const DefectDetails: React.FC<DefectDetailsProps> = ({
                       accept="image/*"
                       capture="environment"
                     />
-                    <div className={`h-full flex flex-col items-center justify-center gap-1 px-3 border-2 border-dashed rounded-lg transition-all ${
-                      isUploading_
+                    <div className={`h-full flex flex-col items-center justify-center gap-1 px-3 border-2 border-dashed rounded-lg transition-all ${isUploading_
                         ? "bg-gray-50 border-gray-200"
                         : "border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10"
-                    }`}>
+                      }`}>
                       {isUploading_ ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
@@ -412,10 +411,10 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
 }) => {
   const chassisValue = value?.chassisNumber || "";
   const statusValue = value?.status || "";
-  
+
   // Data structure - no zones, just categories directly
   const categoriesData: DefectCategory[] = value?.categories || [];
-  
+
   const evidenceUrl = value?.evidenceUrl || "";
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [expandedCategory, setExpandedCategory] = useState<Record<string, boolean>>({});
@@ -432,7 +431,7 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
   };
 
   const handleChassisChange = (val: string) => updateValue({ chassisNumber: val });
-  
+
   const handleStatusChange = (val: string) => {
     if (val === 'Accepted') {
       updateValue({ status: val, categories: [] });
@@ -481,21 +480,21 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
     const existingCategories = categoriesData.map((cat: DefectCategory) => cat.name);
     const categoriesToAdd = selectedCategories.filter(cat => !existingCategories.includes(cat));
     const categoriesToRemove = existingCategories.filter(cat => !selectedCategories.includes(cat));
-    
+
     let updatedCategories = [...categoriesData];
-    
+
     // Add new categories
     categoriesToAdd.forEach(category => {
       updatedCategories.push({ name: category, defects: [] });
       // Auto-expand newly added category
       setExpandedCategory(prev => ({ ...prev, [category]: true }));
     });
-    
+
     // Remove categories
     categoriesToRemove.forEach(category => {
       updatedCategories = updatedCategories.filter((cat: DefectCategory) => cat.name !== category);
     });
-    
+
     updateValue({ categories: updatedCategories });
   };
 
@@ -508,30 +507,30 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
   const handleDefectsChange = (categoryName: string, selectedDefects: string[]) => {
     const categoryIndex = categoriesData.findIndex((cat: DefectCategory) => cat.name === categoryName);
     if (categoryIndex === -1) return;
-    
+
     // Find defects to add and remove
     const existingDefects = categoriesData[categoryIndex].defects.map((def: SpecificDefect) => def.name);
     const defectsToAdd = selectedDefects.filter(def => !existingDefects.includes(def));
     const defectsToRemove = existingDefects.filter(def => !selectedDefects.includes(def));
-    
+
     let updatedDefects = [...categoriesData[categoryIndex].defects];
-    
+
     // Add new defects
     defectsToAdd.forEach(defect => {
       updatedDefects.push({ name: defect, details: { remark: "", fileUrl: "" } });
     });
-    
+
     // Remove defects
     defectsToRemove.forEach(defect => {
       updatedDefects = updatedDefects.filter((def: SpecificDefect) => def.name !== defect);
     });
-    
+
     const updatedCategories = [...categoriesData];
     updatedCategories[categoryIndex] = {
       ...updatedCategories[categoryIndex],
       defects: updatedDefects
     };
-    
+
     updateValue({ categories: updatedCategories });
   };
 
@@ -544,44 +543,44 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
 
   // Update defect details
   const updateDefectDetails = async (
-    categoryName: string, 
-    defectName: string, 
+    categoryName: string,
+    defectName: string,
     updates: Partial<DefectDetail>
   ) => {
     const categoryIndex = categoriesData.findIndex((cat: DefectCategory) => cat.name === categoryName);
     if (categoryIndex === -1) return;
-    
+
     const defectIndex = categoriesData[categoryIndex].defects.findIndex(
       (def: SpecificDefect) => def.name === defectName
     );
     if (defectIndex === -1) return;
-    
+
     const updatedCategories = [...categoriesData];
     updatedCategories[categoryIndex] = {
       ...updatedCategories[categoryIndex],
-      defects: updatedCategories[categoryIndex].defects.map((def, idx) => 
-        idx === defectIndex 
+      defects: updatedCategories[categoryIndex].defects.map((def, idx) =>
+        idx === defectIndex
           ? { ...def, details: { ...def.details, ...updates } }
           : def
       )
     };
-    
+
     updateValue({ categories: updatedCategories });
   };
 
   // Handle file upload for a defect
   const handleDefectFileUpload = async (
-    categoryName: string, 
-    defectName: string, 
+    categoryName: string,
+    defectName: string,
     file: File
   ) => {
     const uploadKey = `${categoryName}-${defectName}`;
-    
+
     try {
       setUploading(prev => ({ ...prev, [uploadKey]: true }));
       const result = await apiClient.uploadFile(file, "form");
       const uploadedUrl = apiClient.resolveUploadedFileUrl(result);
-      
+
       if (uploadedUrl) {
         await updateDefectDetails(categoryName, defectName, { fileUrl: uploadedUrl });
       }
@@ -632,37 +631,11 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
   };
 
   return (
-    <div 
+    <div
       className="space-y-6 bg-gray-50/50 dark:bg-gray-900/20 p-4 rounded-xl border border-gray-100 dark:border-gray-800"
       onFocus={onFocus}
       onBlur={onBlur}
     >
-      {/* Step 1: Chassis Number */}
-      {!hideChassisNumber && (
-        <div className="space-y-2">
-          <div className="relative">
-            <input
-              type="text"
-              value={chassisValue}
-              onChange={(e) => handleChassisChange(e.target.value)}
-              onFocus={onFocus}
-              onBlur={onBlur}
-              disabled={disabled}
-              placeholder="Enter Chassis Number..."
-              className={`w-full px-4 py-2.5 border-2 rounded-xl focus:outline-none focus:ring-4 transition-all pr-10 ${
-                isApplied
-                  ? "border-emerald-500 bg-emerald-50/30 ring-emerald-500/10"
-                  : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 focus:border-primary-500 focus:ring-primary-500/10"
-              }`}
-            />
-            {hasChassis && chassisValue && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-500">
-                <CheckCircle className="w-5 h-5" />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Step 2: Status Selection */}
       {hasChassis && (
@@ -681,15 +654,14 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
                 type="button"
                 onClick={() => !disabled && handleStatusChange(status.id)}
                 disabled={disabled}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${
-                  statusValue === status.id
+                className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${statusValue === status.id
                     ? `${status.bg} ${status.darkBg} ${status.border} ${status.color} shadow-sm ring-4 ring-${status.id === 'Accepted' ? 'emerald' : (status.id === 'Rejected' ? 'red' : 'amber')}-500/10`
                     : "border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-950 text-gray-400 hover:border-gray-200"
-                }`}
+                  }`}
               >
                 <status.icon className={`w-5 h-5 mb-1.5 ${statusValue === status.id ? status.color : 'text-gray-300'}`} />
                 <span className="text-[11px] font-bold uppercase tracking-tight text-center leading-tight">
-                  {status.id === 'Accepted' 
+                  {status.id === 'Accepted'
                     ? (reworkCount > 0 ? 'REWORK COMPLETED' : 'Accepted')
                     : (status.id === 'Rework' && reworkCount > 0)
                       ? `RE-REWORK (${reworkCount})`
@@ -700,7 +672,7 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
             ))}
           </div>
           {renderFieldSuggestions('status', statusValue, handleStatusChange)}
-          
+
           {/* Evidence Upload for Accepted Status */}
           {statusValue === 'Accepted' && (
             <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800 animate-in fade-in slide-in-from-top-2">
@@ -738,11 +710,10 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
                           }}
                           disabled={disabled || uploading.evidence}
                         />
-                        <div className={`h-full flex flex-col items-center justify-center gap-1 px-3 border-2 border-dashed rounded-lg transition-all ${
-                          uploading.evidence
+                        <div className={`h-full flex flex-col items-center justify-center gap-1 px-3 border-2 border-dashed rounded-lg transition-all ${uploading.evidence
                             ? "bg-gray-50 border-gray-200"
                             : "border-gray-200 dark:border-gray-800 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/10"
-                        }`}>
+                          }`}>
                           {uploading.evidence ? (
                             <>
                               <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
@@ -795,7 +766,7 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
               label="Defect Categories"
             />
           </div>
-          
+
           {/* Categories Section with Defects Dropdowns */}
           {categoriesData.length > 0 && (
             <div className="space-y-4 mt-4">
@@ -803,9 +774,9 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
                 const isCategoryExpanded = expandedCategory[category.name];
                 const allDefects = getAllDefectsForCategory(category.name);
                 const selectedDefects = getSelectedDefectsForCategory(category.name);
-                
+
                 return (
-                  <div 
+                  <div
                     key={category.name}
                     className="ml-4 border-l-2 border-gray-200 dark:border-gray-700 pl-4 space-y-3"
                   >
@@ -813,9 +784,9 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
                     <div className="flex items-center justify-between">
                       <button
                         type="button"
-                        onClick={() => setExpandedCategory(prev => ({ 
-                          ...prev, 
-                          [category.name]: !prev[category.name] 
+                        onClick={() => setExpandedCategory(prev => ({
+                          ...prev,
+                          [category.name]: !prev[category.name]
                         }))}
                         className="flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800/50 px-2 py-1 rounded-lg transition-colors"
                       >
@@ -831,7 +802,7 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
                         )}
                       </button>
                     </div>
-                    
+
                     {/* Category Content */}
                     {isCategoryExpanded && (
                       <div className="ml-6 space-y-4">
@@ -847,13 +818,13 @@ const ChassisWithoutZone: React.FC<ChassisWithoutZoneProps> = ({
                             showCount={true}
                           />
                         </div>
-                        
+
                         {/* Defects Details Section */}
                         {category.defects.length > 0 && (
                           <div className="space-y-4 pt-2">
                             {category.defects.map((defect: SpecificDefect) => {
                               const uploadKey = `${category.name}-${defect.name}`;
-                              
+
                               return (
                                 <DefectDetails
                                   key={defect.name}

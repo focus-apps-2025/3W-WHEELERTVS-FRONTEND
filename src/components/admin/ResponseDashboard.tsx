@@ -874,20 +874,18 @@ export default function ResponseDashboard({ isEmbedded = false }: { isEmbedded?:
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
-    <div className={isEmbedded ? "w-full px-6 md:px-8 py-6 bg-gray-50/60 dark:bg-gray-900/40 rounded-b-2xl" : "min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6 md:p-8"}>
+    <div className={isEmbedded ? "w-full py-6" : "min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 p-6 md:p-8"}>
       <div className={isEmbedded ? "w-full" : "max-w-7xl mx-auto"}>
 
         {/* Header */}
-        {!isEmbedded && (
-          <div className="mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100">
-              Users Response Dashboard
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Track performance metrics of users under {tenant?.name || 'your tenant'}
-            </p>
-          </div>
-        )}
+        <div className="mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100">
+            Users Response Dashboard
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Track performance metrics of users under {tenant?.name || 'your tenant'}
+          </p>
+        </div>
 
         {/* Stats Cards - Enhanced with Active Hours */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
@@ -899,7 +897,7 @@ export default function ResponseDashboard({ isEmbedded = false }: { isEmbedded?:
             { label: 'Total Forms', value: totalStats.totalTenantForms, icon: <FolderOpen className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />, bg: 'bg-indigo-100 dark:bg-indigo-900/30' },
             { label: 'Total Active Hrs', value: formatActiveHours(totalStats.totalActiveHours), icon: <Activity className="w-5 h-5 text-orange-600 dark:text-orange-400" />, bg: 'bg-orange-100 dark:bg-orange-900/30' },
           ].map((card) => (
-            <div key={card.label} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+            <div key={card.label} className="border border-gray-200 dark:border-gray-700 p-5 rounded-2xl">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{card.label}</p>
@@ -915,7 +913,7 @@ export default function ResponseDashboard({ isEmbedded = false }: { isEmbedded?:
 
         {/* User-wise Submissions - Enhanced with Forms Submitted Count */}
         {userWiseSubmissions.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm mb-8">
+          <div className="border border-gray-200 dark:border-gray-700 p-6 rounded-2xl mb-8">
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary-500" />
               Forms Submitted by User (Actual Submitters)
@@ -951,7 +949,7 @@ export default function ResponseDashboard({ isEmbedded = false }: { isEmbedded?:
         )}
 
         {/* Filters */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 sm:p-6 mb-8 shadow-sm">
+        <div className="border border-gray-200 dark:border-gray-700 p-4 sm:p-6 rounded-2xl mb-8">
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4 w-full lg:w-auto">
               <div className="w-full sm:w-auto">
@@ -1002,7 +1000,7 @@ export default function ResponseDashboard({ isEmbedded = false }: { isEmbedded?:
         </div>
 
         {/* Admin Table - Enhanced with Active Hours Column */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
           {/* Desktop Table View */}
           <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">

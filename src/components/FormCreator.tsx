@@ -3769,105 +3769,100 @@ export default function FormCreator() {
   }
 
   return (
-    <div className="w-full overflow-auto bg-gradient-to-br from-blue-50 via-white to-blue-50 dark:from-gray-950 dark:via-gray-900 dark:to-gray-950">
-      {/* Header */}
-      <div className="bg-white dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700 sticky top-16 z-50 w-full">
-        <div className="w-full px-4 sm:px-6 py-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
-                    {id ? "Edit Form" : "Create New Form"}
-                  </h1>
-                </div>
-                <p className="text-sm text-gray-500 font-medium">
-                  Design and deploy powerful service forms
-                </p>
-              </div>
+    <div className="w-full bg-gray-50 dark:bg-gray-900 py-6">
+      <div className="pb-6 border-b border-gray-200 dark:border-gray-700 mb-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 dark:text-white tracking-tight">
+                {id ? "Edit Form" : "Create New Form"}
+              </h1>
+              <p className="text-sm text-gray-500 font-medium mt-2">
+                Design and deploy powerful service forms
+              </p>
             </div>
+          </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mr-2">
-                <button
-                  onClick={() => handleExportTemplate('flat')}
-                  title="Download Flat Structure Template (FU1-FU99)"
-                  className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Export Flat
-                </button>
-                <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
-                <button
-                  onClick={() => handleExportTemplate('nested')}
-                  title="Download Nested Hierarchical Template (FU1.1, FU1.1.1)"
-                  className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
-                >
-                  <Download className="w-4 h-4" />
-                  Export Nested
-                </button>
-                <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
-                {canManage && (
-                  <button
-                    onClick={(e) => {
-                      const input = e.currentTarget
-                        .nextElementSibling as HTMLInputElement;
-                      input?.click();
-                    }}
-                    className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
-                  >
-                    <Upload className="w-4 h-4" />
-                    Import
-                  </button>
-                )}
-                <input
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleImportTemplate}
-                  className="hidden"
-                />
-              </div>
-
-              {canManage && (
-                <button
-                  onClick={() => setShowParameterModal(true)}
-                  className="px-4 py-2.5 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm rounded-xl hover:border-primary-500 hover:text-primary-600 transition-all flex items-center gap-2 shadow-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  Parameters
-                </button>
-              )}
-
-              <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block" />
-
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center bg-gray-100 dark:bg-gray-800 p-1 rounded-xl mr-2">
               <button
-                onClick={() => navigate("/forms/analytics")}
-                className="px-5 py-2.5 text-gray-500 hover:text-gray-900 dark:hover:text-white font-bold text-sm transition-colors"
+                onClick={() => handleExportTemplate('flat')}
+                title="Download Flat Structure Template (FU1-FU99)"
+                className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
               >
-                Cancel
+                <Download className="w-4 h-4" />
+                Export Flat
               </button>
-
+              <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
+              <button
+                onClick={() => handleExportTemplate('nested')}
+                title="Download Nested Hierarchical Template (FU1.1, FU1.1.1)"
+                className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                Export Nested
+              </button>
+              <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
               {canManage && (
                 <button
-                  onClick={handleSave}
-                  className="px-8 py-3 bg-primary-600 text-white font-black text-sm rounded-xl shadow-[0_10px_20px_rgba(30,58,138,0.2)] hover:shadow-primary-600/30 hover:bg-primary-700 transition-all active:scale-95 flex items-center gap-2"
+                  onClick={(e) => {
+                    const input = e.currentTarget
+                      .nextElementSibling as HTMLInputElement;
+                    input?.click();
+                  }}
+                  className="px-4 py-2 text-xs font-bold text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-all flex items-center gap-2"
                 >
-                  <Save className="w-4 h-4" />
-                  {id ? "Update Changes" : "Save & Publish"}
+                  <Upload className="w-4 h-4" />
+                  Import
                 </button>
               )}
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleImportTemplate}
+                className="hidden"
+              />
             </div>
+
+            {canManage && (
+              <button
+                onClick={() => setShowParameterModal(true)}
+                className="px-4 py-2.5 bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold text-sm rounded-xl hover:border-primary-500 hover:text-primary-600 transition-all flex items-center gap-2 shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                Parameters
+              </button>
+            )}
+
+            <div className="w-px h-8 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block" />
+
+            <button
+              onClick={() => navigate("/forms/analytics")}
+              className="px-5 py-2.5 text-gray-500 hover:text-gray-900 dark:hover:text-white font-bold text-sm transition-colors"
+            >
+              Cancel
+            </button>
+
+            {canManage && (
+              <button
+                onClick={handleSave}
+                className="px-8 py-3 bg-primary-600 text-white font-black text-sm rounded-xl shadow-[0_10px_20px_rgba(30,58,138,0.2)] hover:shadow-primary-600/30 hover:bg-primary-700 transition-all active:scale-95 flex items-center gap-2"
+              >
+                <Save className="w-4 h-4" />
+                {id ? "Update Changes" : "Save & Publish"}
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="w-full py-6 px-4 sm:py-8 sm:px-6">
+      <div className="w-full">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Form Editor */}
           <div className="flex-1 space-y-6 min-w-0">
             {/* Form Details */}
-            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm border-l-4 border-l-blue-500 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-50 to-blue-50 dark:from-blue-950/60 dark:to-blue-900/60 px-6 py-4 border-b border-blue-100 dark:border-blue-900/60">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-xl border-l-4 border-l-blue-500 overflow-hidden">
+              <div className="bg-gray-50 dark:bg-gray-900/50 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-lg font-bold text-blue-900 dark:text-blue-100">
                   📋 Form Details
                 </h2>
@@ -4172,7 +4167,7 @@ export default function FormCreator() {
                   pageWindowStart + MAX_VISIBLE_PAGE_BUTTONS < totalPages;
 
                 return (
-                  <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-blue-200 dark:border-blue-900/60 p-4 mb-6">
+                  <div className="rounded-xl border border-blue-200 dark:border-blue-900/60 p-4 mb-6">
                     <div className="flex items-center justify-between">
                       <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                         Form Pages:
@@ -4257,7 +4252,7 @@ export default function FormCreator() {
                 return (
                   <div
                     key={section.id}
-                    className={`bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md transition-shadow duration-200 overflow-hidden ${section.isSubsection
+                    className={`border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden duration-200 ${section.isSubsection
                       ? "border-l-4 border-l-green-500 ml-6"
                       : "border-l-4 border-l-blue-500"
                       }`}
@@ -4431,9 +4426,9 @@ export default function FormCreator() {
                             )}
 
                             {/* Question Card */}
-                            <div className="bg-white dark:bg-gray-900 border-2 border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-lg hover:border-blue-300 transition-all duration-200">
+                            <div className="border-2 border-gray-200 dark:border-gray-700 rounded-xl hover:border-blue-300 transition-all duration-200">
                               {/* Question Header */}
-                              <div className="flex items-center justify-between px-5 py-3 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200 dark:border-gray-700 rounded-t-xl">
+                              <div className="flex items-center justify-between px-5 py-3 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700 rounded-t-xl">
                                 <div className="flex items-center gap-3">
                                   <div className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white font-bold text-xs shadow">
                                     {questionIndex + 1}
@@ -5631,15 +5626,15 @@ export default function FormCreator() {
           </div>
 
           {/* Sidebar */}
-          <div className="hidden lg:block lg:w-80 flex-shrink-0 space-y-6">
-            {/* Sticky Page Navigation */}
-            {(() => {
-              const pages = getPagesFromSections();
-              if (pages.length > 1) {
-                return (
-                  <div className="sticky top-1/2 -translate-y-1/2 h-0">
-                    <div className="bg-white dark:bg-gray-900 rounded-lg border-2 border-blue-200 shadow-lg p-4 -translate-y-1/2">
-                      <h3 className="text-sm font-bold text-blue-900 mb-3 text-center">
+          <div className="hidden lg:block lg:w-80 flex-shrink-0">
+            <div className="sticky top-24 space-y-6">
+              {/* Sticky Page Navigation */}
+              {(() => {
+                const pages = getPagesFromSections();
+                if (pages.length > 1) {
+                  return (
+                    <div className="border-2 border-blue-200 dark:border-blue-900 rounded-xl p-4">
+                      <h3 className="text-sm font-bold text-blue-900 dark:text-blue-100 mb-3 text-center">
                         📄 Pages
                       </h3>
                       <div className="space-y-2">
@@ -5718,21 +5713,21 @@ export default function FormCreator() {
                                             : "text-green-700"
                                             }`}
                                         >
-                                          Merged:
+                                          Subsections:
                                         </p>
-                                        {page
-                                          .filter((s) => s.isSubsection)
-                                          .map((subsection) => (
-                                            <p
-                                              key={subsection.id}
-                                              className={`ml-2 ${isCurrent
-                                                ? "text-blue-100"
-                                                : "text-green-600"
-                                                }`}
-                                            >
-                                              • {subsection.title || "Subsection"}
-                                            </p>
-                                          ))}
+                                        <ul className="list-disc list-inside space-y-0.5">
+                                          {page
+                                            .filter((s) => s.isSubsection)
+                                            .map((s) => (
+                                              <li
+                                                key={s.id}
+                                                className="truncate"
+                                                title={s.title}
+                                              >
+                                                {s.title}
+                                              </li>
+                                            ))}
+                                        </ul>
                                       </div>
                                     )}
                                   {(() => {
@@ -5804,24 +5799,23 @@ export default function FormCreator() {
                         })}
                       </div>
                     </div>
-                  </div>
-                );
+                  );
               }
               return null;
             })()}
 
-            <div className="bg-white dark:bg-gray-900 rounded-lg border border-blue-100 shadow p-4">
-              <h3 className="text-sm font-bold text-blue-900 mb-3">
+            <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-4 bg-white/30 dark:bg-gray-800/10">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-3">
                 Form Statistics
               </h3>
-              <div className="space-y-2 text-xs text-blue-700">
+              <div className="space-y-2 text-xs text-gray-600 dark:text-gray-400">
                 <div className="flex items-center justify-between">
                   <span>Sections</span>
-                  <span>{form.sections.length}</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{form.sections.length}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Questions</span>
-                  <span>
+                  <span className="font-semibold text-gray-900 dark:text-white">
                     {form.sections.reduce(
                       (total, section) => total + section.questions.length,
                       0
@@ -5830,7 +5824,7 @@ export default function FormCreator() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span>Follow-ups</span>
-                  <span>
+                  <span className="font-semibold text-gray-900 dark:text-white">
                     {form.sections.reduce((total, section) => {
                       const countQuestions = (
                         questions: (Question | FollowUpQuestion)[]
@@ -5853,6 +5847,7 @@ export default function FormCreator() {
           </div>
         </div>
       </div>
+    </div>
 
       {/* Parameter Modal */}
       <ParameterModal

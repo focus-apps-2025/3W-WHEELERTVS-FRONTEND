@@ -1000,8 +1000,8 @@ export default function Attendance() {
     let totalAbsent = 0;
     let totalHoursDecimal = 0;
 
-    filteredUsers.forEach((user) => {
-      visibleDates.forEach((d) => {
+    filteredUsers.forEach((user: any) => {
+      visibleDates.forEach((d: any) => {
         const record = user.attendance?.[d.dateString];
         if (record) {
           if (record.isPresent) {
@@ -1018,7 +1018,7 @@ export default function Attendance() {
         }
       });
 
-      Object.values(user.attendance || {}).forEach((rec) => {
+      Object.values(user.attendance || {}).forEach((rec: any) => {
         totalHoursDecimal += rec.workingHours || 0;
       });
     });
@@ -1744,9 +1744,55 @@ export default function Attendance() {
     }
   };
 
-  // For subadmins, show their own attendance only
-  if (user?.role === "subadmin") {
-    return <SubAdminAttendanceNew />;
+  const permissionSet = new Set(user?.permissions || []);
+  const isAdmin = user?.role === 'admin' || user?.role === 'superadmin';
+
+  // Permission checks for each tab
+  const canViewAttendance = isAdmin || permissionSet.has('attendance:record:report');
+  const canViewReportResponse = isAdmin || permissionSet.has('attendance:record:response');
+  const canViewCalendarGrid = isAdmin || permissionSet.has('attendance:record:calendar');
+  const canViewAttendanceSummary = isAdmin || permissionSet.has('attendance:record:summary');
+
+  // Determine which tab should be active by default based on permissions
+  const getDefaultTab = (): "attendance" | "report-response" | "calendar-grid" | "attendance-summary" => {
+    if (canViewAttendance) return "attendance";
+    if (canViewReportResponse) return "report-response";
+    if (canViewCalendarGrid) return "calendar-grid";
+    if (canViewAttendanceSummary) return "attendance-summary";
+    return "attendance";
+  };
+
+  // Reset activeTab to first available permission if current tab is not accessible
+  useEffect(() => {
+    const currentTabAllowed =
+      (activeTab === "attendance" && canViewAttendance) ||
+      (activeTab === "report-response" && canViewReportResponse) ||
+      (activeTab === "calendar-grid" && canViewCalendarGrid) ||
+      (activeTab === "attendance-summary" && canViewAttendanceSummary);
+
+    if (!currentTabAllowed) {
+      setActiveTab(getDefaultTab());
+    }
+  }, [permissionSet, activeTab]);
+
+  // If user has no attendance permissions at all, show message
+  if (!canViewAttendance && !canViewReportResponse && !canViewCalendarGrid && !canViewAttendanceSummary) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 md:p-6">
+        <div className="w-full">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Attendance Management
+            </h1>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-12 text-center">
+            <div className="text-gray-400 text-6xl mb-4">🔒</div>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Access Restricted</h2>
+            <p className="text-gray-500 dark:text-gray-400">You don't have permission to view attendance records.</p>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -1765,42 +1811,50 @@ export default function Attendance() {
         {/* Tab Navigation */}
         <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
           <nav className="flex space-x-8" aria-label="Tabs">
-            <button
-              onClick={() => setActiveTab("attendance")}
-              className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-all ${activeTab === "attendance"
-                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-bold"
-                : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                }`}
-            >
-              Attendance
-            </button>
-            <button
-              onClick={() => setActiveTab("report-response")}
-              className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-all ${activeTab === "report-response"
-                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-bold"
-                : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                }`}
-            >
-              Report Response
-            </button>
-            <button
-              onClick={() => setActiveTab("calendar-grid")}
-              className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-all ${activeTab === "calendar-grid"
-                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-bold"
-                : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                }`}
-            >
-              Attendance Calendar
-            </button>
-            <button
-              onClick={() => setActiveTab("attendance-summary")}
-              className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-all ${activeTab === "attendance-summary"
-                ? "border-primary-600 text-primary-600 dark:text-primary-400 font-bold"
-                : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                }`}
-            >
-              Attendance Summary
-            </button>
+            {canViewAttendance && (
+              <button
+                onClick={() => setActiveTab("attendance")}
+                className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-all ${activeTab === "attendance"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 font-bold"
+                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+              >
+                Attendance
+              </button>
+            )}
+            {canViewReportResponse && (
+              <button
+                onClick={() => setActiveTab("report-response")}
+                className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-all ${activeTab === "report-response"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 font-bold"
+                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+              >
+                Report Response
+              </button>
+            )}
+            {canViewCalendarGrid && (
+              <button
+                onClick={() => setActiveTab("calendar-grid")}
+                className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-all ${activeTab === "calendar-grid"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 font-bold"
+                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+              >
+                Attendance Calendar
+              </button>
+            )}
+            {canViewAttendanceSummary && (
+              <button
+                onClick={() => setActiveTab("attendance-summary")}
+                className={`py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm transition-all ${activeTab === "attendance-summary"
+                  ? "border-primary-600 text-primary-600 dark:text-primary-400 font-bold"
+                  : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  }`}
+              >
+                Attendance Summary
+              </button>
+            )}
           </nav>
         </div>
 
@@ -2291,7 +2345,7 @@ export default function Attendance() {
                             </div>
                             <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{formattedHours}</span>
                           </div>
-                          
+
                           <div className="grid grid-cols-4 gap-2 text-center text-xs">
                             <div className="bg-green-50 dark:bg-green-950/20 p-2 rounded-lg">
                               <span className="text-gray-500 dark:text-gray-400 block text-[10px] uppercase">P</span>
@@ -2516,13 +2570,13 @@ export default function Attendance() {
                           <div key={user.userId} className="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 space-y-2 shadow-sm">
                             <div className="flex justify-between items-start">
                               <div>
-                                <span className="text-[10px] font-bold text-gray-400 block">#{ (currentPage - 1) * ITEMS_PER_PAGE + idx + 1 }</span>
+                                <span className="text-[10px] font-bold text-gray-400 block">#{(currentPage - 1) * ITEMS_PER_PAGE + idx + 1}</span>
                                 <h4 className="font-bold text-gray-900 dark:text-white">{user.firstName} {user.lastName}</h4>
                                 <p className="text-xs text-gray-500">{user.tenantId?.companyName || user.tenantId?.name || "No Vendor"}</p>
                               </div>
                               <span className="text-xs font-bold text-gray-700 dark:text-gray-300">{formattedHours}</span>
                             </div>
-                            
+
                             <div className="border-t border-gray-100 dark:border-gray-700 pt-2 mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
                               <div>
                                 <span className="text-gray-400 block text-[10px]">Shift</span>
@@ -2551,7 +2605,7 @@ export default function Attendance() {
                           </div>
                         );
                       })}
-                      
+
                       <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-xl border-2 border-blue-200 dark:border-blue-800 space-y-2 shadow-sm">
                         <h4 className="font-bold text-blue-800 dark:text-blue-300 text-sm">GRAND TOTALS</h4>
                         <div className="grid grid-cols-4 gap-2 text-center text-xs">

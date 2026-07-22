@@ -69,6 +69,29 @@ const ROUTE_PERMISSIONS = {
   REQUEST_MANAGEMENT: "requests:manage",
 } as const;
 
+// Leaf keys as actually stored in User.permissions by the tree in
+// src/config/permissionTree.ts. The tree NEVER grants a parent key like
+// "requests:view" or "analytics:view" directly — only child leaves like
+// "requests:response" or "analytics:form:<id>:response". Any route/UI check
+// that only looks for the parent key will always fail for tree-granted
+// permissions, which is what was happening here.
+const TREE_PERMISSIONS = {
+  ADMIN_MANAGEMENT: "admin:manage",
+  CHAT: "chat",
+  ACTIVITY_LOGS: "attendance:activityLogs",
+  ATTENDANCE_RECORD: [
+    "attendance:record:report",
+    "attendance:record:response",
+    "attendance:record:calendar",
+    "attendance:record:summary",
+  ],
+  REQUESTS: ["requests:dashboard", "requests:response"],
+  HR_LEAVES: "hr:leaves",
+  HR_PERMISSION: "hr:permission",
+  HR_SHIFTS: "hr:shifts",
+  HR_REPORTS: "hr:reports",
+} as const;
+
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
@@ -125,10 +148,20 @@ function AccessControl({
   children,
   allowedRoles,
   requiredPermission,
+  requiredAnyPermission,
+  permissionCheckRoles,
 }: {
   children: React.ReactNode;
   allowedRoles?: string[];
   requiredPermission?: string;
+  /** Passes if the user has AT LEAST ONE of these leaf permissions. */
+  requiredAnyPermission?: string[];
+  /**
+   * Restricts requiredPermission/requiredAnyPermission checks to only these
+   * roles (e.g. ["subadmin"]) so routes shared with self-service roles
+   * (inspector applying for their own leave, etc.) aren't affected.
+   */
+  permissionCheckRoles?: string[];
 }) {
   const { user } = useAuth();
   const { isCheckedIn, loading: attendanceLoading } = useAttendanceStatus();
@@ -157,13 +190,53 @@ function AccessControl({
     }
   }
 
+  const subjectToPermissionCheck =
+    !permissionCheckRoles || permissionCheckRoles.includes(user.role);
+
   if (
     requiredPermission &&
     user.role !== "admin" &&
-    user.role !== "superadmin"
+    user.role !== "superadmin" &&
+    subjectToPermissionCheck
   ) {
     const permissionSet = new Set(user.permissions || []);
-    if (!permissionSet.has(requiredPermission)) {
+
+    // Special handling for analytics permissions: the tree only ever grants
+    // "analytics:form:<id>:<tab>" leaves, never the parent "analytics:view".
+    if (requiredPermission === ROUTE_PERMISSIONS.ANALYTICS) {
+      const hasAnalyticsPermission =
+        permissionSet.has("analytics:view") ||
+        Array.from(permissionSet).some((permission) =>
+          permission.startsWith("analytics:form:"),
+        );
+      if (!hasAnalyticsPermission) {
+        return <Navigate to="/login" replace />;
+      }
+    } else if (requiredPermission === ROUTE_PERMISSIONS.CUSTOMER_REQUESTS) {
+      // Same problem: the tree only grants "requests:dashboard" /
+      // "requests:response", never the parent "requests:view".
+      const hasRequestsPermission =
+        permissionSet.has("requests:view") ||
+        TREE_PERMISSIONS.REQUESTS.some((permission) =>
+          permissionSet.has(permission),
+        );
+      if (!hasRequestsPermission) {
+        return <Navigate to="/login" replace />;
+      }
+    } else if (!permissionSet.has(requiredPermission)) {
+      return <Navigate to="/login" replace />;
+    }
+  }
+
+  if (
+    requiredAnyPermission &&
+    requiredAnyPermission.length > 0 &&
+    user.role !== "admin" &&
+    user.role !== "superadmin" &&
+    subjectToPermissionCheck
+  ) {
+    const permissionSet = new Set(user.permissions || []);
+    if (!requiredAnyPermission.some((p) => permissionSet.has(p))) {
       return <Navigate to="/login" replace />;
     }
   }
@@ -201,7 +274,12 @@ const withAuthenticatedLayout = (node: React.ReactNode) => (
 
 const withAccessControl = (
   node: React.ReactNode,
-  options?: { allowedRoles?: string[]; requiredPermission?: string },
+  options?: {
+    allowedRoles?: string[];
+    requiredPermission?: string;
+    requiredAnyPermission?: string[];
+    permissionCheckRoles?: string[];
+  },
 ) =>
   withAuthenticatedLayout(<AccessControl {...options}>{node}</AccessControl>);
 
@@ -293,13 +371,13 @@ const router = createBrowserRouter(
         {
           path: "/forms/followup/management",
           element: withAuthenticatedLayout(
-            <FollowUpFormManager onFormCreated={() => {}} />,
+            <FollowUpFormManager onFormCreated={() => { }} />,
           ),
         },
         {
           path: "/forms/followup/create",
           element: withAuthenticatedLayout(
-            <FormWithFollowUpCreator onFormCreated={() => {}} />,
+            <FormWithFollowUpCreator onFormCreated={() => { }} />,
           ),
         },
         {
@@ -365,31 +443,41 @@ const router = createBrowserRouter(
         {
           path: "/admin/management",
           element: withAccessControl(<AdminManagement />, {
-            allowedRoles: ["admin"],
+            allowedRoles: ["admin", "subadmin"],
+            requiredPermission: TREE_PERMISSIONS.ADMIN_MANAGEMENT,
+            permissionCheckRoles: ["subadmin"],
           }),
         },
         {
           path: "/admin/activity-logs",
           element: withAccessControl(<UserActivityLogs />, {
-            allowedRoles: ["admin", "superadmin"],
+            allowedRoles: ["admin", "superadmin", "subadmin"],
+            requiredPermission: TREE_PERMISSIONS.ACTIVITY_LOGS,
+            permissionCheckRoles: ["subadmin"],
           }),
         },
         {
           path: "/admin/attendance",
           element: withAccessControl(<Attendance />, {
             allowedRoles: ["admin", "superadmin", "subadmin"],
+            requiredAnyPermission: [...TREE_PERMISSIONS.ATTENDANCE_RECORD],
+            permissionCheckRoles: ["subadmin"],
           }),
         },
         {
           path: "/hr-attendance",
           element: withAccessControl(<HRAttendance />, {
             allowedRoles: ["admin", "subadmin"],
+            requiredPermission: TREE_PERMISSIONS.HR_REPORTS,
+            permissionCheckRoles: ["subadmin"],
           }),
         },
         {
           path: "/shifts",
           element: withAccessControl(<ShiftManagement />, {
             allowedRoles: ["admin", "subadmin"],
+            requiredPermission: TREE_PERMISSIONS.HR_SHIFTS,
+            permissionCheckRoles: ["subadmin"],
           }),
         },
         {
@@ -417,12 +505,16 @@ const router = createBrowserRouter(
           path: "/hr/leaves",
           element: withAccessControl(<LeaveManagement />, {
             allowedRoles: ["admin", "inspector", "subadmin"],
+            requiredPermission: TREE_PERMISSIONS.HR_LEAVES,
+            permissionCheckRoles: ["subadmin"],
           }),
         },
         {
           path: "/hr/permissions",
           element: withAccessControl(<PermissionManagement />, {
             allowedRoles: ["admin", "inspector", "subadmin"],
+            requiredPermission: TREE_PERMISSIONS.HR_PERMISSION,
+            permissionCheckRoles: ["subadmin"],
           }),
         },
         {
@@ -450,7 +542,9 @@ const router = createBrowserRouter(
         {
           path: "/inspector/chat",
           element: withAccessControl(<InspectorChat />, {
-            allowedRoles: ["inspector", "admin", "tenant_admin", "staff"],
+            allowedRoles: ["inspector", "admin", "tenant_admin", "staff", "subadmin"],
+            requiredPermission: TREE_PERMISSIONS.CHAT,
+            permissionCheckRoles: ["subadmin"],
           }),
         },
         {

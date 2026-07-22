@@ -6,6 +6,7 @@ interface UserGranularPermissions {
   canEditAttendanceTime: boolean;
   canEditInvoices: boolean;
   canEditPricing: boolean;
+  canBulkSelectResponses?: boolean;
 }
 
 interface User {
@@ -84,12 +85,12 @@ const AuthContext = createContext<AuthContextType>({
   tenant: null,
   login: async () => false,
   signup: async () => false,
-  logout: () => {},
+  logout: () => { },
   isAuthenticated: false,
   loading: false,
   error: null,
-  updateTenant: () => {},
-  updateUser: () => {},
+  updateTenant: () => { },
+  updateUser: () => { },
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

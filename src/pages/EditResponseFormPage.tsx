@@ -108,7 +108,7 @@ export default function EditResponseFormPage() {
       if (followUps.length > 0) {
         nodes.push(
           <div key={q.id ?? q._id} className="mb-6">
-            <div className="flex items-start space-x-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-start space-x-4 p-5 border border-gray-200 dark:border-gray-700 rounded-2xl">
               <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-400 font-semibold text-sm">
                 {qCounter + 1}
               </div>
@@ -137,7 +137,7 @@ export default function EditResponseFormPage() {
 
                 return (
                   <div key={fqId}>
-                    <div className="flex items-start space-x-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-start space-x-3 p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/30 dark:bg-gray-800/10">
                       <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full bg-primary-50 dark:bg-primary-900/50 text-primary-500 dark:text-primary-400 text-xs font-bold">
                         {qCounter}
                       </div>
@@ -163,7 +163,7 @@ export default function EditResponseFormPage() {
 
                           return (
                             <div key={nfqId}>
-                              <div className="flex items-start space-x-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                              <div className="flex items-start space-x-3 p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50/20 dark:bg-gray-800/5">
                                 <div className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-xs font-bold">
                                   {qCounter}
                                 </div>
@@ -194,7 +194,7 @@ export default function EditResponseFormPage() {
       } else {
         nodes.push(
           <div key={q.id ?? q._id} className="mb-6">
-            <div className="flex items-start space-x-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-start space-x-4 p-5 border border-gray-200 dark:border-gray-700 rounded-2xl">
               <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-primary-100 dark:bg-primary-900 text-primary-600 dark:text-primary-400 font-semibold text-sm">
                 {qCounter + 1}
               </div>
@@ -247,27 +247,25 @@ export default function EditResponseFormPage() {
 
     return (
       <div key={section.id} className="space-y-6">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-primary-50 to-indigo-50/30 dark:from-primary-900/20 dark:to-indigo-900/10 rounded-t-2xl">
-            <div className="flex items-center space-x-3">
-              <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white font-bold text-sm">
-                {index + 1}
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                  {section.title || `Section ${index + 1}`}
-                </h3>
-                {section.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5">
-                    {section.description}
-                  </p>
-                )}
-              </div>
+        <div className="pb-5 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center space-x-3">
+            <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white font-bold text-sm">
+              {index + 1}
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                {section.title || `Section ${index + 1}`}
+              </h3>
+              {section.description && (
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  {section.description}
+                </p>
+              )}
             </div>
           </div>
-          <div className="p-6">
-            {content}
-          </div>
+        </div>
+        <div className="py-2">
+          {content}
         </div>
       </div>
     );
@@ -328,18 +326,20 @@ export default function EditResponseFormPage() {
     }
     if (sections.length === 0 && standaloneFollowUps.length > 0) {
       return (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div className="px-6 py-5 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-primary-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
+        <div className="space-y-6">
+          <div className="pb-5 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-3">
-              <div className="flex-shrink-0">
-                <FileText className="w-6 h-6 text-primary-600 dark:text-primary-400" />
+              <div className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-full bg-primary-600 text-white font-bold text-sm">
+                <FileText className="w-5 h-5 text-white" />
               </div>
-              <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-                Additional Questions
-              </h3>
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Additional Questions
+                </h3>
+              </div>
             </div>
           </div>
-          <div className="p-6 space-y-4">
+          <div className="space-y-4">
             {standaloneFollowUps.map((q: any, idx: number) => {
               const qId = q.id ?? q._id;
               return (
@@ -367,7 +367,7 @@ export default function EditResponseFormPage() {
       );
     }
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
         <div className="p-12 text-center">
           <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
           <p className="text-gray-500 dark:text-gray-400 text-lg">
@@ -379,58 +379,55 @@ export default function EditResponseFormPage() {
   })();
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Navigation Bar */}
-      <div className="sticky top-0 z-50 bg-white/95 dark:bg-gray-800/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 shadow-md">
-        <div className="w-full px-6 md:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button
-                type="button"
-                onClick={() => navigate(`/responses/${responseId}`)}
-                className="inline-flex items-center justify-center p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
-                aria-label="Go back"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  Edit Response
-                </h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                  Review and update your answers
-                </p>
-              </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-6">
+      <div className="pb-6 border-b border-gray-200 dark:border-gray-700 mb-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <button
+              type="button"
+              onClick={() => navigate(`/responses/${responseId}`)}
+              className="inline-flex items-center justify-center p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
+              aria-label="Go back"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div>
+              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">
+                Edit Response
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                Review and update your answers
+              </p>
             </div>
-            <div className="hidden sm:flex items-center space-x-3">
-              <button
-                type="button"
-                onClick={() => navigate(`/responses/${responseId}`)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                form="response-edit-form"
-                disabled={saving}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                <Save className="w-4 h-4" />
-                {saving ? "Saving…" : "Save Changes"}
-              </button>
-            </div>
+          </div>
+          <div className="hidden sm:flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={() => navigate(`/responses/${responseId}`)}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="response-edit-form"
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <Save className="w-4 h-4" />
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
           </div>
         </div>
       </div>
 
       {/* Main Content - Full Width */}
-      <div className="w-full px-6 md:px-8 py-8">
+      <div className="w-full">
         <div className="flex gap-6">
           {/* Section Sidebar */}
           {totalSections > 1 && (
             <div className="hidden lg:block w-64 flex-shrink-0">
-              <div className="sticky top-24 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+              <div className="sticky top-24 border border-gray-200 dark:border-gray-700 rounded-2xl p-4">
                 <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
                   Form Sections
                 </h3>

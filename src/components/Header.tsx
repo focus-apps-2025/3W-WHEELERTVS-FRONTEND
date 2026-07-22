@@ -112,6 +112,8 @@ export default function Header() {
       icon: BarChart2,
       path: "/overall",
       description: "View overall statistics",
+      permission: "analytics:view",
+      roles: ["admin", "inspector", "subadmin"],
     },
     {
       title: "Tenant Management",
@@ -161,13 +163,15 @@ export default function Header() {
       icon: BarChart2,
       path: "/overall",
       description: "View overall statistics",
+      permission: "Overall:view",
+      roles: ["admin", "inspector", "subadmin"],
     },
     {
       title: "Service Analytics",
       icon: BarChart2,
       path: "/forms/analytics",
       description: "Detailed service analytics and insights",
-      permission: MODULE_PERMISSIONS.ANALYTICS,
+      permission: "analytics:view",
       roles: ["admin", "inspector", "subadmin"],
     },
     {
@@ -179,14 +183,14 @@ export default function Header() {
     },
     ...(canViewInternalTracking
       ? [
-          {
-            title: "Internal Tracking",
-            icon: Eye,
-            path: "/internal-tracking",
-            description: "View cross-tenant performance data",
-            roles: ["admin", "tenant_admin", "subadmin"] as string[],
-          },
-        ]
+        {
+          title: "Internal Tracking",
+          icon: Eye,
+          path: "/internal-tracking",
+          description: "View cross-tenant performance data",
+          roles: ["admin", "tenant_admin", "subadmin"] as string[],
+        },
+      ]
       : []),
     {
       title: "Attendance",
@@ -214,7 +218,7 @@ export default function Header() {
       icon: MessageCircle,
       path: "/inspector/chat",
       description: "Communicate with Service Analytics administrators",
-      roles: ["inspector", "admin", "tenant_admin", "staff"],
+      roles: ["inspector", "admin", "tenant_admin", "staff", "subadmin"],
     },
   ];
 
@@ -246,75 +250,129 @@ export default function Header() {
         return true;
       }
 
+      // Admin role bypass - admins see everything
       if (user.role === "admin") {
         return true;
+      }
+
+      // Special handling for analytics permissions: the tree only ever
+      // grants "analytics:form:<id>:<tab>" leaves, never "analytics:view".
+      if (item.permission === "analytics:view") {
+        return Array.from(permissionSet).some(permission =>
+          permission.startsWith("analytics:form:")
+        );
+      }
+
+      // Same problem for Customer Requests: the tree only grants
+      // "requests:dashboard" / "requests:response", never "requests:view".
+      if (item.permission === MODULE_PERMISSIONS.CUSTOMER_REQUESTS) {
+        return (
+          permissionSet.has("requests:view") ||
+          permissionSet.has("requests:dashboard") ||
+          permissionSet.has("requests:response")
+        );
       }
 
       return permissionSet.has(item.permission);
     });
 
     if (user.role === "admin" || user.role === "subadmin") {
-      filteredItems.push(adminManagementMenuItem);
-      filteredItems.push({
-        title: "Attendance",
-        icon: UserCheck,
-        path: "/admin/attendance",
-        description: "Track user attendance and working hours",
-        roles: ["admin"],
-        children: [
-          {
-            title: "Attendance Record",
-            icon: UserCheck,
-            path: "/admin/attendance",
-            description: "Track user attendance and working hours",
-            roles: ["admin"],
-          },
-          {
-            title: "Activity Logs",
-            icon: History,
-            path: "/admin/activity-logs",
-            description: "View user logins and activity logs",
-            roles: ["admin"],
-          },
-        ],
-      });
-      filteredItems.push({
-        title: "HR",
-        icon: CalendarDays,
-        path: "/hr/leaves",
-        description: "Leaves, Permissions, Shifts, HR Reports",
-        roles: ["admin", "subadmin"],
-        children: [
-          {
-            title: "Leaves",
-            icon: Calendar,
-            path: "/hr/leaves",
-            description: "Manage leave requests and status",
-            roles: ["admin", "subadmin"],
-          },
-          {
-            title: "Permissions",
-            icon: Clock,
-            path: "/hr/permissions",
-            description: "Manage short leave and gate pass",
-            roles: ["admin", "subadmin"],
-          },
-          {
-            title: "Shifts",
-            icon: CalendarDays,
-            path: "/shifts",
-            description: "Manage inspector shifts",
-            roles: ["admin", "subadmin"],
-          },
-          {
-            title: "HR Reports",
-            icon: ShieldCheck,
-            path: "/hr-attendance",
-            description: "Detailed shift-based attendance reports",
-            roles: ["admin", "subadmin"],
-          },
-        ],
-      });
+      // Admin Management - admins always see it, subadmins need permission
+      if (user.role === "admin" || permissionSet.has("admin:manage")) {
+        filteredItems.push(adminManagementMenuItem);
+      }
+
+      // Attendance - admins always see everything, subadmins only see the
+      // specific children they were granted.
+      const attendanceChildren = [
+        (user.role === "admin" ||
+          [
+            "attendance:record:report",
+            "attendance:record:response",
+            "attendance:record:calendar",
+            "attendance:record:summary",
+          ].some((permission) => permissionSet.has(permission))) && {
+          title: "Attendance Record",
+          icon: UserCheck,
+          path: "/admin/attendance",
+          description: "Track user attendance and working hours",
+          roles: ["admin", "subadmin"],
+        },
+        (user.role === "admin" || permissionSet.has("attendance:activityLogs")) && {
+          title: "Activity Logs",
+          icon: History,
+          path: "/admin/activity-logs",
+          description: "View user logins and activity logs",
+          roles: ["admin", "subadmin"],
+        },
+      ].filter(Boolean) as MenuItem[];
+
+      if (attendanceChildren.length > 0) {
+        filteredItems.push({
+          title: "Attendance",
+          icon: UserCheck,
+          path: attendanceChildren[0].path,
+          description: "Track user attendance and working hours",
+          roles: ["admin", "subadmin"],
+          children: attendanceChildren,
+        });
+      }
+
+      // HR - admins always see everything, subadmins only see the specific
+      // children they were granted (previously ANY one HR permission
+      // revealed ALL 4 children — fixed here).
+      const hrChildren = [
+        (user.role === "admin" || permissionSet.has("hr:leaves")) && {
+          title: "Leaves",
+          icon: Calendar,
+          path: "/hr/leaves",
+          description: "Manage leave requests and status",
+          roles: ["admin", "subadmin"],
+        },
+        (user.role === "admin" || permissionSet.has("hr:permission")) && {
+          title: "Permissions",
+          icon: Clock,
+          path: "/hr/permissions",
+          description: "Manage short leave and gate pass",
+          roles: ["admin", "subadmin"],
+        },
+        (user.role === "admin" || permissionSet.has("hr:shifts")) && {
+          title: "Shifts",
+          icon: CalendarDays,
+          path: "/shifts",
+          description: "Manage inspector shifts",
+          roles: ["admin", "subadmin"],
+        },
+        (user.role === "admin" || permissionSet.has("hr:reports")) && {
+          title: "HR Reports",
+          icon: ShieldCheck,
+          path: "/hr-attendance",
+          description: "Detailed shift-based attendance reports",
+          roles: ["admin", "subadmin"],
+        },
+      ].filter(Boolean) as MenuItem[];
+
+      if (hrChildren.length > 0) {
+        filteredItems.push({
+          title: "HR",
+          icon: CalendarDays,
+          path: hrChildren[0].path,
+          description: "Leaves, Permissions, Shifts, HR Reports",
+          roles: ["admin", "subadmin"],
+          children: hrChildren,
+        });
+      }
+    }
+
+    // Chat System: inspector/admin/tenant_admin/staff keep unrestricted
+    // access. subadmin needs the "chat" leaf granted in the permission tree
+    // (it's already included via roles above so it survives the generic
+    // filter; here we additionally require the permission for subadmin only).
+    if (
+      user.role === "subadmin" &&
+      !permissionSet.has("chat")
+    ) {
+      return filteredItems.filter((item) => item.title !== "Chat System");
     }
 
     return filteredItems;
@@ -371,10 +429,9 @@ export default function Header() {
                         onClick={() => setActiveDropdown(isOpen ? null : item.title)}
                         className={`
                           flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
-                          ${
-                            isOpen
-                              ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
-                              : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                          ${isOpen
+                            ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                           }
                         `}
                       >
@@ -407,10 +464,9 @@ export default function Header() {
                     to={item.path}
                     className={`
                       flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
-                      ${
-                        isActive
-                          ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                      ${isActive
+                        ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                       }
                     `}
                   >
@@ -495,10 +551,9 @@ export default function Header() {
                         onClick={() => setMobileActiveDropdown(isExpanded ? null : item.title)}
                         className={`
                           flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200
-                          ${
-                            isExpanded
-                              ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
-                              : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                          ${isExpanded
+                            ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
                           }
                         `}
                       >
@@ -508,7 +563,7 @@ export default function Header() {
                         </div>
                         <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
                       </button>
-                      
+
                       {isExpanded && (
                         <div className="pl-12 flex flex-col space-y-1 mt-1">
                           {item.children?.map((child) => {
@@ -520,10 +575,9 @@ export default function Header() {
                                 onClick={closeMobile}
                                 className={`
                                   block py-2 text-sm transition-colors duration-200
-                                  ${
-                                    isChildActive
-                                      ? "text-primary-700 font-bold dark:text-primary-400"
-                                      : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                                  ${isChildActive
+                                    ? "text-primary-700 font-bold dark:text-primary-400"
+                                    : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                                   }
                                 `}
                               >
@@ -544,10 +598,9 @@ export default function Header() {
                     onClick={closeMobile}
                     className={`
                       flex items-center px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200
-                      ${
-                        isActive
-                          ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
-                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                      ${isActive
+                        ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                       }
                     `}
                   >
