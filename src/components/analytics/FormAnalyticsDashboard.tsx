@@ -13,6 +13,7 @@ import {
 } from "../../utils/formanalyticsexport";
 import {
   Users as UsersIcon,
+  Search,
   CheckCircle,
   Clock,
   XCircle,
@@ -2498,10 +2499,13 @@ export default function FormAnalyticsDashboard() {
     }
 
     responses.forEach((r) => {
-      const num = r.answers?.chassis_number;
-      if (num && !seen.has(String(num))) {
-        seen.add(String(num));
-        opts.push({ value: String(num), label: String(num) });
+      const val = r.answers?.chassis_number;
+      if (val) {
+        const num = typeof val === "object" ? val.chassisNumber : String(val);
+        if (num && !seen.has(String(num))) {
+          seen.add(String(num));
+          opts.push({ value: String(num), label: String(num) });
+        }
       }
     });
 
@@ -2510,7 +2514,9 @@ export default function FormAnalyticsDashboard() {
 
   const handleStartChassisEdit = (response: Response) => {
     setEditingChassisResponseId(response.id);
-    setChassisEditValue(response.answers?.chassis_number || "");
+    const val = response.answers?.chassis_number;
+    const num = val && typeof val === "object" ? val.chassisNumber : String(val || "");
+    setChassisEditValue(num);
   };
 
   const handleCancelChassisEdit = () => {
@@ -2819,22 +2825,59 @@ export default function FormAnalyticsDashboard() {
 
   const [analyticsView, setAnalyticsView] = useState<
     "question" | "section" | "table" | "responses" | "dashboard" | "comparison" | "overall"
-  >("dashboard");
+  >(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["question", "section", "table", "responses", "dashboard", "comparison", "overall"].includes(tabParam)) {
+      return tabParam as any;
+    }
+    return "dashboard";
+  });
+
+  // Sync tab with URL parameter
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["question", "section", "table", "responses", "dashboard", "comparison", "overall"].includes(tabParam)) {
+      if (hasTabPermission(tabParam)) {
+        setAnalyticsView(tabParam as any);
+      }
+    }
+  }, [location.search, form]);
+
+  // Sync URL parameter with tab changes
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    if (searchParams.get("tab") !== analyticsView) {
+      searchParams.set("tab", analyticsView);
+      const searchStr = searchParams.toString();
+      navigate({
+        pathname: location.pathname,
+        search: searchStr ? `?${searchStr}` : ""
+      }, { replace: true });
+    }
+  }, [analyticsView, navigate, location.pathname, location.search]);
 
   // Set initial tab based on permissions after form loads
   useEffect(() => {
     if (!form) return;
 
-    // Only set if we're still on the default dashboard tab
-    // This prevents overriding user navigation or URL-based tab selection
+    // If URL has a specific valid tab param, let the sync effect handle it
+    const searchParams = new URLSearchParams(location.search);
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["question", "section", "table", "responses", "dashboard", "comparison", "overall"].includes(tabParam)) {
+      return;
+    }
+
+    // Otherwise, default to first allowed tab
     const tabOrder = ["dashboard", "question", "section", "overall", "responses"];
     for (const tab of tabOrder) {
       if (hasTabPermission(tab)) {
-        setAnalyticsView(tab);
+        setAnalyticsView(tab as any);
         break;
       }
     }
-  }, [form]); // Only run when form changes (initial load)
+  }, [form]);
   const [tableViewType, setTableViewType] = useState<"question" | "section">(
     "question",
   );
@@ -2996,6 +3039,20 @@ export default function FormAnalyticsDashboard() {
   const [performancePageSize, setPerformancePageSize] = useState(10);
   const [responsesPage, setResponsesPage] = useState(1);
   const [responsesPageSize, setResponsesPageSize] = useState(20);
+  const [responsesSearchTerm, setResponsesSearchTerm] = useState("");
+
+  const getChassisDisplayValue = (value: any): string => {
+    if (!value) return "-";
+    if (typeof value === "object") {
+      if (value.chassisNumber) {
+        return value.partDescription
+          ? `${value.chassisNumber} — ${value.partDescription}`
+          : value.chassisNumber;
+      }
+      return JSON.stringify(value);
+    }
+    return String(value);
+  };
 
   // BIW Review — a second, independent accept/reject/rework check that any
   // reviewer (other than the response's own submitter) can apply from the
@@ -3865,6 +3922,170 @@ export default function FormAnalyticsDashboard() {
     return result;
   }, [responses, user, locationFilter, cascadingFilters, columnFilters]);
 
+  // Find the primary chassis question to identify unique items/vehicles
+  const chassisQuestionId = useMemo(() => {
+    if (!form?.sections) {
+      return null;
+    }
+    for (const section of form.sections) {
+      if (section.questions) {
+        for (const q of section.questions) {
+          if (
+            q.type === "chassis" ||
+            q.type === "chassisWithZone" ||
+            q.type === "chassisWithoutZone" ||
+            q.type === "zone-in" ||
+            q.type === "zone-out" ||
+            q.text?.toLowerCase().includes("chassis") ||
+            q.trackResponseRank === true ||
+            q.trackResponseRank === "true" ||
+            q.trackResponseQuestion === true ||
+            q.trackResponseQuestion === "true"
+          ) {
+            return q.id;
+          }
+        }
+      }
+    }
+    return null;
+  }, [form]);
+
+  // Calculate sequential status (Direct Ok, Rework 1, Rework 2, etc.)
+  const responseStatuses = useMemo(() => {
+    if (!baseFilteredResponses.length) {
+      return {};
+    }
+
+    // Group responses by unique item (e.g., chassis number)
+    const itemGroups: Record<string, Response[]> = {};
+
+    // Sort responses by timestamp ascending to determine sequential order
+    const sortedResponses = [...baseFilteredResponses].sort((a, b) => {
+      const tA = new Date(getResponseTimestamp(a) || 0).getTime();
+      const tB = new Date(getResponseTimestamp(b) || 0).getTime();
+      return tA - tB;
+    });
+
+    sortedResponses.forEach((r) => {
+      let itemId = "unknown";
+      if (chassisQuestionId) {
+        const answer = r.answers[chassisQuestionId];
+        if (answer) {
+          if (typeof answer === "object") {
+            itemId = answer.chassisNumber || JSON.stringify(answer);
+          } else {
+            itemId = String(answer);
+          }
+        } else {
+          // If tracking question is present but not answered, treat as unique to avoid mixing un-tracked items
+          itemId = `untracked-${r.id}`;
+        }
+      } else {
+        // NO Tracking ID means no grouping for reworks - treat each as unique
+        itemId = `response-${r.id}`;
+      }
+
+      if (!itemGroups[itemId]) {
+        itemGroups[itemId] = [];
+      }
+      itemGroups[itemId].push(r);
+    });
+
+    const statuses: Record<string, string> = {};
+
+    Object.entries(itemGroups).forEach(([groupId, group]) => {
+      let reworkCount = 0;
+      let hasBeenReworked = false;
+
+      group.forEach((r, index) => {
+        let isRework = false;
+        let isAccepted = false;
+        let isRejected = false;
+
+        // Check individual answers for inspection status
+        if (r.answers) {
+          Object.values(r.answers).forEach((ans) => {
+            if (
+              typeof ans === "object" &&
+              ans !== null &&
+              (ans as any).status
+            ) {
+              const s = String((ans as any).status)
+                .toLowerCase()
+                .trim();
+              if (
+                s === "rework" ||
+                s === "reworked" ||
+                s.includes("re-rework")
+              ) {
+                isRework = true;
+              } else if (
+                s === "accepted" ||
+                s === "rework completed" ||
+                s === "verified" ||
+                s === "yes" ||
+                s === "y"
+              ) {
+                isAccepted = true;
+              } else if (s === "rejected" || s === "no" || s === "n") {
+                isRejected = true;
+              }
+            } else if (typeof ans === "string") {
+              const s = ans.toLowerCase().trim();
+              if (
+                s === "rework" ||
+                s === "reworked" ||
+                s.includes("re-rework")
+              ) {
+                isRework = true;
+              } else if (
+                s === "accepted" ||
+                s === "rework completed" ||
+                s === "verified" ||
+                s === "yes" ||
+                s === "y"
+              ) {
+                isAccepted = true;
+              } else if (s === "rejected" || s === "no" || s === "n") {
+                isRejected = true;
+              }
+            }
+          });
+        }
+
+        const rank = chassisQuestionId
+          ? r.responseRanks?.[chassisQuestionId]
+          : null;
+
+        if (isRejected) {
+          statuses[r.id] = "Rejected";
+        } else if (isRework) {
+          if (chassisQuestionId && groupId !== `untracked-${r.id}`) {
+            reworkCount++;
+            hasBeenReworked = true;
+            statuses[r.id] = `Rework ${reworkCount}`;
+          } else {
+            statuses[r.id] = "Rework";
+          }
+        } else if (isAccepted) {
+          // If rank is 1, it's definitely the first time this item is seen
+          // If no rank but index 0, assume it's the first time in the current view
+          if (rank === 1 || (index === 0 && !hasBeenReworked)) {
+            statuses[r.id] = "Direct Ok";
+          } else if ((rank && rank > 1) || hasBeenReworked) {
+            statuses[r.id] = "Rework Accepted";
+          } else {
+            statuses[r.id] = "Accepted";
+          }
+        } else {
+          statuses[r.id] = "-";
+        }
+      });
+    });
+
+    return statuses;
+  }, [baseFilteredResponses, chassisQuestionId]);
+
   const fetchChatHistory = async (responseId: string) => {
     try {
       console.log(
@@ -4152,13 +4373,54 @@ export default function FormAnalyticsDashboard() {
       );
     }
 
+    // 3. Overall search term filter
+    if (responsesSearchTerm.trim() !== "") {
+      const term = responsesSearchTerm.toLowerCase().trim();
+      result = result.filter((response) => {
+        // Match submitter
+        const submitter = (response.submittedBy || response.createdBy || "").toLowerCase();
+        if (submitter.includes(term)) return true;
+
+        // Match status
+        const status = (responseStatuses[response.id] || "").toLowerCase();
+        if (status.includes(term)) return true;
+
+        // Match chassis number
+        const chVal = response.answers?.chassis_number;
+        if (chVal) {
+          if (typeof chVal === "object") {
+            if (chVal.chassisNumber && String(chVal.chassisNumber).toLowerCase().includes(term)) return true;
+            if (chVal.partDescription && String(chVal.partDescription).toLowerCase().includes(term)) return true;
+          } else if (String(chVal).toLowerCase().includes(term)) {
+            return true;
+          }
+        }
+
+        // Match any answers in the response
+        if (response.answers) {
+          for (const [key, val] of Object.entries(response.answers)) {
+            if (val === null || val === undefined) continue;
+
+            if (typeof val === "object") {
+              const valStr = JSON.stringify(val).toLowerCase();
+              if (valStr.includes(term)) return true;
+            } else {
+              if (String(val).toLowerCase().includes(term)) return true;
+            }
+          }
+        }
+
+        return false;
+      });
+    }
+
     return result;
-  }, [baseFilteredResponses, dateFilter, selectedInspectorForTrend]);
+  }, [baseFilteredResponses, dateFilter, selectedInspectorForTrend, responsesSearchTerm, responseStatuses]);
 
 
   useEffect(() => {
     setResponsesPage(1);
-  }, [dateFilter, selectedInspectorForTrend, id]);
+  }, [dateFilter, selectedInspectorForTrend, id, responsesSearchTerm]);
 
 
 
@@ -4194,170 +4456,6 @@ export default function FormAnalyticsDashboard() {
     }
     return Array.from(new Set(sizes)).sort((a, b) => a - b);
   }, [totalResponsesCount]);
-
-  // Find the primary chassis question to identify unique items/vehicles
-  const chassisQuestionId = useMemo(() => {
-    if (!form?.sections) {
-      return null;
-    }
-    for (const section of form.sections) {
-      if (section.questions) {
-        for (const q of section.questions) {
-          if (
-            q.type === "chassis" ||
-            q.type === "chassisWithZone" ||
-            q.type === "chassisWithoutZone" ||
-            q.type === "zone-in" ||
-            q.type === "zone-out" ||
-            q.text?.toLowerCase().includes("chassis") ||
-            q.trackResponseRank === true ||
-            q.trackResponseRank === "true" ||
-            q.trackResponseQuestion === true ||
-            q.trackResponseQuestion === "true"
-          ) {
-            return q.id;
-          }
-        }
-      }
-    }
-    return null;
-  }, [form]);
-
-  // Calculate sequential status (Direct Ok, Rework 1, Rework 2, etc.)
-  const responseStatuses = useMemo(() => {
-    if (!baseFilteredResponses.length) {
-      return {};
-    }
-
-    // Group responses by unique item (e.g., chassis number)
-    const itemGroups: Record<string, Response[]> = {};
-
-    // Sort responses by timestamp ascending to determine sequential order
-    const sortedResponses = [...baseFilteredResponses].sort((a, b) => {
-      const tA = new Date(getResponseTimestamp(a) || 0).getTime();
-      const tB = new Date(getResponseTimestamp(b) || 0).getTime();
-      return tA - tB;
-    });
-
-    sortedResponses.forEach((r) => {
-      let itemId = "unknown";
-      if (chassisQuestionId) {
-        const answer = r.answers[chassisQuestionId];
-        if (answer) {
-          if (typeof answer === "object") {
-            itemId = answer.chassisNumber || JSON.stringify(answer);
-          } else {
-            itemId = String(answer);
-          }
-        } else {
-          // If tracking question is present but not answered, treat as unique to avoid mixing un-tracked items
-          itemId = `untracked-${r.id}`;
-        }
-      } else {
-        // NO Tracking ID means no grouping for reworks - treat each as unique
-        itemId = `response-${r.id}`;
-      }
-
-      if (!itemGroups[itemId]) {
-        itemGroups[itemId] = [];
-      }
-      itemGroups[itemId].push(r);
-    });
-
-    const statuses: Record<string, string> = {};
-
-    Object.entries(itemGroups).forEach(([groupId, group]) => {
-      let reworkCount = 0;
-      let hasBeenReworked = false;
-
-      group.forEach((r, index) => {
-        let isRework = false;
-        let isAccepted = false;
-        let isRejected = false;
-
-        // Check individual answers for inspection status
-        if (r.answers) {
-          Object.values(r.answers).forEach((ans) => {
-            if (
-              typeof ans === "object" &&
-              ans !== null &&
-              (ans as any).status
-            ) {
-              const s = String((ans as any).status)
-                .toLowerCase()
-                .trim();
-              if (
-                s === "rework" ||
-                s === "reworked" ||
-                s.includes("re-rework")
-              ) {
-                isRework = true;
-              } else if (
-                s === "accepted" ||
-                s === "rework completed" ||
-                s === "verified" ||
-                s === "yes" ||
-                s === "y"
-              ) {
-                isAccepted = true;
-              } else if (s === "rejected" || s === "no" || s === "n") {
-                isRejected = true;
-              }
-            } else if (typeof ans === "string") {
-              const s = ans.toLowerCase().trim();
-              if (
-                s === "rework" ||
-                s === "reworked" ||
-                s.includes("re-rework")
-              ) {
-                isRework = true;
-              } else if (
-                s === "accepted" ||
-                s === "rework completed" ||
-                s === "verified" ||
-                s === "yes" ||
-                s === "y"
-              ) {
-                isAccepted = true;
-              } else if (s === "rejected" || s === "no" || s === "n") {
-                isRejected = true;
-              }
-            }
-          });
-        }
-
-        const rank = chassisQuestionId
-          ? r.responseRanks?.[chassisQuestionId]
-          : null;
-
-        if (isRejected) {
-          statuses[r.id] = "Rejected";
-        } else if (isRework) {
-          if (chassisQuestionId && groupId !== `untracked-${r.id}`) {
-            reworkCount++;
-            hasBeenReworked = true;
-            statuses[r.id] = `Rework ${reworkCount}`;
-          } else {
-            statuses[r.id] = "Rework";
-          }
-        } else if (isAccepted) {
-          // If rank is 1, it's definitely the first time this item is seen
-          // If no rank but index 0, assume it's the first time in the current view
-          if (rank === 1 || (index === 0 && !hasBeenReworked)) {
-            statuses[r.id] = "Direct Ok";
-          } else if ((rank && rank > 1) || hasBeenReworked) {
-            statuses[r.id] = "Rework Accepted";
-          } else {
-            statuses[r.id] = "Accepted";
-          }
-        } else {
-          statuses[r.id] = "-";
-        }
-      });
-    });
-
-    return statuses;
-  }, [baseFilteredResponses, chassisQuestionId]);
 
   const analytics = useMemo(() => {
     const total = filteredResponses.length;
@@ -6772,7 +6870,7 @@ export default function FormAnalyticsDashboard() {
             : "-",
           response.submittedBy || response.createdBy || "Anonymous",
           responseStatuses[response.id] || "-",
-          response.answers?.chassis_number || "-",
+          getChassisDisplayValue(response.answers?.chassis_number),
         ];
 
         columnInfo.forEach(({ questionId }) => {
@@ -9610,6 +9708,26 @@ export default function FormAnalyticsDashboard() {
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center relative">
+                    {/* Overall Search Bar */}
+                    <div className="relative flex items-center bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2.5 py-1.5 rounded-lg shadow-sm w-full sm:w-60">
+                      <Search className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
+                      <input
+                        type="text"
+                        placeholder="Search responses..."
+                        value={responsesSearchTerm}
+                        onChange={(e) => setResponsesSearchTerm(e.target.value)}
+                        className="bg-transparent text-xs text-gray-700 dark:text-gray-200 focus:outline-none w-full font-medium"
+                      />
+                      {responsesSearchTerm && (
+                        <button
+                          onClick={() => setResponsesSearchTerm("")}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-205 shrink-0 ml-1.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
                     <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-2 py-1.5 rounded-lg shadow-sm">
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Show</span>
                       <select
@@ -10441,7 +10559,7 @@ export default function FormAnalyticsDashboard() {
                                       </div>
                                     ) : (
                                       <div className="flex items-center gap-1.5 group">
-                                        <span>{response.answers?.chassis_number || "-"}</span>
+                                        <span>{getChassisDisplayValue(response.answers?.chassis_number)}</span>
                                         <button
                                           onClick={() => handleStartChassisEdit(response)}
                                           title="Edit Chassis"
@@ -11877,9 +11995,9 @@ export default function FormAnalyticsDashboard() {
                   Selected Response
                 </p>
                 <p className="text-sm font-bold text-gray-700 dark:text-gray-300 truncate">
-                  {actionResponse.answers?.chassis_number ||
-                    actionResponse.submittedBy ||
-                    "Anonymous"}
+                  {actionResponse.answers?.chassis_number
+                    ? getChassisDisplayValue(actionResponse.answers.chassis_number)
+                    : actionResponse.submittedBy || "Anonymous"}
                 </p>
               </div>
 

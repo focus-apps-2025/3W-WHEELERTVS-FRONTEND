@@ -19,7 +19,7 @@ const PerformanceTable = ({
   const [performanceTableLoading, setPerformanceTableLoading] = useState(false);
   const [perfStartDate, setPerfStartDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 7);
+    d.setDate(d.getDate() - 30);
     return d.toISOString().split("T")[0];
   });
   const [perfEndDate, setPerfEndDate] = useState(() => {
@@ -494,9 +494,9 @@ const PerformanceTable = ({
             <button
               onClick={() => {
                 const today = new Date().toISOString().split("T")[0];
-                const sevenDaysAgo = new Date();
-                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                setPerfStartDate(sevenDaysAgo.toISOString().split("T")[0]);
+                const thirtyDaysAgo = new Date();
+                thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                setPerfStartDate(thirtyDaysAgo.toISOString().split("T")[0]);
                 setPerfEndDate(today);
                 setPerformancePage(1);
               }}

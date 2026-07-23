@@ -27,6 +27,7 @@ import { useTheme } from "../context/ThemeContext";
 import ProfileModal from "./ProfileModal";
 import NotificationCenter from "./ui/NotificationCenter";
 import { Calendar, MessageCircle } from "lucide-react";
+import { useForms } from "../hooks/useApi";
 
 interface MenuItem {
   title: string;
@@ -56,6 +57,89 @@ export default function Header() {
   const { darkMode, toggleDarkMode } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const [mobileActiveFormId, setMobileActiveFormId] = useState<string | null>(null);
+  const [hoveredFormId, setHoveredFormId] = useState<string | null>(null);
+  const [isAnalyticsHovered, setIsAnalyticsHovered] = useState(false);
+  const closeTimeoutRef = useRef<any>(null);
+
+  const handleMouseEnter = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+    setIsAnalyticsHovered(true);
+  };
+
+  const handleMouseLeave = () => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+    }
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsAnalyticsHovered(false);
+      setHoveredFormId(null);
+    }, 250);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) {
+        clearTimeout(closeTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const permissionSet = React.useMemo(() => new Set(user?.permissions || []), [user?.permissions]);
+
+  // Fetch available forms for the dropdown
+  const { data: formsData } = useForms(
+    isAuthenticated &&
+    !!user &&
+    ["admin", "superadmin", "inspector", "subadmin"].includes(user?.role || "")
+  );
+
+  // Filter forms based on permissions
+  const visibleForms = React.useMemo(() => {
+    if (!isAuthenticated || !user) return [];
+    const forms = formsData?.forms || [];
+    
+    return forms.filter((form: any) => {
+      const formId = form._id || form.id;
+      if (!formId) return false;
+      
+      // Admins and superadmins see all forms
+      if (user.role === 'admin' || user.role === 'superadmin') {
+        return true;
+      }
+      
+      // For inspector/subadmin, check if they have ANY analytics permission for this form
+      const subTypes = ['response', 'dashboard', 'overall', 'questions', 'sections'];
+      for (const subType of subTypes) {
+        if (permissionSet.has(`analytics:form:${formId}:${subType}`)) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }, [formsData, user, isAuthenticated, permissionSet]);
+
+  const getAllowedTabsForForm = React.useCallback((formId: string) => {
+    const tabs = [
+      { name: "Dashboard", key: "dashboard", subType: "dashboard" },
+      { name: "Questions", key: "question", subType: "questions" },
+      { name: "Sections", key: "section", subType: "sections" },
+      { name: "Overall", key: "overall", subType: "overall" },
+      { name: "Responses", key: "responses", subType: "response" },
+    ];
+
+    if (user?.role === "admin" || user?.role === "superadmin") {
+      return tabs;
+    }
+
+    return tabs.filter(tab => 
+      permissionSet.has(`analytics:form:${formId}:${tab.subType}`)
+    );
+  }, [user, permissionSet]);
 
   const canViewInternalTracking = user?.role === "superadmin" || ["admin", "tenant_admin", "subadmin"].includes(user?.role || "") && (
     tenant?.internalTrackingEnabled === true &&
@@ -229,8 +313,6 @@ export default function Header() {
     description: "Manage tenant administrators and permissions",
     roles: ["admin"],
   };
-
-  const permissionSet = new Set(user?.permissions || []);
 
   const menuItems: MenuItem[] = (() => {
     if (!isAuthenticated || !user) {
@@ -417,6 +499,90 @@ export default function Header() {
                 const isActive = location.pathname === item.path;
                 const Icon = item.icon;
 
+                if (item.title === "Service Analytics") {
+                  const activeFormTabs = hoveredFormId ? getAllowedTabsForForm(hoveredFormId) : [];
+                  const activeForm = visibleForms.find(f => (f._id || f.id) === hoveredFormId);
+
+                  return (
+                    <div
+                      key={item.path}
+                      className="relative"
+                      onMouseEnter={handleMouseEnter}
+                      onMouseLeave={handleMouseLeave}
+                    >
+                      <Link
+                        to={item.path}
+                        className={`
+                          flex items-center px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
+                          ${isActive
+                            ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                          }
+                        `}
+                      >
+                        <Icon className="w-4 h-4 mr-2" />
+                        {item.title}
+                        <ChevronRight className="w-3 h-3 ml-1 rotate-90" />
+                      </Link>
+
+                      <div className={`absolute top-full left-1/2 -translate-x-1/2 mt-1 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 flex z-50 overflow-hidden transition-all duration-200 ${isAnalyticsHovered ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'} ${hoveredFormId ? 'w-[28rem]' : 'w-64'}`}>
+                        {/* Left Pane - Forms List */}
+                        <div className="w-64 max-h-80 overflow-y-auto py-1.5 flex-shrink-0">
+                          {visibleForms.length === 0 ? (
+                            <div className="px-4 py-3 text-sm text-gray-400 dark:text-gray-500 italic">
+                              No forms available
+                            </div>
+                          ) : (
+                            visibleForms.map((form) => {
+                              const formId = form._id || form.id;
+                              const isCurrentHovered = hoveredFormId === formId;
+
+                              return (
+                                <button
+                                  key={formId}
+                                  onMouseEnter={() => setHoveredFormId(formId)}
+                                  onClick={() => navigate(`/forms/${formId}/analytics`)}
+                                  className={`
+                                    flex items-center justify-between px-4 py-2.5 text-sm text-left w-full transition-colors duration-150
+                                    ${isCurrentHovered
+                                      ? "bg-primary-50 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400 font-semibold"
+                                      : "text-gray-755 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                                    }
+                                  `}
+                                >
+                                  <span className="truncate pr-2">{form.title}</span>
+                                  <ChevronRight className={`w-3.5 h-3.5 transition-transform ${isCurrentHovered ? 'text-primary-500 dark:text-primary-400 transform translate-x-0.5' : 'text-gray-300 dark:text-gray-655'}`} />
+                                </button>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        {/* Right Pane - Tabs List */}
+                        {hoveredFormId && activeForm && (
+                          <div className="w-48 bg-gray-50/50 dark:bg-gray-800/40 p-2 max-h-80 overflow-y-auto flex flex-col space-y-1 border-l border-gray-100 dark:border-gray-800 flex-shrink-0">
+                            {activeFormTabs.length === 0 ? (
+                              <div className="px-3 py-3 text-xs text-gray-400 dark:text-gray-500 italic text-center">
+                                No permitted actions
+                              </div>
+                            ) : (
+                              activeFormTabs.map((tab) => (
+                                <Link
+                                  key={tab.key}
+                                  to={`/forms/${hoveredFormId}/analytics?tab=${tab.key}`}
+                                  className="flex items-center px-3.5 py-2 rounded-lg text-sm text-gray-755 dark:text-gray-300 hover:bg-white hover:text-primary-700 dark:hover:bg-gray-800 dark:hover:text-primary-400 shadow-sm border border-transparent hover:border-gray-100 dark:hover:border-gray-700 transition-all duration-150 font-medium"
+                                >
+                                  {tab.name}
+                                </Link>
+                              ))
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
                 if (item.children) {
                   const isOpen = activeDropdown === item.title;
                   return (
@@ -543,6 +709,92 @@ export default function Header() {
                 const Icon = item.icon;
                 const hasChildren = item.children && item.children.length > 0;
                 const isExpanded = mobileActiveDropdown === item.title;
+
+                if (item.title === "Service Analytics") {
+                  return (
+                    <div key={item.title} className="flex flex-col space-y-1">
+                      <button
+                        onClick={() => {
+                          setMobileActiveDropdown(isExpanded ? null : "Service Analytics");
+                          setMobileActiveFormId(null);
+                        }}
+                        className={`
+                          flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-colors duration-200
+                          ${isExpanded
+                            ? "bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400"
+                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                          }
+                        `}
+                      >
+                        <div className="flex items-center">
+                          <Icon className="w-5 h-5 mr-3" />
+                          {item.title}
+                        </div>
+                        <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+                      </button>
+
+                      {isExpanded && (
+                        <div className="pl-6 flex flex-col space-y-1 mt-1 border-l-2 border-gray-100 dark:border-gray-800 ml-4">
+                          {visibleForms.length === 0 ? (
+                            <div className="pl-4 py-2 text-xs text-gray-400 italic">
+                              No forms available
+                            </div>
+                          ) : (
+                            visibleForms.map((form) => {
+                              const formId = form._id || form.id;
+                              const isFormExpanded = mobileActiveFormId === formId;
+                              const allowedTabs = getAllowedTabsForForm(formId);
+
+                              return (
+                                <div key={formId} className="flex flex-col space-y-1">
+                                  <button
+                                    onClick={() => setMobileActiveFormId(isFormExpanded ? null : formId)}
+                                    className={`
+                                      flex items-center justify-between pl-4 pr-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200
+                                      ${isFormExpanded
+                                        ? "text-primary-700 dark:text-primary-400 bg-gray-50 dark:bg-gray-800/40"
+                                        : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                                      }
+                                    `}
+                                  >
+                                    <span className="truncate pr-2 text-left">{form.title}</span>
+                                    {allowedTabs.length > 0 && (
+                                      <ChevronRight className={`w-4 h-4 flex-shrink-0 transition-transform duration-200 ${isFormExpanded ? 'rotate-90' : ''}`} />
+                                    )}
+                                  </button>
+
+                                  {isFormExpanded && allowedTabs.length > 0 && (
+                                    <div className="pl-8 flex flex-col space-y-1 mt-1 border-l border-gray-100 dark:border-gray-800 ml-4">
+                                      {allowedTabs.map((tab) => {
+                                        const isTabActive = location.pathname === `/forms/${formId}/analytics` && new URLSearchParams(location.search).get("tab") === tab.key;
+                                        return (
+                                          <Link
+                                            key={tab.key}
+                                            to={`/forms/${formId}/analytics?tab=${tab.key}`}
+                                            onClick={closeMobile}
+                                            className={`
+                                              block py-2 text-sm transition-colors duration-200
+                                              ${isTabActive
+                                                ? "text-primary-700 font-bold dark:text-primary-400"
+                                                : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                                              }
+                                            `}
+                                          >
+                                            {tab.name}
+                                          </Link>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
 
                 if (hasChildren) {
                   return (

@@ -720,11 +720,24 @@ export default function FormsManagementNew() {
 
   const getCustomerFormUrl = (formId: string) => {
     const tenantSlug = user?.tenant?.slug || "default";
-    // For production, use your actual customer frontend URL
-    const baseUrl = window.location.origin.includes("localhost")
-      ? "http://localhost:5174"
+    const hostname = window.location.hostname;
+    const isLocal =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("10.") ||
+      hostname.startsWith("172.");
+
+    const isStaging =
+      hostname.includes("netlify.app") ||
+      hostname.includes("netlify.live");
+
+    const baseUrl = isLocal
+      ? "http://localhost:5174/"
+      : isStaging
+      ? "https://servicerequests.netlify.app/"
       : "https://3wheelertvs.focusengineeringapp.com/";
-    // : "https://formsuser.focusengineeringapp.com";
+
     return `${baseUrl}${tenantSlug}/forms/${formId}`;
   };
 

@@ -2139,22 +2139,44 @@ export default function DashboardNew() {
               </div>
             </div>
             {currentTenant.slug &&
-              currentTenant.settings?.showCustomerPortal && (
-                <div className="lg:text-right pt-4 lg:pt-0 border-t lg:border-t-0 border-blue-100 dark:border-blue-800">
-                  <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-widest">
-                    Customer Portal
-                  </p>
-                  <a
-                    href={`https://3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-sm font-bold text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-100 transition-colors break-all"
-                  >
-                    <Eye className="w-4 h-4 mr-2 flex-shrink-0" />
-                    {`3wheelertvs.focusengineeringapp.com/${currentTenant.slug}`}
-                  </a>
-                </div>
-              )}
+              currentTenant.settings?.showCustomerPortal && (() => {
+                const isLocal =
+                  window.location.hostname === "localhost" ||
+                  window.location.hostname === "127.0.0.1" ||
+                  window.location.hostname.startsWith("192.168.") ||
+                  window.location.hostname.startsWith("10.") ||
+                  window.location.hostname.startsWith("172.");
+
+                const isStaging =
+                  window.location.hostname.includes("netlify.app") ||
+                  window.location.hostname.includes("netlify.live");
+
+                const customerBaseUrl = isLocal
+                  ? "http://localhost:5174/"
+                  : isStaging
+                  ? "https://servicerequests.netlify.app/"
+                  : "https://3wheelertvs.focusengineeringapp.com/";
+
+                const customerPortalUrl = `${customerBaseUrl}${currentTenant.slug}`;
+                const customerPortalDisplay = customerPortalUrl.replace("https://", "").replace("http://", "");
+
+                return (
+                  <div className="lg:text-right pt-4 lg:pt-0 border-t lg:border-t-0 border-blue-100 dark:border-blue-800">
+                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-widest">
+                      Customer Portal
+                    </p>
+                    <a
+                      href={customerPortalUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-sm font-bold text-blue-600 dark:text-blue-300 hover:text-blue-800 dark:hover:text-blue-100 transition-colors break-all"
+                    >
+                      <Eye className="w-4 h-4 mr-2 flex-shrink-0" />
+                      {customerPortalDisplay}
+                    </a>
+                  </div>
+                );
+              })()}
           </div>
         </div>
       )}
