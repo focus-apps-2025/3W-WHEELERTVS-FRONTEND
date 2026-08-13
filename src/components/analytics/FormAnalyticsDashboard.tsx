@@ -137,6 +137,9 @@ interface Response {
   };
   biwReview?: {
     status: "Accepted" | "Rejected" | "Reworked";
+    remark?: string | null;
+    evidenceUrl?: string | null;
+    flaggedQuestions?: { questionId: string; questionText: string }[];
     reviewedBy?: string;
     reviewedByName?: string;
     reviewedAt?: string;
@@ -2653,6 +2656,31 @@ export default function FormAnalyticsDashboard() {
   // acts like a single-select despite being rendered as three checkboxes.
   // The server is authoritative on reviewedBy/reviewedAt and re-checks the
   // "not your own submission" rule, so we only send the status here.
+  // NEW - flat list of {id, text} questions that belong to this response's
+  // form, used to populate the "which question is this about" checkboxes
+  // in the BIW Reject/Rework popup. Falls back to the response's answer
+  // keys if the form/sections aren't loaded for some reason.
+  const getResponseQuestionOptions = (
+    response: Response,
+  ): { id: string; text: string }[] => {
+    const options: { id: string; text: string }[] = [];
+    if (form?.sections?.length) {
+      form.sections.forEach((section) => {
+        section.questions?.forEach((q: any) => {
+          if (response.answers && Object.prototype.hasOwnProperty.call(response.answers, q.id)) {
+            options.push({ id: q.id, text: q.text || q.id });
+          }
+        });
+      });
+    }
+    if (options.length === 0 && response.answers) {
+      Object.keys(response.answers).forEach((qId) =>
+        options.push({ id: qId, text: qId }),
+      );
+    }
+    return options;
+  };
+
   const handleBiwReviewChange = async (
     response: Response,
     status: "Accepted" | "Rejected" | "Reworked",
@@ -2664,6 +2692,22 @@ export default function FormAnalyticsDashboard() {
 
     // Clicking the already-selected option clears the review; otherwise set it.
     const isUnselecting = response.biwReview?.status === status;
+
+    // NEW - Reject/Rework (when not simply clearing an existing selection)
+    // needs the question(s) + remark + evidence popup instead of an
+    // immediate save.
+    if (!isUnselecting && (status === "Rejected" || status === "Reworked")) {
+      setBiwActionResponse(response);
+      setBiwActionStatus(status);
+      setBiwActionSelectedQuestionIds(
+        response.biwReview?.flaggedQuestions?.map((q) => q.questionId) || [],
+      );
+      setBiwActionRemark(response.biwReview?.remark || "");
+      setBiwActionEvidenceUrl(response.biwReview?.evidenceUrl || "");
+      setShowBiwActionModal(true);
+      return;
+    }
+
     const payload = isUnselecting ? null : { status };
 
     try {
@@ -2701,6 +2745,99 @@ export default function FormAnalyticsDashboard() {
       showToast(message, "error");
     } finally {
       setBiwSavingResponseId(null);
+    }
+  };
+
+  // NEW - closes and resets the Reject/Rework popup.
+  const closeBiwActionModal = () => {
+    setShowBiwActionModal(false);
+    setBiwActionResponse(null);
+    setBiwActionStatus(null);
+    setBiwActionSelectedQuestionIds([]);
+    setBiwActionRemark("");
+    setBiwActionEvidenceUrl("");
+  };
+
+  // NEW - evidence upload inside the popup, reusing the same
+  // apiClient.uploadFile("form") path used elsewhere in this dashboard.
+  const handleBiwEvidenceUpload = async (file: File) => {
+    try {
+      setBiwActionUploading(true);
+      const result = await apiClient.uploadFile(file, "form");
+      const url = apiClient.resolveUploadedFileUrl(result);
+      if (url) setBiwActionEvidenceUrl(url);
+    } catch (err) {
+      console.error("BIW evidence upload failed:", err);
+      showToast("Evidence upload failed. Please try again.", "error");
+    } finally {
+      setBiwActionUploading(false);
+    }
+  };
+
+  const toggleBiwActionQuestion = (questionId: string) => {
+    setBiwActionSelectedQuestionIds((prev) =>
+      prev.includes(questionId)
+        ? prev.filter((id) => id !== questionId)
+        : [...prev, questionId],
+    );
+  };
+
+  // NEW - submits the Reject/Rework popup: saves status + remark +
+  // evidence + the flagged questions (id snapshotted with its current
+  // text) onto the response's biwReview.
+  const submitBiwActionModal = async () => {
+    if (!biwActionResponse || !biwActionStatus) return;
+
+    if (!biwActionRemark.trim()) {
+      showToast("Please add a remark before submitting", "error");
+      return;
+    }
+    if (biwActionSelectedQuestionIds.length === 0) {
+      showToast("Please select at least one question", "error");
+      return;
+    }
+
+    const questionOptions = getResponseQuestionOptions(biwActionResponse);
+    const flaggedQuestions = biwActionSelectedQuestionIds.map((id) => ({
+      questionId: id,
+      questionText:
+        questionOptions.find((q) => q.id === id)?.text || id,
+    }));
+
+    try {
+      setIsBiwActionSubmitting(true);
+      const result = await apiClient.updateResponse(biwActionResponse.id, {
+        biwReview: {
+          status: biwActionStatus,
+          remark: biwActionRemark.trim(),
+          evidenceUrl: biwActionEvidenceUrl || null,
+          flaggedQuestions,
+        },
+      });
+
+      const savedBiwReview = (result as any)?.response?.biwReview ?? undefined;
+
+      setResponses((prev) =>
+        prev.map((r) =>
+          r.id === biwActionResponse.id ? { ...r, biwReview: savedBiwReview } : r,
+        ),
+      );
+      setTableResponses((prev) =>
+        prev.map((r) =>
+          r.id === biwActionResponse.id ? { ...r, biwReview: savedBiwReview } : r,
+        ),
+      );
+
+      showToast(`Marked as ${biwActionStatus} (BIW Review)`, "success");
+      closeBiwActionModal();
+    } catch (err: any) {
+      console.error("Error saving BIW review:", err);
+      showToast(
+        err?.message || "Failed to save BIW review. Please try again.",
+        "error",
+      );
+    } finally {
+      setIsBiwActionSubmitting(false);
     }
   };
 
@@ -3169,6 +3306,23 @@ export default function FormAnalyticsDashboard() {
   const [biwBulkUpdateStatus, setBiwBulkUpdateStatus] = useState<"Accepted" | "Rejected" | "Reworked" | null>(null);
   const [biwBulkUpdateTargetIds, setBiwBulkUpdateTargetIds] = useState<string[]>([]);
   const [biwBulkUpdateSkippedCount, setBiwBulkUpdateSkippedCount] = useState(0);
+
+  // NEW - BIW Review action popup (opens for Reject/Rework instead of
+  // saving immediately): lets the reviewer pick which question(s) the
+  // decision is about, add a remark, and attach evidence.
+  const [showBiwActionModal, setShowBiwActionModal] = useState(false);
+  const [biwActionResponse, setBiwActionResponse] = useState<Response | null>(null);
+  const [biwActionStatus, setBiwActionStatus] = useState<"Rejected" | "Reworked" | null>(null);
+  const [biwActionSelectedQuestionIds, setBiwActionSelectedQuestionIds] = useState<string[]>([]);
+  const [biwActionRemark, setBiwActionRemark] = useState("");
+  const [biwActionEvidenceUrl, setBiwActionEvidenceUrl] = useState("");
+  const [biwActionUploading, setBiwActionUploading] = useState(false);
+  const [isBiwActionSubmitting, setIsBiwActionSubmitting] = useState(false);
+
+  // NEW - Eye icon "view" modal: read-only look at a saved BIW review
+  // (status, flagged questions, remark, evidence).
+  const [showBiwViewModal, setShowBiwViewModal] = useState(false);
+  const [biwViewResponse, setBiwViewResponse] = useState<Response | null>(null);
 
 
   // Server-side pagination for the "Responses" table tab: fetches only the
@@ -4264,6 +4418,84 @@ export default function FormAnalyticsDashboard() {
     return null;
   }, [form]);
 
+  // Fast, single-response status estimate — used ONLY by the Responses tab
+  // table so the Status column can render as soon as `tableResponses` (the
+  // paginated 20-row fetch) lands, instead of waiting on the full-dataset
+  // `responseStatuses` below (which requires every page of
+  // fetchFullAnalyticsResponses to stream in on large forms).
+  //
+  // It leans on `responseRanks`, which the backend already computes and
+  // persists on the response document at submission time (a count of prior
+  // submissions for the same tracked item, e.g. chassis number) — see
+  // responseController.js. Because that count is already stored per-row,
+  // this needs no sibling responses at all, just the row itself.
+  //
+  // Trade-off: in the rare case an item was rejected/skipped outright
+  // without ever being flagged "rework" partway through its history, the
+  // "Rework N" number here can be off by one from the fully-accurate
+  // group-computed value below. That's why `tableDisplayStatuses` (below)
+  // prefers the accurate `responseStatuses` value the instant it's
+  // available, and only falls back to this estimate until then — so the
+  // table starts correct-ish immediately and self-corrects a moment later,
+  // the same "settles once loading finishes" behavior already documented
+  // for the full-set streaming case above.
+  const computeFastRowStatus = (r: Response, trackingQId: string | null) => {
+    let isRework = false;
+    let isAccepted = false;
+    let isRejected = false;
+
+    if (r.answers) {
+      Object.values(r.answers).forEach((ans) => {
+        if (typeof ans === "object" && ans !== null && (ans as any).status) {
+          const s = String((ans as any).status).toLowerCase().trim();
+          if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
+            isRework = true;
+          } else if (
+            s === "accepted" ||
+            s === "rework completed" ||
+            s === "verified" ||
+            s === "yes" ||
+            s === "y"
+          ) {
+            isAccepted = true;
+          } else if (s === "rejected" || s === "no" || s === "n") {
+            isRejected = true;
+          }
+        } else if (typeof ans === "string") {
+          const s = ans.toLowerCase().trim();
+          if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
+            isRework = true;
+          } else if (
+            s === "accepted" ||
+            s === "rework completed" ||
+            s === "verified" ||
+            s === "yes" ||
+            s === "y"
+          ) {
+            isAccepted = true;
+          } else if (s === "rejected" || s === "no" || s === "n") {
+            isRejected = true;
+          }
+        }
+      });
+    }
+
+    const rank = trackingQId ? r.responseRanks?.[trackingQId] : null;
+
+    if (isRejected) return "Rejected";
+    if (isRework) {
+      if (trackingQId && rank && rank > 1) return `Rework ${rank - 1}`;
+      if (trackingQId) return "Rework 1";
+      return "Rework";
+    }
+    if (isAccepted) {
+      if (!trackingQId || rank === 1) return "Direct Ok";
+      if (rank && rank > 1) return "Rework Accepted";
+      return "Accepted";
+    }
+    return "-";
+  };
+
   // Calculate sequential status (Direct Ok, Rework 1, Rework 2, etc.)
   const responseStatuses = useMemo(() => {
     if (!baseFilteredResponses.length) {
@@ -4399,6 +4631,20 @@ export default function FormAnalyticsDashboard() {
 
     return statuses;
   }, [baseFilteredResponses, chassisQuestionId]);
+
+  // Status for the Responses tab table only: instant estimate from each
+  // row's own persisted rank (computeFastRowStatus, defined above), upgraded
+  // to the fully-accurate group-computed value from `responseStatuses` the
+  // moment that's ready. Depends only on `tableResponses` (the fast
+  // paginated 20-row fetch), so it's available immediately instead of
+  // waiting on the full analytics response set.
+  const tableDisplayStatuses = useMemo(() => {
+    const map: Record<string, string> = {};
+    tableResponses.forEach((r) => {
+      map[r.id] = responseStatuses[r.id] || computeFastRowStatus(r, chassisQuestionId);
+    });
+    return map;
+  }, [tableResponses, responseStatuses, chassisQuestionId]);
 
   const fetchChatHistory = async (responseId: string) => {
     try {
@@ -10838,7 +11084,7 @@ export default function FormAnalyticsDashboard() {
                                   </td>
                                   <td className="px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap">
                                     {(() => {
-                                      const status = responseStatuses[response.id] || "";
+                                      const status = tableDisplayStatuses[response.id] || "";
 
                                       // 1️⃣ Check if response is eligible for dispatch based on status
                                       const canShowDispatch = status === "Direct Ok" ||
@@ -10910,51 +11156,34 @@ export default function FormAnalyticsDashboard() {
                                       "Anonymous"}
                                   </td>
                                   <td className="px-6 py-3 text-sm font-bold border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
-                                    {/* Status is derived from the FULL analytics response set
-                                        (responseStatuses), which loads separately/slower than
-                                        the paginated `tableResponses` rows shown in this table.
-                                        While that full set is still in flight, show a neutral
-                                        "loading" pill instead of falling back to the literal
-                                        "Pending Review" string — that fallback used to render
-                                        for every row (even already-accepted/rejected ones)
-                                        until the slow fetch resolved and the real status
-                                        popped in a minute or two later. */}
-                                    {analyticsResponsesLoading &&
-                                      !responseStatuses[response.id] ? (
-                                      <span className="px-2 py-1 rounded-full text-xs inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 animate-pulse">
-                                        Loading…
-                                      </span>
-                                    ) : (
-                                      <span
-                                        className={`px-2 py-1 rounded-full text-xs ${responseStatuses[response.id] ===
-                                          "Rejected"
-                                          ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                                          : responseStatuses[
-                                            response.id
-                                          ]?.includes("Rework") &&
-                                            responseStatuses[response.id] !==
-                                            "Rework Accepted"
-                                            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                                            : responseStatuses[response.id] ===
-                                              "Direct Ok" ||
-                                              responseStatuses[
-                                              response.id
-                                              ] === "Rework Accepted" ||
-                                              responseStatuses[
-                                              response.id
-                                              ] === "Accepted"
-                                              ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                                              : responseStatuses[
-                                                response.id
-                                              ] === "Pending Review"
-                                                ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
-                                                : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
-                                          }`}
-                                      >
-                                        {responseStatuses[response.id] ||
-                                          "Pending Review"}
-                                      </span>
-                                    )}
+                                    {/* Status now comes from `tableDisplayStatuses`, computed
+                                        directly off `tableResponses` (the fast paginated 20-row
+                                        fetch) instead of waiting on the full analytics response
+                                        set, so it renders as quickly as every other column here.
+                                        It self-upgrades to the fully-accurate value once the
+                                        full set finishes loading in the background. */}
+                                    {(() => {
+                                      const rowStatus = tableDisplayStatuses[response.id];
+                                      return (
+                                        <span
+                                          className={`px-2 py-1 rounded-full text-xs ${rowStatus === "Rejected"
+                                            ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                            : rowStatus?.includes("Rework") &&
+                                              rowStatus !== "Rework Accepted"
+                                              ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                                              : rowStatus === "Direct Ok" ||
+                                                rowStatus === "Rework Accepted" ||
+                                                rowStatus === "Accepted"
+                                                ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                                : rowStatus === "Pending Review"
+                                                  ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
+                                                  : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+                                            }`}
+                                        >
+                                          {rowStatus || "Pending Review"}
+                                        </span>
+                                      );
+                                    })()}
                                   </td>
                                   <td className="px-6 py-3 text-sm text-gray-900 dark:text-white font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
                                     {editingChassisResponseId === response.id ? (
@@ -11187,6 +11416,24 @@ export default function FormAnalyticsDashboard() {
                                               <Loader2 className="w-3 h-3 animate-spin" />
                                               Saving...
                                             </span>
+                                          )}
+
+                                          {/* NEW - Eye icon: once a review is saved (any status), open
+                                              the read-only view modal showing remark/questions/evidence. */}
+                                          {currentStatus && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setBiwViewResponse(response);
+                                                setShowBiwViewModal(true);
+                                              }}
+                                              className="flex items-center gap-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 border-t border-gray-200 dark:border-gray-700 pt-1.5 mt-0.5"
+                                              title="View BIW review details"
+                                            >
+                                              <Eye className="w-3.5 h-3.5" />
+                                              <span>View</span>
+                                            </button>
                                           )}
                                         </div>
                                       );
@@ -12368,6 +12615,278 @@ export default function FormAnalyticsDashboard() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW - BIW Review Action Popup (Reject / Rework) */}
+      {showBiwActionModal && biwActionResponse && biwActionStatus && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-md w-full max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`flex items-center justify-center w-8 h-8 rounded-full ${biwActionStatus === "Rejected"
+                    ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                    : "bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400"
+                    }`}
+                >
+                  {biwActionStatus === "Rejected" ? (
+                    <XCircle className="w-4 h-4" />
+                  ) : (
+                    <RotateCcw className="w-4 h-4" />
+                  )}
+                </div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                  BIW Review — Mark as {biwActionStatus}
+                </h3>
+              </div>
+              <button
+                onClick={closeBiwActionModal}
+                disabled={isBiwActionSubmitting}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-4 overflow-y-auto">
+              {/* Question selection */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-2">
+                  Which question(s) is this about?
+                </label>
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1 border border-gray-200 dark:border-gray-700 rounded-lg p-2">
+                  {getResponseQuestionOptions(biwActionResponse).length === 0 ? (
+                    <p className="text-xs text-gray-400 italic">
+                      No answered questions found on this response.
+                    </p>
+                  ) : (
+                    getResponseQuestionOptions(biwActionResponse).map((q) => (
+                      <label
+                        key={q.id}
+                        className="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={biwActionSelectedQuestionIds.includes(q.id)}
+                          onChange={() => toggleBiwActionQuestion(q.id)}
+                          className="w-3.5 h-3.5 mt-0.5 rounded accent-purple-600 cursor-pointer"
+                        />
+                        <span>{q.text}</span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Remark */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-2">
+                  Remark
+                </label>
+                <textarea
+                  rows={3}
+                  value={biwActionRemark}
+                  onChange={(e) => setBiwActionRemark(e.target.value)}
+                  placeholder="Explain why this response is being rejected / needs rework..."
+                  className="w-full p-2.5 text-xs bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-purple-400 outline-none resize-none"
+                />
+              </div>
+
+              {/* Evidence upload */}
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-2">
+                  Evidence (optional)
+                </label>
+                {biwActionEvidenceUrl ? (
+                  <div className="relative group">
+                    <img
+                      src={biwActionEvidenceUrl}
+                      alt="Evidence"
+                      className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer"
+                      onClick={() => window.open(biwActionEvidenceUrl, "_blank")}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setBiwActionEvidenceUrl("")}
+                      className="absolute top-1.5 right-1.5 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Remove evidence"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : biwActionUploading ? (
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 dark:bg-gray-900/40 rounded-lg">
+                    <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                    <span className="text-xs text-gray-500">Uploading...</span>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center gap-1 p-4 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 dark:hover:bg-purple-900/10 transition-all">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (file) await handleBiwEvidenceUpload(file);
+                        e.target.value = "";
+                      }}
+                    />
+                    <Upload className="w-4 h-4 text-gray-400" />
+                    <span className="text-[10px] text-gray-500 font-semibold">
+                      Upload photo evidence
+                    </span>
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex gap-2 justify-end px-5 py-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={closeBiwActionModal}
+                disabled={isBiwActionSubmitting}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium disabled:opacity-50 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitBiwActionModal}
+                disabled={isBiwActionSubmitting || biwActionUploading}
+                className={`px-4 py-2 text-white rounded-lg transition-colors font-medium disabled:opacity-50 flex items-center gap-2 text-sm ${biwActionStatus === "Rejected"
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-orange-600 hover:bg-orange-700"
+                  }`}
+              >
+                {isBiwActionSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW - BIW Review Eye/View Modal (read-only) */}
+      {showBiwViewModal && biwViewResponse && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-md w-full max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                BIW Review Details
+              </h3>
+              <button
+                onClick={() => {
+                  setShowBiwViewModal(false);
+                  setBiwViewResponse(null);
+                }}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="px-5 py-4 space-y-4 overflow-y-auto">
+              {/* Status */}
+              <div className="flex items-center gap-2">
+                {biwViewResponse.biwReview?.status === "Accepted" && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                    <CheckCircle className="w-3.5 h-3.5" /> Accepted
+                  </span>
+                )}
+                {biwViewResponse.biwReview?.status === "Rejected" && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                    <XCircle className="w-3.5 h-3.5" /> Rejected
+                  </span>
+                )}
+                {biwViewResponse.biwReview?.status === "Reworked" && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+                    <RotateCcw className="w-3.5 h-3.5" /> Rework
+                  </span>
+                )}
+              </div>
+
+              {/* Reviewer / date */}
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Reviewed by{" "}
+                <span className="font-semibold text-gray-700 dark:text-gray-300">
+                  {biwViewResponse.biwReview?.reviewedByName || "Reviewer"}
+                </span>
+                {biwViewResponse.biwReview?.reviewedAt && (
+                  <>
+                    {" "}
+                    on{" "}
+                    {new Date(biwViewResponse.biwReview.reviewedAt).toLocaleString()}
+                  </>
+                )}
+              </p>
+
+              {/* Flagged questions */}
+              {biwViewResponse.biwReview?.flaggedQuestions &&
+                biwViewResponse.biwReview.flaggedQuestions.length > 0 && (
+                  <div>
+                    <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1.5">
+                      Flagged Question(s)
+                    </label>
+                    <ul className="space-y-1 list-disc list-inside">
+                      {biwViewResponse.biwReview.flaggedQuestions.map((q, idx) => (
+                        <li key={`${q.questionId}-${idx}`} className="text-xs text-gray-700 dark:text-gray-300">
+                          {q.questionText}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+              {/* Remark */}
+              {biwViewResponse.biwReview?.remark && (
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1.5">
+                    Remark
+                  </label>
+                  <p className="text-xs text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-900/40 p-2.5 rounded-lg whitespace-pre-wrap">
+                    {biwViewResponse.biwReview.remark}
+                  </p>
+                </div>
+              )}
+
+              {/* Evidence */}
+              {biwViewResponse.biwReview?.evidenceUrl && (
+                <div>
+                  <label className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide block mb-1.5">
+                    Evidence
+                  </label>
+                  <img
+                    src={biwViewResponse.biwReview.evidenceUrl}
+                    alt="Evidence"
+                    className="w-full max-h-64 object-contain rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer"
+                    onClick={() =>
+                      window.open(biwViewResponse.biwReview!.evidenceUrl!, "_blank")
+                    }
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end px-5 py-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => {
+                  setShowBiwViewModal(false);
+                  setBiwViewResponse(null);
+                }}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium text-sm"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
