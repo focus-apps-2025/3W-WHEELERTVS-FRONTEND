@@ -3897,21 +3897,46 @@ export default function FormAnalyticsDashboard() {
   // ── Lazy loading by tab ──────────────────────────────────────────────
   // Fetches the FULL analytics response set (used by Dashboard/Question/
   // Section/Overall for charts, status calc, exports, BIW review, etc).
-  // Replaces the old getAllFormResponses call that used to run
-  // unconditionally inside fetchData on every page load.
+  // The backend now paginates analytics requests (500 rows/page) instead
+  // of returning a form's entire history in one unbounded query, and this
+  // streams each page into `responses` as it lands via onPage - so on a
+  // large form, the Status column and charts start filling in after the
+  // first page (a couple seconds) instead of everything staying blank/
+  // "Loading…" until the last page of a multi-minute single request.
+  //
+  // Note: responseStatuses groups responses by tracked item (e.g. chassis
+  // number) to compute sequential rework status, which needs every page
+  // to be in for a group to be 100% correct - so a row's status can
+  // shift slightly as later pages arrive if its sibling responses land in
+  // a subsequent page. It settles once analyticsResponsesLoading goes
+  // false. This is still strictly better than the old all-or-nothing
+  // wait, and most forms will have all of an item's responses within the
+  // same page anyway since pages are sorted by createdAt.
   const fetchFullAnalyticsResponses = async () => {
     if (!id) return;
     setAnalyticsResponsesLoading(true);
+    setResponses([]); // clear any stale set before streaming the fresh one in
     try {
       const responsesData = await apiClient.getAllFormResponses(id, {
         analytics: true,
         forceNetwork: true,
+        onPage: ({ responses: pageResponses, pageNumber, totalPages }: {
+          responses: any[];
+          pageNumber: number;
+          totalPages: number;
+          isLast: boolean;
+        }) => {
+          console.log(
+            `[ANALYTICS DEBUG] Analytics page ${pageNumber}/${totalPages} fetched:`,
+            pageResponses.length,
+          );
+          setResponses((prev) => prev.concat(pageResponses));
+        },
       });
       console.log(
         "[ANALYTICS DEBUG] Full analytics responses fetched:",
         responsesData.responses?.length || 0,
       );
-      setResponses(responsesData.responses || []);
     } catch (err) {
       console.error("Error fetching full analytics responses:", err);
       showToast("Failed to load analytics data. Please try again.", "error");
@@ -3981,10 +4006,19 @@ export default function FormAnalyticsDashboard() {
     }
   }, [activeTab]);
 
-  // Responses tab: server-side paginated fetch, loaded once on first visit.
+  // Responses tab: server-side paginated fetch for the table rows, loaded
+  // once on first visit. The Status column, however, is computed from the
+  // separate full-dataset `responses` array (see responseStatuses above) -
+  // if the user lands here directly (skipping Dashboard/Question/Section/
+  // Overall), that full set was never requested and the Status column
+  // would spin on "Loading…" forever. Kick it off here too, the same way
+  // the other tabs already do.
   useEffect(() => {
     if (activeTab === "responses" && !loadedTabs.has("responses")) {
       fetchResponsesPage(1);
+      if (!loadedTabs.has("dashboard") && responses.length === 0) {
+        fetchFullAnalyticsResponses();
+      }
       setLoadedTabs((prev) => new Set(prev).add("responses"));
     }
   }, [activeTab]);
@@ -10876,35 +10910,51 @@ export default function FormAnalyticsDashboard() {
                                       "Anonymous"}
                                   </td>
                                   <td className="px-6 py-3 text-sm font-bold border border-gray-200 dark:border-gray-700 min-w-32 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
-                                    <span
-                                      className={`px-2 py-1 rounded-full text-xs ${responseStatuses[response.id] ===
-                                        "Rejected"
-                                        ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
-                                        : responseStatuses[
-                                          response.id
-                                        ]?.includes("Rework") &&
-                                          responseStatuses[response.id] !==
-                                          "Rework Accepted"
-                                          ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
-                                          : responseStatuses[response.id] ===
-                                            "Direct Ok" ||
-                                            responseStatuses[
+                                    {/* Status is derived from the FULL analytics response set
+                                        (responseStatuses), which loads separately/slower than
+                                        the paginated `tableResponses` rows shown in this table.
+                                        While that full set is still in flight, show a neutral
+                                        "loading" pill instead of falling back to the literal
+                                        "Pending Review" string — that fallback used to render
+                                        for every row (even already-accepted/rejected ones)
+                                        until the slow fetch resolved and the real status
+                                        popped in a minute or two later. */}
+                                    {analyticsResponsesLoading &&
+                                      !responseStatuses[response.id] ? (
+                                      <span className="px-2 py-1 rounded-full text-xs inline-flex items-center gap-1 bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 animate-pulse">
+                                        Loading…
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={`px-2 py-1 rounded-full text-xs ${responseStatuses[response.id] ===
+                                          "Rejected"
+                                          ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300"
+                                          : responseStatuses[
                                             response.id
-                                            ] === "Rework Accepted" ||
-                                            responseStatuses[
-                                            response.id
-                                            ] === "Accepted"
-                                            ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
-                                            : responseStatuses[
+                                          ]?.includes("Rework") &&
+                                            responseStatuses[response.id] !==
+                                            "Rework Accepted"
+                                            ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                                            : responseStatuses[response.id] ===
+                                              "Direct Ok" ||
+                                              responseStatuses[
                                               response.id
-                                            ] === "Pending Review"
-                                              ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
-                                              : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
-                                        }`}
-                                    >
-                                      {responseStatuses[response.id] ||
-                                        "Pending Review"}
-                                    </span>
+                                              ] === "Rework Accepted" ||
+                                              responseStatuses[
+                                              response.id
+                                              ] === "Accepted"
+                                              ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                                              : responseStatuses[
+                                                response.id
+                                              ] === "Pending Review"
+                                                ? "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300"
+                                                : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+                                          }`}
+                                      >
+                                        {responseStatuses[response.id] ||
+                                          "Pending Review"}
+                                      </span>
+                                    )}
                                   </td>
                                   <td className="px-6 py-3 text-sm text-gray-900 dark:text-white font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap bg-gray-50/50 dark:bg-gray-800/30">
                                     {editingChassisResponseId === response.id ? (

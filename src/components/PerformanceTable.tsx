@@ -117,7 +117,7 @@ const PerformanceTable = ({
     if (!showPerformanceTable || !user) {
       return;
     }
-    
+
     // Block non-admin/inspector users only in non-internal tracking mode
     if (!useInternalTrackingEndpoint && user.role !== "admin" && user.role !== "superadmin") {
       return;
@@ -126,36 +126,58 @@ const PerformanceTable = ({
     let cancelled = false;
     const fetchAndProcessData = async () => {
       setPerformanceTableLoading(true);
+
+      // The performance table is the critical payload. Fetch it on its own
+      // so a slow/blocked auxiliary request (users or inspector-summary)
+      // can't fail the whole table via Promise.all — which previously caused
+      // "Request timed out" errors on the superadmin Dashboard.
+      const tablePromise: Promise<any> = useInternalTrackingEndpoint
+        ? (() => {
+          const itParams = new URLSearchParams();
+          if (perfStartDate) itParams.append("startDate", perfStartDate);
+          if (perfEndDate) itParams.append("endDate", perfEndDate);
+          const itQuery = itParams.toString();
+          return apiClient.get(
+            `/internal-tracking/performance${itQuery ? `?${itQuery}` : ""}`,
+          );
+        })()
+        : apiClient.getPerformanceTable({
+          startDate: perfStartDate,
+          endDate: perfEndDate,
+        });
+
+      // Auxiliary data (users + inspector summary) is fetched in parallel but
+      // independently — failures here are non-fatal and only degrade the
+      // active-user/dispatch enrichment, not the table itself.
+      const usersPromise = Promise.all([
+        apiClient.getUsers({ role: "admin", limit: 100 }),
+        apiClient.getUsers({ role: "subadmin", limit: 100 }),
+        apiClient.getUsers({ role: "inspector", limit: 100 }),
+      ]).catch(() => []);
+
+      let summaryUrl = "/analytics/inspector-summary";
+      const params = new URLSearchParams();
+      if (perfStartDate) params.append("startDate", perfStartDate);
+      if (perfEndDate) params.append("endDate", perfEndDate);
+      const queryString = params.toString();
+      if (queryString) summaryUrl += `?${queryString}`;
+      const summaryPromise = apiClient
+        .get<any>(summaryUrl)
+        .catch(() => ({ data: { summary: [] } }));
+
       try {
-        // 1. Fetch all data concurrently
-        const usersPromise = Promise.all([
-            apiClient.getUsers({ role: "admin", limit: 100 }),
-            apiClient.getUsers({ role: "subadmin", limit: 100 }),
-            apiClient.getUsers({ role: "inspector", limit: 100 }),
+        const [tableResponse, usersResult, summaryResponse] = await Promise.all([
+          tablePromise,
+          usersPromise,
+          summaryPromise,
         ]);
-
-        let summaryUrl = "/analytics/inspector-summary";
-        const params = new URLSearchParams();
-        if (perfStartDate) params.append("startDate", perfStartDate);
-        if (perfEndDate) params.append("endDate", perfEndDate);
-        const queryString = params.toString();
-        if (queryString) summaryUrl += `?${queryString}`;
-        const summaryPromise = apiClient.get<any>(summaryUrl);
-        
-        const tablePromise = useInternalTrackingEndpoint
-          ? apiClient.get("/internal-tracking/performance", {
-              params: { startDate: perfStartDate, endDate: perfEndDate },
-            })
-          : apiClient.getPerformanceTable({
-              startDate: perfStartDate,
-              endDate: perfEndDate,
-            });
-
-        const [[adminData, subadminData, inspectorData], summaryResponse, tableResponse] = await Promise.all([usersPromise, summaryPromise, tablePromise]);
 
         if (cancelled) return;
 
-        // 2. Process users to get activeUserNames
+        // 1. Process users to get activeUserNames (best-effort)
+        const [adminData, subadminData, inspectorData] = Array.isArray(usersResult)
+          ? usersResult
+          : [{}, {}, {}];
         const allUsers = [
           ...(Array.isArray(adminData.users) ? adminData.users : []),
           ...(Array.isArray(subadminData.users) ? subadminData.users : []),
@@ -164,19 +186,17 @@ const PerformanceTable = ({
         const activeUsers = buildActiveUserNames(allUsers);
         setActiveUserNames(activeUsers);
 
-        const localIsInspectorActive = (item: any) => {
-            if (!isUserActive(item)) return false;
-            const inspectorName = getInspectorName(item);
-            if (!inspectorName || activeUsers.size === 0) return true;
-            const aliases = getUserNameAliases({ username: inspectorName });
-            return Array.from(aliases).some((alias) => activeUsers.has(alias));
-        };
-
-        // 3. Process summary and table data
-        const summaryData = summaryResponse.data.summary || [];
+        // 2. Process summary data (best-effort)
+        const summaryData = summaryResponse?.data?.summary || [];
         setPerfInspectorSummary(summaryData);
 
-        const tableData = useInternalTrackingEndpoint ? tableResponse.data : tableResponse.success ? tableResponse.data : [];
+        // 3. Process table data (critical)
+        const tableResponseAny = tableResponse as any;
+        const tableData = useInternalTrackingEndpoint
+          ? tableResponseAny.data
+          : tableResponseAny.success
+            ? tableResponseAny.data
+            : [];
 
         const dispatchMap = new Map<string, number>();
         summaryData.forEach((item: any) => {
@@ -196,7 +216,6 @@ const PerformanceTable = ({
         }));
 
         setPerformanceTableData(mergedData);
-
       } catch (error) {
         console.error("Error fetching performance data:", error);
         if (!cancelled) {
@@ -310,11 +329,11 @@ const PerformanceTable = ({
     const avgPerformance =
       performanceTableData.length > 0
         ? Math.round(
-            performanceTableData.reduce(
-              (sum, row) => sum + (row.performanceScore || 0),
-              0,
-            ) / performanceTableData.length,
-          )
+          performanceTableData.reduce(
+            (sum, row) => sum + (row.performanceScore || 0),
+            0,
+          ) / performanceTableData.length,
+        )
         : 0;
 
     const statusTotals: Record<string, number> = {};
@@ -508,78 +527,78 @@ const PerformanceTable = ({
         </div>
       </div>
 
-       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-         <div className="max-h-[600px] overflow-y-auto">
-           <table className="w-full text-[11px] text-left border-collapse">
-             <thead className="bg-gray-50/80 dark:bg-gray-700/80 sticky top-0 z-10 text-gray-700 dark:text-gray-300 uppercase text-[9px] font-black tracking-wider">
-               <tr>
-                 {isSuperAdmin && (
-                   <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">
-                     Tenant
-                   </th>
-                 )}
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">
-                   User Name
-                 </th>
-                 {performanceStatuses
-                   .filter((status) => status !== "Dispatched")
-                   .map((status) => (
-                     <th
-                       key={status}
-                       className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-indigo-600"
-                     >
-                       {status}
-                     </th>
-                   ))}
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-violet-600">
-                   Dispatch Pending
-                 </th>
-                 {performanceStatuses.includes("Dispatched") && (
-                   <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-indigo-600">
-                     Dispatched
-                   </th>
-                 )}
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
-                   Total Submitted
-                 </th>
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
-                   Total Reviewed
-                 </th>
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-amber-600">
-                   Review Pending
-                 </th>
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-green-600">
-                   Accepted
-                 </th>
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-red-600">
-                   Rejected
-                 </th>
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-orange-600">
-                   Reworked
-                 </th>
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
-                   Performance Score
-                 </th>
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
-                   Performance Category
-                 </th>
-                 <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
-                   Actions
-                 </th>
-               </tr>
-             </thead>
- <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-               {paginatedPerformance.map((row, idx) => (
-                 <React.Fragment key={row.name || idx}>
-                   <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer" onClick={() => toggleRowExpansion(row.name)}>
-                     {isSuperAdmin && (
-                       <td className="px-2 py-1.5 font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                         {row.tenantName}
-                       </td>
-                     )}
-                     <td className="px-2 py-1.5 font-medium text-gray-900 dark:text-white whitespace-nowrap">
-                       {row.name}
-                     </td>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        <div className="max-h-[600px] overflow-y-auto">
+          <table className="w-full text-[11px] text-left border-collapse">
+            <thead className="bg-gray-50/80 dark:bg-gray-700/80 sticky top-0 z-10 text-gray-700 dark:text-gray-300 uppercase text-[9px] font-black tracking-wider">
+              <tr>
+                {isSuperAdmin && (
+                  <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">
+                    Tenant
+                  </th>
+                )}
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap">
+                  User Name
+                </th>
+                {performanceStatuses
+                  .filter((status) => status !== "Dispatched")
+                  .map((status) => (
+                    <th
+                      key={status}
+                      className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-indigo-600"
+                    >
+                      {status}
+                    </th>
+                  ))}
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-violet-600">
+                  Dispatch Pending
+                </th>
+                {performanceStatuses.includes("Dispatched") && (
+                  <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-indigo-600">
+                    Dispatched
+                  </th>
+                )}
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
+                  Total Submitted
+                </th>
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
+                  Total Reviewed
+                </th>
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-amber-600">
+                  Review Pending
+                </th>
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-green-600">
+                  Accepted
+                </th>
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-red-600">
+                  Rejected
+                </th>
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center text-orange-600">
+                  Reworked
+                </th>
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
+                  Performance Score
+                </th>
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
+                  Performance Category
+                </th>
+                <th className="px-2 py-2 border-b border-gray-200 dark:border-gray-700 whitespace-nowrap text-center">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {paginatedPerformance.map((row, idx) => (
+                <React.Fragment key={row.name || idx}>
+                  <tr className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors cursor-pointer" onClick={() => toggleRowExpansion(row.name)}>
+                    {isSuperAdmin && (
+                      <td className="px-2 py-1.5 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                        {row.tenantName}
+                      </td>
+                    )}
+                    <td className="px-2 py-1.5 font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                      {row.name}
+                    </td>
                     {performanceStatuses
                       .filter((status) => status !== "Dispatched")
                       .map((status) => {
@@ -674,11 +693,11 @@ const PerformanceTable = ({
                     <td className="px-2 py-1.5 text-center">
                       <span
                         className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${row.performanceScore >= 80
-                            ? "bg-green-100 text-green-700"
-                            : row.performanceScore >= 50
-                              ? "bg-orange-100 text-orange-700"
-                              : "bg-red-100 text-red-700"
-                            }`}
+                          ? "bg-green-100 text-green-700"
+                          : row.performanceScore >= 50
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-red-100 text-red-700"
+                          }`}
                       >
                         {row.performanceScore}%
                       </span>
@@ -700,7 +719,8 @@ const PerformanceTable = ({
                           if (score < 70) return "partially met performer";
                           if (score < 80) return "Met expectation";
                           if (score < 90) return "exceeded Performance";
-                          return "Exemplary performer"}
+                          return "Exemplary performer"
+                        }
                         )()}
                       </span>
                     </td>
@@ -737,28 +757,28 @@ const PerformanceTable = ({
                       return Array.from(forms.entries()).map(([formName, items], formIdx) => {
                         // 3. For each form, calculate the summary stats, including review outcomes
                         const formSummary = (items as any[]).reduce((acc, it) => {
-                            const sc = it.statusCounts || {};
-                            for (const status in sc) {
-                                acc.statuses[status] = (acc.statuses[status] || 0) + sc[status];
-                            }
-                            acc.totalReviewed += it.totalReviewed || 0;
-                            acc.accepted += it.accepted || 0;
-                            acc.rework += it.rework || 0;
-                            acc.rejected_outcome += it.rejected || 0;
-                            return acc;
+                          const sc = it.statusCounts || {};
+                          for (const status in sc) {
+                            acc.statuses[status] = (acc.statuses[status] || 0) + sc[status];
+                          }
+                          acc.totalReviewed += it.totalReviewed || 0;
+                          acc.accepted += it.accepted || 0;
+                          acc.rework += it.rework || 0;
+                          acc.rejected_outcome += it.rejected || 0;
+                          return acc;
                         }, {
-                            statuses: {} as Record<string, number>,
-                            totalReviewed: 0,
-                            accepted: 0,
-                            rework: 0,
-                            rejected_outcome: 0,
+                          statuses: {} as Record<string, number>,
+                          totalReviewed: 0,
+                          accepted: 0,
+                          rework: 0,
+                          rejected_outcome: 0,
                         });
 
                         const v = formSummary.statuses;
                         const directOk = v["Direct Ok"] || 0;
                         const reworkQCCompleted = v["Rework QC Completed"] || 0;
                         const dispatched = v["Dispatched"] || 0;
-                        
+
                         const totalSubmitted = performanceStatuses
                           .filter(s => s !== 'Dispatched')
                           .reduce((sum, status) => sum + (v[status] || 0), 0);
@@ -767,9 +787,9 @@ const PerformanceTable = ({
 
                         const dispatchPending = Math.max(0, directOk + reworkQCCompleted - dispatched);
                         const reviewPending = Math.max(0, dispatched - totalReviewed);
-                        
+
                         const rowBg = formIdx % 2 === 0 ? "bg-purple-50/20 dark:bg-purple-900/10" : "bg-purple-50/40 dark:bg-purple-900/20";
-                        
+
                         return (
                           <tr key={`${row.name}-${formName}-${formIdx}`} className={rowBg}>
                             {isSuperAdmin && <td className="px-2 py-1.5"></td>}
@@ -783,9 +803,9 @@ const PerformanceTable = ({
                             ))}
                             <td className="px-2 py-1.5 font-bold text-center tabular-nums">{dispatchPending}</td>
                             {performanceStatuses.includes("Dispatched") && (
-                                <td className="px-2 py-1.5 font-bold text-center tabular-nums">
-                                    {dispatched}
-                                </td>
+                              <td className="px-2 py-1.5 font-bold text-center tabular-nums">
+                                {dispatched}
+                              </td>
                             )}
                             <td className="px-2 py-1.5 font-bold text-center tabular-nums">{totalSubmitted}</td>
                             <td className="px-2 py-1.5 font-bold text-center tabular-nums">{totalReviewed}</td>
@@ -803,96 +823,96 @@ const PerformanceTable = ({
                     })()}
                 </React.Fragment>
               ))}
-<tr className="bg-gray-100 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-500 font-black text-gray-900 dark:text-white">
-              {isSuperAdmin && (
-                <td className="px-2 py-1.5 whitespace-nowrap text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
-                  —
-                </td>
-              )}
-              <td className="px-2 py-1.5 whitespace-nowrap text-xs font-black uppercase tracking-widest text-gray-700 dark:text-gray-200">
-                Total
-              </td>
-              {performanceStatuses
-                .filter((s) => s !== "Dispatched")
-                .map((status) => (
-                  <td
-                    key={status}
-                    className={`px-2 py-1.5 text-center tabular-nums font-black ${status === "Direct Ok" ||
-                      status === "Rework Accepted"
-                      ? "text-emerald-700 dark:text-emerald-300"
-                      : status.startsWith("Rework")
-                        ? "text-amber-700 dark:text-amber-300"
-                        : status === "Rejected"
-                          ? "text-rose-700 dark:text-rose-300"
-                          : "text-blue-700 dark:text-blue-300"
-                      }`}
-                  >
-                    {statusTotals[status] || 0}
+              <tr className="bg-gray-100 dark:bg-gray-700 border-t-2 border-gray-300 dark:border-gray-500 font-black text-gray-900 dark:text-white">
+                {isSuperAdmin && (
+                  <td className="px-2 py-1.5 whitespace-nowrap text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">
+                    —
                   </td>
-                ))}
-              <td className="px-2 py-1.5 text-center tabular-nums font-black text-violet-700 dark:text-violet-300">
-                {totalDispatchPending}
-              </td>
-              {performanceStatuses.includes("Dispatched") && (
-                <td className="px-2 py-1.5 text-center tabular-nums font-black text-blue-700 dark:text-blue-300">
-                  {totalDispatched}
+                )}
+                <td className="px-2 py-1.5 whitespace-nowrap text-xs font-black uppercase tracking-widest text-gray-700 dark:text-gray-200">
+                  Total
                 </td>
-              )}
-              <td className="px-2 py-1.5 text-center tabular-nums font-black">
-                {totalTotalSubmitted}
-              </td>
-              <td className="px-2 py-1.5 text-center tabular-nums font-black">
-                {totalTotalReviewed}
-              </td>
-              <td className="px-2 py-1.5 text-center tabular-nums font-black text-amber-700 dark:text-amber-300">
-                {totalReviewPending}
-              </td>
-              <td className="px-2 py-1.5 text-center tabular-nums font-black text-green-700 dark:text-green-300">
-                {totalAccepted}
-              </td>
-              <td className="px-2 py-1.5 text-center tabular-nums font-black text-red-700 dark:text-red-300">
-                {totalRejected}
-              </td>
-              <td className="px-2 py-1.5 text-center tabular-nums font-black text-orange-700 dark:text-orange-300">
-                {totalRework}
-              </td>
-              <td className="px-2 py-1.5 text-center">
-                <span
-                  className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${avgPerformance >= 80
+                {performanceStatuses
+                  .filter((s) => s !== "Dispatched")
+                  .map((status) => (
+                    <td
+                      key={status}
+                      className={`px-2 py-1.5 text-center tabular-nums font-black ${status === "Direct Ok" ||
+                        status === "Rework Accepted"
+                        ? "text-emerald-700 dark:text-emerald-300"
+                        : status.startsWith("Rework")
+                          ? "text-amber-700 dark:text-amber-300"
+                          : status === "Rejected"
+                            ? "text-rose-700 dark:text-rose-300"
+                            : "text-blue-700 dark:text-blue-300"
+                        }`}
+                    >
+                      {statusTotals[status] || 0}
+                    </td>
+                  ))}
+                <td className="px-2 py-1.5 text-center tabular-nums font-black text-violet-700 dark:text-violet-300">
+                  {totalDispatchPending}
+                </td>
+                {performanceStatuses.includes("Dispatched") && (
+                  <td className="px-2 py-1.5 text-center tabular-nums font-black text-blue-700 dark:text-blue-300">
+                    {totalDispatched}
+                  </td>
+                )}
+                <td className="px-2 py-1.5 text-center tabular-nums font-black">
+                  {totalTotalSubmitted}
+                </td>
+                <td className="px-2 py-1.5 text-center tabular-nums font-black">
+                  {totalTotalReviewed}
+                </td>
+                <td className="px-2 py-1.5 text-center tabular-nums font-black text-amber-700 dark:text-amber-300">
+                  {totalReviewPending}
+                </td>
+                <td className="px-2 py-1.5 text-center tabular-nums font-black text-green-700 dark:text-green-300">
+                  {totalAccepted}
+                </td>
+                <td className="px-2 py-1.5 text-center tabular-nums font-black text-red-700 dark:text-red-300">
+                  {totalRejected}
+                </td>
+                <td className="px-2 py-1.5 text-center tabular-nums font-black text-orange-700 dark:text-orange-300">
+                  {totalRework}
+                </td>
+                <td className="px-2 py-1.5 text-center">
+                  <span
+                    className={`px-2 py-1 rounded-full text-[10px] font-black tabular-nums ${avgPerformance >= 80
                       ? "bg-green-200 text-green-800"
                       : avgPerformance >= 50
                         ? "bg-orange-200 text-orange-800"
                         : "bg-red-200 text-red-800"
-                    }`}
-                >
-                  {avgPerformance}%
-                </span>
-              </td>
-              <td className="px-2 py-1.5 text-center">
-                <span
-                  className={`px-2 py-1 rounded-full text-[10px] font-black ${(() => {
-                    if (avgPerformance < 60) return "bg-red-100 text-red-700";
-                    if (avgPerformance < 70) return "bg-orange-100 text-orange-700";
-                    if (avgPerformance < 80) return "bg-yellow-100 text-yellow-700";
-                    if (avgPerformance < 90) return "bg-green-100 text-green-700";
-                    return "bg-emerald-100 text-emerald-700";
-                  })()}`}
-                >
-                  {avgPerformance < 60
-                    ? "Not met performer"
-                    : avgPerformance < 70
-                      ? "partially met performer"
-                      : avgPerformance < 80
-                        ? "Met expectation"
-                        : avgPerformance < 90
-                          ? "exceeded Performance"
-                          : "Exemplary performer"}
-                </span>
-              </td>
-              <td className="px-2 py-1.5 text-center">
-                <span className="text-xs text-gray-400">—</span>
-              </td>
-            </tr>
+                      }`}
+                  >
+                    {avgPerformance}%
+                  </span>
+                </td>
+                <td className="px-2 py-1.5 text-center">
+                  <span
+                    className={`px-2 py-1 rounded-full text-[10px] font-black ${(() => {
+                      if (avgPerformance < 60) return "bg-red-100 text-red-700";
+                      if (avgPerformance < 70) return "bg-orange-100 text-orange-700";
+                      if (avgPerformance < 80) return "bg-yellow-100 text-yellow-700";
+                      if (avgPerformance < 90) return "bg-green-100 text-green-700";
+                      return "bg-emerald-100 text-emerald-700";
+                    })()}`}
+                  >
+                    {avgPerformance < 60
+                      ? "Not met performer"
+                      : avgPerformance < 70
+                        ? "partially met performer"
+                        : avgPerformance < 80
+                          ? "Met expectation"
+                          : avgPerformance < 90
+                            ? "exceeded Performance"
+                            : "Exemplary performer"}
+                  </span>
+                </td>
+                <td className="px-2 py-1.5 text-center">
+                  <span className="text-xs text-gray-400">—</span>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>

@@ -381,7 +381,7 @@ export default function DashboardNew() {
       setBiwLoading(true);
       try {
         // Use the new dedicated endpoint
-        const response = await apiClient.getBiwSummary({ forceNetwork: true });
+        const response = (await apiClient.getBiwSummary({ forceNetwork: true })) as any;
         console.log('[BIW] Summary response:', response);
 
         if (response?.data) {
@@ -975,14 +975,34 @@ export default function DashboardNew() {
   }, [inspectorSummary, activeUserNames]);
 
   const activeSummaryStatuses = useMemo(() => {
-    const statuses = Array.from(
+    // Always display the fixed known status columns. The dynamic
+    // `Object.keys(statusCounts)` set previously leaked raw data values
+    // (chassis numbers, names, etc.) into the column headers whenever an
+    // unrecognized answer was recorded. Intersect the dynamic keys with the
+    // authoritative known list from the backend so only real statuses show.
+    const knownStatuses =
+      summaryStatuses.length > 0
+        ? summaryStatuses
+        : [
+          "Direct Ok",
+          "Rework QC Completed",
+          "Rework QC Pending",
+          "Rejected",
+          "Dispatched",
+        ];
+
+    const dynamicStatuses = Array.from(
       new Set(
         activeInspectorSummary.flatMap((item: any) =>
           Object.keys(item.statusCounts || {}),
         ),
       ),
     );
-    return statuses.length > 0 ? statuses : summaryStatuses;
+
+    const filtered = dynamicStatuses.filter((status) =>
+      knownStatuses.includes(status),
+    );
+    return filtered.length > 0 ? filtered : knownStatuses;
   }, [activeInspectorSummary, summaryStatuses]);
 
 
@@ -2154,8 +2174,8 @@ export default function DashboardNew() {
                 const customerBaseUrl = isLocal
                   ? "http://localhost:5174/"
                   : isStaging
-                  ? "https://servicerequests.netlify.app/"
-                  : "https://3wheelertvs.focusengineeringapp.com/";
+                    ? "https://servicerequests.netlify.app/"
+                    : "https://3wheelertvs.focusengineeringapp.com/";
 
                 const customerPortalUrl = `${customerBaseUrl}${currentTenant.slug}`;
                 const customerPortalDisplay = customerPortalUrl.replace("https://", "").replace("http://", "");

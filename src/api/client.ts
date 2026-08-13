@@ -894,8 +894,12 @@ class ApiClient {
     if (options?.includePartial) query.set("includePartial", "true");
 
     const queryString = query.toString() ? `?${query.toString()}` : "";
-    // Add 2-minute timeout for analytics
-    const timeout = options?.analytics ? 120000 : 30000;
+    // Analytics requests are now paginated (500 rows/page) instead of
+    // fetching a form's entire history in one shot, so they no longer
+    // need a multi-minute timeout - 30s is generous for a bounded batch
+    // and fails fast if something's actually wrong, instead of the UI
+    // silently hanging.
+    const timeout = 30000;
     return this.request<{ responses: any[]; form: any; pagination: any }>(
       `/responses/form/${formId}${queryString}`,
       { forceNetwork: options?.forceNetwork, timeout }
@@ -2978,28 +2982,63 @@ class ApiClient {
 
   async getAllFormResponses(
     formId: string,
-    options?: { status?: string; includePartial?: boolean; analytics?: boolean; forceNetwork?: boolean },
+    options?: {
+      status?: string;
+      includePartial?: boolean;
+      analytics?: boolean;
+      forceNetwork?: boolean;
+      // Called after each page is fetched, with just that page's rows plus
+      // running progress. Lets callers (e.g. the analytics dashboard)
+      // render/merge data incrementally instead of waiting for every page
+      // to finish before showing anything - the backend now paginates
+      // analytics requests (500 rows/page) instead of returning the whole
+      // form's history in one unbounded request, so a big form arrives as
+      // a stream of quick requests rather than one multi-minute one.
+      onPage?: (page: {
+        responses: any[];
+        pageNumber: number;
+        totalPages: number;
+        isLast: boolean;
+      }) => void;
+    },
   ) {
-    // Use a single larger limit for analytics to reduce round-trips
-    const pageLimit = options?.analytics ? 10000 : 5000;
+    // Analytics used to request one giant 10000-row page to "reduce round
+    // trips" - that's exactly what made a single request take minutes on
+    // large forms. Now it matches the backend's per-page cap (500) so each
+    // round trip stays fast and predictable regardless of the form's total
+    // response count.
+    const pageLimit = options?.analytics ? 500 : 5000;
     let page = 1;
     let allResponses: any[] = [];
     let totalPages = 1;
     let form: any = undefined;
 
-    // Use longer timeout for analytics
-    const timeout = options?.analytics ? 180000 : 60000;
+    // Shorter per-request timeout now that each request is a bounded
+    // batch, not the whole dataset - a single slow page fails fast instead
+    // of the entire load silently hanging for minutes.
+    const timeout = options?.analytics ? 30000 : 60000;
 
     do {
       const result = await this.getFormResponses(formId, {
-        ...options,
+        status: options?.status,
+        includePartial: options?.includePartial,
+        analytics: options?.analytics,
         page,
         limit: pageLimit,
         forceNetwork: options?.forceNetwork,
       });
-      allResponses = allResponses.concat(result.responses || []);
+      const pageResponses = result.responses || [];
+      allResponses = allResponses.concat(pageResponses);
       form = result.form ?? form;
       totalPages = result.pagination?.totalPages ?? 1;
+
+      options?.onPage?.({
+        responses: pageResponses,
+        pageNumber: page,
+        totalPages,
+        isLast: page >= totalPages,
+      });
+
       page += 1;
     } while (page <= totalPages);
 
@@ -3018,7 +3057,7 @@ class ApiClient {
         performanceScore: number;
       }>;
       totalResponses: number;
-    }>("/biw-summary", { forceNetwork: params?.forceNetwork });
+    }>("/responses/biw-summary", { forceNetwork: params?.forceNetwork });
   }
 }
 
