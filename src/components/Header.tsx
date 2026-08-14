@@ -113,7 +113,7 @@ export default function Header() {
       }
 
       // For inspector/subadmin, check if they have ANY analytics permission for this form
-      const subTypes = ['response', 'dashboard', 'overall', 'questions', 'sections'];
+      const subTypes = ['response', 'dashboard'];
       for (const subType of subTypes) {
         if (permissionSet.has(`analytics:form:${formId}:${subType}`)) {
           return true;
@@ -126,9 +126,7 @@ export default function Header() {
   const getAllowedTabsForForm = React.useCallback((formId: string) => {
     const tabs = [
       { name: "Dashboard", key: "dashboard", subType: "dashboard" },
-      { name: "Questions", key: "question", subType: "questions" },
-      { name: "Sections", key: "section", subType: "sections" },
-      { name: "Overall", key: "overall", subType: "overall" },
+
       { name: "Responses", key: "responses", subType: "response" },
     ];
 
