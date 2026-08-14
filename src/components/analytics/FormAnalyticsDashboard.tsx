@@ -2483,6 +2483,81 @@ export default function FormAnalyticsDashboard() {
     null,
   );
 
+  const [tvsReviews, setTvsReviews] = useState<any[]>([]);
+  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
+  const [analyticsView, setAnalyticsView] = useState<"responses" | "dashboard">(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["responses", "dashboard"].includes(tabParam)) {
+      return tabParam as any;
+    }
+    return "dashboard";
+  });
+
+  useEffect(() => {
+    // Only fetch TVS reviews when in dashboard view or overall view and responses exist
+    if (responses.length === 0 || (analyticsView !== "dashboard")) return;
+
+    const fetchBulkReviews = async () => {
+      try {
+        setIsLoadingReviews(true);
+        const responseIds = responses.map((r) => r.id || r._id).filter(Boolean);
+        if (responseIds.length === 0) {
+          setIsLoadingReviews(false);
+          return;
+        }
+
+        // ✅ FIX: Use the correct endpoint
+        // Instead of /api/responses/reviews/bulk, use the existing endpoint
+        const res = await fetch("/api/responses/reviews/bulk", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+          },
+          body: JSON.stringify({ responseIds }),
+        });
+
+        // ✅ FIX: If the endpoint doesn't exist, fetch reviews one by one
+        if (!res.ok) {
+          console.warn('Bulk reviews endpoint not found, fetching individually...');
+          const reviews = [];
+          for (const id of responseIds.slice(0, 10)) { // Limit to 10 to avoid rate limiting
+            try {
+              const singleRes = await fetch(`/api/responses/reviews/${id}`, {
+                headers: {
+                  Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
+                },
+              });
+              if (singleRes.ok) {
+                const data = await singleRes.json();
+                if (data.success && data.reviews) {
+                  reviews.push(...data.reviews);
+                }
+              }
+            } catch (e) {
+              console.error(`Failed to fetch reviews for ${id}:`, e);
+            }
+          }
+          setTvsReviews(reviews);
+          setIsLoadingReviews(false);
+          return;
+        }
+
+        const data = await res.json();
+        if (data.success) {
+          setTvsReviews(data.data || []);
+        }
+      } catch (err) {
+        console.error("Error fetching bulk TVS reviews:", err);
+      } finally {
+        setIsLoadingReviews(false);
+      }
+    };
+
+    fetchBulkReviews();
+  }, [responses, analyticsView]);
+
   const [editingChassisResponseId, setEditingChassisResponseId] = useState<string | null>(null);
   const [chassisEditValue, setChassisEditValue] = useState<string>("");
   const [isSavingChassis, setIsSavingChassis] = useState(false);
@@ -3012,16 +3087,7 @@ export default function FormAnalyticsDashboard() {
     }
   };
 
-  const [analyticsView, setAnalyticsView] = useState<
-    "question" | "section" | "table" | "responses" | "dashboard" | "comparison" | "overall"
-  >(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const tabParam = searchParams.get("tab");
-    if (tabParam && ["question", "section", "table", "responses", "dashboard", "comparison", "overall"].includes(tabParam)) {
-      return tabParam as any;
-    }
-    return "dashboard";
-  });
+
 
   // Sync tab with URL parameter
   useEffect(() => {
@@ -3059,7 +3125,7 @@ export default function FormAnalyticsDashboard() {
     }
 
     // Otherwise, default to first allowed tab
-    const tabOrder = ["dashboard", "question", "section", "overall", "responses"];
+    const tabOrder = ["dashboard", "responses"];
     for (const tab of tabOrder) {
       if (hasTabPermission(tab)) {
         setAnalyticsView(tab as any);
@@ -3190,6 +3256,17 @@ export default function FormAnalyticsDashboard() {
     startDate: string;
     endDate: string;
   }>({ type: "all", startDate: "", endDate: "" });
+
+  const commonDateRangeLabel = useMemo(() => {
+    if (dateFilter.startDate && dateFilter.endDate) {
+      return `${new Date(dateFilter.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${new Date(dateFilter.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+    } else if (dateFilter.startDate) {
+      return `From ${new Date(dateFilter.startDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+    } else if (dateFilter.endDate) {
+      return `Until ${new Date(dateFilter.endDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+    }
+    return "All Time";
+  }, [dateFilter.startDate, dateFilter.endDate]);
 
   const [hasUserAppliedDateFilter, setHasUserAppliedDateFilter] =
     useState(false);
@@ -4127,7 +4204,7 @@ export default function FormAnalyticsDashboard() {
   // set analyticsView; this propagates that choice into the lazy-loading
   // tab tracker below without needing to touch every button's onClick).
   useEffect(() => {
-    const knownTabs = ["dashboard", "question", "section", "overall", "responses"] as const;
+    const knownTabs = ["dashboard", "responses"] as const;
     const tab = (knownTabs as readonly string[]).includes(analyticsView)
       ? (analyticsView as typeof activeTab)
       : "dashboard";
@@ -4148,17 +4225,7 @@ export default function FormAnalyticsDashboard() {
   // Question / Section / Overall tabs also derive their charts and stats
   // from the full `responses` array. If the user lands directly on one of
   // these without visiting Dashboard first, load the full set once here.
-  useEffect(() => {
-    if (
-      (activeTab === "question" || activeTab === "section" || activeTab === "overall") &&
-      !loadedTabs.has(activeTab)
-    ) {
-      if (!loadedTabs.has("dashboard") && responses.length === 0) {
-        fetchFullAnalyticsResponses();
-      }
-      setLoadedTabs((prev) => new Set(prev).add(activeTab));
-    }
-  }, [activeTab]);
+
 
   // Responses tab: server-side paginated fetch for the table rows, loaded
   // once on first visit. The Status column, however, is computed from the
@@ -4208,23 +4275,7 @@ export default function FormAnalyticsDashboard() {
     }
   };
   // Add this useEffect to update selectedQuestion
-  useEffect(() => {
-    if (!selectedQuestionId || !form?.sections?.[0]) {
-      setSelectedQuestion(null);
-      return;
-    }
 
-    // Find the selected question from the FIRST section only
-    const firstSection = form.sections[0];
-    const foundQuestion = firstSection.questions?.find(
-      (q: any) => q.id === selectedQuestionId,
-    );
-
-    console.log("Found question:", foundQuestion); // For debugging
-    console.log("Question options:", foundQuestion?.options); // For debugging
-
-    setSelectedQuestion(foundQuestion || null);
-  }, [selectedQuestionId, form]);
 
   const availableLocations = useMemo(() => {
     const locations = new Set<string>();
@@ -4976,7 +5027,6 @@ export default function FormAnalyticsDashboard() {
     return result;
   }, [baseFilteredResponses, dateFilter, selectedInspectorForTrend, responsesSearchTerm, responseStatuses]);
 
-
   useEffect(() => {
     setResponsesPage(1);
   }, [dateFilter, selectedInspectorForTrend, id, responsesSearchTerm]);
@@ -5148,94 +5198,9 @@ export default function FormAnalyticsDashboard() {
   const dashboardSectionPerformanceStats =
     sharedDateFilteredSectionPerformanceStats;
 
-  const sectionPerformanceStats = useMemo(() => {
-    if (
-      analyticsView !== "dashboard" &&
-      analyticsView !== "overall" &&
-      analyticsView !== "section"
-    ) {
-      return [];
-    }
-    return computeSectionPerformanceStats(form, filteredResponses);
-  }, [form, filteredResponses, analyticsView]);
 
-  const filteredSectionStats = useMemo(
-    () =>
-      sectionPerformanceStats.filter(
-        (stat) =>
-          stat.yes > 0 ||
-          stat.no > 0 ||
-          stat.na > 0 ||
-          (stat.accepted && stat.accepted > 0) ||
-          (stat.rejected && stat.rejected > 0) ||
-          (stat.rework && stat.rework > 0),
-      ),
-    [sectionPerformanceStats],
-  );
 
-  useEffect(() => {
-    const availableIds = filteredSectionStats.map((stat) => stat.id);
-    setSelectedSectionIds((prev) => {
-      if (!availableIds.length) {
-        return [];
-      }
-      if (!prev.length) {
-        return availableIds;
-      }
-      const next = prev.filter((id) => availableIds.includes(id));
-      return next.length ? next : availableIds;
-    });
-  }, [filteredSectionStats]);
 
-  const visibleSectionStats = useMemo(
-    () =>
-      filteredSectionStats.filter((stat) =>
-        selectedSectionIds.includes(stat.id),
-      ),
-    [filteredSectionStats, selectedSectionIds],
-  );
-
-  const zoneAnalytics = useMemo(() => {
-    if (
-      analyticsView !== "dashboard" &&
-      analyticsView !== "overall" &&
-      analyticsView !== "comparison"
-    ) {
-      return {
-        inspectionStatus: { accepted: 0, rework: 0, rejected: 0, total: 0 },
-        zoneBreakdown: [],
-      };
-    }
-    return getZoneAnalytics(filteredResponses);
-  }, [filteredResponses, analyticsView]);
-
-  const top20Issues = useMemo(() => {
-    const allDefects: Array<{
-      name: string;
-      zone: string;
-      category: string;
-      reworkCount: number;
-      rejectedCount: number;
-      total: number;
-    }> = [];
-
-    zoneAnalytics.zoneBreakdown.forEach((zone) => {
-      zone.categories.forEach((cat) => {
-        cat.defects.forEach((defect) => {
-          allDefects.push({
-            name: defect.name,
-            zone: zone.zone,
-            category: cat.category,
-            reworkCount: defect.reworkCount,
-            rejectedCount: defect.rejectedCount,
-            total: defect.reworkCount + defect.rejectedCount,
-          });
-        });
-      });
-    });
-
-    return allDefects.sort((a, b) => b.total - a.total).slice(0, 20);
-  }, [zoneAnalytics]);
 
   // Helper to safely extract display values from any answer type
 
@@ -5879,170 +5844,12 @@ export default function FormAnalyticsDashboard() {
     );
   };
 
-  const handleSelectAllSections = () => {
-    setSelectedSectionIds(filteredSectionStats.map((stat) => stat.id));
-  };
 
-  const toggleSectionSelection = (sectionId: string) => {
-    setSelectedSectionIds((prev) => {
-      if (prev.includes(sectionId)) {
-        if (prev.length === 1) {
-          return prev;
-        }
-        return prev.filter((id) => id !== sectionId);
-      }
-      return [...prev, sectionId];
-    });
-  };
 
-  const sectionChartData = useMemo(() => {
-    const calculatePercentage = (value: number, total: number) =>
-      total ? parseFloat(((value / total) * 100).toFixed(1)) : 0;
 
-    return {
-      labels: visibleSectionStats.map((stat) => formatSectionLabel(stat.title)),
-      datasets: [
-        {
-          label: complianceLabels.na,
-          data: visibleSectionStats.map((stat) =>
-            calculatePercentage(stat.na + (stat.rework || 0), stat.total),
-          ),
-          backgroundColor: "#93c5fd",
-          borderRadius: 4,
-          barThickness: 20,
-          hoverBorderWidth: 2,
-          hoverBorderColor: "#ffffff",
-        },
-        {
-          label: complianceLabels.no,
-          data: visibleSectionStats.map((stat) =>
-            calculatePercentage(stat.no + (stat.rejected || 0), stat.total),
-          ),
-          backgroundColor: "#3b82f6",
-          borderRadius: 4,
-          barThickness: 20,
-          hoverBorderWidth: 2,
-          hoverBorderColor: "#ffffff",
-        },
-        {
-          label: complianceLabels.yes,
-          data: visibleSectionStats.map((stat) =>
-            calculatePercentage(stat.yes + (stat.accepted || 0), stat.total),
-          ),
-          backgroundColor: "#1d4ed8",
-          borderRadius: 4,
-          barThickness: 20,
-          hoverBorderWidth: 2,
-          hoverBorderColor: "#ffffff",
-        },
-      ],
-    };
-  }, [filteredSectionStats]);
 
-  const sectionChartOptions = useMemo(
-    () => ({
-      indexAxis: "y",
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: "point",
-        intersect: false,
-      },
-      layout: {
-        padding: { top: 16, right: 32, bottom: 16, left: 8 },
-      },
-      plugins: {
-        legend: {
-          position: "bottom",
-          labels: {
-            color: "#374151",
-            generateLabels: (chart: any) => {
-              const labels =
-                ChartJS.defaults.plugins.legend.labels.generateLabels(chart);
-              labels.forEach((label: any) => {
-                label.color = document.documentElement.classList.contains(
-                  "dark",
-                )
-                  ? "#d1d5db"
-                  : "#374151";
-              });
-              return labels;
-            },
-          },
-        },
-        tooltip: {
-          enabled: true,
-          mode: "index",
-          intersect: false,
-          anchor: "center",
-          callbacks: {
-            title: (items: any[]) => {
-              const index = items?.[0]?.dataIndex;
-              console.log(
-                "Tooltip title items:",
-                items,
-                "index:",
-                index,
-                "title:",
-                visibleSectionStats[index]?.title,
-              );
-              if (index === undefined) {
-                return "";
-              }
-              return visibleSectionStats[index]?.title || "";
-            },
-            label: (context: any) => {
-              console.log(
-                "Tooltip label context:",
-                context,
-                "raw:",
-                context.raw,
-                "dataset:",
-                context.dataset.label,
-              );
-              const value = context.raw ?? 0;
-              return `${context.dataset.label}: ${value.toFixed(1)}%`;
-            },
-          },
-        },
-      },
-      scales: {
-        x: {
-          beginAtZero: true,
-          max: 100,
-          stacked: true,
-          ticks: {
-            callback: (value: any) => `${value}%`,
-            color: "#374151",
-          },
-          title: {
-            display: true,
-            text: "Percentage",
-            color: "#374151",
-          },
-          grid: {
-            color: "#e5e7eb",
-          },
-        },
-        y: {
-          stacked: true,
-          ticks: {
-            autoSkip: false,
-            color: "#374151",
-          },
-          title: {
-            display: true,
-            text: "Sections",
-            color: "#374151",
-          },
-          grid: {
-            color: "#e5e7eb",
-          },
-        },
-      },
-    }),
-    [visibleSectionStats],
-  );
+
+
 
   const visibleDashboardSectionStats = useMemo(
     () =>
@@ -6224,17 +6031,20 @@ export default function FormAnalyticsDashboard() {
     };
   }, [inspectionStats]);
 
-  const questionPerformanceStats = useMemo(() => {
-    if (analyticsView !== "question" && analyticsView !== "overall") {
-      return [];
-    }
-    return computeQuestionPerformanceStats(form, filteredResponses);
-  }, [form, filteredResponses, analyticsView]);
+
 
   const defectChartResponses = useMemo(() => {
     if (analyticsView !== "dashboard" && analyticsView !== "overall") {
       return [];
     }
+
+    console.log("=== defectChartResponses DEBUG ===");
+    console.log("filteredResponses count:", filteredResponses.length);
+
+    // Check how many responses have BIW reviews
+    const withBiw = filteredResponses.filter(r => r.biwReview?.flaggedQuestions?.length > 0);
+    console.log("Responses with BIW in filteredResponses:", withBiw.length);
+
     let result = [...filteredResponses];
 
     if (dateFilter.startDate || dateFilter.endDate) {
@@ -6263,13 +6073,10 @@ export default function FormAnalyticsDashboard() {
       return dateB - dateA;
     });
 
-    if (!dateFilter.startDate && !dateFilter.endDate) {
-      return result.slice(0, 20);
-    }
-
-    return result;
+    // REMOVE the slice - use ALL responses
+    console.log("Final result count:", result.length);
+    return result;  // Return ALL responses
   }, [filteredResponses, dateFilter.startDate, dateFilter.endDate]);
-
   const trendChartResponses = useMemo(() => {
     let result = [...filteredResponses];
 
@@ -6309,55 +6116,7 @@ export default function FormAnalyticsDashboard() {
     return computeQuestionPerformanceStats(form, defectChartResponses);
   }, [form, defectChartResponses, analyticsView]);
 
-  const sectionChartHeight = Math.max(320, visibleSectionStats.length * 56);
 
-  const sectionsStats = useMemo(() => {
-    if (analyticsView !== "section" && analyticsView !== "overall") {
-      return [];
-    }
-    if (!form?.sections) return [];
-
-    const map = new Map<string, number>();
-    responses.forEach((response) => {
-      if (response.answers) {
-        Object.keys(response.answers).forEach((qId) => {
-          const answer = response.answers[qId];
-          if (answer !== null && answer !== undefined && answer !== "") {
-            map.set(qId, (map.get(qId) || 0) + 1);
-          }
-        });
-      }
-    });
-
-    return form.sections.map((section) => ({
-      section,
-      stats: getSectionStats(section, responses, map),
-    }));
-  }, [form, responses, analyticsView]);
-
-  const filteredSectionsStats = useMemo(() => {
-    if (analyticsView !== "section" && analyticsView !== "overall") {
-      return [];
-    }
-    if (!form?.sections) return [];
-
-    const map = new Map<string, number>();
-    filteredResponses.forEach((response) => {
-      if (response.answers) {
-        Object.keys(response.answers).forEach((qId) => {
-          const answer = response.answers[qId];
-          if (answer !== null && answer !== undefined && answer !== "") {
-            map.set(qId, (map.get(qId) || 0) + 1);
-          }
-        });
-      }
-    });
-
-    return form.sections.map((section) => ({
-      section,
-      stats: getSectionStats(section, filteredResponses, map),
-    }));
-  }, [form, filteredResponses, analyticsView]);
 
   const OverallQualityPieChart = () => {
     // NOTE: Dispatched is intentionally NOT one of the doughnut slices.
@@ -6585,20 +6344,7 @@ export default function FormAnalyticsDashboard() {
       return filtered.slice(0, 20);
     }, [chartQuestionPerformanceStats, chartSortOrder]);
 
-    const dateRangeLabel = useMemo(() => {
-      if (defectChartResponses.length === 0) return "";
-      const timestamps = defectChartResponses.map((r) =>
-        new Date(getResponseTimestamp(r) || 0).getTime(),
-      );
-      const minDate = new Date(Math.min(...timestamps));
-      const maxDate = new Date(Math.max(...timestamps));
 
-      const format = (d: Date) =>
-        d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
-      if (format(minDate) === format(maxDate)) return format(minDate);
-      return `${format(minDate)} - ${format(maxDate)}`;
-    }, [defectChartResponses]);
 
     if (
       !processedQuestions.length &&
@@ -6743,7 +6489,7 @@ export default function FormAnalyticsDashboard() {
               </h3>
               <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
                 {complianceLabels.no} & {complianceLabels.na} volume (
-                {dateRangeLabel})
+                {commonDateRangeLabel})
               </p>
             </div>
           </div>
@@ -6839,6 +6585,664 @@ export default function FormAnalyticsDashboard() {
             className={chartOrientation === "h" ? "overflow-y-auto" : "w-full"}
           >
             <div style={containerStyle} id="issue-percentage-chart">
+              <Bar data={data} options={options} />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const BiwDefectDistributionChart = () => {
+    const biwProcessedQuestions = useMemo(() => {
+      // ✅ STEP 1: Deduplicate responses by ID
+      const uniqueResponsesMap = new Map();
+      defectChartResponses.forEach((response) => {
+        const id = response.id || response._id;
+        if (id && !uniqueResponsesMap.has(id)) {
+          uniqueResponsesMap.set(id, response);
+        }
+      });
+      const uniqueResponses = Array.from(uniqueResponsesMap.values());
+
+      console.log("=== BIW DEBUG (DEDUPLICATED) ===");
+      console.log("Original responses:", defectChartResponses.length);
+      console.log("Unique responses:", uniqueResponses.length);
+
+      // ✅ STEP 2: Filter to only responses with BIW reviews
+      const responsesWithBiw = uniqueResponses.filter(r => r.biwReview?.flaggedQuestions?.length > 0);
+      console.log("Unique responses with BIW reviews:", responsesWithBiw.length);
+
+      // ✅ STEP 3: Log each unique response
+      responsesWithBiw.forEach((r, idx) => {
+        console.log(`Response ${idx + 1}:`, {
+          id: r.id,
+          status: r.biwReview?.status,
+          flaggedQuestions: r.biwReview?.flaggedQuestions?.map(fq => fq.questionId)
+        });
+      });
+
+      const qMap = new Map<string, { id: string; text: string; rejected: number; rework: number }>();
+
+      responsesWithBiw.forEach((response) => {
+        const status = response.biwReview?.status;
+        response.biwReview?.flaggedQuestions?.forEach((fq) => {
+          if (!qMap.has(fq.questionId)) {
+            console.log(`New question found: ${fq.questionId} - ${fq.questionText}`);
+            qMap.set(fq.questionId, {
+              id: fq.questionId,
+              text: fq.questionText || "Unknown",
+              rejected: 0,
+              rework: 0
+            });
+          }
+          const stat = qMap.get(fq.questionId)!;
+          if (status === "Rejected") {
+            stat.rejected++;
+            console.log(`  ✅ ${fq.questionId}: Rejected++ (now ${stat.rejected})`);
+          } else if (status === "Reworked") {
+            stat.rework++;
+            console.log(`  🔄 ${fq.questionId}: Rework++ (now ${stat.rework})`);
+          }
+        });
+      });
+
+      console.log("Final counts (deduplicated):");
+      qMap.forEach((value, key) => {
+        console.log(`  ${key}: Rejected=${value.rejected}, Rework=${value.rework}, Total=${value.rejected + value.rework}`);
+      });
+
+      let filtered = Array.from(qMap.values()).map(q => ({
+        ...q,
+        total: q.rejected + q.rework
+      })).filter(q => q.rejected > 0 || q.rework > 0);
+
+      console.log("Chart data (deduplicated):", filtered.map(q => ({
+        text: q.text,
+        rejected: q.rejected,
+        rework: q.rework,
+        total: q.total
+      })));
+
+      if (chartSortOrder === "percentage") {
+        filtered = [...filtered].sort((a, b) => {
+          const percentA = ((a.rejected + a.rework) / (a.total || 1)) * 100;
+          const percentB = ((b.rejected + b.rework) / (b.total || 1)) * 100;
+          return percentB - percentA;
+        });
+      } else {
+        filtered = [...filtered].sort((a, b) => (b.rejected + b.rework) - (a.rejected + a.rework));
+      }
+
+      return filtered.slice(0, 20);
+    }, [defectChartResponses, chartSortOrder]);
+
+    if (
+      !biwProcessedQuestions.length &&
+      !dateFilter.startDate &&
+      !dateFilter.endDate
+    )
+      return null;
+
+    const data = {
+      labels: biwProcessedQuestions.map((q) =>
+        q.text.length > 25 ? q.text.substring(0, 25) + "..." : q.text,
+      ),
+      datasets: [
+        {
+          label: "Rejected (BIW)",
+          data: biwProcessedQuestions.map((q) => q.rejected),
+          backgroundColor: "rgba(153, 27, 27, 0.85)", // Dark Red
+          borderColor: "rgb(127, 29, 29)",
+          borderWidth: 1,
+          barPercentage: biwProcessedQuestions.length <= 2 ? 0.3 : 0.7,
+          categoryPercentage: 0.8,
+          datalabels: {
+            color: "#ffffff",
+            font: { weight: "bold" as const, size: 10 },
+            formatter: (value: number) => (value > 0 ? value : ""),
+            textAlign: "center" as const,
+          },
+        },
+        {
+          label: "Rework (BIW)",
+          data: biwProcessedQuestions.map((q) => q.rework),
+          backgroundColor: "rgba(55, 65, 81, 0.85)", // Dark Gray
+          borderColor: "rgb(31, 41, 55)",
+          borderWidth: 1,
+          barPercentage: biwProcessedQuestions.length <= 2 ? 0.3 : 0.7,
+          categoryPercentage: 0.8,
+          datalabels: {
+            color: "#ffffff",
+            font: { weight: "bold" as const, size: 10 },
+            formatter: (value: number) => (value > 0 ? value : ""),
+            textAlign: "center" as const,
+          },
+        },
+      ],
+    };
+
+    const options = {
+      indexAxis: chartOrientation === "h" ? ("y" as const) : ("x" as const),
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom" as const,
+          labels: {
+            color: document.documentElement.classList.contains("dark")
+              ? "#e5e7eb"
+              : "#374151",
+            font: { size: 11, weight: "bold" as const },
+            padding: 20,
+            usePointStyle: true,
+          },
+        },
+        datalabels: {
+          display: (context: any) => {
+            return context.dataset.data[context.dataIndex] > 0;
+          },
+        },
+        tooltip: {
+          backgroundColor: "rgba(0, 0, 0, 0.8)",
+          padding: 12,
+          cornerRadius: 8,
+          callbacks: {
+            label: function (context: any) {
+              const value = context.raw;
+              return `${context.dataset.label}: ${value}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: {
+            color: document.documentElement.classList.contains("dark")
+              ? "#e5e7eb"
+              : "#374151",
+            font: { size: 10, weight: "600" as const },
+            maxRotation: chartOrientation === "v" ? 45 : 0,
+            minRotation: 0,
+          },
+          grid: {
+            display: false,
+          },
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            color: document.documentElement.classList.contains("dark")
+              ? "#9ca3af"
+              : "#6b7280",
+            font: { size: 10 },
+          },
+          grid: {
+            color: document.documentElement.classList.contains("dark")
+              ? "rgba(255, 255, 255, 0.05)"
+              : "rgba(0, 0, 0, 0.03)",
+          },
+        },
+      },
+      interaction: {
+        mode: "nearest" as const,
+        intersect: true,
+      },
+    };
+
+    const containerStyle =
+      chartOrientation === "h"
+        ? {
+          height: `${Math.max(450, biwProcessedQuestions.length * 40)}px`,
+          position: "relative" as const,
+        }
+        : { height: "450px", position: "relative" as const };
+
+    return (
+      <div
+        id="biw-defect-distribution-chart"
+        className="p-4 sm:p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow"
+      >
+        <div
+          data-pdf-hide="true"
+          className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6"
+        >
+          <div className="flex items-center">
+            <div className="p-2 bg-gradient-to-br from-red-600 to-slate-700 rounded-lg mr-2">
+              <BarChart3 className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+                BIW Defect Distribution
+              </h3>
+              <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
+                BIW Rejected & Rework volume ({commonDateRangeLabel})
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {/* Sort Toggle */}
+            <div className="flex items-center bg-slate-100 dark:bg-gray-700 p-1 rounded-lg">
+              <button
+                onClick={() => setChartSortOrder("default")}
+                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded transition-all ${chartSortOrder === "default"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
+              >
+                DEFAULT
+              </button>
+              <button
+                onClick={() => setChartSortOrder("percentage")}
+                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded transition-all ${chartSortOrder === "percentage"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
+              >
+                ISSUE %
+              </button>
+            </div>
+
+            {/* Orientation Toggle */}
+            <div className="flex items-center bg-slate-100 dark:bg-gray-700 p-1 rounded-lg">
+              <button
+                onClick={() => setChartOrientation("v")}
+                title="Vertical View"
+                className={`p-1 rounded transition-all ${chartOrientation === "v"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={() => setChartOrientation("h")}
+                title="Horizontal View"
+                className={`p-1 rounded transition-all ${chartOrientation === "h"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
+              >
+                <svg
+                  className="w-4 h-4 rotate-90"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {biwProcessedQuestions.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center min-h-[300px] text-center p-8">
+            <div className="p-4 bg-slate-50 dark:bg-gray-800/50 rounded-full mb-4">
+              <CheckCircle className="w-12 h-12 text-green-500 opacity-50" />
+            </div>
+            <h4 className="text-slate-900 dark:text-white font-bold mb-1">
+              No BIW Defects Found
+            </h4>
+            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs">
+              No BIW rejected or rework responses were found for your current
+              selection.
+            </p>
+          </div>
+        ) : (
+          <div
+            className={chartOrientation === "h" ? "overflow-y-auto" : "w-full"}
+          >
+            <div style={containerStyle} id="biw-issue-percentage-chart">
+              <Bar data={data} options={options} />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const TvsDefectDistributionChart = () => {
+    const tvsProcessedQuestions = useMemo(() => {
+      // ✅ STEP 1: Deduplicate tvsReviews by ID
+      const uniqueReviewsMap = new Map();
+      tvsReviews.forEach((review) => {
+        const id = review._id || review.id;
+        if (id && !uniqueReviewsMap.has(id)) {
+          uniqueReviewsMap.set(id, review);
+        }
+      });
+      const uniqueReviews = Array.from(uniqueReviewsMap.values());
+
+      console.log("=== TVS DEBUG (DEDUPLICATED) ===");
+      console.log("Original reviews:", tvsReviews.length);
+      console.log("Unique reviews:", uniqueReviews.length);
+
+      const qMap = new Map<string, { id: string; text: string; rejected: number; rework: number; accepted: number }>();
+
+      uniqueReviews.forEach((review) => {  // Use uniqueReviews instead of tvsReviews
+        if (review.questionContexts?.length) {
+          const status = review.reviewOption;
+          review.questionContexts.forEach((qc: any) => {
+            if (!qMap.has(qc.questionId)) {
+              qMap.set(qc.questionId, {
+                id: qc.questionId,
+                text: qc.title || "Unknown",
+                rejected: 0,
+                rework: 0,
+                accepted: 0
+              });
+            }
+            const stat = qMap.get(qc.questionId)!;
+            if (status === "Rejected") {
+              stat.rejected++;
+            } else if (status === "Rework") {
+              stat.rework++;
+            } else if (status === "Accepted") {
+              stat.accepted++;
+            }
+          });
+        }
+      });
+
+      // Log final counts
+      console.log("Final TVS counts (deduplicated):");
+      qMap.forEach((value, key) => {
+        console.log(`  ${key}: Accepted=${value.accepted}, Rejected=${value.rejected}, Rework=${value.rework}, Total=${value.accepted + value.rejected + value.rework}`);
+      });
+
+      let filtered = Array.from(qMap.values()).map(q => ({
+        ...q,
+        total: q.rejected + q.rework + q.accepted
+      })).filter(q => q.rejected > 0 || q.rework > 0 || q.accepted > 0);
+
+      if (chartSortOrder === "percentage") {
+        filtered = [...filtered].sort((a, b) => {
+          const percentA = ((a.rejected + a.rework) / (a.total || 1)) * 100;
+          const percentB = ((b.rejected + b.rework) / (b.total || 1)) * 100;
+          return percentB - percentA;
+        });
+      } else {
+        filtered = [...filtered].sort((a, b) => (b.rejected + b.rework + b.accepted) - (a.rejected + a.rework + a.accepted));
+      }
+
+      return filtered.slice(0, 20);
+    }, [tvsReviews, chartSortOrder]);
+
+
+    if (
+      !tvsProcessedQuestions.length &&
+      !dateFilter.startDate &&
+      !dateFilter.endDate
+    )
+      return null;
+
+    const data = {
+      labels: tvsProcessedQuestions.map((q) =>
+        q.text.length > 25 ? q.text.substring(0, 25) + "..." : q.text,
+      ),
+      datasets: [
+        {
+          label: "Rejected (TVS Review)",
+          data: tvsProcessedQuestions.map((q) => q.rejected),
+          backgroundColor: "rgba(153, 27, 27, 0.85)", // Dark Red
+          borderColor: "rgb(127, 29, 29)",
+          borderWidth: 1,
+          barPercentage: tvsProcessedQuestions.length <= 2 ? 0.3 : 0.7,
+          categoryPercentage: 0.8,
+          datalabels: {
+            color: "#ffffff",
+            font: { weight: "bold" as const, size: 10 },
+            formatter: (value: number) => (value > 0 ? value : ""),
+            textAlign: "center" as const,
+          },
+        },
+        {
+          label: "Rework (TVS Review)",
+          data: tvsProcessedQuestions.map((q) => q.rework),
+          backgroundColor: "rgba(55, 65, 81, 0.85)", // Dark Gray
+          borderColor: "rgb(31, 41, 55)",
+          borderWidth: 1,
+          barPercentage: tvsProcessedQuestions.length <= 2 ? 0.3 : 0.7,
+          categoryPercentage: 0.8,
+          datalabels: {
+            color: "#ffffff",
+            font: { weight: "bold" as const, size: 10 },
+            formatter: (value: number) => (value > 0 ? value : ""),
+            textAlign: "center" as const,
+          },
+        },
+        {
+          label: "Accepted (TVS Review)",
+          data: tvsProcessedQuestions.map((q) => q.accepted),
+          backgroundColor: "rgba(34, 197, 94, 0.85)", // Green
+          borderColor: "rgb(21, 128, 61)",
+          borderWidth: 1,
+          barPercentage: tvsProcessedQuestions.length <= 2 ? 0.3 : 0.7,
+          categoryPercentage: 0.8,
+          datalabels: {
+            color: "#ffffff",
+            font: { weight: "bold" as const, size: 10 },
+            formatter: (value: number) => (value > 0 ? value : ""),
+            textAlign: "center" as const,
+          },
+        },
+      ],
+    };
+
+    const options = {
+      indexAxis: chartOrientation === "h" ? ("y" as const) : ("x" as const),
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom" as const,
+          labels: {
+            color: document.documentElement.classList.contains("dark")
+              ? "#e5e7eb"
+              : "#374151",
+            font: { size: 11, weight: "bold" as const },
+            padding: 20,
+            usePointStyle: true,
+          },
+        },
+        datalabels: {
+          display: (context: any) => {
+            return context.dataset.data[context.dataIndex] > 0;
+          },
+        },
+        tooltip: {
+          backgroundColor: "rgba(0, 0, 0, 0.8)",
+          padding: 12,
+          cornerRadius: 8,
+          callbacks: {
+            label: function (context: any) {
+              const value = context.raw;
+              return `${context.dataset.label}: ${value}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: {
+            color: document.documentElement.classList.contains("dark")
+              ? "#e5e7eb"
+              : "#374151",
+            font: { size: 10, weight: "600" as const },
+            maxRotation: chartOrientation === "v" ? 45 : 0,
+            minRotation: 0,
+          },
+          grid: {
+            display: false,
+          },
+        },
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            color: document.documentElement.classList.contains("dark")
+              ? "#9ca3af"
+              : "#6b7280",
+            font: { size: 10 },
+          },
+          grid: {
+            color: document.documentElement.classList.contains("dark")
+              ? "rgba(255, 255, 255, 0.05)"
+              : "rgba(0, 0, 0, 0.03)",
+          },
+        },
+      },
+      interaction: {
+        mode: "nearest" as const,
+        intersect: true,
+      },
+    };
+
+    const containerStyle =
+      chartOrientation === "h"
+        ? {
+          height: `${Math.max(450, tvsProcessedQuestions.length * 40)}px`,
+          position: "relative" as const,
+        }
+        : { height: "450px", position: "relative" as const };
+
+    return (
+      <div
+        id="tvs-defect-distribution-chart"
+        className="p-4 sm:p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow"
+      >
+        <div
+          data-pdf-hide="true"
+          className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 mb-6"
+        >
+          <div className="flex items-center">
+            <div className="p-2 bg-gradient-to-br from-indigo-600 to-slate-700 rounded-lg mr-2">
+              <BarChart3 className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+                TVS Defect Distribution
+              </h3>
+              <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400">
+                TVS Review volume ({commonDateRangeLabel})
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+            {/* Sort Toggle */}
+            <div className="flex items-center bg-slate-100 dark:bg-gray-700 p-1 rounded-lg">
+              <button
+                onClick={() => setChartSortOrder("default")}
+                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded transition-all ${chartSortOrder === "default"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
+              >
+                DEFAULT
+              </button>
+              <button
+                onClick={() => setChartSortOrder("percentage")}
+                className={`px-2 py-1 text-[9px] sm:text-[10px] font-bold rounded transition-all ${chartSortOrder === "percentage"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
+              >
+                ISSUE %
+              </button>
+            </div>
+
+            {/* Orientation Toggle */}
+            <div className="flex items-center bg-slate-100 dark:bg-gray-700 p-1 rounded-lg">
+              <button
+                onClick={() => setChartOrientation("v")}
+                title="Vertical View"
+                className={`p-1 rounded transition-all ${chartOrientation === "v"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
+              >
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2"
+                  />
+                </svg>
+              </button>
+              <button
+                onClick={() => setChartOrientation("h")}
+                title="Horizontal View"
+                className={`p-1 rounded transition-all ${chartOrientation === "h"
+                  ? "bg-white dark:bg-gray-600 text-blue-600 shadow-sm"
+                  : "text-slate-500"
+                  }`}
+              >
+                <svg
+                  className="w-4 h-4 rotate-90"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {tvsProcessedQuestions.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center min-h-[300px] text-center p-8">
+            <div className="p-4 bg-slate-50 dark:bg-gray-800/50 rounded-full mb-4">
+              <CheckCircle className="w-12 h-12 text-indigo-500 opacity-50" />
+            </div>
+            <h4 className="text-slate-900 dark:text-white font-bold mb-1">
+              No TVS Reviews Found
+            </h4>
+            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs">
+              No TVS performance reviews were found for your current selection.
+            </p>
+          </div>
+        ) : (
+          <div
+            className={chartOrientation === "h" ? "overflow-y-auto" : "w-full"}
+          >
+            <div style={containerStyle} id="tvs-issue-percentage-chart">
               <Bar data={data} options={options} />
             </div>
           </div>
@@ -7743,6 +8147,8 @@ export default function FormAnalyticsDashboard() {
     navigate(`/responses/${responseId}`);
   };
 
+
+
   const handleEditResponse = (response: Response) => {
     const responseId = response.id || response._id;
     navigate(`/responses/${responseId}/edit-form`);
@@ -7825,6 +8231,38 @@ export default function FormAnalyticsDashboard() {
       setToast(null);
     }, 3000);
   };
+  const [isDashboardRefreshing, setIsDashboardRefreshing] = useState(false);
+  const refreshDashboardData = async () => {
+    setIsDashboardRefreshing(true);
+    try {
+      // Clear only the relevant cache entries
+      try {
+        const cacheKeys = Object.keys(localStorage).filter(key =>
+          key.startsWith("api_cache:") && (
+            key.includes("/analytics/inspector-summary") ||
+            key.includes("/analytics/performance-table") ||
+            key.includes("/responses/form/") ||
+            key.includes("/responses/reviews/bulk")
+          )
+        );
+        cacheKeys.forEach(key => localStorage.removeItem(key));
+      } catch (_) { }
+
+      // Refresh all dashboard data
+      await Promise.all([
+        fetchFullAnalyticsResponses(),
+        fetchPerformanceTable(),
+        fetchSummary()
+      ]);
+
+      showToast("Dashboard refreshed successfully!", "success");
+    } catch (error) {
+      console.error("Refresh failed:", error);
+      showToast("Failed to refresh dashboard", "error");
+    } finally {
+      setIsDashboardRefreshing(false);
+    }
+  };
 
   const handleDeleteResponse = async () => {
     if (!deletingResponseId) return;
@@ -7845,7 +8283,266 @@ export default function FormAnalyticsDashboard() {
       setIsDeleting(false);
     }
   };
+  const PerformanceTableBarChart = () => {
+    if (performanceTableData.length === 0) return null;
 
+    // Get the top 10 performers by total submitted
+    const sortedData = [...performanceTableData]
+      .sort((a, b) => (b.totalSubmitted || 0) - (a.totalSubmitted || 0))
+      .slice(0, 10);
+
+    const data = {
+      labels: sortedData.map(row => row.name?.length > 15 ? row.name.substring(0, 15) + "..." : row.name),
+      datasets: [
+        {
+          label: "Direct Ok",
+          data: sortedData.map(row => row.directOk || 0),
+          backgroundColor: "rgba(34, 197, 94, 0.7)", // Green
+          borderColor: "rgb(21, 128, 61)",
+          borderWidth: 1,
+          stack: "stack1",
+        },
+        {
+          label: "Rework QC Completed",
+          data: sortedData.map(row => row.reworkQcCompleted || 0),
+          backgroundColor: "rgba(59, 130, 246, 0.7)", // Blue
+          borderColor: "rgb(29, 78, 216)",
+          borderWidth: 1,
+          stack: "stack1",
+        },
+        {
+          label: "Rework QC Pending",
+          data: sortedData.map(row => row.reworkQcPending || 0),
+          backgroundColor: "rgba(234, 179, 8, 0.7)", // Yellow
+          borderColor: "rgb(161, 98, 7)",
+          borderWidth: 1,
+          stack: "stack1",
+        },
+        {
+          label: "Rejected",
+          data: sortedData.map(row => row.rejected || 0),
+          backgroundColor: "rgba(239, 68, 68, 0.7)", // Red
+          borderColor: "rgb(185, 28, 28)",
+          borderWidth: 1,
+          stack: "stack1",
+        },
+      ],
+    };
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: "top" as const,
+          labels: {
+            color: darkMode ? "#e5e7eb" : "#374151",
+            font: { size: 10, weight: "bold" as const },
+            padding: 10,
+            usePointStyle: true,
+          },
+        },
+        tooltip: {
+          mode: "nearest" as const,
+          intersect: true,
+          callbacks: {
+            label: (context: any) => {
+              const datasetLabel = context.dataset.label;
+              const value = context.raw;
+              return `${datasetLabel}: ${value}`;
+            },
+          },
+        },
+        datalabels: {
+          display: (context: any) => context.dataset.data[context.dataIndex] > 0,
+          color: "#fff",
+          font: { weight: "bold" as const, size: 9 },
+          formatter: (value: number) => value,
+        },
+      },
+      scales: {
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            color: darkMode ? "#9ca3af" : "#6b7280",
+          },
+          grid: {
+            color: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+          },
+        },
+        x: {
+          stacked: true,
+          ticks: {
+            color: darkMode ? "#9ca3af" : "#6b7280",
+            font: { size: 9 },
+            maxRotation: 45,
+            minRotation: 0,
+          },
+          grid: {
+            display: false,
+          },
+        },
+      },
+    };
+
+    return (
+      <div
+        id="performance-table-chart"
+        className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6"
+      >
+        <div
+          data-pdf-hide="true"
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6"
+        >
+          <div className="flex items-center">
+            <div className="p-2 bg-gradient-to-br from-emerald-600 to-teal-800 rounded-lg mr-2">
+              <BarChart3 className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+                Performance Table - Inspector Metrics
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Top 10 inspectors by submission volume
+              </p>
+            </div>
+          </div>
+        </div>
+        <div style={{ height: "400px", position: "relative" }}>
+          <Bar data={data} options={options} />
+        </div>
+      </div>
+    );
+  };
+  const BiwReviewTableBarChart = () => {
+    if (biwReviewTableData.length === 0) return null;
+
+    // Get the top 10 by total submitted
+    const sortedData = [...biwReviewTableData]
+      .sort((a, b) => (b.totalSubmitted || 0) - (a.totalSubmitted || 0))
+      .slice(0, 10);
+
+    const data = {
+      labels: sortedData.map(row => row.name?.length > 15 ? row.name.substring(0, 15) + "..." : row.name),
+      datasets: [
+        {
+          label: "Accepted",
+          data: sortedData.map(row => row.accepted || 0),
+          backgroundColor: "rgba(34, 197, 94, 0.7)", // Green
+          borderColor: "rgb(21, 128, 61)",
+          borderWidth: 1,
+          stack: "stack1",
+        },
+        {
+          label: "Rejected",
+          data: sortedData.map(row => row.rejected || 0),
+          backgroundColor: "rgba(239, 68, 68, 0.7)", // Red
+          borderColor: "rgb(185, 28, 28)",
+          borderWidth: 1,
+          stack: "stack1",
+        },
+        {
+          label: "Reworked",
+          data: sortedData.map(row => row.rework || 0),
+          backgroundColor: "rgba(234, 179, 8, 0.7)", // Yellow
+          borderColor: "rgb(161, 98, 7)",
+          borderWidth: 1,
+          stack: "stack1",
+        },
+      ],
+    };
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: "top" as const,
+          labels: {
+            color: darkMode ? "#e5e7eb" : "#374151",
+            font: { size: 10, weight: "bold" as const },
+            padding: 10,
+            usePointStyle: true,
+          },
+        },
+        tooltip: {
+          mode: "nearest" as const,
+          intersect: true,
+          callbacks: {
+            label: (context: any) => {
+              const datasetLabel = context.dataset.label;
+              const value = context.raw;
+              return `${datasetLabel}: ${value}`;
+            },
+          },
+        },
+        datalabels: {
+          display: (context: any) => context.dataset.data[context.dataIndex] > 0,
+          color: "#fff",
+          font: { weight: "bold" as const, size: 9 },
+          formatter: (value: number) => value,
+        },
+      },
+      scales: {
+        y: {
+          stacked: true,
+          beginAtZero: true,
+          ticks: {
+            stepSize: 1,
+            color: darkMode ? "#9ca3af" : "#6b7280",
+          },
+          grid: {
+            color: darkMode ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.03)",
+          },
+        },
+        x: {
+          stacked: true,
+          ticks: {
+            color: darkMode ? "#9ca3af" : "#6b7280",
+            font: { size: 9 },
+            maxRotation: 45,
+            minRotation: 0,
+          },
+          grid: {
+            display: false,
+          },
+        },
+      },
+    };
+
+    return (
+      <div
+        id="biw-review-table-chart"
+        className="p-6 bg-gradient-to-br from-white to-slate-50 dark:from-gray-800 dark:to-gray-900 flex flex-col h-full rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg hover:shadow-xl transition-shadow w-full mt-6"
+      >
+        <div
+          data-pdf-hide="true"
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6"
+        >
+          <div className="flex items-center">
+            <div className="p-2 bg-gradient-to-br from-purple-600 to-pink-800 rounded-lg mr-2">
+              <BarChart3 className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white uppercase tracking-tight">
+                BIW Review Table - Inspector Metrics
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Top 10 inspectors by BIW review volume
+              </p>
+            </div>
+          </div>
+        </div>
+        <div style={{ height: "400px", position: "relative" }}>
+          <Bar data={data} options={options} />
+        </div>
+      </div>
+    );
+  };
   const handleBulkDeleteResponses = async () => {
     if (selectedResponseIds.length === 0) return;
 
@@ -8835,42 +9532,7 @@ export default function FormAnalyticsDashboard() {
                   Dashboard
                 </button>
               )}
-              {hasTabPermission("question") && (
-                <button
-                  onClick={() => setAnalyticsView("question")}
-                  className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "question"
-                    ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                    : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-                    }`}
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Questions
-                </button>
-              )}
-              {hasTabPermission("section") && (
-                <button
-                  onClick={() => setAnalyticsView("section")}
-                  className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "section"
-                    ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                    : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-                    }`}
-                >
-                  <FileText className="w-4 h-4" />
-                  Sections
-                </button>
-              )}
-              {hasTabPermission("overall") && (
-                <button
-                  onClick={() => setAnalyticsView("overall")}
-                  className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${analyticsView === "overall"
-                    ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
-                    : "text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-gray-200"
-                    }`}
-                >
-                  <BarChart3 className="w-4 h-4" />
-                  Overall
-                </button>
-              )}
+
               {/* <button
                   onClick={() => setAnalyticsView("table")}
                   className={`px-3 py-2.5 font-semibold transition-all duration-200 flex items-center gap-2 border-b-2 whitespace-nowrap text-sm ${
@@ -8911,16 +9573,53 @@ export default function FormAnalyticsDashboard() {
             )} */}
           </div>
 
+          {/* Refresh Button - Only for Dashboard */}
+
           {/* Right Side - Count and Actions */}
           <div className="flex items-center gap-2 sm:gap-3 whitespace-nowrap w-full lg:w-auto justify-between lg:justify-end">
-            <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <UsersIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
-              <div className="text-right">
-                <div className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
-                  {analytics.total}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Total Responses Count */}
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <UsersIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 dark:text-blue-400" />
+                <div className="text-right">
+                  <div className="text-sm sm:text-base font-bold text-gray-900 dark:text-white">
+                    {analytics.total}
+                  </div>
                 </div>
               </div>
+
+              {/* Refresh Button - Only shows on Dashboard tab */}
+              {analyticsView === "dashboard" && (
+                <button
+                  onClick={refreshDashboardData}
+                  disabled={isDashboardRefreshing}
+                  className={`p-1.5 sm:p-2 rounded-lg transition-colors ${isDashboardRefreshing
+                    ? "text-blue-500 bg-blue-50 dark:bg-blue-900/20"
+                    : "text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                    }`}
+                  title="Refresh Dashboard Data"
+                >
+                  {isDashboardRefreshing ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    </svg>
+                  )}
+                </button>
+              )}
             </div>
+
             <div className="flex items-center gap-1.5 sm:gap-2">
               {uniqueInspectors.length > 0 && (
                 <select
@@ -8954,7 +9653,7 @@ export default function FormAnalyticsDashboard() {
                   </span>
                 )}
               </button>
-              {/* Other action buttons - grouped for better spacing */}
+              {/* Other action buttons */}
               <div className="flex items-center gap-1">
                 {!isGuest && (
                   <>
@@ -9183,11 +9882,14 @@ export default function FormAnalyticsDashboard() {
               </div>
 
               {/* Question Distribution Chart */}
-              {(questionPerformanceStats.length > 0 ||
+
+              {(chartQuestionPerformanceStats.length > 0 ||
                 trendChartResponses.length > 0) && (
                   <div className="w-full" id="question-distribution-card">
                     <div className="w-full space-y-6">
                       <InspectionStatusLineChart />
+                      <BiwDefectDistributionChart />
+                      <TvsDefectDistributionChart />
                       <QuestionStatusDistributionChart />
                       <TimeBasedPerformanceGraph />
                       <DirectAcceptedPerformanceGraph />
@@ -9195,6 +9897,11 @@ export default function FormAnalyticsDashboard() {
                       {renderPerformanceTable()}
                       {renderBiwReviewTable()}
                       <InspectorPerformanceChart />
+
+                      <PerformanceTableBarChart />
+
+                      {/* ✅ NEW: BIW Review Table Bar Chart */}
+                      <BiwReviewTableBarChart />
                     </div>
                   </div>
                 )}
@@ -9205,1156 +9912,9 @@ export default function FormAnalyticsDashboard() {
 
       {form && (
         <>
-          {/* Question-wise Analytics */}
-          {analyticsView === "question" && (
-            <div className="space-y-6">
-              <div className="card p-3 sm:p-6">
-                <ResponseQuestion
-                  question={form}
-                  responses={filteredResponses}
-                />
-              </div>
-            </div>
-          )}
-          {/* Section-wise Analytics */}
-          {analyticsView === "section" && (
-            <div className="space-y-6">
-              {filteredSectionStats.length > 0 ? (
-                <>
-                  <div className="card p-3 sm:p-4 space-y-3">
-                    {/* Header */}
-                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gray-50/50 dark:bg-gray-800/30 p-4 rounded-xl border border-gray-100 dark:border-gray-700/50">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-100 dark:bg-indigo-900/40 rounded-lg">
-                          <PieChart className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-900 dark:text-white tracking-tight">
-                            Section Summary
-                          </h3>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Section-wise performance breakdown
-                          </p>
-                        </div>
-                      </div>
 
-                      <div className="flex flex-wrap items-center gap-3">
-                        {/* Section Selection Dropdown */}
-                        <div className="relative">
-                          <button
-                            onClick={() =>
-                              setShowSectionSelector(!showSectionSelector)
-                            }
-                            className="flex items-center gap-2 px-4 py-2 text-xs font-bold bg-white dark:bg-gray-900 text-indigo-600 dark:text-indigo-400 rounded-lg border-2 border-indigo-100 dark:border-indigo-900/50 hover:border-indigo-500 transition-all shadow-sm"
-                          >
-                            <Filter className="w-3.5 h-3.5" />
-                            Sections ({selectedSectionIds.length})
-                            <ChevronDown
-                              className={`w-3.5 h-3.5 transition-transform ${showSectionSelector ? "rotate-180" : ""}`}
-                            />
-                          </button>
 
-                          {showSectionSelector && (
-                            <div className="absolute top-full right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-[60] min-w-[240px] max-h-80 overflow-y-auto animate-in slide-in-from-top-2 duration-200">
-                              <div className="sticky top-0 bg-gray-50 dark:bg-gray-900 p-2 border-b border-gray-100 dark:border-gray-800 z-10">
-                                <label className="flex items-center gap-3 px-3 py-2 hover:bg-white dark:hover:bg-gray-800 rounded-lg cursor-pointer transition-colors">
-                                  <input
-                                    type="checkbox"
-                                    checked={
-                                      selectedSectionIds.length ===
-                                      filteredSectionStats.length &&
-                                      filteredSectionStats.length > 0
-                                    }
-                                    onChange={handleSelectAllSections}
-                                    className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                  />
-                                  <span className="text-sm font-bold text-gray-900 dark:text-white">
-                                    Select All Sections
-                                  </span>
-                                </label>
-                              </div>
 
-                              <div className="p-1">
-                                {filteredSectionStats.map((stat) => {
-                                  const selected = selectedSectionIds.includes(
-                                    stat.id,
-                                  );
-                                  return (
-                                    <label
-                                      key={stat.id}
-                                      className={`flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg cursor-pointer transition-colors ${selected ? "bg-indigo-50/30 dark:bg-indigo-900/10" : ""}`}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={selected}
-                                        onChange={() =>
-                                          toggleSectionSelection(stat.id)
-                                        }
-                                        className="w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                                      />
-                                      <span
-                                        className={`text-sm ${selected ? "font-bold text-indigo-600 dark:text-indigo-400" : "text-gray-700 dark:text-gray-300"}`}
-                                      >
-                                        {stat.title}
-                                      </span>
-                                    </label>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Color Legend */}
-                    <div className="flex flex-wrap items-center gap-6 px-4 py-2 border-b border-gray-100 dark:border-gray-800">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 bg-green-500 rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]"></div>
-                        <span className="text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                          {complianceLabels.yes}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.4)]"></div>
-                        <span className="text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                          {complianceLabels.no}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 bg-gray-400 rounded-full shadow-[0_0_8px_rgba(156,163,175,0.4)]"></div>
-                        <span className="text-[11px] font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">
-                          {complianceLabels.na}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Combined Table with Visualization and Radar Chart */}
-                    <div className="flex flex-col lg:flex-row gap-6">
-                      {/* Table Container - Always shrinks for radar chart */}
-                      <div className="flex-1 min-w-0">
-                        <div className="overflow-x-auto no-scrollbar rounded-lg border border-gray-200 dark:border-gray-700">
-                          <table className="min-w-full text-xs sm:text-sm border-collapse">
-                            <thead className="uppercase tracking-wider text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 z-20">
-                              <tr className="bg-gray-200 dark:bg-gray-800">
-                                <th
-                                  rowSpan={2}
-                                  className="text-left px-4 py-3 border border-gray-300 dark:border-gray-600 min-w-[250px] font-bold"
-                                >
-                                  Section Summary
-                                </th>
-                                <th
-                                  rowSpan={2}
-                                  className="text-center px-3 py-3 border border-gray-300 dark:border-gray-600 font-bold"
-                                >
-                                  Total
-                                </th>
-                                <th
-                                  colSpan={3}
-                                  className="text-center px-3 py-2 border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 font-bold"
-                                >
-                                  Section Performance Breakdown
-                                </th>
-                                <th
-                                  rowSpan={2}
-                                  className="text-center px-4 py-3 border border-gray-300 dark:border-gray-600 font-bold"
-                                >
-                                  Visualization
-                                </th>
-                              </tr>
-                              <tr className="bg-gray-100 dark:bg-gray-700/50">
-                                <th className="text-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-green-700 dark:text-green-400 font-bold">
-                                  {complianceLabels.yes}
-                                </th>
-                                <th className="text-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-red-700 dark:text-red-400 font-bold">
-                                  {complianceLabels.no}
-                                </th>
-                                <th className="text-center px-3 py-2 border border-gray-300 dark:border-gray-600 text-slate-700 dark:text-slate-400 font-bold">
-                                  {complianceLabels.na}
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(() => {
-                                return (
-                                  <>
-                                    {sectionSummaryRows.map((row, index) => {
-                                      const rowBgColor =
-                                        index % 2 === 0
-                                          ? "bg-white dark:bg-gray-900"
-                                          : "bg-gray-50 dark:bg-gray-800/50";
-
-                                      return (
-                                        <tr
-                                          key={row.id}
-                                          onClick={() => {
-                                            setAutoOpenSectionId(null);
-                                            setTimeout(
-                                              () =>
-                                                setAutoOpenSectionId(row.id),
-                                              10,
-                                            );
-                                          }}
-                                          className={`border-b border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors cursor-pointer ${rowBgColor}`}
-                                        >
-                                          {/* Section Column */}
-                                          <td className="px-4 py-3 cursor-pointer border border-gray-300 dark:border-gray-600">
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setAutoOpenSectionId(null);
-                                                setTimeout(
-                                                  () =>
-                                                    setAutoOpenSectionId(
-                                                      row.id,
-                                                    ),
-                                                  10,
-                                                );
-                                              }}
-                                              className="font-bold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm transition-colors text-left"
-                                            >
-                                              {row.title}
-                                            </button>
-                                          </td>
-
-                                          {/* Total Column */}
-                                          <td className="text-center px-3 py-3 border border-gray-300 dark:border-gray-600">
-                                            <div className="font-bold text-gray-900 dark:text-white text-sm">
-                                              {row.total}
-                                            </div>
-                                          </td>
-
-                                          {/* Yes Column */}
-                                          <td className="text-center px-3 py-3 border border-gray-300 dark:border-gray-600">
-                                            <div className="font-bold text-green-700 dark:text-green-400 text-sm">
-                                              {row.yesCount}{" "}
-                                              <span className="text-gray-500 dark:text-gray-400 font-medium">
-                                                (
-                                                {Number.isFinite(row.yesPercent)
-                                                  ? row.yesPercent.toFixed(0)
-                                                  : "0"}
-                                                %)
-                                              </span>
-                                            </div>
-                                          </td>
-
-                                          {/* No Column */}
-                                          <td className="text-center px-3 py-3 border-x border-gray-300 dark:border-gray-600">
-                                            <div className="font-bold text-red-700 dark:text-red-400 text-sm">
-                                              {row.noCount}{" "}
-                                              <span className="text-gray-500 dark:text-gray-400 font-medium">
-                                                (
-                                                {Number.isFinite(row.noPercent)
-                                                  ? row.noPercent.toFixed(0)
-                                                  : "0"}
-                                                %)
-                                              </span>
-                                            </div>
-                                          </td>
-
-                                          {/* N/A Column */}
-                                          <td className="text-center px-3 py-3 border-x border-gray-300 dark:border-gray-600">
-                                            <div className="font-bold text-slate-700 dark:text-slate-400 text-sm">
-                                              {row.naCount}{" "}
-                                              <span className="text-gray-500 dark:text-gray-400 font-medium">
-                                                (
-                                                {Number.isFinite(row.naPercent)
-                                                  ? row.naPercent.toFixed(0)
-                                                  : "0"}
-                                                %)
-                                              </span>
-                                            </div>
-                                          </td>
-
-                                          {/* Visualization Column */}
-                                          <td className="px-3 py-3 border-x border-gray-300 dark:border-gray-600">
-                                            <div className="flex justify-center">
-                                              {generateTableBarChart(
-                                                row.yesPercent,
-                                                row.noPercent,
-                                                row.naPercent,
-                                              )}
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-
-                                    {/* Comprehensive Total Row */}
-                                    <tr className="bg-gray-100 dark:bg-gray-800 font-extrabold border-t-2 border-gray-400 dark:border-gray-500">
-                                      <td className="px-4 py-3 text-gray-900 dark:text-gray-100 border-x border-gray-300 dark:border-gray-600">
-                                        <div className="flex items-center">
-                                          <div className="w-3 h-3 bg-indigo-600 rounded-full mr-3"></div>
-                                          <span>TOTAL</span>
-                                        </div>
-                                      </td>
-                                      <td className="text-center px-3 py-3 text-gray-900 dark:text-gray-100 border-x border-gray-300 dark:border-gray-600">
-                                        {summaryTotals?.total || 0}
-                                      </td>
-                                      <td className="text-center px-3 py-3 text-green-700 dark:text-green-400 border-x border-gray-300 dark:border-gray-600">
-                                        {summaryTotals?.yesCount || 0} (
-                                        {summaryTotals?.total > 0
-                                          ? (
-                                            (summaryTotals.yesCount /
-                                              summaryTotals.total) *
-                                            100
-                                          ).toFixed(0)
-                                          : 0}
-                                        %)
-                                      </td>
-                                      <td className="text-center px-3 py-3 text-red-700 dark:text-red-400 border-x border-gray-300 dark:border-gray-600">
-                                        {summaryTotals?.noCount || 0} (
-                                        {summaryTotals?.total > 0
-                                          ? (
-                                            (summaryTotals.noCount /
-                                              summaryTotals.total) *
-                                            100
-                                          ).toFixed(0)
-                                          : 0}
-                                        %)
-                                      </td>
-                                      <td className="text-center px-3 py-3 text-slate-700 dark:text-slate-400 border-x border-gray-300 dark:border-gray-600">
-                                        {summaryTotals?.naCount || 0} (
-                                        {summaryTotals?.total > 0
-                                          ? (
-                                            (summaryTotals.naCount /
-                                              summaryTotals.total) *
-                                            100
-                                          ).toFixed(0)
-                                          : 0}
-                                        %)
-                                      </td>
-                                      <td className="px-3 py-3 border-x border-gray-300 dark:border-gray-600">
-                                        <div className="flex justify-center">
-                                          {generateTableBarChart(
-                                            summaryTotals.total > 0
-                                              ? (summaryTotals.yesCount /
-                                                summaryTotals.total) *
-                                              100
-                                              : 0,
-                                            summaryTotals.total > 0
-                                              ? (summaryTotals.noCount /
-                                                summaryTotals.total) *
-                                              100
-                                              : 0,
-                                            summaryTotals.total > 0
-                                              ? (summaryTotals.naCount /
-                                                summaryTotals.total) *
-                                              100
-                                              : 0,
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  </>
-                                );
-                              })()}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* Radar Chart - Always displayed on right side */}
-                      <div className="w-full lg:w-[450px] flex-shrink-0">
-                        <div className="bg-white dark:bg-gray-800/40 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md h-full">
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-2">
-                            <div>
-                              <h4 className="text-base font-bold text-gray-900 dark:text-white uppercase tracking-tight">
-                                Performance Radar
-                              </h4>
-                              <p className="text-[10px] text-gray-500 font-medium">
-                                Comparative section analysis
-                              </p>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <div className="flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                                <span className="text-[9px] font-bold text-gray-500 uppercase">
-                                  {complianceLabels.yes}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 bg-red-500 rounded-full"></div>
-                                <span className="text-[9px] font-bold text-gray-500 uppercase">
-                                  {complianceLabels.no}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full"></div>
-                                <span className="text-[9px] font-bold text-gray-500 uppercase">
-                                  {complianceLabels.na}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Radar Chart Container */}
-                          <div className="h-[300px] sm:h-96">
-                            {/* Prepare data for radar chart */}
-                            {(() => {
-                              // Prepare radar chart data
-                              const radarChartData = {
-                                labels: visibleSectionStats.map((stat) =>
-                                  stat.title.length > 15
-                                    ? stat.title.substring(0, 15) + "..."
-                                    : stat.title,
-                                ),
-
-                                datasets: [
-                                  {
-                                    label: `${complianceLabels.yes} %`,
-                                    data: visibleSectionStats.map((stat) =>
-                                      stat.total > 0
-                                        ? ((stat.yes + (stat.accepted || 0)) /
-                                          stat.total) *
-                                        100
-                                        : 0,
-                                    ),
-                                    backgroundColor: "rgba(34, 197, 94, 0.2)",
-                                    borderColor: "rgba(34, 197, 94, 1)",
-                                    borderWidth: 2,
-                                    pointBackgroundColor:
-                                      "rgba(34, 197, 94, 1)",
-                                    pointBorderColor: "#fff",
-                                    pointHoverBackgroundColor: "#fff",
-                                    pointHoverBorderColor:
-                                      "rgba(34, 197, 94, 1)",
-                                  },
-                                  {
-                                    label: `${complianceLabels.no} %`,
-                                    data: visibleSectionStats.map((stat) =>
-                                      stat.total > 0
-                                        ? ((stat.no + (stat.rejected || 0)) /
-                                          stat.total) *
-                                        100
-                                        : 0,
-                                    ),
-                                    backgroundColor: "rgba(239, 68, 68, 0.2)",
-                                    borderColor: "rgba(239, 68, 68, 1)",
-                                    borderWidth: 2,
-                                    pointBackgroundColor:
-                                      "rgba(239, 68, 68, 1)",
-                                    pointBorderColor: "#fff",
-                                    pointHoverBackgroundColor: "#fff",
-                                    pointHoverBorderColor:
-                                      "rgba(239, 68, 68, 1)",
-                                  },
-                                  {
-                                    label: `${complianceLabels.na} %`,
-                                    data: visibleSectionStats.map((stat) =>
-                                      stat.total > 0
-                                        ? ((stat.na + (stat.rework || 0)) /
-                                          stat.total) *
-                                        100
-                                        : 0,
-                                    ),
-                                    backgroundColor: "rgba(156, 163, 175, 0.2)",
-                                    borderColor: "rgba(156, 163, 175, 1)",
-                                    borderWidth: 2,
-                                    pointBackgroundColor:
-                                      "rgba(156, 163, 175, 1)",
-                                    pointBorderColor: "#fff",
-                                    pointHoverBackgroundColor: "#fff",
-                                    pointHoverBorderColor:
-                                      "rgba(156, 163, 175, 1)",
-                                  },
-                                ],
-                              };
-
-                              const radarOptions = {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                scales: {
-                                  r: {
-                                    angleLines: {
-                                      display: true,
-                                      color:
-                                        document.documentElement.classList.contains(
-                                          "dark",
-                                        )
-                                          ? "rgba(147, 197, 253, 0.4)"
-                                          : "rgba(59, 130, 246, 0.4)",
-                                      lineWidth: 1.5,
-                                    },
-                                    grid: {
-                                      color:
-                                        document.documentElement.classList.contains(
-                                          "dark",
-                                        )
-                                          ? "rgba(147, 197, 253, 0.3)"
-                                          : "rgba(59, 130, 246, 0.3)",
-                                      lineWidth: 1.5,
-                                    },
-                                    pointLabels: {
-                                      font: {
-                                        size: 10,
-                                      },
-                                      color:
-                                        document.documentElement.classList.contains(
-                                          "dark",
-                                        )
-                                          ? "#e5e7eb"
-                                          : "#374151",
-                                    },
-                                    ticks: {
-                                      backdropColor: "transparent",
-                                      color:
-                                        document.documentElement.classList.contains(
-                                          "dark",
-                                        )
-                                          ? "#9ca3af"
-                                          : "#6b7280",
-                                      font: {
-                                        size: 11,
-                                      },
-                                    },
-                                    suggestedMin: 0,
-                                    suggestedMax: 100,
-                                  },
-                                },
-                                plugins: {
-                                  datalabels: {
-                                    display: false,
-                                  },
-                                  legend: {
-                                    position: "bottom",
-                                    labels: {
-                                      color:
-                                        document.documentElement.classList.contains(
-                                          "dark",
-                                        )
-                                          ? "#e5e7eb"
-                                          : "#374151",
-                                      font: {
-                                        size: 10,
-                                      },
-                                      padding: 15,
-                                    },
-                                  },
-                                  tooltip: {
-                                    callbacks: {
-                                      label: function (context) {
-                                        return `${context.dataset.label}: ${context.raw.toFixed(1)}%`;
-                                      },
-                                    },
-                                  },
-                                },
-                              };
-
-                              return (
-                                <Radar
-                                  data={radarChartData}
-                                  options={radarOptions}
-                                />
-                              );
-                            })()}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="card p-6 text-center text-primary-500">
-                  No section performance data available yet
-                </div>
-              )}
-
-              <div className="card p-6">
-                <SectionAnalytics
-                  question={form}
-                  responses={filteredResponses}
-                  sectionsStats={filteredSectionsStats}
-                  openSectionId={autoOpenSectionId}
-                  complianceLabels={complianceLabels}
-                />
-              </div>
-
-              {/* Analytics Zone */}
-              <div className="card p-6 space-y-6">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-indigo-600" />
-                    Analytics Zone
-                  </h3>
-                  <div className="flex items-center gap-4 text-xs font-medium">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 bg-amber-500/60 rounded" />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Rework
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 bg-red-500/60 rounded" />
-                      <span className="text-gray-600 dark:text-gray-400">
-                        Rejected
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                    Advanced Hierarchical Analytics (Zone &gt; Category &gt;
-                    Defect)
-                  </h4>
-
-                  {(() => {
-                    const maxDefectCount = Math.max(
-                      ...zoneAnalytics.zoneBreakdown.flatMap((z) =>
-                        z.categories.flatMap((c) =>
-                          c.defects.map((d) => d.count),
-                        ),
-                      ),
-                      1,
-                    );
-
-                    return (
-                      <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 shadow-sm">
-                        {/* Header Scale */}
-                        <div className="flex bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
-                          <div className="w-1/3 min-w-[300px] p-4 border-r border-gray-200 dark:border-gray-700 font-bold text-xs text-gray-500 uppercase tracking-wider">
-                            Hierarchy
-                          </div>
-                          <div className="flex-1 p-4 relative">
-                            <div className="flex justify-between text-[10px] font-bold text-gray-400">
-                              <span>0</span>
-                              <span>{Math.round(maxDefectCount * 0.2)}</span>
-                              <span>{Math.round(maxDefectCount * 0.4)}</span>
-                              <span>{Math.round(maxDefectCount * 0.6)}</span>
-                              <span>{Math.round(maxDefectCount * 0.8)}</span>
-                              <span>{maxDefectCount}</span>
-                            </div>
-                            <div className="absolute inset-x-0 bottom-0 h-1 flex justify-between px-4">
-                              {[0, 1, 2, 3, 4, 5].map((i) => (
-                                <div
-                                  key={i}
-                                  className="w-px h-full bg-gray-200 dark:bg-gray-700"
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Hierarchical Content */}
-                        <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                          {zoneAnalytics.zoneBreakdown.length === 0 ? (
-                            <div className="p-12 text-center text-gray-500 italic">
-                              No defect data available for selected filters
-                            </div>
-                          ) : (
-                            zoneAnalytics.zoneBreakdown.map((zone) => (
-                              <div key={zone.zone} className="flex group">
-                                {/* Zone Label - Merged Side */}
-                                <div className="w-[100px] p-4 flex items-center justify-center bg-indigo-50/30 dark:bg-indigo-900/10 border-r border-gray-200 dark:border-gray-700 shrink-0">
-                                  <span className="[writing-mode:vertical-lr] rotate-180 font-bold text-sm text-indigo-700 dark:text-indigo-400 uppercase tracking-widest">
-                                    {zone.zone}
-                                  </span>
-                                </div>
-
-                                <div className="flex-1 divide-y divide-gray-100 dark:divide-gray-800">
-                                  {zone.categories.map((cat) => (
-                                    <div key={cat.category} className="flex">
-                                      {/* Category Label */}
-                                      <div className="w-[150px] p-4 flex items-center bg-gray-50/50 dark:bg-gray-800/20 border-r border-gray-200 dark:border-gray-700 shrink-0">
-                                        <span className="font-semibold text-xs text-gray-700 dark:text-gray-300 leading-tight">
-                                          {cat.category}
-                                        </span>
-                                      </div>
-
-                                      <div className="flex-1 divide-y divide-gray-50 dark:divide-gray-800/50">
-                                        {cat.defects.map((defect) => {
-                                          const total = defect.count;
-                                          const reworkWidth =
-                                            total > 0
-                                              ? (defect.reworkCount / total) *
-                                              100
-                                              : 0;
-                                          const rejectedWidth =
-                                            total > 0
-                                              ? (defect.rejectedCount / total) *
-                                              100
-                                              : 0;
-                                          const volumeWidth =
-                                            (total / maxDefectCount) * 100;
-
-                                          // Percentages relative to the global maximum for labels
-                                          const reworkLabelPct =
-                                            (defect.reworkCount /
-                                              maxDefectCount) *
-                                            100;
-                                          const rejectedLabelPct =
-                                            (defect.rejectedCount /
-                                              maxDefectCount) *
-                                            100;
-
-                                          return (
-                                            <div
-                                              key={defect.name}
-                                              className="flex items-center hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
-                                            >
-                                              {/* Defect Name */}
-                                              <div className="w-[150px] p-3 border-r border-gray-100 dark:border-gray-800 shrink-0 flex items-center justify-between gap-1">
-                                                <span className="text-[11px] font-medium text-gray-600 dark:text-gray-400 leading-tight">
-                                                  {defect.name}
-                                                </span>
-                                                <span className="text-[10px] font-bold text-gray-400 shrink-0">
-                                                  ({total})
-                                                </span>
-                                              </div>
-
-                                              {/* Bar Chart Section */}
-                                              <div className="flex-1 p-3 px-4 relative flex items-center h-12">
-                                                {/* Grid Lines Overlay */}
-                                                <div className="absolute inset-0 flex justify-between px-4 pointer-events-none">
-                                                  {[0, 1, 2, 3, 4, 5].map(
-                                                    (i) => (
-                                                      <div
-                                                        key={i}
-                                                        className="w-px h-full bg-gray-100/50 dark:bg-gray-800/30"
-                                                      />
-                                                    ),
-                                                  )}
-                                                </div>
-
-                                                {/* Stacked Bar with Volume Normalization */}
-                                                <div className="relative flex-1 h-6">
-                                                  <div
-                                                    style={{
-                                                      width: `${volumeWidth}%`,
-                                                    }}
-                                                    className="h-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden flex shadow-inner transition-all duration-500"
-                                                  >
-                                                    {defect.reworkCount > 0 && (
-                                                      <div
-                                                        style={{
-                                                          width: `${reworkWidth}%`,
-                                                        }}
-                                                        className="h-full bg-gradient-to-r from-amber-400 to-amber-500 relative group/bar"
-                                                        title={`Rework: ${defect.reworkCount} (${reworkLabelPct.toFixed(1)}%)`}
-                                                      >
-                                                        {reworkLabelPct >
-                                                          15 && (
-                                                            <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-amber-900">
-                                                              {reworkLabelPct.toFixed(
-                                                                0,
-                                                              )}
-                                                              %
-                                                            </span>
-                                                          )}
-                                                      </div>
-                                                    )}
-                                                    {defect.rejectedCount >
-                                                      0 && (
-                                                        <div
-                                                          style={{
-                                                            width: `${rejectedWidth}%`,
-                                                          }}
-                                                          className="h-full bg-gradient-to-r from-red-400 to-red-500 relative group/bar"
-                                                          title={`Rejected: ${defect.rejectedCount} (${rejectedLabelPct.toFixed(1)}%)`}
-                                                        >
-                                                          {rejectedLabelPct >
-                                                            15 && (
-                                                              <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-white">
-                                                                {rejectedLabelPct.toFixed(
-                                                                  0,
-                                                                )}
-                                                                %
-                                                              </span>
-                                                            )}
-                                                        </div>
-                                                      )}
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-
-                {/* Status Summary */}
-                <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-                  <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/50">
-                    <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
-                      Accepted
-                    </p>
-                    <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">
-                      {zoneAnalytics.inspectionStatus.accepted}
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/50">
-                    <p className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">
-                      Rework
-                    </p>
-                    <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">
-                      {zoneAnalytics.inspectionStatus.rework}
-                    </p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800/50">
-                    <p className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase tracking-wider mb-1">
-                      Rejected
-                    </p>
-                    <p className="text-2xl font-bold text-red-700 dark:text-red-300">
-                      {zoneAnalytics.inspectionStatus.rejected}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Overall Analytics */}
-          {analyticsView === "overall" && (
-            <div className="space-y-6">
-              <div className="card p-6">
-                <SectionAnalytics
-                  question={form}
-                  responses={filteredResponses}
-                  complianceLabels={complianceLabels}
-                  isOverall={true}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Table View */}
-          {analyticsView === "table" && (
-            <div className="space-y-6">
-              {/* Table View Type Selector */}
-              <div className="card p-4 flex gap-3 items-center">
-                <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  View Type:
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setTableViewType("question")}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all ${tableViewType === "question"
-                      ? "bg-indigo-600 text-white shadow-md"
-                      : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
-                      }`}
-                  >
-                    Question Based
-                  </button>
-                  <button
-                    onClick={() => setTableViewType("section")}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all ${tableViewType === "section"
-                      ? "bg-indigo-600 text-white shadow-md"
-                      : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-gray-300 hover:bg-gray-300"
-                      }`}
-                  >
-                    Section Based
-                  </button>
-                </div>
-              </div>
-
-              {/* Question Based Table - All Questions from All Sections */}
-              {tableViewType === "question" &&
-                form?.sections &&
-                form.sections.length > 0 && (
-                  <div className="card p-6">
-                    <div className="mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <BarChart3 className="w-5 h-5 text-indigo-600" />
-                        All Questions Analytics - Table View
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Showing all questions from all sections including
-                        follow-ups
-                      </p>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 border-b-2 border-indigo-200 dark:border-indigo-700">
-                            <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">
-                              Question
-                            </th>
-                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">
-                              Total Responses
-                            </th>
-                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">
-                              {complianceLabels.yes}
-                            </th>
-                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">
-                              {complianceLabels.no}
-                            </th>
-                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">
-                              {complianceLabels.na}
-                            </th>
-                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white">
-                              {complianceLabels.yes} %
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                          {form.sections.map(
-                            (section: Section, sectionIdx: number) => {
-                              const allQuestionsInSection =
-                                section.questions || [];
-
-                              return (
-                                <React.Fragment key={`section-${section.id}`}>
-                                  <tr className="bg-indigo-100 dark:bg-indigo-900/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/40">
-                                    <td
-                                      colSpan={6}
-                                      className="px-6 py-4 text-center text-sm font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wide"
-                                    >
-                                      {section.title}
-                                    </td>
-                                  </tr>
-                                  {allQuestionsInSection.map(
-                                    (question: any, qIdx: number) => {
-                                      const questionResponses =
-                                        filteredResponses.filter(
-                                          (r) =>
-                                            r.answers && r.answers[question.id],
-                                        );
-                                      const yesCount = questionResponses.filter(
-                                        (r) => {
-                                          const answer = r.answers[question.id];
-                                          if (
-                                            typeof answer === "object" &&
-                                            answer.status
-                                          ) {
-                                            const status = String(answer.status)
-                                              .toLowerCase()
-                                              .trim();
-                                            return (
-                                              status === "accepted" ||
-                                              status === "rework completed" ||
-                                              status === "verified"
-                                            );
-                                          }
-                                          const answerStr = String(answer)
-                                            .toLowerCase()
-                                            .trim();
-                                          return (
-                                            answerStr.includes("yes") ||
-                                            answerStr === "y"
-                                          );
-                                        },
-                                      ).length;
-                                      const noCount = questionResponses.filter(
-                                        (r) => {
-                                          const answer = r.answers[question.id];
-                                          if (
-                                            typeof answer === "object" &&
-                                            answer.status
-                                          ) {
-                                            return (
-                                              String(answer.status)
-                                                .toLowerCase()
-                                                .trim() === "rejected"
-                                            );
-                                          }
-                                          const answerStr = String(answer)
-                                            .toLowerCase()
-                                            .trim();
-                                          return (
-                                            answerStr.includes("no") ||
-                                            answerStr === "n"
-                                          );
-                                        },
-                                      ).length;
-                                      const naCount = questionResponses.filter(
-                                        (r) => {
-                                          const answer = r.answers[question.id];
-                                          if (
-                                            typeof answer === "object" &&
-                                            answer.status
-                                          ) {
-                                            const status = String(answer.status)
-                                              .toLowerCase()
-                                              .trim();
-                                            return (
-                                              status === "rework" ||
-                                              status === "reworked" ||
-                                              status.includes("re-rework")
-                                            );
-                                          }
-                                          const answerStr = String(answer)
-                                            .toLowerCase()
-                                            .trim();
-                                          return (
-                                            answerStr.includes("na") ||
-                                            answerStr.includes("n/a") ||
-                                            answerStr.includes("not applicable")
-                                          );
-                                        },
-                                      ).length;
-                                      const total = questionResponses.length;
-                                      const yesPercentage =
-                                        total > 0
-                                          ? ((yesCount / total) * 100).toFixed(
-                                            1,
-                                          )
-                                          : "0.0";
-
-                                      const isFollowUp =
-                                        question.parentId ||
-                                        question.showWhen?.questionId;
-
-                                      return (
-                                        <tr
-                                          key={question.id}
-                                          className={`hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors ${isFollowUp
-                                            ? "bg-purple-50 dark:bg-purple-900/20"
-                                            : "bg-white dark:bg-gray-800"
-                                            }`}
-                                        >
-                                          <td
-                                            className={`px-6 py-4 text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium max-w-sm ${isFollowUp ? "pl-12" : ""
-                                              }`}
-                                          >
-                                            <div
-                                              className="truncate"
-                                              title={
-                                                question.text ||
-                                                "Unnamed Question"
-                                              }
-                                            >
-                                              {question.text ||
-                                                "Unnamed Question"}
-                                            </div>
-                                          </td>
-                                          <td className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
-                                            <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 px-3 py-1 rounded-full text-xs">
-                                              {total}
-                                            </span>
-                                          </td>
-                                          <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
-                                            <span className="bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-300 px-3 py-1 rounded-full text-xs">
-                                              {yesCount}
-                                            </span>
-                                          </td>
-                                          <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
-                                            <span className="bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-300 px-3 py-1 rounded-full text-xs">
-                                              {noCount}
-                                            </span>
-                                          </td>
-                                          <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
-                                            <span className="bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-gray-200 px-3 py-1 rounded-full text-xs">
-                                              {naCount}
-                                            </span>
-                                          </td>
-                                          <td className="px-6 py-4 text-center text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-                                            {yesPercentage}%
-                                          </td>
-                                        </tr>
-                                      );
-                                    },
-                                  )}
-                                </React.Fragment>
-                              );
-                            },
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-              {/* Section Based Table */}
-              {tableViewType === "section" &&
-                filteredSectionStats.length > 0 && (
-                  <div className="card p-6">
-                    <div className="mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-indigo-600" />
-                        Section Analytics - Table View
-                      </h3>
-                    </div>
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
-                        <thead>
-                          <tr className="bg-gradient-to-r from-indigo-50 to-blue-50 dark:from-gray-700 dark:to-gray-600 border-b-2 border-indigo-200 dark:border-indigo-700">
-                            <th className="px-6 py-3 text-left text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">
-                              Section Name
-                            </th>
-                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">
-                              Total
-                            </th>
-                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">
-                              {complianceLabels.yes}
-                            </th>
-                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white border-r border-indigo-200 dark:border-indigo-700">
-                              {complianceLabels.no}
-                            </th>
-                            <th className="px-6 py-3 text-center text-sm font-semibold text-gray-900 dark:text-white">
-                              {complianceLabels.na}
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                          {filteredSectionStats.map(
-                            (stat: SectionPerformanceStat, index: number) => {
-                              const totalYes = stat.yes + (stat.accepted || 0);
-                              const totalNo = stat.no + (stat.rejected || 0);
-                              const totalNA = stat.na + (stat.rework || 0);
-
-                              const yesPercentage =
-                                stat.total > 0
-                                  ? ((totalYes / stat.total) * 100).toFixed(1)
-                                  : "0.0";
-                              const noPercentage =
-                                stat.total > 0
-                                  ? ((totalNo / stat.total) * 100).toFixed(1)
-                                  : "0.0";
-                              const naPercentage =
-                                stat.total > 0
-                                  ? ((totalNA / stat.total) * 100).toFixed(1)
-                                  : "0.0";
-
-                              return (
-                                <tr
-                                  key={stat.id}
-                                  className={`${index % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-750"} hover:bg-indigo-50 dark:hover:bg-gray-700 transition-colors`}
-                                >
-                                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
-                                    {stat.title}
-                                  </td>
-                                  <td className="px-6 py-4 text-center text-sm font-semibold text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700">
-                                    <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-900 dark:text-blue-300 px-3 py-1 rounded-full text-xs">
-                                      {stat.total}
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
-                                    <span className="bg-green-100 dark:bg-green-900/30 text-green-900 dark:text-green-300 px-3 py-1 rounded-full text-xs">
-                                      {totalYes} ({yesPercentage}%)
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 font-medium">
-                                    <span className="bg-red-100 dark:bg-red-900/30 text-red-900 dark:text-red-300 px-3 py-1 rounded-full text-xs">
-                                      {totalNo} ({noPercentage}%)
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-4 text-center text-sm text-gray-900 dark:text-gray-300 font-medium">
-                                    <span className="bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-gray-200 px-3 py-1 rounded-full text-xs">
-                                      {totalNA} ({naPercentage}%)
-                                    </span>
-                                  </td>
-                                </tr>
-                              );
-                            },
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-            </div>
-          )}
 
           {/* Responses as Table */}
           {analyticsView === "responses" && (

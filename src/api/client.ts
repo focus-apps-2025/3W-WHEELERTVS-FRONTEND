@@ -2765,16 +2765,70 @@ class ApiClient {
     pdfHtml?: string,
     shareMode: string = "both",
   ) {
-    return this.request<{
-      sent: number;
-      failed: number;
-      allSuccessful: boolean;
-      details: any[];
-    }>(`/analytics-invites/${formId}/send`, {
-      method: "POST",
-      body: JSON.stringify({ invites, channels, customMessage, pdfHtml, shareMode }),
-      timeout: 600000, // 10 minutes timeout for PDF generation and bulk sending
+    console.log('📤 [API] sendAnalyticsInvites called with:', {
+      formId,
+      invitesCount: invites.length,
+      channels,
+      shareMode,
+      hasPdfHtml: !!pdfHtml
     });
+
+    try {
+      const url = `${this.baseUrl}/analytics-invites/${formId}/send`;
+      console.log('📤 [API] Full URL:', url);
+
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "X-App-Type": "website",
+      };
+
+      if (this.token) {
+        headers.Authorization = `Bearer ${this.token}`;
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          invites,
+          channels,
+          customMessage,
+          pdfHtml,
+          shareMode
+        }),
+      });
+
+      console.log('📥 [API] Response status:', response.status);
+
+      const data = await response.json();
+      console.log('📥 [API] Response data:', data);
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP ${response.status}`);
+      }
+
+      if (!data.success) {
+        throw new Error(data.message || 'Request failed');
+      }
+
+      // ✅ Handle the response format - data.data contains the actual data
+      return {
+        sent: data.data?.sent || 0,
+        failed: data.data?.failed || 0,
+        allSuccessful: data.data?.allSuccessful || false,
+        details: data.data?.details || [],
+        message: data.message || 'Invites processed'
+      };
+    } catch (error: any) {
+      console.error('❌ [API] sendAnalyticsInvites error:', error);
+      return {
+        sent: 0,
+        failed: 0,
+        allSuccessful: false,
+        details: [],
+        message: error.message || 'Failed to send invites'
+      };
+    }
   }
 
   async requestAnalyticsOTP(

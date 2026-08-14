@@ -242,14 +242,14 @@ export default function Header() {
       permission: MODULE_PERMISSIONS.DASHBOARD,
       roles: ["admin", "inspector", "subadmin"],
     },
-    {
-      title: "Overall",
-      icon: BarChart2,
-      path: "/overall",
-      description: "View overall statistics",
-      permission: "Overall:view",
-      roles: ["admin", "inspector", "subadmin"],
-    },
+    // {
+    //   title: "Overall",
+    //   icon: BarChart2,
+    //   path: "/overall",
+    //   description: "View overall statistics",
+    //   permission: "Overall:view",
+    //   roles: ["admin", "inspector", "subadmin"],
+    // },
     {
       title: "Service Analytics",
       icon: BarChart2,
