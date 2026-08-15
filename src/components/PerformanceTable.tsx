@@ -1,4 +1,4 @@
-
+// PerformanceTable.tsx - Optimized Version
 import React, {
   useState,
   useEffect,
@@ -7,7 +7,7 @@ import React, {
 } from "react";
 import { useAuth } from "../context/AuthContext";
 import { apiClient } from "../api/client";
-import { Users, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from "lucide-react";
+import { Users, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Loader2 } from "lucide-react";
 
 const PerformanceTable = ({
   useInternalTrackingEndpoint = false,
@@ -17,9 +17,11 @@ const PerformanceTable = ({
   const { user } = useAuth();
   const [performanceTableData, setPerformanceTableData] = useState<any[]>([]);
   const [performanceTableLoading, setPerformanceTableLoading] = useState(false);
+
+  // ✅ DEFAULT TO LAST 7 DAYS (not 30 days)
   const [perfStartDate, setPerfStartDate] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() - 30);
+    d.setDate(d.getDate() - 7);  // ← Changed from 30 to 7
     return d.toISOString().split("T")[0];
   });
   const [perfEndDate, setPerfEndDate] = useState(() => {
@@ -39,6 +41,134 @@ const PerformanceTable = ({
 
   const isSuperAdmin = user?.role === "superadmin";
 
+  // ✅ Cache key for performance data
+  const getCacheKey = useCallback(() => {
+    return `performance_table_${perfStartDate}_${perfEndDate}_${performancePage}_${performancePageSize}`;
+  }, [perfStartDate, perfEndDate, performancePage, performancePageSize]);
+
+  // ✅ Load performance data with caching and timeout
+  const loadPerformanceData = useCallback(async () => {
+    if (!showPerformanceTable || !user) return;
+
+    // Block non-admin/inspector users
+    if (!useInternalTrackingEndpoint && user.role !== "admin" && user.role !== "superadmin") {
+      return;
+    }
+
+    // ✅ Check cache first
+    const cacheKey = getCacheKey();
+    const cachedData = sessionStorage.getItem(cacheKey);
+    if (cachedData) {
+      try {
+        const parsed = JSON.parse(cachedData);
+        const cacheAge = Date.now() - (parsed.timestamp || 0);
+        if (cacheAge < 60000) {
+          console.log('[PerformanceTable] Using cached data');
+          setPerformanceTableData(parsed.data || []);
+          setPerfInspectorSummary(parsed.inspectorSummary || []);
+          setActiveUserNames(new Set(parsed.activeUserNames || []));
+          return;
+        }
+      } catch (e) {
+        // Cache parse error, continue to fetch
+      }
+    }
+
+    setPerformanceTableLoading(true);
+
+    try {
+      // ✅ Build the API call with date parameters
+      let tableResponse;
+
+      if (useInternalTrackingEndpoint) {
+        // Internal tracking endpoint
+        tableResponse = await apiClient.get(
+          `/internal-tracking/performance?startDate=${perfStartDate}&endDate=${perfEndDate}&page=${performancePage}&limit=${performancePageSize}`
+        );
+      } else {
+        // ✅ FIX: Call getPerformanceTable with date parameters
+        tableResponse = await apiClient.getPerformanceTable({
+          startDate: perfStartDate,
+          endDate: perfEndDate,
+          page: performancePage,
+          limit: performancePageSize,
+        });
+      }
+
+      //  Extract the data from the response
+      // The response from apiClient.getPerformanceTable returns { success: true, data: [...] }
+      // But apiClient.get() might return a different structure
+      const tableData = useInternalTrackingEndpoint
+        ? tableResponse.data
+        : (tableResponse.success ? tableResponse.data : []);
+
+      console.log('[PerformanceTable] Table data:', tableData.length);
+
+      //  Set the table data
+      setPerformanceTableData(tableData || []);
+
+      //  Also fetch inspector summary and users in parallel
+      const [summaryResponse] = await Promise.all([
+        user.role === "admin" || user.role === "superadmin"
+          ? apiClient.get(`/analytics/inspector-summary?startDate=${perfStartDate}&endDate=${perfEndDate}`)
+            .catch(() => ({ data: { summary: [] } }))
+          : Promise.resolve({ data: { summary: [] } }),
+      ]);
+
+      const summaryData = summaryResponse?.data?.summary || [];
+      setPerfInspectorSummary(summaryData);
+
+      //  Cache the result
+      sessionStorage.setItem(cacheKey, JSON.stringify({
+        data: tableData || [],
+        inspectorSummary: summaryData,
+        activeUserNames: [],
+        timestamp: Date.now()
+      }));
+
+    } catch (error: any) {
+      console.error('[PerformanceTable] Error loading data:', error);
+
+      // Try to load from cache even if expired
+      const cachedData = sessionStorage.getItem(getCacheKey());
+      if (cachedData) {
+        try {
+          const parsed = JSON.parse(cachedData);
+          setPerformanceTableData(parsed.data || []);
+          setPerfInspectorSummary(parsed.inspectorSummary || []);
+          setActiveUserNames(new Set(parsed.activeUserNames || []));
+        } catch (e) {
+          // Ignore cache errors
+        }
+      } else {
+        setPerformanceTableData([]);
+        setPerfInspectorSummary([]);
+        setActiveUserNames(new Set());
+      }
+    } finally {
+      setPerformanceTableLoading(false);
+    }
+  }, [
+    user,
+    perfStartDate,
+    perfEndDate,
+    showPerformanceTable,
+    useInternalTrackingEndpoint,
+    performancePage,
+    performancePageSize,
+    getCacheKey
+  ]);
+
+  // Only load when showPerformanceTable is true
+  useEffect(() => {
+    if (showPerformanceTable) {
+      loadPerformanceData();
+    }
+  }, [loadPerformanceData, showPerformanceTable]);
+
+  // ... rest of the component (render methods remain the same)
+
+  // Helper functions
   const isUserActive = useCallback((user: any) => {
     if (user?.isActive !== undefined) return user.isActive !== false;
     if (user?.status) return String(user.status).toLowerCase() !== "inactive";
@@ -113,140 +243,7 @@ const PerformanceTable = ({
     });
   };
 
-  useEffect(() => {
-    if (!showPerformanceTable || !user) {
-      return;
-    }
-
-    // Block non-admin/inspector users only in non-internal tracking mode
-    if (!useInternalTrackingEndpoint && user.role !== "admin" && user.role !== "superadmin") {
-      return;
-    }
-
-    let cancelled = false;
-    const fetchAndProcessData = async () => {
-      setPerformanceTableLoading(true);
-
-      // The performance table is the critical payload. Fetch it on its own
-      // so a slow/blocked auxiliary request (users or inspector-summary)
-      // can't fail the whole table via Promise.all — which previously caused
-      // "Request timed out" errors on the superadmin Dashboard.
-      const tablePromise: Promise<any> = useInternalTrackingEndpoint
-        ? (() => {
-          const itParams = new URLSearchParams();
-          if (perfStartDate) itParams.append("startDate", perfStartDate);
-          if (perfEndDate) itParams.append("endDate", perfEndDate);
-          const itQuery = itParams.toString();
-          return apiClient.get(
-            `/internal-tracking/performance${itQuery ? `?${itQuery}` : ""}`,
-          );
-        })()
-        : apiClient.getPerformanceTable({
-          startDate: perfStartDate,
-          endDate: perfEndDate,
-        });
-
-      // Auxiliary data (users + inspector summary) is fetched in parallel but
-      // independently — failures here are non-fatal and only degrade the
-      // active-user/dispatch enrichment, not the table itself.
-      const usersPromise = Promise.all([
-        apiClient.getUsers({ role: "admin", limit: 100 }),
-        apiClient.getUsers({ role: "subadmin", limit: 100 }),
-        apiClient.getUsers({ role: "inspector", limit: 100 }),
-      ]).catch(() => []);
-
-      let summaryUrl = "/analytics/inspector-summary";
-      const params = new URLSearchParams();
-      if (perfStartDate) params.append("startDate", perfStartDate);
-      if (perfEndDate) params.append("endDate", perfEndDate);
-      const queryString = params.toString();
-      if (queryString) summaryUrl += `?${queryString}`;
-      const summaryPromise = apiClient
-        .get<any>(summaryUrl)
-        .catch(() => ({ data: { summary: [] } }));
-
-      try {
-        const [tableResponse, usersResult, summaryResponse] = await Promise.all([
-          tablePromise,
-          usersPromise,
-          summaryPromise,
-        ]);
-
-        if (cancelled) return;
-
-        // 1. Process users to get activeUserNames (best-effort)
-        const [adminData, subadminData, inspectorData] = Array.isArray(usersResult)
-          ? usersResult
-          : [{}, {}, {}];
-        const allUsers = [
-          ...(Array.isArray(adminData.users) ? adminData.users : []),
-          ...(Array.isArray(subadminData.users) ? subadminData.users : []),
-          ...(Array.isArray(inspectorData.users) ? inspectorData.users : []),
-        ];
-        const activeUsers = buildActiveUserNames(allUsers);
-        setActiveUserNames(activeUsers);
-
-        // 2. Process summary data (best-effort)
-        const summaryData = summaryResponse?.data?.summary || [];
-        setPerfInspectorSummary(summaryData);
-
-        // 3. Process table data (critical)
-        const tableResponseAny = tableResponse as any;
-        const tableData = useInternalTrackingEndpoint
-          ? tableResponseAny.data
-          : tableResponseAny.success
-            ? tableResponseAny.data
-            : [];
-
-        const dispatchMap = new Map<string, number>();
-        summaryData.forEach((item: any) => {
-          const userName = item.qcInspector;
-          if (userName && item.statusCounts?.Dispatched) {
-            dispatchMap.set(userName, (dispatchMap.get(userName) || 0) + (item.statusCounts.Dispatched || 0));
-          }
-        });
-
-        const filteredRows = tableData.filter(
-          (row: any) => row.performanceScore >= 0,
-        );
-
-        const mergedData = filteredRows.map((row: any) => ({
-          ...row,
-          dispatched: dispatchMap.get(row.name) || row.dispatched || 0,
-        }));
-
-        setPerformanceTableData(mergedData);
-      } catch (error) {
-        console.error("Error fetching performance data:", error);
-        if (!cancelled) {
-          setPerformanceTableData([]);
-          setPerfInspectorSummary([]);
-          setActiveUserNames(new Set());
-        }
-      } finally {
-        if (!cancelled) {
-          setPerformanceTableLoading(false);
-        }
-      }
-    };
-
-    fetchAndProcessData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    user,
-    perfStartDate,
-    perfEndDate,
-    showPerformanceTable,
-    buildActiveUserNames,
-    isUserActive,
-    getUserNameAliases,
-    getInspectorName,
-    useInternalTrackingEndpoint
-  ]);
-
+  // Computed values
   const performanceStatuses = useMemo(() => {
     const isNumeric = (str: string) => /^\d+$/.test(str);
     const statuses = Array.from(
@@ -347,8 +344,6 @@ const PerformanceTable = ({
         );
       });
 
-
-
     const totalDirectOk = performanceTableData.reduce(
       (sum, row) =>
         sum + (inspectorStatusMap[row.name]?.["Direct Ok"] || 0),
@@ -392,6 +387,7 @@ const PerformanceTable = ({
     };
   }, [performanceTableData, perfInspectorSummary, performancePage, performancePageSize, performanceStatuses]);
 
+  // Render logic
   if (!useInternalTrackingEndpoint && user?.role !== "admin" && user?.role !== "superadmin") return null;
 
   if (!showPerformanceTable) {
@@ -434,8 +430,10 @@ const PerformanceTable = ({
   if (performanceTableLoading) {
     return (
       <div className="mt-12 text-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-4 border-purple-600 border-t-transparent mx-auto mb-4"></div>
-        <p className="text-gray-500 text-sm">Loading performance data...</p>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-purple-600 animate-spin" />
+          <p className="text-gray-500 text-sm">Loading performance data...</p>
+        </div>
       </div>
     );
   }

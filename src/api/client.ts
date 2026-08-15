@@ -1131,8 +1131,6 @@ class ApiClient {
       const query = searchParams.toString();
       if (query) url += `?${query}`;
     }
-    // Pagination + server-side maxTimeMS keep this well under 5s now, but
-    // keep a generous timeout as a safety net for slow networks.
     return this.get<{
       success: boolean;
       data: any[];

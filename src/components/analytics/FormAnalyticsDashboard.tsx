@@ -7441,76 +7441,8 @@ export default function FormAnalyticsDashboard() {
 
     return (
       <div className="card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            Performance Score
-          </h3>
-          <div className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">
-            {currentUserScore}%
-          </div>
-        </div>
 
-        <div className="flex items-center justify-center">
-          <div className="relative">
-            {/* Background circle */}
-            <svg
-              className="w-32 h-32 transform -rotate-90"
-              viewBox="0 0 100 100"
-            >
-              <circle
-                cx="50"
-                cy="50"
-                r="45"
-                stroke="currentColor"
-                strokeWidth="8"
-                fill="transparent"
-                className="text-gray-200 dark:text-gray-700"
-              />
-              {/* Progress circle */}
-              <circle
-                cx="50"
-                cy="50"
-                r="45"
-                stroke="currentColor"
-                strokeWidth="8"
-                fill="transparent"
-                strokeDasharray={strokeDasharray}
-                strokeDashoffset={strokeDashoffset}
-                className={`transition-all duration-1000 ease-out ${currentUserScore >= 80
-                  ? "text-green-500"
-                  : currentUserScore >= 60
-                    ? "text-yellow-500"
-                    : currentUserScore >= 40
-                      ? "text-orange-500"
-                      : "text-red-500"
-                  }`}
-                strokeLinecap="round"
-              />
-            </svg>
 
-            {/* Center text */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {currentUserScore}
-                </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Score
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Your performance score based on peer reviews
-          </p>
-          <div className="mt-2 flex justify-center gap-4 text-xs">
-            <span className="text-green-600">+2% for Accepted</span>
-            <span className="text-red-600">-2% for Rejected/Rework</span>
-          </div>
-        </div>
       </div>
     );
   };
@@ -8295,40 +8227,31 @@ export default function FormAnalyticsDashboard() {
       labels: sortedData.map(row => row.name?.length > 15 ? row.name.substring(0, 15) + "..." : row.name),
       datasets: [
         {
-          label: "Direct Ok",
-          data: sortedData.map(row => row.directOk || 0),
+          label: "Accepted",
+          data: sortedData.map(row => row.accepted || 0),
           backgroundColor: "rgba(34, 197, 94, 0.7)", // Green
           borderColor: "rgb(21, 128, 61)",
           borderWidth: 1,
           stack: "stack1",
         },
         {
-          label: "Rework QC Completed",
-          data: sortedData.map(row => row.reworkQcCompleted || 0),
-          backgroundColor: "rgba(59, 130, 246, 0.7)", // Blue
-          borderColor: "rgb(29, 78, 216)",
-          borderWidth: 1,
-          stack: "stack1",
-        },
-        {
-          label: "Rework QC Pending",
-          data: sortedData.map(row => row.reworkQcPending || 0),
-          backgroundColor: "rgba(234, 179, 8, 0.7)", // Yellow
-          borderColor: "rgb(161, 98, 7)",
-          borderWidth: 1,
-          stack: "stack1",
-        },
-        {
           label: "Rejected",
-          data: sortedData.map(row => row.rejected || 0),
+          data: sortedData.map(row => row.rejectedReview || row.rejected || 0),
           backgroundColor: "rgba(239, 68, 68, 0.7)", // Red
           borderColor: "rgb(185, 28, 28)",
           borderWidth: 1,
           stack: "stack1",
         },
+        {
+          label: "Reworked",
+          data: sortedData.map(row => row.reworked || 0),
+          backgroundColor: "rgba(234, 179, 8, 0.7)", // Yellow
+          borderColor: "rgb(161, 98, 7)",
+          borderWidth: 1,
+          stack: "stack1",
+        },
       ],
     };
-
     const options = {
       responsive: true,
       maintainAspectRatio: false,
@@ -8420,8 +8343,20 @@ export default function FormAnalyticsDashboard() {
   const BiwReviewTableBarChart = () => {
     if (biwReviewTableData.length === 0) return null;
 
-    // Get the top 10 by total submitted
-    const sortedData = [...biwReviewTableData]
+    // ✅ STEP 1: Filter out inspectors who have ALL zeros (Accepted, Rejected, Reworked are all 0)
+    const filteredData = biwReviewTableData.filter((row) => {
+      const accepted = row.accepted || 0;
+      const rejected = row.rejected || 0;
+      const rework = row.rework || 0;
+      // Only keep if at least one value is > 0
+      return accepted > 0 || rejected > 0 || rework > 0;
+    });
+
+    // ✅ STEP 2: If after filtering there's no data, return null (hide the chart)
+    if (filteredData.length === 0) return null;
+
+    // Get the top 10 by total submitted (from filtered data)
+    const sortedData = [...filteredData]
       .sort((a, b) => (b.totalSubmitted || 0) - (a.totalSubmitted || 0))
       .slice(0, 10);
 
@@ -8435,6 +8370,7 @@ export default function FormAnalyticsDashboard() {
           borderColor: "rgb(21, 128, 61)",
           borderWidth: 1,
           stack: "stack1",
+          minBarLength: 0,
         },
         {
           label: "Rejected",
@@ -8443,6 +8379,7 @@ export default function FormAnalyticsDashboard() {
           borderColor: "rgb(185, 28, 28)",
           borderWidth: 1,
           stack: "stack1",
+          minBarLength: 0,
         },
         {
           label: "Reworked",
@@ -8451,6 +8388,7 @@ export default function FormAnalyticsDashboard() {
           borderColor: "rgb(161, 98, 7)",
           borderWidth: 1,
           stack: "stack1",
+          minBarLength: 0,
         },
       ],
     };
@@ -8481,7 +8419,8 @@ export default function FormAnalyticsDashboard() {
           },
         },
         datalabels: {
-          display: (context: any) => context.dataset.data[context.dataIndex] > 0,
+          // ✅ Show 0 values as well (display even when value is 0)
+          display: (context: any) => true,
           color: "#fff",
           font: { weight: "bold" as const, size: 9 },
           formatter: (value: number) => value,
@@ -8532,7 +8471,7 @@ export default function FormAnalyticsDashboard() {
                 BIW Review Table - Inspector Metrics
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Top 10 inspectors by BIW review volume
+                Inspectors with BIW review activity
               </p>
             </div>
           </div>
@@ -9152,14 +9091,27 @@ export default function FormAnalyticsDashboard() {
   const renderBiwReviewTable = () => {
     if (user?.role !== "admin" && user?.role !== "superadmin") return null;
 
-    if (biwReviewTableData.length === 0) return null;
+    // ✅ STEP 1: Filter out users who have ALL zeros (Accepted, Rejected, Reworked are all 0)
+    const filteredBiwData = biwReviewTableData.filter((row) => {
+      const accepted = row.accepted || 0;
+      const rejected = row.rejected || 0;
+      const rework = row.rework || 0;
+      // Only keep if at least one value is > 0
+      return accepted > 0 || rejected > 0 || rework > 0;
+    });
+
+    // ✅ STEP 2: If no data after filtering, hide the entire table
+    if (filteredBiwData.length === 0) return null;
 
     const localFilteredBiw =
       localFilterName === "All"
-        ? biwReviewTableData
-        : biwReviewTableData.filter(
+        ? filteredBiwData
+        : filteredBiwData.filter(
           (row: any) => row.name === localFilterName,
         );
+
+    // ✅ STEP 3: Check again after local filter
+    if (localFilteredBiw.length === 0) return null;
 
     const totalBiwItems = localFilteredBiw.length;
     const totalBiwPages = Math.ceil(totalBiwItems / biwReviewPageSize);
@@ -9243,17 +9195,16 @@ export default function FormAnalyticsDashboard() {
                       <div className="flex flex-col items-center gap-1.5">
                         <span
                           className={`px-3 py-1 rounded-full text-[10px] font-black tabular-nums shadow-sm ${row.performanceScore >= 80
-                            ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
-                            : row.performanceScore >= 50
-                              ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
-                              : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
+                              ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+                              : row.performanceScore >= 50
+                                ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400"
+                                : "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400"
                             }`}
                         >
                           {row.performanceScore}%
                         </span>
                         <span
-                          className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wide whitespace-nowrap ${getBiwPerformanceLabel(row.performanceScore).className
-                            }`}
+                          className={`px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wide whitespace-nowrap ${getBiwPerformanceLabel(row.performanceScore).className}`}
                         >
                           {getBiwPerformanceLabel(row.performanceScore).label}
                         </span>
@@ -9286,8 +9237,7 @@ export default function FormAnalyticsDashboard() {
                   ))}
                 </select>
                 <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                  {biwStartIndex + 1}-{Math.min(biwEndIndex, totalBiwItems)} of{" "}
-                  {totalBiwItems}
+                  {biwStartIndex + 1}-{Math.min(biwEndIndex, totalBiwItems)} of {totalBiwItems}
                 </span>
               </div>
 
@@ -9322,8 +9272,8 @@ export default function FormAnalyticsDashboard() {
                         <button
                           onClick={() => setBiwReviewPage(pageNum)}
                           className={`min-w-[32px] h-8 text-[10px] font-black rounded-xl transition-all ${biwReviewPage === pageNum
-                            ? "bg-purple-600 text-white shadow-lg shadow-purple-500/30"
-                            : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50"
+                              ? "bg-purple-600 text-white shadow-lg shadow-purple-500/30"
+                              : "bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:bg-gray-50"
                             }`}
                         >
                           {pageNum}
@@ -9912,10 +9862,6 @@ export default function FormAnalyticsDashboard() {
 
       {form && (
         <>
-
-
-
-
           {/* Responses as Table */}
           {analyticsView === "responses" && (
             <div className="space-y-4 sm:space-y-6">
