@@ -28,6 +28,7 @@ import { useNotification } from "../../context/NotificationContext";
 import ResponseDashboard from "./ResponseDashboard.tsx";
 import PermissionTree from "../common/PermissionTree";
 import { buildPermissionTree, FormLike } from "../../config/permissionTree";
+import RoleManagement from "../management/sections/RoleManagement";
 
 // NOTE: MODULE_OPTIONS is the legacy flat permission set, still used by the
 // quick-toggle columns in the admin list table below. The Create/Edit User
@@ -67,6 +68,7 @@ interface CreateFormState {
   role: "subadmin" | "inspector";
   permissions: Set<ModuleKey>;
   accessType: "website" | "mobile" | "both";
+  customRole: string;
 }
 
 interface EditFormState extends CreateFormState {
@@ -80,9 +82,10 @@ const createInitialFormState = (): CreateFormState => ({
   username: "",
   password: "",
   mobile: "",
-  role: "subadmin",
+  role: "inspector",
   permissions: new Set<ModuleKey>(),
   accessType: "both",
+  customRole: "",
 });
 
 export default function AdminManagement() {
@@ -127,9 +130,10 @@ export default function AdminManagement() {
 
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
 
-  const [activeTab, setActiveTab] = useState<"admins" | "responses">("admins");
+  const [activeTab, setActiveTab] = useState<"admins" | "responses" | "roles">("admins");
   const [performanceScores, setPerformanceScores] = useState<Record<string, number>>({});
   const [shifts, setShifts] = useState<any[]>([]);
+  const [customRoles, setCustomRoles] = useState<any[]>([]);
 
   // Load shifts for assignment
   useEffect(() => {
@@ -164,6 +168,21 @@ export default function AdminManagement() {
       fetchFormsForPermissionTree();
     }
   }, [isAdmin, tenant?._id]);
+
+  // Load custom roles for dropdown selection
+  useEffect(() => {
+    const fetchCustomRoles = async () => {
+      try {
+        const response = await apiClient.getRoles();
+        setCustomRoles(response?.roles || []);
+      } catch (error) {
+        console.error("Error fetching custom roles:", error);
+      }
+    };
+    if (isAdmin && activeTab === "admins") {
+      fetchCustomRoles();
+    }
+  }, [isAdmin, activeTab]);
 
   const getUserShiftId = (userId: string) => {
     const userShift = shifts.find((s) =>
@@ -213,22 +232,24 @@ export default function AdminManagement() {
           onClick={() => setActiveTab("admins")}
           className={`
           py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm whitespace-nowrap
-          ${activeTab === "admins"
+          ${
+            activeTab === "admins"
               ? "border-blue-500 text-blue-600 dark:text-blue-400"
               : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-            }
+          }
         `}
         >
-          Users
+          Administrators
         </button>
         <button
           onClick={() => setActiveTab("responses")}
           className={`
           py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm whitespace-nowrap
-          ${activeTab === "responses"
+          ${
+            activeTab === "responses"
               ? "border-blue-500 text-blue-600 dark:text-blue-400"
               : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-            }
+          }
         `}
         >
           <svg
@@ -245,6 +266,32 @@ export default function AdminManagement() {
             />
           </svg>
           Users Response Dashboard
+        </button>
+        <button
+          onClick={() => setActiveTab("roles")}
+          className={`
+          py-4 px-1 inline-flex items-center gap-2 border-b-2 font-medium text-sm whitespace-nowrap
+          ${
+            activeTab === "roles"
+              ? "border-blue-500 text-blue-600 dark:text-blue-400"
+              : "border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+          }
+        `}
+        >
+          <svg
+            className="w-5 h-5"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+            />
+          </svg>
+          Manage Roles
         </button>
       </nav>
     </div>
@@ -511,7 +558,7 @@ export default function AdminManagement() {
           createdByRole: user?.role,
         };
         setAdmins((prev) => [...prev, newAdmin]);
-        showSuccess("User created successfully", "Success");
+        showSuccess("Administrator created successfully", "Success");
       } else {
         await loadSubAdmins();
       }
@@ -519,7 +566,7 @@ export default function AdminManagement() {
       const message =
         err instanceof ApiError
           ? err.message
-          : "Failed to create User";
+          : "Failed to create administrator";
       setError(message);
       showError(message, "Error");
     } finally {
@@ -644,15 +691,15 @@ export default function AdminManagement() {
         prev.map((item) =>
           item._id === editingForm.adminId
             ? {
-              ...item,
-              firstName: editingForm.firstName,
-              lastName: editingForm.lastName,
-              email: editingForm.email,
-              username: editingForm.username,
-              mobile: editingForm.mobile,
-              role: editingForm.role,
-              permissions: Array.from(editingForm.permissions),
-            }
+                ...item,
+                firstName: editingForm.firstName,
+                lastName: editingForm.lastName,
+                email: editingForm.email,
+                username: editingForm.username,
+                mobile: editingForm.mobile,
+                role: editingForm.role,
+                permissions: Array.from(editingForm.permissions),
+              }
             : item,
         ),
       );
@@ -778,487 +825,528 @@ export default function AdminManagement() {
             <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100">
               Admin Management
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Manage Users and their permissions
-            </p>
-          </div>
-          {activeTab === "admins" && (
-            <button
-              onClick={() => setShowAddAdminModal(true)}
-              className="inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 font-semibold transition-colors shadow-lg hover:shadow-xl"
-            >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+              <p className="text-gray-600 dark:text-gray-400 mt-2">
+                Manage Users and their permissions
+              </p>
+            </div>
+            {activeTab === "admins" && (
+              <button
+                onClick={() => setShowAddAdminModal(true)}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 font-semibold transition-colors shadow-lg hover:shadow-xl"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 4v16m8-8H4"
-                />
-              </svg>
-              Add Users
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Add the Tab Navigation here */}
-      <TabNavigation />
-
-      {authLoading ? (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-12">
-          <div className="text-center py-8">
-            <Loader2 className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-spin" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Loading...
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Fetching tenant information
-            </p>
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                Add Users
+              </button>
+            )}
           </div>
         </div>
-      ) : (
-        <>
-          {/* Show branding section only on admins tab for superadmin */}
-          {activeTab === "admins" &&
-            tenant &&
-            user?.role === "superadmin" && (
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-4 sm:p-8 mb-10">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-                  <div className="flex items-center gap-4">
-                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl border-2 border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-800 flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0">
-                      <img
-                        src={logo}
-                        alt="Tenant logo"
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display =
-                            "none";
-                        }}
-                      />
-                      <ImageIcon className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 dark:text-gray-500 absolute" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
-                        Tenant Branding
-                      </h2>
-                      <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        Customize your portal appearance
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    {brandingSaving ? (
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
-                          <Upload className="w-4 h-4 animate-pulse" />
-                          <span className="font-medium">
-                            {brandingProgress
-                              ? `Uploading... ${brandingProgress.percentage}%`
-                              : "Uploading..."}
-                          </span>
-                        </div>
-                        {brandingProgress && (
-                          <div className="w-48 bg-gray-300 dark:bg-gray-700 rounded-full h-1.5">
-                            <div
-                              className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
-                              style={{
-                                width: `${brandingProgress.percentage}%`,
-                              }}
-                            ></div>
-                          </div>
-                        )}
+
+        {/* Add the Tab Navigation here */}
+        <TabNavigation />
+
+        {authLoading ? (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-12">
+            <div className="text-center py-8">
+              <Loader2 className="w-12 h-12 text-blue-500 mx-auto mb-4 animate-spin" />
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Loading...
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400 mt-2">
+                Fetching tenant information
+              </p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Show branding section only on admins tab for superadmin */}
+            {activeTab === "admins" &&
+              tenant &&
+              user?.role === "superadmin" && (
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl border border-blue-200 dark:border-blue-800 p-4 sm:p-8 mb-10">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                    <div className="flex items-center gap-4">
+                      <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-xl border-2 border-blue-200 dark:border-blue-700 bg-white dark:bg-gray-800 flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0">
+                        <img
+                          src={logo}
+                          alt="Tenant logo"
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display =
+                              "none";
+                          }}
+                        />
+                        <ImageIcon className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400 dark:text-gray-500 absolute" />
                       </div>
-                    ) : (
-                      <>
-                        <label className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 text-sm font-semibold cursor-pointer transition shadow-sm">
-                          <Upload className="w-4 h-4" />
-                          <span>Upload Logo</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            onChange={handleBrandingFileChange}
-                          />
-                        </label>
-                        {logo && (
-                          <button
-                            type="button"
-                            onClick={handleBrandingRemove}
-                            disabled={brandingSaving}
-                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 text-sm font-semibold transition disabled:opacity-60"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            Remove
-                          </button>
-                        )}
-                      </>
-                    )}
+                      <div>
+                        <h2 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">
+                          Tenant Branding
+                        </h2>
+                        <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Customize your portal appearance
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {brandingSaving ? (
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                            <Upload className="w-4 h-4 animate-pulse" />
+                            <span className="font-medium">
+                              {brandingProgress
+                                ? `Uploading... ${brandingProgress.percentage}%`
+                                : "Uploading..."}
+                            </span>
+                          </div>
+                          {brandingProgress && (
+                            <div className="w-48 bg-gray-300 dark:bg-gray-700 rounded-full h-1.5">
+                              <div
+                                className="bg-blue-500 h-1.5 rounded-full transition-all duration-300"
+                                style={{
+                                  width: `${brandingProgress.percentage}%`,
+                                }}
+                              ></div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <label className="inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 text-sm font-semibold cursor-pointer transition shadow-sm">
+                            <Upload className="w-4 h-4" />
+                            <span>Upload Logo</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={handleBrandingFileChange}
+                            />
+                          </label>
+                          {logo && (
+                            <button
+                              type="button"
+                              onClick={handleBrandingRemove}
+                              disabled={brandingSaving}
+                              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 text-sm font-semibold transition disabled:opacity-60"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Remove
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
+              )}
+
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-200 px-5 py-4 rounded-xl mb-8 flex items-start gap-3">
+                <div className="flex-shrink-0 text-lg">⚠️</div>
+                <div>{error}</div>
               </div>
             )}
 
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-200 px-5 py-4 rounded-xl mb-8 flex items-start gap-3">
-              <div className="flex-shrink-0 text-lg">⚠️</div>
-              <div>{error}</div>
-            </div>
-          )}
-
-          {/* Conditionally render based on active tab */}
-          {activeTab === "admins" ? (
-            /* ===== ADMINISTRATORS TAB CONTENT ===== */
-            <>
-              {/* Add Admin Modal */}
-              {showAddAdminModal && (
-                <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-4xl w-full my-auto">
-                    <div className="sticky top-0 bg-primary-600 px-4 sm:px-4 py-3 flex items-center justify-between rounded-t-2xl z-10">
-                      <h2 className="text-xl sm:text-2xl font-bold text-white">
-                        Add New User
-                      </h2>
-                      <button
-                        onClick={() => {
-                          setShowAddAdminModal(false);
-                          setForm(createInitialFormState());
-                          setOtp("");
-                          setOtpSent(false);
-                          setOtpVerified(false);
-                        }}
-                        className="text-white/80 hover:text-white transition"
-                      >
-                        <X className="w-6 h-6" />
-                      </button>
-                    </div>
-                    <form className="p-4 sm:p-6" onSubmit={handleCreate}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 items-start">
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                              Full Name
-                            </label>
-                            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                              <input
-                                name="firstName"
-                                value={form.firstName}
-                                onChange={handleInputChange}
-                                required
-                                placeholder="First name"
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                              />
-                              <input
-                                name="lastName"
-                                value={form.lastName}
-                                onChange={handleInputChange}
-                                required
-                                placeholder="Last name"
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                              />
-                            </div>
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                              Contact Information
-                            </label>
-                            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                              <input
-                                name="email"
-                                type="email"
-                                value={form.email}
-                                onChange={handleInputChange}
-                                required
-                                placeholder="Email address"
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                              />
-                              <input
-                                name="username"
-                                value={form.username}
-                                onChange={handleInputChange}
-                                required
-                                placeholder="Username"
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                              />
-                            </div>
-
-                            <div className="mt-4">
-                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                                Mobile Number
-                              </label>
-                              <div className="flex gap-2">
-                                <div className="relative flex-1">
-                                  <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                  <input
-                                    name="mobile"
-                                    type="tel"
-                                    value={form.mobile}
-                                    onChange={handleInputChange}
-                                    disabled={otpSent && !otpVerified}
-                                    className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-sm disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
-                                    placeholder="Enter mobile number"
-                                  />
-                                </div>
-                                {!otpVerified && (
-                                  <button
-                                    type="button"
-                                    onClick={handleSendOtp}
-                                    disabled={sendingOtp || !form.mobile}
-                                    className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg transition-all flex items-center gap-2 text-xs font-semibold disabled:opacity-50"
-                                  >
-                                    {sendingOtp ? (
-                                      <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
-                                    ) : (
-                                      "Send OTP"
-                                    )}
-                                  </button>
-                                )}
-                                {otpVerified && (
-                                  <div className="flex items-center text-green-600 gap-1 bg-green-50 dark:bg-green-900/10 px-3 py-2 rounded-lg border border-green-200 dark:border-green-800 shadow-sm">
-                                    <CheckCircle className="w-4 h-4" />
-                                    <span className="text-xs font-bold">
-                                      Verified
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {otpSent && !otpVerified && (
-                              <div className="mt-4 p-4 bg-primary-50 dark:bg-primary-900/10 border border-primary-100 dark:border-primary-800 rounded-xl space-y-3 shadow-sm animate-in fade-in slide-in-from-top-2">
-                                <label className="block text-xs font-semibold text-primary-900 dark:text-primary-100">
-                                  Enter 6-Digit OTP
-                                </label>
-                                <div className="flex gap-2 text-center">
-                                  <input
-                                    type="text"
-                                    maxLength={6}
-                                    value={otp}
-                                    onChange={(e) =>
-                                      setOtp(e.target.value.replace(/\D/g, ""))
-                                    }
-                                    className="flex-1 px-4 py-3 border-2 border-primary-200 dark:border-primary-700 rounded-xl focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-center text-lg font-bold tracking-[0.5em] shadow-inner"
-                                    placeholder="000000"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={handleVerifyOtp}
-                                    disabled={verifyingOtp || otp.length !== 6}
-                                    className="bg-primary-600 hover:bg-primary-700 text-white font-bold px-6 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-xs"
-                                  >
-                                    {verifyingOtp ? (
-                                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                                    ) : (
-                                      "Verify"
-                                    )}
-                                  </button>
-                                </div>
-                                <p className="text-[10px] text-primary-600 dark:text-primary-400 text-center font-medium">
-                                  Didn't receive code?{" "}
-                                  <button
-                                    type="button"
-                                    onClick={handleSendOtp}
-                                    className="underline font-bold hover:text-primary-800 dark:hover:text-primary-200"
-                                  >
-                                    Resend OTP
-                                  </button>
-                                </p>
-                              </div>
-                            )}
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                              Temporary Password
-                            </label>
-                            <div className="relative">
-                              <input
-                                name="password"
-                                type={
-                                  viewPasswordStates["create"]
-                                    ? "text"
-                                    : "password"
-                                }
-                                value={form.password}
-                                onChange={handleInputChange}
-                                required
-                                placeholder="Enter temporary password"
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-12"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => toggleViewPassword("create")}
-                                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
-                              >
-                                {viewPasswordStates["create"] ? (
-                                  <EyeOff className="w-5 h-5" />
-                                ) : (
-                                  <Eye className="w-5 h-5" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                              User Role
-                            </label>
-                            <select
-                              name="role"
-                              value={form.role}
-                              onChange={(e) =>
-                                setForm((prev) => ({
-                                  ...prev,
-                                  role: e.target.value as
-                                    | "subadmin"
-                                    | "inspector",
-                                }))
-                              }
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                            >
-                              <option value="subadmin">Subadmin</option>
-                              <option value="inspector">Inspector</option>
-                            </select>
-
-                          </div>
-
-                          {form.role === "inspector" && (
+            {/* Conditionally render based on active tab */}
+            {activeTab === "admins" ? (
+              /* ===== ADMINISTRATORS TAB CONTENT ===== */
+              <>
+                {/* Add Admin Modal */}
+                {showAddAdminModal && (
+                  <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-4xl w-full my-auto">
+                      <div className="sticky top-0 bg-primary-600 px-4 sm:px-4 py-3 flex items-center justify-between rounded-t-2xl z-10">
+                        <h2 className="text-xl sm:text-2xl font-bold text-white">
+                          Add New User
+                        </h2>
+                        <button
+                          onClick={() => {
+                            setShowAddAdminModal(false);
+                            setForm(createInitialFormState());
+                            setOtp("");
+                            setOtpSent(false);
+                            setOtpVerified(false);
+                          }}
+                          className="text-white/80 hover:text-white transition"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                      </div>
+                      <form className="p-4 sm:p-6" onSubmit={handleCreate}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 items-start">
+                          <div className="space-y-4">
                             <div>
                               <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                                Access Via
+                                Full Name
                               </label>
-                              <select
-                                name="accessType"
-                                value={form.accessType}
-                                onChange={(e) =>
-                                  setForm((prev) => ({
-                                    ...prev,
-                                    accessType: e.target.value as
-                                      | "website"
-                                      | "mobile"
-                                      | "both",
-                                  }))
-                                }
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                              >
-                                <option value="both">
-                                  Both (Website + Mobile)
-                                </option>
-                                <option value="website">Website Only</option>
-                                <option value="mobile">Mobile App Only</option>
-                              </select>
-                              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                                Select how this inspector can access the system.
-                              </p>
-                            </div>
-                          )}
-
+                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                            <input
+                              name="firstName"
+                              value={form.firstName}
+                              onChange={handleInputChange}
+                              required
+                              placeholder="First name"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                            />
+                            <input
+                              name="lastName"
+                              value={form.lastName}
+                              onChange={handleInputChange}
+                              required
+                              placeholder="Last name"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                            />
+                          </div>
                         </div>
 
-                        <div className="space-y-4">
-
-                          <div>
-                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                              Module Access
-                            </p>
-                            <PermissionTree
-                              nodes={permissionTree}
-                              selected={form.permissions}
-                              onChange={(next) =>
-                                setForm((prev) => ({ ...prev, permissions: next }))
-                              }
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                            Contact Information
+                          </label>
+                          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                            <input
+                              name="email"
+                              type="email"
+                              value={form.email}
+                              onChange={handleInputChange}
+                              required
+                              placeholder="Email address"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                            />
+                            <input
+                              name="username"
+                              value={form.username}
+                              onChange={handleInputChange}
+                              required
+                              placeholder="Username"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                             />
                           </div>
 
-                          <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+                          <div className="mt-4">
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                              Mobile Number
+                            </label>
+                            <div className="flex gap-2">
+                              <div className="relative flex-1">
+                                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                  name="mobile"
+                                  type="tel"
+                                  value={form.mobile}
+                                  onChange={handleInputChange}
+                                  disabled={otpSent && !otpVerified}
+                                  className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-sm disabled:bg-gray-50 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
+                                  placeholder="Enter mobile number"
+                                />
+                              </div>
+                              {!otpVerified && (
+                                <button
+                                  type="button"
+                                  onClick={handleSendOtp}
+                                  disabled={sendingOtp || !form.mobile}
+                                  className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2.5 rounded-lg transition-all flex items-center gap-2 text-xs font-semibold disabled:opacity-50"
+                                >
+                                  {sendingOtp ? (
+                                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+                                  ) : (
+                                    "Send OTP"
+                                  )}
+                                </button>
+                              )}
+                              {otpVerified && (
+                                <div className="flex items-center text-green-600 gap-1 bg-green-50 dark:bg-green-900/10 px-3 py-2 rounded-lg border border-green-200 dark:border-green-800 shadow-sm">
+                                  <CheckCircle className="w-4 h-4" />
+                                  <span className="text-xs font-bold">
+                                    Verified
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {otpSent && !otpVerified && (
+                            <div className="mt-4 p-4 bg-primary-50 dark:bg-primary-900/10 border border-primary-100 dark:border-primary-800 rounded-xl space-y-3 shadow-sm animate-in fade-in slide-in-from-top-2">
+                              <label className="block text-xs font-semibold text-primary-900 dark:text-primary-100">
+                                Enter 6-Digit OTP
+                              </label>
+                              <div className="flex gap-2 text-center">
+                                <input
+                                  type="text"
+                                  maxLength={6}
+                                  value={otp}
+                                  onChange={(e) =>
+                                    setOtp(e.target.value.replace(/\D/g, ""))
+                                  }
+                                  className="flex-1 px-4 py-3 border-2 border-primary-200 dark:border-primary-700 rounded-xl focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-center text-lg font-bold tracking-[0.5em] shadow-inner"
+                                  placeholder="000000"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={handleVerifyOtp}
+                                  disabled={verifyingOtp || otp.length !== 6}
+                                  className="bg-primary-600 hover:bg-primary-700 text-white font-bold px-6 py-2 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-xs"
+                                >
+                                  {verifyingOtp ? (
+                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                                  ) : (
+                                    "Verify"
+                                  )}
+                                </button>
+                              </div>
+                              <p className="text-[10px] text-primary-600 dark:text-primary-400 text-center font-medium">
+                                Didn't receive code?{" "}
+                                <button
+                                  type="button"
+                                  onClick={handleSendOtp}
+                                  className="underline font-bold hover:text-primary-800 dark:hover:text-primary-200"
+                                >
+                                  Resend OTP
+                                </button>
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                            Temporary Password
+                          </label>
+                          <div className="relative">
+                            <input
+                              name="password"
+                              type={
+                                viewPasswordStates["create"]
+                                  ? "text"
+                                  : "password"
+                              }
+                              value={form.password}
+                              onChange={handleInputChange}
+                              required
+                              placeholder="Enter temporary password"
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-12"
+                            />
                             <button
-                              type="submit"
-                              disabled={saving || (form.mobile && otpSent && !otpVerified)}
-                              className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-8 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-60 transition"
+                              type="button"
+                              onClick={() => toggleViewPassword("create")}
+                              className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
                             >
-                              {saving ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  Creating...
-                                </>
+                              {viewPasswordStates["create"] ? (
+                                <EyeOff className="w-5 h-5" />
                               ) : (
-                                "Add User"
+                                <Eye className="w-5 h-5" />
                               )}
                             </button>
                           </div>
                         </div>
                       </div>
-                    </form>
-                  </div>
-                </div>
-              )}
 
-              {/* Administrators Table */}
-              <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-                        Users
-                      </h2>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        {selectedAdmins.size > 0
-                          ? `${selectedAdmins.size} selected`
-                          : `${admins.length} total Users`}
-                      </p>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                            User Role
+                          </label>
+                          <select
+                            name="role"
+                            value={form.role}
+                            onChange={(e) =>
+                              setForm((prev) => ({
+                                ...prev,
+                                role: e.target.value as
+                                  | "subadmin"
+                                  | "inspector",
+                              }))
+                            }
+                            className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                          >
+                            <option value="subadmin">Subadmin</option>
+                            <option value="inspector">Inspector</option>
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Inspector can view forms, fill forms, and access
+                            analytics (all forms). Subadmin has full access with
+                            permissions.
+                          </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                            Custom Role (Optional)
+                          </label>
+                          <select
+                            name="customRole"
+                            value={form.customRole}
+                            onChange={(e) => {
+                              const roleId = e.target.value;
+                              const selectedRole = customRoles.find(r => (r._id || r.id) === roleId);
+                              setForm((prev) => ({
+                                ...prev,
+                                customRole: roleId,
+                                permissions: new Set(selectedRole?.permissions || []),
+                              }));
+                            }}
+                            className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                          >
+                            <option value="">None (Custom Permissions)</option>
+                            {customRoles.map((r) => (
+                              <option key={r._id || r.id} value={r._id || r.id}>
+                                {r.name}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Select a custom role to inherit module access permissions automatically.
+                          </p>
+                        </div>
+
+                        {form.role === "inspector" && (
+                          <div>
+                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                              Access Via
+                            </label>
+                            <select
+                              name="accessType"
+                              value={form.accessType}
+                              onChange={(e) =>
+                                setForm((prev) => ({
+                                  ...prev,
+                                  accessType: e.target.value as
+                                    | "website"
+                                    | "mobile"
+                                    | "both",
+                                }))
+                              }
+                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                            >
+                              <option value="both">
+                                Both (Website + Mobile)
+                              </option>
+                              <option value="website">Website Only</option>
+                              <option value="mobile">Mobile App Only</option>
+                            </select>
+                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              Select how this inspector can access the system.
+                            </p>
+                          </div>
+                        )}
+
+                        <div>
+                          <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                            Module Access
+                          </p>
+                          {form.customRole && (
+                            <div className="mb-3 p-3 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/10 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+                              Permissions are inherited from the selected Custom Role. Clear the Custom Role to customize permissions individually.
+                            </div>
+                          )}
+                          <PermissionTree
+                            nodes={permissionTree}
+                            selected={form.permissions}
+                            onChange={(next) => {
+                              if (!form.customRole) {
+                                setForm((prev) => ({ ...prev, permissions: next }));
+                              }
+                            }}
+                            className={form.customRole ? "opacity-60 pointer-events-none" : ""}
+                          />
+                        </div>
+
+                        <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
+                          <button
+                            type="submit"
+                            disabled={saving || (form.mobile && otpSent && !otpVerified)}
+                            className="inline-flex w-full sm:w-auto items-center justify-center gap-2 rounded-lg bg-primary-600 hover:bg-primary-700 text-white px-8 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-60 transition"
+                          >
+                            {saving ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Creating...
+                              </>
+                            ) : (
+                              "Add User"
+                            )}
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    {selectedAdmins.size > 0 && (
-                      <button
-                        onClick={() => {
-                          setSelectedAdmins(new Set());
-                        }}
-                        className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium"
-                      >
-                        Clear selection
-                      </button>
-                    )}
+                  </form>
+                    </div>
                   </div>
-                </div>
+                )}
 
-                {loading ? (
-                  <div className="flex justify-center py-16">
-                    <div className="text-center">
-                      <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto mb-4" />
+                {/* Administrators Table */}
+                <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                          Users
+                        </h2>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          {selectedAdmins.size > 0
+                            ? `${selectedAdmins.size} selected`
+                            : `${admins.length} total Users`}
+                        </p>
+                      </div>
+                      {selectedAdmins.size > 0 && (
+                        <button
+                          onClick={() => {
+                            setSelectedAdmins(new Set());
+                          }}
+                          className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 font-medium"
+                        >
+                          Clear selection
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {loading ? (
+                    <div className="flex justify-center py-16">
+                      <div className="text-center">
+                        <Loader2 className="h-10 w-10 animate-spin text-blue-500 mx-auto mb-4" />
+                        <p className="text-gray-600 dark:text-gray-400 font-medium">
+                          Loading Users...
+                        </p>
+                      </div>
+                    </div>
+                  ) : admins.length === 0 ? (
+                    <div className="text-center py-16">
+                      <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full mb-4">
+                        <svg
+                          className="w-8 h-8 text-gray-400 dark:text-gray-500"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 4.354a4 4 0 110 5.292M15 21H3.598a4 4 0 01-3.996-3.558M21.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"
+                          />
+                        </svg>
+                      </div>
                       <p className="text-gray-600 dark:text-gray-400 font-medium">
-                        Loading Users...
+                        No User yet
+                      </p>
+                      <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">
+                        Create your first User using the button above
                       </p>
                     </div>
-                  </div>
-                ) : admins.length === 0 ? (
-                  <div className="text-center py-16">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full mb-4">
-                      <svg
-                        className="w-8 h-8 text-gray-400 dark:text-gray-500"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 4.354a4 4 0 110 5.292M15 21H3.598a4 4 0 01-3.996-3.558M21.5 12a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0z"
-                        />
-                      </svg>
-                    </div>
-                    <p className="text-gray-600 dark:text-gray-400 font-medium">
-                      No User yet
-                    </p>
-                    <p className="text-gray-500 dark:text-gray-500 text-sm mt-1">
-                      Create your first User using the button above
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="hidden lg:block overflow-x-auto">
+                  ) : (
+                    <>
+                      <div className="hidden lg:block overflow-x-auto">
                       <table className="w-full">
                         <thead className="bg-gray-50 dark:bg-gray-900/50">
                           <tr>
@@ -1279,19 +1367,31 @@ export default function AdminManagement() {
                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                               Status
                             </th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                              Role
+                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                               Role
+                             </th>
+                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                               Shift
+                             </th>
+                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                               Performance Score
+                             </th>
+                             <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                               Contact
+                             </th>
+                            {/* Permission Headers */}
+                            <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider min-w-[100px]">
+                              Dashboard
                             </th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                              Shift
+                            <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider min-w-[120px]">
+                              Service Analytics
                             </th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                              Performance Score
+                            <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider min-w-[130px]">
+                              Customer Requests
                             </th>
-                            <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                              Contact
+                            <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider min-w-[130px]">
+                              Request Management
                             </th>
-
                             <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                               Actions
                             </th>
@@ -1309,10 +1409,11 @@ export default function AdminManagement() {
                             return (
                               <tr
                                 key={admin._id}
-                                className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${deleteConfirmAdminId === admin._id
-                                  ? "bg-red-50 dark:bg-red-900/20"
-                                  : ""
-                                  }`}
+                                className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors ${
+                                  deleteConfirmAdminId === admin._id
+                                    ? "bg-red-50 dark:bg-red-900/20"
+                                    : ""
+                                }`}
                               >
                                 <td className="px-6 py-4">
                                   <input
@@ -1346,10 +1447,11 @@ export default function AdminManagement() {
                                       handleToggleActiveStatus(admin._id)
                                     }
                                     disabled={updatingId === admin._id}
-                                    className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors ${admin.isActive
-                                      ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
-                                      : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
-                                      }`}
+                                    className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                                      admin.isActive
+                                        ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50"
+                                        : "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600"
+                                    }`}
                                   >
                                     {updatingId === admin._id ? (
                                       <Loader2 className="w-3 h-3 animate-spin mr-1" />
@@ -1359,91 +1461,134 @@ export default function AdminManagement() {
                                 </td>
                                 <td className="px-6 py-4">
                                   <span
-                                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${admin.role === "admin"
-                                      ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
-                                      : admin.role === "subadmin"
-                                        ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-                                        : admin.role === "inspector"
-                                          ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
-                                          : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
-                                      }`}
+                                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                                      admin.role === "admin"
+                                        ? "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
+                                        : admin.role === "subadmin"
+                                          ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
+                                          : admin.role === "inspector"
+                                            ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
+                                            : "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
+                                    }`}
                                   >
-                                    {admin.role === "subadmin"
-                                      ? "Subadmin"
-                                      : admin.role === "inspector"
-                                        ? "Inspector"
-                                        : admin.role}
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                  {admin.role === "inspector" ? (
-                                    <select
-                                      value={getUserShiftId(admin._id)}
-                                      onChange={(e) =>
-                                        handleAssignShift(admin._id, e.target.value)
-                                      }
-                                      disabled={updatingId === admin._id}
-                                      className="text-xs rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-[140px] p-1.5 shadow-sm"
-                                    >
-                                      <option value="">None</option>
-                                      {shifts.map((s) => (
-                                        <option key={s._id} value={s._id}>
-                                          {s.displayName || s.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    <span className="text-gray-400 dark:text-gray-600 text-xs">
-                                      —
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="px-6 py-4">
-                                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                    {(performanceScores[admin._id] || 0)}%
-                                  </span>
-                                </td>
-                                <td className="px-6 py-4">
-                                  <div className="text-sm text-gray-900 dark:text-gray-100">
-                                    {admin.email}
-                                  </div>
-                                </td>
-
-
-
-                                <td className="px-6 py-4 text-right">
-                                  {admin.role !== "admin" ? (
-                                    <div className="flex items-center justify-end gap-2">
-                                      <button
-                                        onClick={() => handleEditAdmin(admin)}
-                                        disabled={updatingId === admin._id}
-                                        className="p-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                                        title="Edit Admin"
-                                      >
-                                        <Edit2 className="w-4 h-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleToggleActiveStatus(admin._id)}
-                                        disabled={updatingId === admin._id}
-                                        className="p-2 text-gray-600 hover:text-yellow-600 dark:text-gray-400 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-colors"
-                                        title={admin.isActive ? "Deactivate Admin" : "Activate Admin"}
-                                      >
-                                        {admin.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                                      </button>
-                                      <button
-                                        onClick={() =>
-                                          setDeleteConfirmAdminId(admin._id)
+                                    {admin.customRole?.name
+                                      ? admin.customRole.name
+                                      : admin.role === "subadmin"
+                                        ? "Subadmin"
+                                        : admin.role === "inspector"
+                                          ? "Inspector"
+                                          : admin.role}
+                                   </span>
+                                 </td>
+                                  <td className="px-6 py-4">
+                                    {admin.role === "inspector" ? (
+                                      <select
+                                        value={getUserShiftId(admin._id)}
+                                        onChange={(e) =>
+                                          handleAssignShift(admin._id, e.target.value)
                                         }
                                         disabled={updatingId === admin._id}
-                                        className="p-2 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                                        title="Delete Admin"
+                                        className="text-xs rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-blue-500 focus:border-blue-500 block w-[140px] p-1.5 shadow-sm"
                                       >
-                                        <Trash2 className="w-4 h-4" />
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <span className="text-xs text-gray-400 dark:text-gray-500 italic">No actions</span>
-                                  )}
+                                        <option value="">None</option>
+                                        {shifts.map((s) => (
+                                          <option key={s._id} value={s._id}>
+                                            {s.displayName || s.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <span className="text-gray-400 dark:text-gray-600 text-xs">
+                                        —
+                                      </span>
+                                    )}
+                                  </td>
+                                 <td className="px-6 py-4">
+                                   <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                     {(performanceScores[admin._id] || 0)}%
+                                   </span>
+                                 </td>
+                                 <td className="px-6 py-4">
+                                   <div className="text-sm text-gray-900 dark:text-gray-100">
+                                     {admin.email}
+                                   </div>
+                                 </td>
+
+                                {/* Permission Checkboxes */}
+                                {MODULE_OPTIONS.map((option) => {
+                                  // Determine if permissions should be editable
+                                  const isSuperAdmin =
+                                    user?.role === "superadmin";
+                                  const isAdminUser = user?.role === "admin";
+                                  const wasCreatedBySuperAdmin =
+                                    admin.createdByRole === "superadmin" ||
+                                    admin.role === "admin";
+
+                                  // Show checkboxes for:
+                                  // 1. Superadmins (can edit all)
+                                  // 2. Admins editing admins NOT created by superadmins
+                                  const showCheckbox =
+                                    isSuperAdmin ||
+                                    (isAdminUser && !wasCreatedBySuperAdmin);
+
+                                  return (
+                                    <td
+                                      key={`${admin._id}-${option.key}`}
+                                      className="px-6 py-4 text-center"
+                                    >
+                                      {showCheckbox ? (
+                                        <input
+                                          type="checkbox"
+                                          className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                          checked={permissionSet.has(
+                                            option.key,
+                                          )}
+                                          onChange={() =>
+                                            handleTogglePermission(
+                                              admin._id,
+                                              option.key,
+                                            )
+                                          }
+                                          disabled={updatingId === admin._id}
+                                        />
+                                      ) : (
+                                        <span className="text-gray-400 dark:text-gray-600 text-xs">
+                                          —
+                                        </span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+
+                                <td className="px-6 py-4 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    <button
+                                      onClick={() => handleEditAdmin(admin)}
+                                      disabled={updatingId === admin._id}
+                                      className="p-2 text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                                      title="Edit Admin"
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleToggleActiveStatus(admin._id)}
+                                      disabled={updatingId === admin._id}
+                                      className="p-2 text-gray-600 hover:text-yellow-600 dark:text-gray-400 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 rounded-lg transition-colors"
+                                      title={admin.isActive ? "Deactivate Admin" : "Activate Admin"}
+                                    >
+                                      {admin.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        setDeleteConfirmAdminId(admin._id)
+                                      }
+                                      disabled={updatingId === admin._id}
+                                      className="p-2 text-gray-600 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                      title="Delete Admin"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -1457,10 +1602,11 @@ export default function AdminManagement() {
                       {admins.map((admin) => (
                         <div
                           key={admin._id}
-                          className={`p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm ${deleteConfirmAdminId === admin._id
-                            ? "ring-2 ring-red-500"
-                            : ""
-                            }`}
+                          className={`p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm ${
+                            deleteConfirmAdminId === admin._id
+                              ? "ring-2 ring-red-500"
+                              : ""
+                          }`}
                         >
                           <div className="flex items-start justify-between mb-4">
                             <div className="flex items-center gap-3">
@@ -1484,33 +1630,27 @@ export default function AdminManagement() {
                               </div>
                             </div>
                             <div className="flex gap-1 flex-shrink-0">
-                              {admin.role !== "admin" ? (
-                                <>
-                                  <button
-                                    onClick={() => handleEditAdmin(admin)}
-                                    className="p-2 text-blue-600 bg-blue-50 dark:bg-blue-900/20 rounded-lg"
-                                  >
-                                    <Edit2 className="w-4 h-4" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleToggleActiveStatus(admin._id)}
-                                    className="p-2 text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg"
-                                    title={admin.isActive ? "Deactivate Admin" : "Activate Admin"}
-                                  >
-                                    {admin.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
-                                  </button>
-                                  <button
-                                    onClick={() =>
-                                      setDeleteConfirmAdminId(admin._id)
-                                    }
-                                    className="p-2 text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </>
-                              ) : (
-                                <span className="text-xs text-gray-400 dark:text-gray-500 italic px-2">No actions</span>
-                              )}
+                              <button
+                                onClick={() => handleEditAdmin(admin)}
+                                className="p-2 text-blue-600 bg-blue-50 dark:bg-blue-900/20 rounded-lg"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleToggleActiveStatus(admin._id)}
+                                className="p-2 text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg"
+                                title={admin.isActive ? "Deactivate Admin" : "Activate Admin"}
+                              >
+                                {admin.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setDeleteConfirmAdminId(admin._id)
+                                }
+                                className="p-2 text-red-600 bg-red-50 dark:bg-red-900/20 rounded-lg"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </div>
                           </div>
 
@@ -1524,10 +1664,11 @@ export default function AdminManagement() {
                                   handleToggleActiveStatus(admin._id)
                                 }
                                 disabled={updatingId === admin._id}
-                                className={`inline-flex items-center px-2 py-1 rounded-full font-medium ${admin.isActive
-                                  ? "bg-green-100 text-green-800 dark:bg-green-900/30"
-                                  : "bg-gray-100 text-gray-800 dark:bg-gray-700"
-                                  }`}
+                                className={`inline-flex items-center px-2 py-1 rounded-full font-medium ${
+                                  admin.isActive
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900/30"
+                                    : "bg-gray-100 text-gray-800 dark:bg-gray-700"
+                                }`}
                               >
                                 {admin.isActive ? "Active" : "Inactive"}
                               </button>
@@ -1614,10 +1755,11 @@ export default function AdminManagement() {
                                     disabled={
                                       !canEdit || updatingId === admin._id
                                     }
-                                    className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors ${hasPermission
-                                      ? "bg-blue-600 text-white border-blue-600"
-                                      : "bg-white text-gray-400 border-gray-200 dark:bg-gray-800 dark:border-gray-600"
-                                      }`}
+                                    className={`px-2 py-1 rounded text-[10px] font-bold border transition-colors ${
+                                      hasPermission
+                                        ? "bg-blue-600 text-white border-blue-600"
+                                        : "bg-white text-gray-400 border-gray-200 dark:bg-gray-800 dark:border-gray-600"
+                                    }`}
                                   >
                                     {option.label}
                                   </button>
@@ -1629,295 +1771,341 @@ export default function AdminManagement() {
                       ))}
                     </div>
                   </>
-                )}
-              </div>
+                  )}
+                </div>
 
-              {/* Edit Admin Modal */}
-              {editingForm && (
-                <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-4xl w-full my-auto">
-                    <div className="sticky top-0 bg-primary-600 px-4 sm:px-6 py-3 flex items-center justify-between rounded-t-2xl z-10">
-                      <h2 className="text-xl sm:text-2xl font-bold text-white">
-                        Edit User
-                      </h2>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="text-white/80 hover:text-white transition"
+                {/* Edit Admin Modal */}
+                {editingForm && (
+                  <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-4xl w-full my-auto">
+                      <div className="sticky top-0 bg-primary-600 px-4 sm:px-6 py-3 flex items-center justify-between rounded-t-2xl z-10">
+                        <h2 className="text-xl sm:text-2xl font-bold text-white">
+                          Edit User
+                        </h2>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="text-white/80 hover:text-white transition"
+                        >
+                          <X className="w-6 h-6" />
+                        </button>
+                      </div>
+
+                      <form
+                        className="p-4 sm:p-8"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleSaveAdminChanges();
+                        }}
                       >
-                        <X className="w-6 h-6" />
-                      </button>
-                    </div>
-
-                    <form
-                      className="p-4 sm:p-8"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        handleSaveAdminChanges();
-                      }}
-                    >
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 items-start">
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                              Full Name
-                            </label>
-                            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                              <input
-                                name="firstName"
-                                value={editingForm.firstName}
-                                onChange={handleEditInputChange}
-                                required
-                                placeholder="First name"
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                              />
-                              <input
-                                name="lastName"
-                                value={editingForm.lastName}
-                                onChange={handleEditInputChange}
-                                required
-                                placeholder="Last name"
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                              />
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 items-start">
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                Full Name
+                              </label>
+                              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                                <input
+                                  name="firstName"
+                                  value={editingForm.firstName}
+                                  onChange={handleEditInputChange}
+                                  required
+                                  placeholder="First name"
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                />
+                                <input
+                                  name="lastName"
+                                  value={editingForm.lastName}
+                                  onChange={handleEditInputChange}
+                                  required
+                                  placeholder="Last name"
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                />
+                              </div>
                             </div>
-                          </div>
 
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                              Contact Information
-                            </label>
-                            <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
-                              <input
-                                name="email"
-                                type="email"
-                                value={editingForm.email}
-                                onChange={handleEditInputChange}
-                                required
-                                placeholder="Email address"
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                              />
-                              <input
-                                name="username"
-                                value={editingForm.username}
-                                onChange={handleEditInputChange}
-                                required
-                                placeholder="Username"
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                              />
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                Contact Information
+                              </label>
+                              <div className="grid gap-3 grid-cols-1 sm:grid-cols-2">
+                                <input
+                                  name="email"
+                                  type="email"
+                                  value={editingForm.email}
+                                  onChange={handleEditInputChange}
+                                  required
+                                  placeholder="Email address"
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                />
+                                <input
+                                  name="username"
+                                  value={editingForm.username}
+                                  onChange={handleEditInputChange}
+                                  required
+                                  placeholder="Username"
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                />
+                              </div>
                             </div>
-                          </div>
 
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                              Mobile Number
-                            </label>
-                            <div className="relative">
-                              <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                              <input
-                                name="mobile"
-                                type="tel"
-                                value={editingForm.mobile}
-                                onChange={handleEditInputChange}
-                                placeholder="Enter mobile number"
-                                className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-sm"
-                              />
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                Mobile Number
+                              </label>
+                              <div className="relative">
+                                <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                <input
+                                  name="mobile"
+                                  type="tel"
+                                  value={editingForm.mobile}
+                                  onChange={handleEditInputChange}
+                                  placeholder="Enter mobile number"
+                                  className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-sm"
+                                />
+                              </div>
                             </div>
-                          </div>
 
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                              Password
-                            </label>
-                            <div className="relative">
-                              <input
-                                name="password"
-                                type={
-                                  viewPasswordStates[editingForm.adminId]
-                                    ? "text"
-                                    : "password"
-                                }
-                                value={editingForm.password}
-                                onChange={handleEditInputChange}
-                                placeholder="New password (leave blank to keep current)"
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-12"
-                              />
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  toggleViewPassword(editingForm.adminId)
-                                }
-                                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
-                              >
-                                {viewPasswordStates[editingForm.adminId] ? (
-                                  <EyeOff className="w-5 h-5" />
-                                ) : (
-                                  <Eye className="w-5 h-5" />
-                                )}
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                Password
+                              </label>
+                              <div className="relative">
+                                <input
+                                  name="password"
+                                  type={
+                                    viewPasswordStates[editingForm.adminId]
+                                      ? "text"
+                                      : "password"
+                                  }
+                                  value={editingForm.password}
+                                  onChange={handleEditInputChange}
+                                  placeholder="New password (leave blank to keep current)"
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition pr-12"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    toggleViewPassword(editingForm.adminId)
+                                  }
+                                  className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition"
+                                >
+                                  {viewPasswordStates[editingForm.adminId] ? (
+                                    <EyeOff className="w-5 h-5" />
+                                  ) : (
+                                    <Eye className="w-5 h-5" />
+                                  )}
                               </button>
                             </div>
                           </div>
-                          <div>
-                            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                              User Role
-                            </label>
-                            <select
-                              name="role"
-                              value={editingForm.role}
-                              onChange={(e) =>
-                                setEditingForm((prev) =>
-                                  prev
-                                    ? {
-                                      ...prev,
-                                      role: e.target.value as
-                                        | "subadmin"
-                                        | "inspector",
-                                    }
-                                    : null,
-                                )
-                              }
-                              className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                            >
-                              <option value="subadmin">Subadmin</option>
-                              <option value="inspector">Inspector</option>
-                            </select>
+                        </div>
 
-                          </div>
-                          {editingForm.role === "inspector" && (
+                        <div className="space-y-4">
                             <div>
                               <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
-                                Access Via
+                                User Role
                               </label>
                               <select
-                                name="accessType"
-                                value={editingForm.accessType}
+                                name="role"
+                                value={editingForm.role}
                                 onChange={(e) =>
                                   setEditingForm((prev) =>
                                     prev
                                       ? {
-                                        ...prev,
-                                        accessType: e.target.value as
-                                          | "website"
-                                          | "mobile"
-                                          | "both",
-                                      }
+                                          ...prev,
+                                          role: e.target.value as
+                                            | "subadmin"
+                                            | "inspector",
+                                        }
                                       : null,
                                   )
                                 }
-                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-1 py-1 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                               >
-                                <option value="both">
-                                  Both (Website + Mobile)
-                                </option>
-                                <option value="website">Website Only</option>
-                                <option value="mobile">Mobile App Only</option>
+                                <option value="subadmin">Subadmin</option>
+                                <option value="inspector">Inspector</option>
                               </select>
+                              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Inspector can view forms, fill forms, and access
+                                analytics (all forms). Subadmin has full access with
+                                permissions.
+                              </p>
                             </div>
-                          )}
-                        </div>
 
-                        <div className="space-y-4">
+                            <div>
+                              <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                Custom Role (Optional)
+                              </label>
+                              <select
+                                name="customRole"
+                                value={editingForm.customRole}
+                                onChange={(e) => {
+                                  const roleId = e.target.value;
+                                  const selectedRole = customRoles.find(r => (r._id || r.id) === roleId);
+                                  setEditingForm((prev) => {
+                                    if (!prev) return null;
+                                    return {
+                                      ...prev,
+                                      customRole: roleId,
+                                      permissions: new Set(selectedRole?.permissions || []),
+                                    };
+                                  });
+                                }}
+                                className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                              >
+                                <option value="">None (Custom Permissions)</option>
+                                {customRoles.map((r) => (
+                                  <option key={r._id || r.id} value={r._id || r.id}>
+                                    {r.name}
+                                  </option>
+                                ))}
+                              </select>
+                              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                Select a custom role to inherit module access permissions automatically.
+                              </p>
+                            </div>
 
+                            {editingForm.role === "inspector" && (
+                              <div>
+                                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                                  Access Via
+                                </label>
+                                <select
+                                  name="accessType"
+                                  value={editingForm.accessType}
+                                  onChange={(e) =>
+                                    setEditingForm((prev) =>
+                                      prev
+                                        ? {
+                                            ...prev,
+                                            accessType: e.target.value as
+                                              | "website"
+                                              | "mobile"
+                                              | "both",
+                                          }
+                                        : null,
+                                    )
+                                  }
+                                  className="w-full rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                                >
+                                  <option value="both">
+                                    Both (Website + Mobile)
+                                  </option>
+                                  <option value="website">Website Only</option>
+                                  <option value="mobile">Mobile App Only</option>
+                                </select>
+                              </div>
+                            )}
 
-
-
-                          <div>
-                            <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
-                              Module Access
-                            </p>
-                            <PermissionTree
-                              nodes={permissionTree}
-                              selected={editingForm.permissions}
-                              onChange={(next) =>
-                                setEditingForm((prev) =>
-                                  prev ? { ...prev, permissions: next } : null,
-                                )
-                              }
-                            />
-                          </div>
-
-                          <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-2">
-                            <button
-                              type="submit"
-                              disabled={updatingId === editingForm.adminId}
-                              className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-60 transition w-full sm:w-auto"
-                            >
-                              {updatingId === editingForm.adminId ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 animate-spin" />
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  <Check className="w-4 h-4" />
-                                  Save Changes
-                                </>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3">
+                                Module Access
+                              </p>
+                              {editingForm.customRole && (
+                                <div className="mb-3 p-3 rounded-lg bg-blue-50 border border-blue-200 dark:bg-blue-900/10 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+                                  Permissions are inherited from the selected Custom Role. Clear the Custom Role to customize permissions individually.
+                                </div>
                               )}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleCancelEdit}
-                              disabled={updatingId === editingForm.adminId}
-                              className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 transition w-full sm:w-auto"
-                            >
-                              Cancel
-                            </button>
+                              <PermissionTree
+                                nodes={permissionTree}
+                                selected={editingForm.permissions}
+                                onChange={(next) => {
+                                  if (!editingForm.customRole) {
+                                    setEditingForm((prev) =>
+                                      prev ? { ...prev, permissions: next } : null,
+                                    );
+                                  }
+                                }}
+                                className={editingForm.customRole ? "opacity-60 pointer-events-none" : ""}
+                              />
+                            </div>
+
+                            <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row gap-2">
+                              <button
+                                type="submit"
+                                disabled={updatingId === editingForm.adminId}
+                                className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:cursor-not-allowed disabled:opacity-60 transition w-full sm:w-auto"
+                              >
+                                {updatingId === editingForm.adminId ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Check className="w-4 h-4" />
+                                    Save Changes
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleCancelEdit}
+                                disabled={updatingId === editingForm.adminId}
+                                className="inline-flex items-center justify-center rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 px-6 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 transition w-full sm:w-auto"
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </form>
+                      </form>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Delete Confirmation Modal */}
-              {deleteConfirmAdminId && (
-                <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 z-50">
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-md w-full p-6">
-                    <div className="text-center">
-                      <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                        <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
-                        Delete User?
-                      </h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-                        This will permanently delete the User. This action cannot be undone.
-                      </p>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() =>
-                            handleDeleteAdmin(deleteConfirmAdminId)
-                          }
-                          disabled={updatingId === deleteConfirmAdminId}
-                          className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-3 py-2 text-sm font-semibold disabled:opacity-60 transition"
-                        >
-                          {updatingId === deleteConfirmAdminId ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Deleting...
-                            </>
-                          ) : (
-                            "Delete"
-                          )}
-                        </button>
-                        <button
-                          onClick={() => setDeleteConfirmAdminId(null)}
-                          disabled={updatingId === deleteConfirmAdminId}
-                          className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 disabled:opacity-60 transition"
-                        >
-                          Cancel
-                        </button>
+                {/* Delete Confirmation Modal */}
+                {deleteConfirmAdminId && (
+                  <div className="fixed inset-0 bg-black/50 dark:bg-black/70 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-2xl max-w-md w-full p-6">
+                      <div className="text-center">
+                        <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 mb-2">
+                          Delete User?
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                          This will permanently delete the User. This action cannot be undone.
+                        </p>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() =>
+                              handleDeleteAdmin(deleteConfirmAdminId)
+                            }
+                            disabled={updatingId === deleteConfirmAdminId}
+                            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-3 py-2 text-sm font-semibold disabled:opacity-60 transition"
+                          >
+                            {updatingId === deleteConfirmAdminId ? (
+                              <>
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Deleting...
+                              </>
+                            ) : (
+                              "Delete"
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmAdminId(null)}
+                            disabled={updatingId === deleteConfirmAdminId}
+                            className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 disabled:opacity-60 transition"
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )}
-            </>
-          ) : (
-            /* ===== USERS RESPONSE DASHBOARD TAB CONTENT ===== */
-            <ResponseDashboard isEmbedded={true} />
-          )}
-        </>
-      )}
+                )}
+              </>
+            ) : activeTab === "responses" ? (
+              /* ===== USERS RESPONSE DASHBOARD TAB CONTENT ===== */
+              <ResponseDashboard isEmbedded={true} />
+            ) : (
+              /* ===== ROLES TAB CONTENT ===== */
+              <RoleManagement />
+            )}
+          </>
+        )}
     </div>
   );
 }

@@ -7,6 +7,7 @@ export interface PermissionNode {
 
 /** Fixed sub-tabs shown for every individual form under Service Analytics */
 const ANALYTICS_FORM_SUBTABS: Array<{ suffix: string; label: string }> = [
+  { suffix: "preview", label: "Preview" },
   { suffix: "response", label: "Response" },
   { suffix: "dashboard", label: "Dashboard" },
   { suffix: "overall", label: "Overall" },

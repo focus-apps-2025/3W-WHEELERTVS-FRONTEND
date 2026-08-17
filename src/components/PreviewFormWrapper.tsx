@@ -17,6 +17,17 @@ export default function PreviewFormWrapper() {
     console.log("[PreviewFormWrapper] User:", user);
     console.log("[PreviewFormWrapper] Tenant:", tenant?.slug);
   }, [user, tenant]);
+
+  // Permission check for previewing form
+  const hasPreviewAccess = React.useMemo(() => {
+    if (!user) return true;
+    if (user.role === "admin" || user.role === "superadmin") return true;
+    const permissions = user.permissions || [];
+    return (
+      permissions.includes(`analytics:form:${id}:preview`) ||
+      permissions.includes(`analytics:form:${id}:response`)
+    );
+  }, [user, id]);
   const [form, setForm] = useState<any>(null);
   const [branchingRules, setBranchingRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -334,6 +345,14 @@ export default function PreviewFormWrapper() {
       }
     } else {
       showSuccess("Response submitted successfully!");
+        console.log("🏃 Navigating NOW...");
+        navigate("/forms/analytics");
+      }, 100);
+    } catch (err) {
+      console.error("❌ Submission failed:", err);
+      console.error("❌ Error details:", err?.message, err?.stack);
+      showError("Failed to submit response. Please try again.");
+>>>>>>> fb445a2 (upd)
     }
 
     // Stop heartbeat
@@ -355,6 +374,29 @@ export default function PreviewFormWrapper() {
 };
 
   // ── Render states ──────────────────────────────────────────────────────────
+  if (user && !hasPreviewAccess) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="text-center py-12">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6 space-y-3">
+            <h2 className="text-lg font-semibold text-red-800">
+              Access Denied
+            </h2>
+            <p className="text-red-600">
+              You do not have permission to view or preview this form. Please contact your administrator for access.
+            </p>
+            <button
+              onClick={() => navigate("/forms/analytics")}
+              className="inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Back to Analytics
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-6">

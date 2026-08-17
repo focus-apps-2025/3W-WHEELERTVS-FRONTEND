@@ -138,7 +138,7 @@ export default function FormsAnalytics() {
     
     // For inspector/subadmin, check if they have ANY analytics permission for this form
     // Check each sub-type
-    const subTypes = ['response', 'dashboard', 'overall', 'questions', 'sections'];
+    const subTypes = ['preview', 'response', 'dashboard', 'overall', 'questions', 'sections'];
     for (const subType of subTypes) {
       if (userPermissions.includes(`analytics:form:${formId}:${subType}`)) {
         return true;
@@ -1138,6 +1138,7 @@ export default function FormsAnalytics() {
             if (!canViewThisForm) return null;
 
             // Check if user has specific analytics permissions for this form
+            const hasPreviewPermission = hasFormAnalyticsPermission(formId, 'preview');
             const hasResponsePermission = hasFormAnalyticsPermission(formId, 'response');
             const hasDashboardPermission = hasFormAnalyticsPermission(formId, 'dashboard');
             const hasOverallPermission = hasFormAnalyticsPermission(formId, 'overall');
@@ -1548,7 +1549,7 @@ export default function FormsAnalytics() {
                   <div className="flex flex-wrap items-center gap-2">
                     {isOwner && (
                       <>
-                        {hasResponsePermission && (
+                        {hasPreviewPermission && (
                           <button
                             onClick={() => navigate(`/forms/${formId}/preview`)}
                             className="flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center justify-center gap-1.5"
@@ -1557,7 +1558,7 @@ export default function FormsAnalytics() {
                             <span>View</span>
                           </button>
                         )}
-                        {canEdit && hasResponsePermission && (
+                        {canEdit && (hasPreviewPermission || hasResponsePermission) && (
                           <button
                             onClick={() => navigate(`/forms/${formId}/edit`)}
                             className="flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center justify-center gap-1.5"
@@ -1567,7 +1568,7 @@ export default function FormsAnalytics() {
                             <span>Edit</span>
                           </button>
                         )}
-                        {(hasResponsePermission || hasDashboardPermission || hasOverallPermission || hasQuestionsPermission || hasSectionsPermission) && (
+                        {(hasPreviewPermission || hasResponsePermission || hasDashboardPermission || hasOverallPermission || hasQuestionsPermission || hasSectionsPermission) && (
                           <button
                             onClick={() => navigate(`/forms/${formId}/analytics`)}
                             className="flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm font-medium text-white bg-primary-600 rounded-lg transition-colors hover:bg-primary-700 flex items-center justify-center gap-1.5"
@@ -1590,7 +1591,17 @@ export default function FormsAnalytics() {
 
                     {!isOwner && (
                       <div className="flex flex-wrap gap-2 w-full sm:w-auto">
-                        {(hasResponsePermission || hasDashboardPermission || hasOverallPermission || hasQuestionsPermission || hasSectionsPermission) && (
+                        {hasPreviewPermission && (
+                          <button
+                            onClick={() => navigate(`/forms/${formId}/preview`)}
+                            className="flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm font-medium text-white bg-indigo-600 rounded-lg transition-colors hover:bg-indigo-700 flex items-center justify-center gap-1.5"
+                            title="View / Preview Form"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View</span>
+                          </button>
+                        )}
+                        {(hasPreviewPermission || hasResponsePermission || hasDashboardPermission || hasOverallPermission || hasQuestionsPermission || hasSectionsPermission) && (
                           <button
                             onClick={() => navigate(`/forms/${formId}/analytics`)}
                             className="flex-1 sm:flex-none px-3 py-2 text-xs sm:text-sm font-medium text-white bg-indigo-600 rounded-lg transition-colors hover:bg-indigo-700 flex items-center justify-center gap-1.5"

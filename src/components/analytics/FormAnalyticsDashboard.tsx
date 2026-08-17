@@ -7802,7 +7802,7 @@ export default function FormAnalyticsDashboard() {
 
   const handleExportToExcel = () => {
     try {
-      const headerRow: any[] = ["Timestamp", "Submitted By", "Status", "Chassis Number"];
+      const headerRow: any[] = ["Timestamp", "Submitted By", "Status", "Chassis Number", "Dispatched", "Dispatched At"];
       const columnInfo: Array<{
         questionId: string;
         isFollowUp: boolean;
@@ -7833,6 +7833,10 @@ export default function FormAnalyticsDashboard() {
           response.submittedBy || response.createdBy || "Anonymous",
           responseStatuses[response.id] || "-",
           getChassisDisplayValue(response.answers?.chassis_number),
+          response.isDispatched ? "Yes" : "No",
+          response.dispatchedAt
+            ? new Date(response.dispatchedAt).toLocaleString("en-US")
+            : "-",
         ];
 
         columnInfo.forEach(({ questionId }) => {
