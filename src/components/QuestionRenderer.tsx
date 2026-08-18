@@ -232,7 +232,7 @@ export default function QuestionRenderer({
     const val =
       isQuestionTrackingEnabled && trackingValue ? trackingValue : value;
     if (typeof val === "object" && val !== null) {
-      return (val as any).chassisNumber || "";
+      return (val as any).chassisNumber || (val as any).value || (val as any).text || (val as any).chassis || "";
     }
     return val || "";
   }, [isQuestionTrackingEnabled, trackingValue, value]);
