@@ -2494,9 +2494,15 @@ export default function FormAnalyticsDashboard() {
     return "dashboard";
   });
 
+  const fetchedBulkReviewsKeyRef = useRef<string>("");
+
   useEffect(() => {
     // Only fetch TVS reviews when in dashboard view or overall view and responses exist
     if (responses.length === 0 || (analyticsView !== "dashboard")) return;
+
+    const currentKey = `${id}-${responses.length}`;
+    if (fetchedBulkReviewsKeyRef.current === currentKey) return;
+    fetchedBulkReviewsKeyRef.current = currentKey;
 
     const fetchBulkReviews = async () => {
       try {
@@ -2507,8 +2513,6 @@ export default function FormAnalyticsDashboard() {
           return;
         }
 
-        // ✅ FIX: Use the correct endpoint
-        // Instead of /api/responses/reviews/bulk, use the existing endpoint
         const res = await fetch("/api/responses/reviews/bulk", {
           method: "POST",
           headers: {
@@ -2518,35 +2522,11 @@ export default function FormAnalyticsDashboard() {
           body: JSON.stringify({ responseIds }),
         });
 
-        // ✅ FIX: If the endpoint doesn't exist, fetch reviews one by one
-        if (!res.ok) {
-          console.warn('Bulk reviews endpoint not found, fetching individually...');
-          const reviews = [];
-          for (const id of responseIds.slice(0, 10)) { // Limit to 10 to avoid rate limiting
-            try {
-              const singleRes = await fetch(`/api/responses/reviews/${id}`, {
-                headers: {
-                  Authorization: `Bearer ${localStorage.getItem("auth_token")}`,
-                },
-              });
-              if (singleRes.ok) {
-                const data = await singleRes.json();
-                if (data.success && data.reviews) {
-                  reviews.push(...data.reviews);
-                }
-              }
-            } catch (e) {
-              console.error(`Failed to fetch reviews for ${id}:`, e);
-            }
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success) {
+            setTvsReviews(data.data || []);
           }
-          setTvsReviews(reviews);
-          setIsLoadingReviews(false);
-          return;
-        }
-
-        const data = await res.json();
-        if (data.success) {
-          setTvsReviews(data.data || []);
         }
       } catch (err) {
         console.error("Error fetching bulk TVS reviews:", err);
@@ -2556,7 +2536,7 @@ export default function FormAnalyticsDashboard() {
     };
 
     fetchBulkReviews();
-  }, [responses, analyticsView]);
+  }, [responses.length, analyticsView, id]);
 
   const [editingChassisResponseId, setEditingChassisResponseId] = useState<string | null>(null);
   const [chassisEditValue, setChassisEditValue] = useState<string>("");

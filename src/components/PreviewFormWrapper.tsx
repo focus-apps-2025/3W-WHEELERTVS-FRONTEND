@@ -345,14 +345,6 @@ export default function PreviewFormWrapper() {
       }
     } else {
       showSuccess("Response submitted successfully!");
-        console.log("🏃 Navigating NOW...");
-        navigate("/forms/analytics");
-      }, 100);
-    } catch (err) {
-      console.error("❌ Submission failed:", err);
-      console.error("❌ Error details:", err?.message, err?.stack);
-      showError("Failed to submit response. Please try again.");
->>>>>>> fb445a2 (upd)
     }
 
     // Stop heartbeat

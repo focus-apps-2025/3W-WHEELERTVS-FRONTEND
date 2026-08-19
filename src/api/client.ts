@@ -976,6 +976,7 @@ class ApiClient {
     return this.request<any>("/responses/batch/import", {
       method: "POST",
       body: JSON.stringify(batchData),
+      timeout: 300000, // 5 minutes timeout for bulk response imports
     });
   }
 

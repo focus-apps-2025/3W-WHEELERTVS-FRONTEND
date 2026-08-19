@@ -852,12 +852,115 @@ function parseExcelDate(value: any): Date | null {
 }
 
 // Parses the new row-based answer workbook
+function mapHeadersToQuestionIds(
+  headers: string[],
+  form: Question
+): Record<number, string> {
+  const colMap: Record<number, string> = {};
+
+  const allQs: any[] = [];
+  const collectQs = (questions: any[]) => {
+    if (!Array.isArray(questions)) return;
+    questions.forEach((q) => {
+      allQs.push(q);
+      if (Array.isArray(q.followUpQuestions)) {
+        collectQs(q.followUpQuestions);
+      }
+    });
+  };
+
+  if (form.sections) {
+    form.sections.forEach((s: any) => {
+      if (s.questions) collectQs(s.questions);
+    });
+  }
+  if (form.followUpQuestions) {
+    collectQs(form.followUpQuestions);
+  }
+
+  const normalize = (str: string) =>
+    String(str || "")
+      .toLowerCase()
+      .replace(/^q\d+(\.\d+)*:\s*/i, "")
+      .replace(/^fq\d+:\s*/i, "")
+      .replace(/\s*\*$/, "")
+      .replace(/[^a-z0-9]/g, "")
+      .trim();
+
+  headers.forEach((h, colIndex) => {
+    if (!h) return;
+    const cleanH = String(h).trim();
+    const lowerH = cleanH.toLowerCase();
+
+    if (
+      lowerH === "submittedat" ||
+      lowerH.includes("timestamp") ||
+      lowerH.includes("submitted date") ||
+      lowerH === "date"
+    ) {
+      colMap[colIndex] = "submittedAt";
+      return;
+    }
+    if (
+      lowerH === "submittername" ||
+      lowerH.includes("submitted by") ||
+      lowerH.includes("inspector")
+    ) {
+      colMap[colIndex] = "submitterName";
+      return;
+    }
+    if (lowerH === "submitteremail" || lowerH.includes("email")) {
+      colMap[colIndex] = "submitterEmail";
+      return;
+    }
+    if (
+      lowerH === "chassis_number" ||
+      lowerH === "chassis number" ||
+      lowerH.includes("chassis")
+    ) {
+      colMap[colIndex] = "chassis_number";
+      return;
+    }
+
+    const exactQ = allQs.find(
+      (q) => q.id === cleanH || (q as any)._id === cleanH
+    );
+    if (exactQ) {
+      colMap[colIndex] = exactQ.id || (exactQ as any)._id;
+      return;
+    }
+
+    const normH = normalize(cleanH);
+    if (normH) {
+      const matchQ = allQs.find((q) => {
+        const qId = q.id || (q as any)._id;
+        const qText = q.text || q.label || "";
+        return (
+          normalize(qId) === normH ||
+          normalize(qText) === normH ||
+          normH.includes(normalize(qText)) ||
+          (normalize(qText).length > 3 && normH.startsWith(normalize(qText)))
+        );
+      });
+      if (matchQ) {
+        colMap[colIndex] = matchQ.id || (matchQ as any)._id;
+        return;
+      }
+    }
+
+    colMap[colIndex] = cleanH;
+  });
+
+  return colMap;
+}
+
+// Parses the new row-based answer workbook (supports both import templates & exported response excel files)
 export async function parseAnswerWorkbook(
   file: File,
   form: Question, // Keep form for potential future validation
   onProgress?: (current: number, total: number, message: string) => void,
 ): Promise<any[]> {
-  console.log("🔄 Parsing new row-based answer workbook...");
+  console.log("🔄 Parsing row-based answer workbook (supporting both import templates and exported files)...");
 
   const { read, utils } = await import("xlsx");
   const buffer = await file.arrayBuffer();
@@ -869,19 +972,45 @@ export async function parseAnswerWorkbook(
   }
 
   // Convert sheet to JSON array of arrays, starting from the top
-  const rawData = utils.sheet_to_json<Array<string>>(worksheet, {
+  const rawData = utils.sheet_to_json<Array<any>>(worksheet, {
     header: 1,
     defval: "",
   });
 
-  if (rawData.length < 3) {
+  if (!rawData || rawData.length < 2) {
     throw new Error("Template is invalid or has no data rows.");
   }
 
-  const idHeader = rawData[1]; // The second row contains the IDs
-  const dataRows = rawData.slice(2); // Actual data starts from the third row
+  const row0 = (rawData[0] || []).map(String);
+  const row1 = (rawData[1] || []).map(String);
 
-  console.log(`📋 ID Header:`, idHeader);
+  // Check if Row 1 contains system IDs / question IDs (standard 2-row header template format)
+  const isTemplateFormat =
+    rawData.length >= 3 &&
+    row1.some(
+      (cell) =>
+        cell === "submittedAt" ||
+        cell === "submitterName" ||
+        cell === "chassis_number" ||
+        form.sections?.some((s) => s.questions?.some((q) => (q.id || (q as any)._id) === cell)) ||
+        form.followUpQuestions?.some((q) => (q.id || (q as any)._id) === cell)
+    );
+
+  let colMap: Record<number, string>;
+  let dataRows: any[][];
+
+  if (isTemplateFormat) {
+    colMap = {};
+    row1.forEach((id, colIdx) => {
+      if (id) colMap[colIdx] = String(id).trim();
+    });
+    dataRows = rawData.slice(2);
+  } else {
+    colMap = mapHeadersToQuestionIds(row0, form);
+    dataRows = rawData.slice(1);
+  }
+
+  console.log(`📋 Column Mapping:`, colMap);
   console.log(`📊 Found ${dataRows.length} data rows to process.`);
 
   const responses: any[] = [];
@@ -891,8 +1020,7 @@ export async function parseAnswerWorkbook(
     onProgress?.(rowIndex, totalRows, `Processing row ${rowIndex + 1}/${totalRows}`);
 
     // Skip empty rows
-    if (row.every(cell => cell === "")) {
-      console.log(`Skipping empty row ${rowIndex + 2}`);
+    if (!row || row.every((cell) => cell === "" || cell === null || cell === undefined)) {
       return;
     }
 
@@ -908,33 +1036,33 @@ export async function parseAnswerWorkbook(
     };
 
     row.forEach((cellValue, colIndex) => {
-      const id = idHeader[colIndex];
-      if (!id) return; // Skip if there's no ID for this column
+      const id = colMap[colIndex];
+      if (!id) return;
 
       if (id === "submitterName") {
-        singleResponse.submittedBy = cellValue || "Excel Import";
+        singleResponse.submittedBy = cellValue ? String(cellValue).trim() : "Excel Import";
       } else if (id === "submitterEmail") {
-        singleResponse.submitterContact.email = cellValue;
+        singleResponse.submitterContact.email = cellValue ? String(cellValue).trim() : "";
       } else if (id === "submittedAt") {
-        singleResponse.submittedAt = cellValue;
+        singleResponse.submittedAt = String(cellValue).trim();
       } else {
-        // It's a question ID or chassis_number
         if (cellValue !== "" && cellValue !== null && cellValue !== undefined) {
           singleResponse.answers[id] = cellValue;
         }
       }
     });
 
-    // Validate submittedAt is present and valid
-    if (!singleResponse.submittedAt) {
-      throw new Error(`Row ${rowIndex + 3}: Submitted Date is mandatory.`);
+    // Parse submittedAt date or fallback to current date
+    if (singleResponse.submittedAt) {
+      const parsedDate = parseExcelDate(singleResponse.submittedAt);
+      if (parsedDate) {
+        singleResponse.submittedAt = parsedDate.toISOString();
+      } else {
+        singleResponse.submittedAt = new Date().toISOString();
+      }
+    } else {
+      singleResponse.submittedAt = new Date().toISOString();
     }
-    const parsedDate = parseExcelDate(singleResponse.submittedAt);
-    if (!parsedDate) {
-      throw new Error(`Row ${rowIndex + 3}: Invalid Submitted Date format.`);
-    }
-    singleResponse.submittedAt = parsedDate.toISOString();
-
 
     // Default to the first chassis option if not specified and options are available
     if (form.chassisNumbers && form.chassisNumbers.length > 0) {

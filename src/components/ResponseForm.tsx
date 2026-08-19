@@ -1130,6 +1130,8 @@ export default function ResponseForm({ onSubmit }: ResponseFormProps) {
                     >
                       <QuestionRenderer
                         question={question}
+                        formId={form.id || (form as any)._id}
+                        tenantSlug={tenantSlug}
                         value={answers[question.id]}
                         trackingValue={answers[`${question.id}_tracking`]}
                         onChange={(val) => handleAnswerChange(question.id, val)}
@@ -1175,6 +1177,8 @@ export default function ResponseForm({ onSubmit }: ResponseFormProps) {
                           >
                             <QuestionRenderer
                               question={question}
+                              formId={form.id || (form as any)._id}
+                              tenantSlug={tenantSlug}
                               value={answers[question.id]}
                               trackingValue={answers[`${question.id}_tracking`]}
                               onChange={(val) =>
