@@ -111,10 +111,22 @@ export default function AnswerTemplateImport({
     const getSocketUrl = () => {
       const apiBase = import.meta.env.VITE_API_BASE_URL;
       if (apiBase) {
-        const url = apiBase.replace("/api", "");
-        return url;
+        return apiBase.replace(/\/api\/?$/, "");
       }
-      return window.location.origin.replace(/:[0-9]+$/, ":5000");
+      const hostname = window.location.hostname;
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return "http://127.0.0.1:5000";
+      }
+      if (hostname === "3wheelertvs.focusengineeringapp.com") {
+        return "https://3wheelertvsbackend.focusengineeringapp.com";
+      }
+      if (hostname === "3wtvs.focusengineeringapp.com" || hostname.includes("3wtvs")) {
+        return "https://3wbackend.focusengineeringapp.com";
+      }
+      if (hostname.includes("staging") || hostname.includes("render")) {
+        return "https://threew-wheeler-backend.onrender.com";
+      }
+      return "https://3wheelertvsbackend.focusengineeringapp.com";
     };
 
     const socketUrl = getSocketUrl();

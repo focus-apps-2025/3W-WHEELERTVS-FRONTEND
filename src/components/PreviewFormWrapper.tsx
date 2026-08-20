@@ -18,17 +18,55 @@ export default function PreviewFormWrapper() {
     console.log("[PreviewFormWrapper] Tenant:", tenant?.slug);
   }, [user, tenant]);
 
-  // Permission check for previewing form
-  const hasPreviewAccess = React.useMemo(() => {
-    if (!user) return true;
-    if (user.role === "admin" || user.role === "superadmin") return true;
-    const permissions = user.permissions || [];
-    return (
-      permissions.includes(`analytics:form:${id}:preview`) ||
-      permissions.includes(`analytics:form:${id}:response`)
-    );
-  }, [user, id]);
   const [form, setForm] = useState<any>(null);
+
+  // Permission check for previewing form
+  // Requirement: Preview is available by default for all users.
+  // It is only disabled if an admin explicitly denies/unchecks preview permission for the form.
+  const hasPreviewAccess = React.useMemo(() => {
+    if (!user) return true; // Unauthenticated / guest access allowed for public preview
+    if (user.role === "admin" || user.role === "superadmin" || user.role === "tenant_admin") return true;
+
+    const permissions = user.permissions || [];
+
+    const idsToCheck = [id].filter(Boolean) as string[];
+    if (form) {
+      if (form._id && !idsToCheck.includes(form._id)) idsToCheck.push(form._id);
+      if (form.id && !idsToCheck.includes(form.id)) idsToCheck.push(form.id);
+    }
+
+    // Check if preview is explicitly disabled/denied for any of the form IDs
+    for (const formId of idsToCheck) {
+      if (
+        permissions.includes(`analytics:form:${formId}:no_preview`) ||
+        permissions.includes(`analytics:form:${formId}:deny_preview`)
+      ) {
+        return false;
+      }
+
+      // If user has specific form subtabs configured for this form (e.g. response, dashboard, etc.),
+      // but preview is NOT among them and parent/wildcard is NOT granted, then preview was explicitly disabled by admin.
+      const hasAnySubtabPermission = [
+        `analytics:form:${formId}:response`,
+        `analytics:form:${formId}:dashboard`,
+        `analytics:form:${formId}:overall`,
+        `analytics:form:${formId}:questions`,
+        `analytics:form:${formId}:sections`
+      ].some(p => permissions.includes(p));
+
+      const hasPreviewTab = permissions.includes(`analytics:form:${formId}:preview`) ||
+                            permissions.includes(`analytics:form:${formId}`) ||
+                            permissions.includes("analytics:view") ||
+                            permissions.includes("analytics:*");
+
+      if (hasAnySubtabPermission && !hasPreviewTab) {
+        return false;
+      }
+    }
+
+    // Otherwise, preview is available BY DEFAULT for all users!
+    return true;
+  }, [user, id, form]);
   const [branchingRules, setBranchingRules] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -366,6 +404,17 @@ export default function PreviewFormWrapper() {
 };
 
   // ── Render states ──────────────────────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+          <p className="mt-4 text-primary-600">Loading form...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (user && !hasPreviewAccess) {
     return (
       <div className="max-w-4xl mx-auto p-6">
@@ -384,17 +433,6 @@ export default function PreviewFormWrapper() {
               Back to Analytics
             </button>
           </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="max-w-4xl mx-auto p-6">
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-          <p className="mt-4 text-primary-600">Loading form...</p>
         </div>
       </div>
     );

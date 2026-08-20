@@ -2383,7 +2383,7 @@ export default function FormAnalyticsDashboard() {
   // Permission check for analytics tabs
   const hasTabPermission = (tabName: string): boolean => {
     // Admin bypass - see all tabs
-    if (user?.role === "admin" || user?.role === "superadmin") {
+    if (user?.role === "admin" || user?.role === "superadmin" || user?.role === "tenant_admin") {
       return true;
     }
 
@@ -2399,9 +2399,15 @@ export default function FormAnalyticsDashboard() {
       section: "sections",
       overall: "overall",
       responses: "response",
+      preview: "preview",
     };
     const suffix = suffixMap[tabName];
     if (!suffix) return false;
+
+    // Preview tab is available by default for all users
+    if (suffix === "preview") {
+      return true;
+    }
 
     const perms = user?.permissions;
     if (!perms || !Array.isArray(perms) || perms.length === 0) return false;
@@ -2424,7 +2430,8 @@ export default function FormAnalyticsDashboard() {
       return (
         perms.includes(leafPermission) ||
         perms.includes(parentPermission) ||
-        perms.includes(wildcardPermission)
+        perms.includes(wildcardPermission) ||
+        perms.includes("analytics:view")
       );
     });
   };

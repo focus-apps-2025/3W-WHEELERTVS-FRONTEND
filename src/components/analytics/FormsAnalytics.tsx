@@ -96,56 +96,124 @@ export default function FormsAnalytics() {
   const userPermissions = user?.permissions || [];
   const userRole = user?.role;
   
-  // Check if user has a specific permission (only for inspector/subadmin)
+  const isAdminOrTenantAdmin =
+    userRole === 'admin' ||
+    userRole === 'superadmin' ||
+    userRole === 'tenant_admin';
+
+  // Check if user has a specific permission
   const hasPermission = (permissionId: string): boolean => {
-    // Admins and superadmins have full access
-    if (userRole === 'admin' || userRole === 'superadmin') {
+    if (isAdminOrTenantAdmin) {
       return true;
     }
-    // For inspector and subadmin, check permissions
     return userPermissions.includes(permissionId);
   };
 
   // Check if user has any of the given permissions
   const hasAnyPermission = (permissionIds: string[]): boolean => {
-    // Admins and superadmins have full access
-    if (userRole === 'admin' || userRole === 'superadmin') {
+    if (isAdminOrTenantAdmin) {
       return true;
     }
-    // For inspector and subadmin, check permissions
     return permissionIds.some(id => userPermissions.includes(id));
   };
 
   // Check if user has analytics form permission for a specific form
-  const hasFormAnalyticsPermission = (formId: string, subType: string = 'response'): boolean => {
-    // Admins and superadmins have full access
-    if (userRole === 'admin' || userRole === 'superadmin') {
+  const hasFormAnalyticsPermission = (formIdOrObj: string | FormItem, subType: string = 'response'): boolean => {
+    if (isAdminOrTenantAdmin) {
       return true;
     }
-    // For inspector and subadmin, check specific permission
-    return userPermissions.includes(`analytics:form:${formId}:${subType}`);
-  };
 
-  // Check if user can view a specific form
-  const canViewForm = (formId: string): boolean => {
-    // If no formId, can't view
-    if (!formId) return false;
-    
-    // Admins and superadmins can view all forms
-    if (userRole === 'admin' || userRole === 'superadmin') {
+    const idsToCheck: string[] = [];
+    if (typeof formIdOrObj === 'string') {
+      if (formIdOrObj) idsToCheck.push(formIdOrObj);
+    } else if (formIdOrObj) {
+      if (formIdOrObj._id) idsToCheck.push(formIdOrObj._id);
+      if (formIdOrObj.id) idsToCheck.push(formIdOrObj.id);
+    }
+
+    // SPECIAL RULE: Preview is AVAILABLE BY DEFAULT for all users!
+    if (subType === 'preview') {
+      for (const fId of idsToCheck) {
+        if (
+          userPermissions.includes(`analytics:form:${fId}:no_preview`) ||
+          userPermissions.includes(`analytics:form:${fId}:deny_preview`)
+        ) {
+          return false;
+        }
+
+        const hasOtherSubtabPermission = [
+          `analytics:form:${fId}:response`,
+          `analytics:form:${fId}:dashboard`,
+          `analytics:form:${fId}:overall`,
+          `analytics:form:${fId}:questions`,
+          `analytics:form:${fId}:sections`
+        ].some(p => userPermissions.includes(p));
+
+        const hasPreviewTab = userPermissions.includes(`analytics:form:${fId}:preview`) ||
+                              userPermissions.includes(`analytics:form:${fId}`) ||
+                              userPermissions.includes('analytics:view') ||
+                              userPermissions.includes('analytics:*');
+
+        if (hasOtherSubtabPermission && !hasPreviewTab) {
+          return false;
+        }
+      }
+      return true; // Default available for all users!
+    }
+
+    if (userPermissions.includes('analytics:view') || userPermissions.includes('analytics:*')) {
       return true;
     }
-    
-    // For inspector/subadmin, check if they have ANY analytics permission for this form
-    // Check each sub-type
-    const subTypes = ['preview', 'response', 'dashboard', 'overall', 'questions', 'sections'];
-    for (const subType of subTypes) {
-      if (userPermissions.includes(`analytics:form:${formId}:${subType}`)) {
+
+    for (const fId of idsToCheck) {
+      if (
+        userPermissions.includes(`analytics:form:${fId}:${subType}`) ||
+        userPermissions.includes(`analytics:form:${fId}`)
+      ) {
         return true;
       }
     }
-    
+
     return false;
+  };
+
+  // Check if user can view a specific form
+  const canViewForm = (formItem: FormItem | string): boolean => {
+    if (!formItem) return false;
+    if (isAdminOrTenantAdmin) {
+      return true;
+    }
+
+    if (userPermissions.includes('analytics:view') || userPermissions.includes('analytics:*')) {
+      return true;
+    }
+
+    const idsToCheck: string[] = [];
+    if (typeof formItem === 'string') {
+      idsToCheck.push(formItem);
+    } else {
+      if (formItem._id) idsToCheck.push(formItem._id);
+      if (formItem.id) idsToCheck.push(formItem.id);
+    }
+
+    for (const fId of idsToCheck) {
+      if (
+        userPermissions.includes(`analytics:form:${fId}:no_preview`) ||
+        userPermissions.includes(`analytics:form:${fId}:deny_preview`)
+      ) {
+        const subTypes = ['response', 'dashboard', 'overall', 'questions', 'sections'];
+        if (userPermissions.includes(`analytics:form:${fId}`)) return true;
+        for (const subType of subTypes) {
+          if (userPermissions.includes(`analytics:form:${fId}:${subType}`)) {
+            return true;
+          }
+        }
+        return false;
+      }
+    }
+
+    // Default: all forms can be viewed/previewed by all users
+    return true;
   };
 
   // Check if user has specific analytics global permissions
@@ -1132,18 +1200,18 @@ export default function FormsAnalytics() {
             const isLocationEnabled = parent.locationEnabled !== false;
 
             // Check if user can view this specific form
-            const canViewThisForm = canViewForm(formId);
+            const canViewThisForm = canViewForm(parent);
             
             // If user can't view this form, skip rendering it
             if (!canViewThisForm) return null;
 
             // Check if user has specific analytics permissions for this form
-            const hasPreviewPermission = hasFormAnalyticsPermission(formId, 'preview');
-            const hasResponsePermission = hasFormAnalyticsPermission(formId, 'response');
-            const hasDashboardPermission = hasFormAnalyticsPermission(formId, 'dashboard');
-            const hasOverallPermission = hasFormAnalyticsPermission(formId, 'overall');
-            const hasQuestionsPermission = hasFormAnalyticsPermission(formId, 'questions');
-            const hasSectionsPermission = hasFormAnalyticsPermission(formId, 'sections');
+            const hasPreviewPermission = hasFormAnalyticsPermission(parent, 'preview');
+            const hasResponsePermission = hasFormAnalyticsPermission(parent, 'response');
+            const hasDashboardPermission = hasFormAnalyticsPermission(parent, 'dashboard');
+            const hasOverallPermission = hasFormAnalyticsPermission(parent, 'overall');
+            const hasQuestionsPermission = hasFormAnalyticsPermission(parent, 'questions');
+            const hasSectionsPermission = hasFormAnalyticsPermission(parent, 'sections');
 
             const ownerTenantId =
               typeof parent.tenantId === "object"
