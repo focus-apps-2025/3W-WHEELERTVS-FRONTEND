@@ -140,23 +140,6 @@ export default function FormsAnalytics() {
         ) {
           return false;
         }
-
-        const hasOtherSubtabPermission = [
-          `analytics:form:${fId}:response`,
-          `analytics:form:${fId}:dashboard`,
-          `analytics:form:${fId}:overall`,
-          `analytics:form:${fId}:questions`,
-          `analytics:form:${fId}:sections`
-        ].some(p => userPermissions.includes(p));
-
-        const hasPreviewTab = userPermissions.includes(`analytics:form:${fId}:preview`) ||
-                              userPermissions.includes(`analytics:form:${fId}`) ||
-                              userPermissions.includes('analytics:view') ||
-                              userPermissions.includes('analytics:*');
-
-        if (hasOtherSubtabPermission && !hasPreviewTab) {
-          return false;
-        }
       }
       return true; // Default available for all users!
     }
@@ -1745,6 +1728,7 @@ export default function FormsAnalytics() {
                         const canViewChild = canViewForm(childId);
                         if (!canViewChild) return null;
 
+                        const childHasPreviewPermission = hasFormAnalyticsPermission(childId, 'preview');
                         const childHasResponsePermission = hasFormAnalyticsPermission(childId, 'response');
                         const childHasDashboardPermission = hasFormAnalyticsPermission(childId, 'dashboard');
                         const childHasOverallPermission = hasFormAnalyticsPermission(childId, 'overall');
@@ -1810,32 +1794,28 @@ export default function FormsAnalytics() {
                               </div>
 
                               <div className="flex flex-wrap items-center justify-between gap-2 mt-auto pt-3 border-t border-primary-100">
-                                {isOwner && (
-                                  <>
-                                    {childHasResponsePermission && (
-                                      <button
-                                        onClick={() =>
-                                          navigate(`/forms/${childId}/preview`)
-                                        }
-                                        className="flex-1 min-w-[60px] px-2 py-1.5 text-[10px] sm:text-xs font-medium rounded-lg bg-gradient-to-r from-primary-500 to-primary-600 text-white hover:from-primary-600 hover:to-primary-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center gap-1"
-                                        title="View form"
-                                      >
-                                        <Eye className="w-3 h-3" />
-                                        View
-                                      </button>
-                                    )}
-                                    {canEdit && childHasResponsePermission && (
-                                      <button
-                                        onClick={() =>
-                                          navigate(`/forms/${childId}/edit`)
-                                        }
-                                        className="p-1.5 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50 transition-colors flex items-center justify-center"
-                                        title="Edit form"
-                                      >
-                                        <Edit2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    )}
-                                  </>
+                                {childHasPreviewPermission && (
+                                  <button
+                                    onClick={() =>
+                                      navigate(`/forms/${childId}/preview`)
+                                    }
+                                    className="flex-1 min-w-[60px] px-2 py-1.5 text-[10px] sm:text-xs font-medium rounded-lg bg-gradient-to-r from-primary-500 to-primary-600 text-white hover:from-primary-600 hover:to-primary-700 transition-all duration-200 shadow-sm hover:shadow-md flex items-center justify-center gap-1"
+                                    title="View form"
+                                  >
+                                    <Eye className="w-3 h-3" />
+                                    View
+                                  </button>
+                                )}
+                                {isOwner && canEdit && childHasResponsePermission && (
+                                  <button
+                                    onClick={() =>
+                                      navigate(`/forms/${childId}/edit`)
+                                    }
+                                    className="p-1.5 rounded-lg border border-primary-200 text-primary-600 hover:bg-primary-50 transition-colors flex items-center justify-center"
+                                    title="Edit form"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
                                 )}
                                 {(childHasResponsePermission || childHasDashboardPermission || childHasOverallPermission || childHasQuestionsPermission || childHasSectionsPermission) && (
                                   <button

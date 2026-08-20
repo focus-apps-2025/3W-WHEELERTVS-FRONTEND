@@ -43,25 +43,6 @@ export default function PreviewFormWrapper() {
       ) {
         return false;
       }
-
-      // If user has specific form subtabs configured for this form (e.g. response, dashboard, etc.),
-      // but preview is NOT among them and parent/wildcard is NOT granted, then preview was explicitly disabled by admin.
-      const hasAnySubtabPermission = [
-        `analytics:form:${formId}:response`,
-        `analytics:form:${formId}:dashboard`,
-        `analytics:form:${formId}:overall`,
-        `analytics:form:${formId}:questions`,
-        `analytics:form:${formId}:sections`
-      ].some(p => permissions.includes(p));
-
-      const hasPreviewTab = permissions.includes(`analytics:form:${formId}:preview`) ||
-                            permissions.includes(`analytics:form:${formId}`) ||
-                            permissions.includes("analytics:view") ||
-                            permissions.includes("analytics:*");
-
-      if (hasAnySubtabPermission && !hasPreviewTab) {
-        return false;
-      }
     }
 
     // Otherwise, preview is available BY DEFAULT for all users!
