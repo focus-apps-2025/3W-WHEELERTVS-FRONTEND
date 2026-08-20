@@ -973,11 +973,71 @@ class ApiClient {
   }
 
   async batchImportResponses(batchData: any) {
-    return this.request<any>("/responses/batch/import", {
-      method: "POST",
-      body: JSON.stringify(batchData),
-      timeout: 300000, // 5 minutes timeout for bulk response imports
-    });
+    const responses = batchData?.responses;
+    const CHUNK_SIZE = 50;
+
+    // If small batch (<= 50 responses) or invalid array, process in single request
+    if (!Array.isArray(responses) || responses.length <= CHUNK_SIZE) {
+      const response = await this.request<any>("/responses/batch/import", {
+        method: "POST",
+        body: JSON.stringify(batchData),
+        timeout: 300000,
+      });
+      return response?.data || response;
+    }
+
+    // For large imports (e.g. 1002 items), chunk into batches of 50 per HTTP request
+    // This avoids HTTP 413 (Request Entity Too Large) from NGINX/reverse proxies.
+    let totalImported = 0;
+    let totalFailed = 0;
+    const allCreatedResponses: any[] = [];
+    const allErrors: any[] = [];
+    const totalCount = responses.length;
+    const baseBatchId = batchData.batchId || `batch-${Date.now()}`;
+
+    for (let i = 0; i < totalCount; i += CHUNK_SIZE) {
+      const chunkResponses = responses.slice(i, i + CHUNK_SIZE);
+      const chunkPayload = {
+        ...batchData,
+        batchId: `${baseBatchId}-chunk-${Math.floor(i / CHUNK_SIZE) + 1}`,
+        responses: chunkResponses,
+      };
+
+      const result = await this.request<any>("/responses/batch/import", {
+        method: "POST",
+        body: JSON.stringify(chunkPayload),
+        timeout: 300000,
+      });
+
+      const resData = result?.data || result;
+      if (resData) {
+        totalImported += resData.imported ?? resData.createdResponses?.length ?? chunkResponses.length;
+        totalFailed += resData.failed ?? 0;
+        if (Array.isArray(resData.createdResponses)) {
+          allCreatedResponses.push(...resData.createdResponses);
+        }
+        if (Array.isArray(resData.errors)) {
+          allErrors.push(...resData.errors);
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: `Batch import completed: ${totalImported} responses imported successfully`,
+      imported: totalImported,
+      total: totalCount,
+      failed: totalFailed,
+      createdResponses: allCreatedResponses,
+      errors: allErrors.length > 0 ? allErrors : undefined,
+      data: {
+        imported: totalImported,
+        total: totalCount,
+        failed: totalFailed,
+        createdResponses: allCreatedResponses,
+        errors: allErrors.length > 0 ? allErrors : undefined,
+      },
+    };
   }
 
   async processImages(answers: any, submissionId?: string) {

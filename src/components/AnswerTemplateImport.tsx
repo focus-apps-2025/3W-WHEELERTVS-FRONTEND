@@ -407,11 +407,14 @@ export default function AnswerTemplateImport({
 
       // Surface any per-row failures returned by the backend
       const failedRows = submitResults.reduce(
-        (acc, r) => acc + (r?.failed ?? 0),
+        (acc, r) => acc + (r?.failed ?? r?.data?.failed ?? 0),
         0
       );
       const backendErrors = submitResults
-        .flatMap((r) => (Array.isArray(r?.errors) ? r.errors : []))
+        .flatMap((r) => {
+          const errs = r?.errors || r?.data?.errors;
+          return Array.isArray(errs) ? errs : [];
+        })
         .filter(Boolean);
 
       if (failedRows > 0) {
