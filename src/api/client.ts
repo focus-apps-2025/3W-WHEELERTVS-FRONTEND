@@ -157,6 +157,9 @@ class ApiClient {
       "/notifications",
       "/otp",
       "/verify",
+      "/rank",
+      "/previous-answers",
+      "/suggested-answers",
     ];
 
     const isCacheable =
@@ -1361,6 +1364,7 @@ class ApiClient {
 
     return this.request<{ rank: number }>(
       `${endpoint}?${queryParams.toString()}`,
+      { forceNetwork: true }
     );
   }
 
@@ -1408,6 +1412,7 @@ class ApiClient {
 
     return this.request<{ suggestedAnswers: Record<string, any> }>(
       `${endpoint}?${queryParams.toString()}`,
+      { forceNetwork: true }
     );
   }
 
@@ -1427,6 +1432,7 @@ class ApiClient {
 
     return this.request<{ answers: string[] }>(
       `${endpoint}?${queryParams.toString()}`,
+      { forceNetwork: true }
     );
   }
 
