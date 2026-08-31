@@ -1,5 +1,5 @@
-// utils/formanalyticsexport.ts - FINAL VERSION FOR PROFESSIONAL A4 PDF
 import html2canvas from "html2canvas";
+import html2pdf from "html2pdf.js";
 import { apiClient } from "../api/client";
 
 // Helper function to capture charts as images
@@ -11,7 +11,7 @@ async function captureChartAsImage(chartElementId: string): Promise<string> {
   }
 
   try {
-    const waitTime = chartElementId.includes("trend") ? 2500 : 1200;
+    const waitTime = chartElementId.includes("trend") ? 400 : 200;
     await new Promise((resolve) => setTimeout(resolve, waitTime));
 
     const rect = chartElement.getBoundingClientRect();
@@ -733,22 +733,33 @@ export function generateAnalyticsHTML(
   `;
 }
 
+export type PDFProgressCallback = (progress: {
+  stage: "preparing" | "capturing" | "generating" | "downloading" | "complete" | "error";
+  percentage: number;
+  message: string;
+}) => void;
+
 export async function captureAnalyticsCharts(
   chartElementIds: string[],
+  onChartCaptured?: (chartIndex: number, totalCharts: number, chartId: string) => void
 ): Promise<Record<string, string>> {
   const chartImages: Record<string, string> = {};
   const originalScrollPos = window.scrollY;
 
   window.scrollTo(0, document.body.scrollHeight);
-  await new Promise((resolve) => setTimeout(resolve, 800));
+  await new Promise((resolve) => setTimeout(resolve, 300));
   window.scrollTo(0, originalScrollPos);
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  await new Promise((resolve) => setTimeout(resolve, 150));
 
-  for (const id of chartElementIds) {
+  for (let i = 0; i < chartElementIds.length; i++) {
+    const id = chartElementIds[i];
+    if (onChartCaptured) {
+      onChartCaptured(i, chartElementIds.length, id);
+    }
     const el = document.getElementById(id);
     if (el) {
       el.scrollIntoView({ block: "center", behavior: "auto" });
-      await new Promise((resolve) => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 150));
       chartImages[id] = await captureChartAsImage(id);
     } else {
       console.warn(`Chart ID not found in DOM during export: ${id}`);
@@ -760,48 +771,172 @@ export async function captureAnalyticsCharts(
   return chartImages;
 }
 
-export async function exportFormAnalyticsToPDF(options: any): Promise<void> {
+export async function exportFormAnalyticsToPDF(
+  options: any,
+  onProgress?: PDFProgressCallback
+): Promise<void> {
   const { filename, chartElementIds } = options;
 
-  const chartImages = await captureAnalyticsCharts(chartElementIds);
+  onProgress?.({
+    stage: "preparing",
+    percentage: 5,
+    message: "Initializing analytics report data...",
+  });
+
+  const chartImages = await captureAnalyticsCharts(
+    chartElementIds,
+    (idx, total, chartId) => {
+      const pct = Math.round(10 + ((idx + 1) / total) * 50); // 10% to 60%
+      const chartLabel = chartId
+        .replace(/-/g, " ")
+        .replace("chart", "")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+        .trim();
+      onProgress?.({
+        stage: "capturing",
+        percentage: pct,
+        message: `Capturing chart (${idx + 1}/${total}): ${chartLabel}...`,
+      });
+    }
+  );
+
+  onProgress?.({
+    stage: "generating",
+    percentage: 65,
+    message: "Building PDF report structure & styles...",
+  });
+
   const logoBase64 = await getLogoAsBase64();
   const htmlContent = generateAnalyticsHTML(
     { ...options, chartImages },
-    logoBase64,
+    logoBase64
   );
 
+  onProgress?.({
+    stage: "generating",
+    percentage: 75,
+    message: "Connecting to PDF engine...",
+  });
+
+  let downloaded = false;
+
+  // Primary: Backend Puppeteer Endpoint
   try {
-    const response = await fetch(`${apiClient.getBaseUrl()}/pdf/generate`, {
+    const baseUrl = apiClient.getBaseUrl();
+    const token =
+      localStorage.getItem("auth_token") ||
+      localStorage.getItem("guest_auth_token") ||
+      "";
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+    onProgress?.({
+      stage: "generating",
+      percentage: 85,
+      message: "Rendering PDF on server...",
+    });
+
+    const response = await fetch(`${baseUrl}/pdf/generate`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("auth_token") || localStorage.getItem("guest_auth_token")}`,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ htmlContent, filename, format: "a4-portrait" }),
+      signal: controller.signal,
     });
 
-    if (!response.ok) throw new Error("PDF generation failed");
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-  } catch (error) {
-    console.error("PDF Export Error:", error);
-    throw error;
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      onProgress?.({
+        stage: "downloading",
+        percentage: 95,
+        message: "Downloading generated PDF file...",
+      });
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      downloaded = true;
+    } else {
+      console.warn(
+        "Backend PDF generation returned non-OK status:",
+        response.status
+      );
+    }
+  } catch (backendErr) {
+    console.warn(
+      "Backend PDF generation failed or timed out. Falling back to in-browser PDF generation.",
+      backendErr
+    );
   }
+
+  // Fallback: Client-side html2pdf.js
+  if (!downloaded) {
+    onProgress?.({
+      stage: "generating",
+      percentage: 85,
+      message: "Generating PDF directly in browser (Fallback)...",
+    });
+
+    try {
+      const container = document.createElement("div");
+      container.innerHTML = htmlContent;
+      container.style.position = "fixed";
+      container.style.left = "-9999px";
+      container.style.top = "0";
+      container.style.width = "210mm";
+      container.style.background = "#ffffff";
+      document.body.appendChild(container);
+
+      const opt = {
+        margin: [10, 10, 10, 10],
+        filename: filename,
+        image: { type: "jpeg", quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      };
+
+      onProgress?.({
+        stage: "downloading",
+        percentage: 95,
+        message: "Saving PDF to your browser downloads...",
+      });
+
+      await html2pdf().set(opt).from(container).save();
+      document.body.removeChild(container);
+      downloaded = true;
+    } catch (fallbackErr) {
+      console.error("Client-side fallback PDF export failed:", fallbackErr);
+      throw new Error("Failed to generate PDF report.");
+    }
+  }
+
+  onProgress?.({
+    stage: "complete",
+    percentage: 100,
+    message: "PDF downloaded successfully!",
+  });
 }
 
 export async function exportDashboardToPDF(
   formTitle: string,
   analyticsData: any,
   includeSectionAnalytics: boolean = true,
+  onProgress?: PDFProgressCallback
 ): Promise<boolean> {
   try {
+    if (!analyticsData) {
+      throw new Error("Analytics data is loading or missing. Please wait for the page to finish loading.");
+    }
     const chartElementIds = [
       "overall-quality-chart",
       "inspection-status-distribution-chart",
@@ -811,29 +946,38 @@ export async function exportDashboardToPDF(
       "issue-percentage-chart",
     ];
 
-    await exportFormAnalyticsToPDF({
-      filename: `${formTitle.replace(/\s+/g, "_")}_Analytics.pdf`,
-      formTitle,
-      generatedDate: new Date().toLocaleString(),
-      totalResponses: analyticsData.total,
-      pending: analyticsData.pending,
-      verified: analyticsData.verified,
-      rejected: analyticsData.rejected,
-      sectionSummaryRows: analyticsData.sectionSummaryRows,
-      totalPieChartData: analyticsData.totalPieChartData,
-      chartElementIds,
-      sectionAnalyticsData: analyticsData.sectionAnalyticsData,
-      inspectorSummary: analyticsData.inspectorSummary,
-      summaryStatuses: analyticsData.summaryStatuses,
-      performanceTableData: analyticsData.performanceTableData,
-      inspectionStats: analyticsData.inspectionStats,
-      defectStartDate: analyticsData.defectStartDate,
-      defectEndDate: analyticsData.defectEndDate,
-      includeSectionAnalytics,
-    });
+    await exportFormAnalyticsToPDF(
+      {
+        filename: `${formTitle.replace(/\s+/g, "_")}_Analytics.pdf`,
+        formTitle,
+        generatedDate: new Date().toLocaleString(),
+        totalResponses: analyticsData?.total || 0,
+        pending: analyticsData?.pending || 0,
+        verified: analyticsData?.verified || 0,
+        rejected: analyticsData?.rejected || 0,
+        sectionSummaryRows: analyticsData?.sectionSummaryRows || [],
+        totalPieChartData: analyticsData?.totalPieChartData || { counts: { total: 0 } },
+        chartElementIds,
+        sectionAnalyticsData: analyticsData?.sectionAnalyticsData || [],
+        inspectorSummary: analyticsData?.inspectorSummary || [],
+        summaryStatuses: analyticsData?.summaryStatuses || {},
+        performanceTableData: analyticsData?.performanceTableData || [],
+        inspectionStats: analyticsData?.inspectionStats || { accepted: 0, rejected: 0, reworked: 0 },
+        defectStartDate: analyticsData?.defectStartDate || "",
+        defectEndDate: analyticsData?.defectEndDate || "",
+        includeSectionAnalytics,
+      },
+      onProgress
+    );
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Export Error:", error);
+    onProgress?.({
+      stage: "error",
+      percentage: 0,
+      message: error?.message || "Failed to generate PDF. Please try again.",
+    });
     return false;
   }
 }
+

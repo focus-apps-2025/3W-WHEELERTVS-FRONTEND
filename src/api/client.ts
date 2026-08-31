@@ -902,7 +902,7 @@ class ApiClient {
     // need a multi-minute timeout - 30s is generous for a bounded batch
     // and fails fast if something's actually wrong, instead of the UI
     // silently hanging.
-    const timeout = 30000;
+    const timeout = options?.analytics ? 60000 : 45000;
     return this.request<{ responses: any[]; form: any; pagination: any }>(
       `/responses/form/${formId}${queryString}`,
       { forceNetwork: options?.forceNetwork, timeout }

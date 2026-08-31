@@ -2502,6 +2502,11 @@ export default function FormAnalyticsDashboard() {
   });
 
   const fetchedBulkReviewsKeyRef = useRef<string>("");
+  const [pdfProgress, setPdfProgress] = useState<{
+    stage: "preparing" | "capturing" | "generating" | "downloading" | "complete" | "error";
+    percentage: number;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     // Only fetch TVS reviews when in dashboard view or overall view and responses exist
@@ -7764,31 +7769,58 @@ export default function FormAnalyticsDashboard() {
   ]);
 
   const handleExportToPDF = async () => {
+    if (isExporting) return;
+    if (!fullAnalyticsData && analyticsView !== "section") {
+      showToast("Analytics data is loading or unavailable. Please wait a moment...", "error");
+      return;
+    }
     try {
       setIsExporting(true);
-      showToast("Generating PDF report...", "info");
+      setPdfProgress({
+        stage: "preparing",
+        percentage: 5,
+        message: "Initializing PDF export...",
+      });
 
       const success = await exportDashboardToPDF(
         form?.title || "Form Analytics",
         fullAnalyticsData,
         analyticsView === "section",
+        (progress) => {
+          setPdfProgress(progress);
+        }
       );
 
       if (success) {
-        showToast("PDF report generated successfully!", "success");
+        showToast("PDF report downloaded successfully!", "success");
+        setTimeout(() => {
+          setPdfProgress(null);
+        }, 2000);
       } else {
         showToast("Failed to generate PDF. Please try again.", "error");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error downloading PDF:", error);
       showToast("Failed to generate PDF. Please try again.", "error");
+      setPdfProgress({
+        stage: "error",
+        percentage: 0,
+        message: error?.message || "Failed to generate PDF. Please try again.",
+      });
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     try {
+      setPdfProgress({
+        stage: "preparing",
+        percentage: 10,
+        message: "Initializing Excel export data...",
+      });
+      await new Promise((r) => setTimeout(r, 40));
+
       const headerRow: any[] = ["Timestamp", "Submitted By", "Status", "Chassis Number", "Dispatched", "Dispatched At"];
       const columnInfo: Array<{
         questionId: string;
@@ -7810,6 +7842,13 @@ export default function FormAnalyticsDashboard() {
         }
       });
 
+      setPdfProgress({
+        stage: "generating",
+        percentage: 35,
+        message: `Processing ${responses.length} response rows & parameters...`,
+      });
+      await new Promise((r) => setTimeout(r, 40));
+
       const wsData: any[][] = [headerRow];
 
       responses.forEach((response: Response) => {
@@ -7828,14 +7867,11 @@ export default function FormAnalyticsDashboard() {
 
         columnInfo.forEach(({ questionId }) => {
           const answer = response.answers?.[questionId];
-          // For complex objects like chassis, stringify appropriately using JSON.stringify for now
-          // or just standard string if it's simpler
           let answerStr = "-";
           if (answer !== undefined && answer !== null) {
             if (typeof answer === "object") {
-              // Special handling for objects to make them readable in Excel
               if (answer.status) {
-                answerStr = answer.status; // just show the status for inspection fields
+                answerStr = answer.status;
               } else {
                 answerStr = JSON.stringify(answer);
               }
@@ -7848,6 +7884,13 @@ export default function FormAnalyticsDashboard() {
 
         wsData.push(rowData);
       });
+
+      setPdfProgress({
+        stage: "generating",
+        percentage: 60,
+        message: "Adding inspection statistics summary...",
+      });
+      await new Promise((r) => setTimeout(r, 40));
 
       // Add Overall Inspection Statistics Summary Rows
       const statsHeaderRow: any[] = [
@@ -7870,6 +7913,13 @@ export default function FormAnalyticsDashboard() {
       wsData.push(statsDataRow);
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      setPdfProgress({
+        stage: "generating",
+        percentage: 80,
+        message: "Applying cell styling and formatting...",
+      });
+      await new Promise((r) => setTimeout(r, 40));
 
       const headerFill = { fgColor: { rgb: "FF4F46E5" } };
       const headerFont = { color: { rgb: "FFFFFFFF" }, bold: true };
@@ -7898,7 +7948,7 @@ export default function FormAnalyticsDashboard() {
       for (let i = 0; i < headerRow.length; i++) {
         const cellRef = XLSX.utils.encode_cell({ r: 1, c: i });
         ws[cellRef].s = {
-          fill: { fgColor: { rgb: "FFF3F4F6" } }, // Light gray background
+          fill: { fgColor: { rgb: "FFF3F4F6" } },
           font: { italic: true, bold: i === 0 },
           alignment: {
             horizontal: i === 0 ? "left" : "center",
@@ -7950,18 +8000,18 @@ export default function FormAnalyticsDashboard() {
         // Style Status column
         const statusCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 2 });
         const currentStatus = responseStatuses[response.id] || "-";
-        let statusBgColor = "FFF9FAFB"; // Default
+        let statusBgColor = "FFF9FAFB";
 
         if (
           currentStatus === "Direct Ok" ||
           currentStatus === "Rework Accepted" ||
           currentStatus === "Accepted"
         ) {
-          statusBgColor = "FFDCFCE7"; // green-100
+          statusBgColor = "FFDCFCE7";
         } else if (currentStatus.includes("Rework")) {
-          statusBgColor = "FFFEF3C7"; // amber-100
+          statusBgColor = "FFFEF3C7";
         } else if (currentStatus === "Rejected") {
-          statusBgColor = "FFFEE2E2"; // red-100
+          statusBgColor = "FFFEE2E2";
         }
 
         ws[statusCellRef].s = {
@@ -7994,8 +8044,6 @@ export default function FormAnalyticsDashboard() {
         for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
           const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 4 });
           const info = columnInfo[colIdx];
-          const answer = response.answers?.[info.questionId];
-
           const bgColor = info.isFollowUp ? "FFE9D5FF" : "FFFFFFFF";
 
           ws[cellRef].s = {
@@ -8031,8 +8079,8 @@ export default function FormAnalyticsDashboard() {
       for (let i = 0; i < 4; i++) {
         const cellRef = XLSX.utils.encode_cell({ r: statsDataIdx, c: i });
         ws[cellRef].s = {
-          fill: { fgColor: { rgb: "FFE0E7FF" } }, // Indigo 100
-          font: { bold: true, color: { rgb: "FF3730A3" } }, // Indigo 800
+          fill: { fgColor: { rgb: "FFE0E7FF" } },
+          font: { bold: true, color: { rgb: "FF3730A3" } },
           alignment: { horizontal: "center", vertical: "center" },
           border: {
             top: { style: "thin" },
@@ -8044,12 +8092,19 @@ export default function FormAnalyticsDashboard() {
       }
 
       ws["!cols"] = [
-        { wch: 22 }, // Timestamp
-        { wch: 25 }, // Submitted By
-        { wch: 15 }, // Status
-        { wch: 18 }, // Chassis Number
+        { wch: 22 },
+        { wch: 25 },
+        { wch: 15 },
+        { wch: 18 },
         ...columnInfo.map(() => ({ wch: 35 })),
       ];
+
+      setPdfProgress({
+        stage: "downloading",
+        percentage: 95,
+        message: "Downloading Excel report file...",
+      });
+      await new Promise((r) => setTimeout(r, 40));
 
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Responses");
@@ -8057,10 +8112,25 @@ export default function FormAnalyticsDashboard() {
         wb,
         `${form?.title || "responses"}-${new Date().toLocaleDateString("en-CA")}.xlsx`,
       );
+
+      setPdfProgress({
+        stage: "complete",
+        percentage: 100,
+        message: "Excel report downloaded successfully!",
+      });
+
       showToast("Excel report generated successfully!", "success");
-    } catch (error) {
+      setTimeout(() => {
+        setPdfProgress(null);
+      }, 2000);
+    } catch (error: any) {
       console.error("Error exporting to Excel:", error);
       showToast("Failed to export to Excel. Please try again.", "error");
+      setPdfProgress({
+        stage: "error",
+        percentage: 0,
+        message: error?.message || "Failed to export to Excel. Please try again.",
+      });
     }
   };
 
@@ -9654,7 +9724,7 @@ export default function FormAnalyticsDashboard() {
           className={
             analyticsView === "dashboard"
               ? "space-y-6"
-              : "absolute -left-[9999px] top-0 w-full opacity-0 pointer-events-none"
+              : "fixed left-0 top-0 w-[1200px] z-[-9999] opacity-100 pointer-events-none space-y-6 bg-white dark:bg-gray-900"
           }
           aria-hidden={analyticsView !== "dashboard"}
         >
@@ -10936,12 +11006,23 @@ export default function FormAnalyticsDashboard() {
                                       );
                                     })()}
                                   </td>
-                                  <td className="px-6 py-3 text-sm text-gray-600 dark:text-gray-400 font-medium border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
-                                    {getResponseTimestamp(response)
-                                      ? new Date(
-                                        getResponseTimestamp(response)!,
-                                      ).toLocaleDateString("en-US")
-                                      : "-"}
+                                  <td className="px-6 py-3 text-sm border border-gray-200 dark:border-gray-700 min-w-40 whitespace-nowrap">
+                                    {(() => {
+                                      const ts = getResponseTimestamp(response);
+                                      if (!ts) return <span className="text-gray-400">-</span>;
+                                      const d = new Date(ts);
+                                      if (isNaN(d.getTime())) return <span>{String(ts)}</span>;
+                                      const mm = String(d.getMonth() + 1).padStart(2, "0");
+                                      const dd = String(d.getDate()).padStart(2, "0");
+                                      const yyyy = d.getFullYear();
+                                      const timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+                                      return (
+                                        <div className="flex flex-col">
+                                          <span className="font-semibold text-gray-800 dark:text-gray-200">{`${mm}/${dd}/${yyyy}`}</span>
+                                          <span className="text-[11px] text-gray-400 font-normal">{timeStr}</span>
+                                        </div>
+                                      );
+                                    })()}
                                   </td>
 
                                   <td className="px-6 py-3 text-sm text-center font-bold text-blue-600 dark:text-blue-400 border border-gray-200 dark:border-gray-700 whitespace-nowrap">
@@ -13309,8 +13390,75 @@ export default function FormAnalyticsDashboard() {
                       </div>
                     </div>
                   );
-                })()}s
+                })()}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PDF Export Progress Modal */}
+      {pdfProgress && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 sm:p-8 max-w-md w-full border border-gray-200 dark:border-gray-700 animate-in fade-in duration-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mb-4">
+                {pdfProgress.stage === "complete" ? (
+                  <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400 animate-bounce" />
+                ) : pdfProgress.stage === "error" ? (
+                  <XCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
+                ) : (
+                  <FileText className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-pulse" />
+                )}
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+                {pdfProgress.stage === "preparing"
+                  ? "Preparing Export"
+                  : pdfProgress.stage === "capturing"
+                  ? "Capturing Charts"
+                  : pdfProgress.stage === "generating"
+                  ? "Generating PDF"
+                  : pdfProgress.stage === "downloading"
+                  ? "Downloading PDF"
+                  : pdfProgress.stage === "complete"
+                  ? "Download Complete!"
+                  : "Export Failed"}
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+                {pdfProgress.message}
+              </p>
+
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 mb-2 overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 rounded-full ${
+                    pdfProgress.stage === "error"
+                      ? "bg-red-500"
+                      : pdfProgress.stage === "complete"
+                      ? "bg-green-500"
+                      : "bg-blue-600"
+                  }`}
+                  style={{ width: `${Math.min(100, Math.max(0, pdfProgress.percentage))}%` }}
+                />
+              </div>
+              <div className="flex justify-between w-full text-xs font-semibold text-gray-500 dark:text-gray-400 mb-4">
+                <span>{Math.round(pdfProgress.percentage)}%</span>
+                <span>
+                  {pdfProgress.stage === "complete"
+                    ? "100% Done"
+                    : pdfProgress.stage === "error"
+                    ? "Failed"
+                    : "In Progress..."}
+                </span>
+              </div>
+
+              {(pdfProgress.stage === "complete" || pdfProgress.stage === "error") && (
+                <button
+                  onClick={() => setPdfProgress(null)}
+                  className="mt-2 w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all shadow-md"
+                >
+                  Close
+                </button>
+              )}
             </div>
           </div>
         </div>
