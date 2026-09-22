@@ -290,7 +290,7 @@ export async function generateFollowUpAnswerTemplate(
   }[] = [];
 
   columns.push({
-    label: "Submitted Date *",
+    label: "Submitted Date dd-mm-yyyy*",
     id: "submittedAt",
     type: "date",
     required: true,
@@ -599,7 +599,7 @@ export async function generateAnswerTemplate(form: Question, inspectors?: any[])
 
   // Add mandatory Submitted Date column
   columns.push({
-    label: "Submitted Date *",
+    label: "Submitted Date dd-mm-yyyy*",
     id: "submittedAt",
     type: "date",
     required: true,
