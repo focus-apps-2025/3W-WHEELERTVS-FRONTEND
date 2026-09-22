@@ -94,6 +94,22 @@ ChartJS.register(
   ChartDataLabels,
 );
 
+const getAttemptRankLabelFromStatus = (statusStr?: string): string => {
+  const rowStatus = statusStr || "Pending Review";
+  if (rowStatus === "Rejected") {
+    return "Attempt 1 (Red - Rejected)";
+  }
+  if (rowStatus?.includes("Rework") && rowStatus !== "Rework Accepted" && rowStatus !== "Rework Completed") {
+    const match = rowStatus.match(/\d+/);
+    const num = match ? parseInt(match[0], 10) : 1;
+    return `Attempt ${num} (Yellow - Rework)`;
+  }
+  if (rowStatus === "Direct Ok" || rowStatus === "Rework Accepted" || rowStatus === "Accepted" || rowStatus === "Rework Completed" || rowStatus === "Verified") {
+    return "Attempt 1 (Green - Accepted)";
+  }
+  return "Attempt 1 (Gray - Pending)";
+};
+
 interface Response {
   _id?: string;
   id: string;
@@ -4440,6 +4456,13 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         return activeColumnFilters.every(([columnId, allowedValues]) => {
           if (!allowedValues) return true;
+
+          // Special handling for Attempt Rank / Status Color column
+          if (columnId === "attemptRank" || columnId === "attemptRankFilter") {
+            const label = getAttemptRankLabelFromStatus(response.status);
+            return allowedValues.includes(label);
+          }
+
           const answer = response.answers?.[columnId];
           if (answer === null || answer === undefined) {
             return allowedValues.includes("No Response");
@@ -5261,6 +5284,19 @@ export default function FormAnalyticsDashboard() {
 
     return map;
   }, [form, responses]);
+
+  // Distinct filter options for Time Taken attempt rank & status color
+  const attemptRankFilterOptions = useMemo(() => {
+    const opts = new Set<string>();
+    const dataset = responses.length > 0 ? responses : tableResponses;
+    dataset.forEach((r) => {
+      const rowStatus = tableDisplayStatuses[r.id] || responseStatuses[r.id] || r.status || "Pending Review";
+      const label = getAttemptRankLabelFromStatus(rowStatus);
+      opts.add(label);
+    });
+
+    return Array.from(opts).sort((a, b) => String(a ?? "").localeCompare(String(b ?? ""), undefined, { numeric: true }));
+  }, [responses, tableResponses, tableDisplayStatuses, responseStatuses]);
 
   const getUniqueColumnValues = (
     questionId: string,
@@ -10464,7 +10500,21 @@ export default function FormAnalyticsDashboard() {
                             </th>
 
                             <th className="text-center px-4 py-3 font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider border border-gray-200 dark:border-gray-700 whitespace-nowrap bg-gray-50 dark:bg-gray-800">
-                              Time Taken
+                              <div className="flex items-center justify-center gap-1">
+                                <span>Time Taken</span>
+                                <TableColumnFilter
+                                  columnId="attemptRank"
+                                  title="Attempt & Status"
+                                  options={attemptRankFilterOptions}
+                                  selectedValues={columnFilters["attemptRank"] || null}
+                                  onFilterChange={(columnId, values) => {
+                                    setColumnFilters((prev) => ({
+                                      ...prev,
+                                      [columnId]: values,
+                                    }));
+                                  }}
+                                />
+                              </div>
                             </th>
                             {form?.sections?.map(
                               (section: Section) =>

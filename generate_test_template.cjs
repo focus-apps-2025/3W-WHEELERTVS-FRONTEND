@@ -32,7 +32,7 @@ const columns = [];
 
 // Add mandatory Submitted Date column
 columns.push({
-  label: "Submitted Date *",
+  label: "Submitted Date (dd-mm-yyyy)*",
   id: "submittedAt",
   type: "date",
   required: true,

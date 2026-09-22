@@ -290,7 +290,7 @@ export async function generateFollowUpAnswerTemplate(
   }[] = [];
 
   columns.push({
-    label: "Submitted Date dd-mm-yyyy*",
+    label: "Submitted Date (dd-mm-yyyy)*",
     id: "submittedAt",
     type: "date",
     required: true,
@@ -599,7 +599,7 @@ export async function generateAnswerTemplate(form: Question, inspectors?: any[])
 
   // Add mandatory Submitted Date column
   columns.push({
-    label: "Submitted Date dd-mm-yyyy*",
+    label: "Submitted Date (dd-mm-yyyy)*",
     id: "submittedAt",
     type: "date",
     required: true,
@@ -937,6 +937,9 @@ function mapHeadersToQuestionIds(
       lowerH === "submittedat" ||
       lowerH.includes("timestamp") ||
       lowerH.includes("submitted date") ||
+      lowerH.includes("submission date") ||
+      lowerH.includes("submitted") ||
+      lowerH.includes("submission") ||
       lowerH === "date"
     ) {
       colMap[colIndex] = "submittedAt";
