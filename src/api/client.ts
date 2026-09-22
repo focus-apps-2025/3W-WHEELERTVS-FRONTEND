@@ -887,6 +887,8 @@ class ApiClient {
       status?: string;
       includePartial?: boolean;
       forceNetwork?: boolean;
+      startDate?: string;
+      endDate?: string;
     },
   ) {
     const query = new URLSearchParams();
@@ -895,6 +897,8 @@ class ApiClient {
     if (options?.limit) query.set("limit", options.limit.toString());
     if (options?.status) query.set("status", options.status);
     if (options?.includePartial) query.set("includePartial", "true");
+    if (options?.startDate) query.set("startDate", options.startDate);
+    if (options?.endDate) query.set("endDate", options.endDate);
 
     const queryString = query.toString() ? `?${query.toString()}` : "";
     // Analytics requests are now paginated (500 rows/page) instead of

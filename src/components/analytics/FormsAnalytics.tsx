@@ -558,9 +558,16 @@ export default function FormsAnalytics() {
   }, [filteredForms, formsMap]);
 
   const allForms = filteredForms.length;
-  const totalResponses = filteredForms.reduce((sum, form) => {
-    return sum + (form.responseCount || 0);
-  }, 0);
+  const totalResponses = useMemo(() => {
+    return filteredForms.reduce((sum, form) => {
+      const formId = form._id || form.id;
+      const count =
+        formId && actualResponseCounts[formId] !== undefined
+          ? actualResponseCounts[formId]
+          : form.responseCount || 0;
+      return sum + count;
+    }, 0);
+  }, [filteredForms, actualResponseCounts]);
 
   const handleDelete = async (id: string, title: string) => {
     showConfirm(

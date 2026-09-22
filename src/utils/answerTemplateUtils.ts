@@ -403,6 +403,9 @@ export async function generateFollowUpAnswerTemplate(
       if (col.type) {
         commentLines.push(`Type: ${col.type}`);
       }
+      if (col.type === "date" || col.id === "submittedAt") {
+        commentLines.push("Format: dd-mm-yyyy");
+      }
       if (col.options && col.options.length > 0) {
         commentLines.push(`Options: ${col.options.join(", ")}`);
       }
@@ -725,6 +728,9 @@ export async function generateAnswerTemplate(form: Question, inspectors?: any[])
       if (col.type) {
         commentLines.push(`Type: ${col.type}`);
       }
+      if (col.type === "date" || col.id === "submittedAt") {
+        commentLines.push("Format: dd-mm-yyyy");
+      }
       if (col.options && col.options.length > 0) {
         commentLines.push(`Options: ${col.options.join(", ")}`);
       }
@@ -815,39 +821,74 @@ export async function generateAnswerTemplate(form: Question, inspectors?: any[])
   return fileName;
 }
 
-function parseExcelDate(value: any): Date | null {
+export function parseExcelDate(value: any): Date | null {
+  if (value === null || value === undefined || value === "") return null;
+
   if (value instanceof Date) {
-    return isNaN(value.getTime()) ? null : value;
+    if (isNaN(value.getTime())) return null;
+    return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate(), 12, 0, 0));
   }
-  if (typeof value === "number") {
-    const date = new Date(Math.round((value - 25569) * 86400 * 1000));
-    return isNaN(date.getTime()) ? null : date;
-  }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
 
-    // 1. Try standard Javascript date parsing (handles YYYY-MM-DD, MM/DD/YYYY)
-    const parsed = new Date(trimmed);
-    if (!isNaN(parsed.getTime())) {
-      return parsed;
-    }
+  const strVal = String(value).trim();
+  if (!strVal) return null;
 
-    // 2. Fallback to DD/MM/YYYY or DD-MM-YYYY formats (standard in UK/India)
-    const match = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})$/);
-    if (match) {
-      const day = parseInt(match[1], 10);
-      const month = parseInt(match[2], 10) - 1; // Months are 0-indexed
-      let year = parseInt(match[3], 10);
-      if (year < 100) {
-        year += year < 50 ? 2000 : 1900; // handle 2-digit years
-      }
-      const customDate = new Date(year, month, day);
-      if (!isNaN(customDate.getTime())) {
-        return customDate;
+  // 1. Handle Excel serial numbers (number or string representation like 46034, 46097, "46034", "46097")
+  const isPureNumber = /^\d+(\.\d+)?$/.test(strVal);
+
+  if (isPureNumber) {
+    const num = Number(strVal);
+    // Excel serial dates for 1970 to 2099 fall between 25569 and 73050.
+    // e.g. 46034 = Jan 12, 2026 | 46097 = March 16, 2026
+    if (num > 20000 && num < 100000) {
+      const rawDate = new Date(Math.round((num - 25569) * 86400 * 1000));
+      if (!isNaN(rawDate.getTime())) {
+        return new Date(Date.UTC(rawDate.getUTCFullYear(), rawDate.getUTCMonth(), rawDate.getUTCDate(), 12, 0, 0));
       }
     }
+    // If it's a 4-digit year like 2026
+    if (num >= 1900 && num <= 2100) {
+      return new Date(Date.UTC(num, 0, 1, 12, 0, 0));
+    }
+    // NEVER pass a pure number string like "46097" to `new Date("46097")` because JS parses it as Year 46097!
+    return null;
   }
+
+  // 2. Try DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY formats FIRST (standard Indian/UK format)
+  const ddmmyyyyMatch = strVal.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{2,4})$/);
+  if (ddmmyyyyMatch) {
+    const day = parseInt(ddmmyyyyMatch[1], 10);
+    const month = parseInt(ddmmyyyyMatch[2], 10) - 1; // 0-indexed month
+    let year = parseInt(ddmmyyyyMatch[3], 10);
+    if (year < 100) {
+      year += year < 50 ? 2000 : 1900;
+    }
+    const customDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
+    if (!isNaN(customDate.getTime())) {
+      return customDate;
+    }
+  }
+
+  // 3. Try YYYY-MM-DD or YYYY/MM/DD or YYYY.MM.DD (ISO format)
+  const yyyymmddMatch = strVal.match(/^(\d{4})[\/\.-](\d{1,2})[\/\.-](\d{1,2})$/);
+  if (yyyymmddMatch) {
+    const year = parseInt(yyyymmddMatch[1], 10);
+    const month = parseInt(yyyymmddMatch[2], 10) - 1;
+    const day = parseInt(yyyymmddMatch[3], 10);
+    const isoDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
+    if (!isNaN(isoDate.getTime())) {
+      return isoDate;
+    }
+  }
+
+  // 4. Fallback to standard JS Date parsing ONLY for non-pure-number strings
+  const parsed = new Date(strVal);
+  if (!isNaN(parsed.getTime())) {
+    const year = parsed.getFullYear();
+    if (year >= 1900 && year <= 2100) {
+      return new Date(Date.UTC(year, parsed.getMonth(), parsed.getDate(), 12, 0, 0));
+    }
+  }
+
   return null;
 }
 
@@ -1044,7 +1085,7 @@ export async function parseAnswerWorkbook(
       } else if (id === "submitterEmail") {
         singleResponse.submitterContact.email = cellValue ? String(cellValue).trim() : "";
       } else if (id === "submittedAt") {
-        singleResponse.submittedAt = String(cellValue).trim();
+        singleResponse.submittedAt = cellValue as any;
       } else {
         if (cellValue !== "" && cellValue !== null && cellValue !== undefined) {
           singleResponse.answers[id] = cellValue;
@@ -1257,6 +1298,9 @@ export function formatAnswersForSubmission(
           answers[question.id] = answerValue;
         } else if (question.type === "number" || question.type === "rating") {
           answers[question.id] = parseNumber(answerValue) || answerValue;
+        } else if (question.type === "date" && answerValue !== undefined && answerValue !== null && answerValue !== "") {
+          const parsedDate = parseExcelDate(answerValue);
+          answers[question.id] = parsedDate ? parsedDate.toISOString() : answerValue;
         } else if (question.type === "fileInput" || question.type === "image") {
           const imageUrl = String(answerValue).trim();
           answers[question.id] = isImageUrl(imageUrl)

@@ -151,6 +151,23 @@ const getResponseTimestamp = (response: Response): string | undefined => {
   return response.timestamp || response.createdAt;
 };
 
+const getResponseLocalDate = (timestamp?: string): string => {
+  if (!timestamp) return "";
+  const d = new Date(timestamp);
+  if (isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const formatLocalDate = (d: Date): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
 interface Section {
   weightage(weightage: any): unknown;
   id: string;
@@ -1272,7 +1289,7 @@ const computeDailyPerformanceStats = (
     last.setHours(0, 0, 0, 0);
 
     while (curr <= last) {
-      const dKey = curr.toISOString().split("T")[0];
+      const dKey = formatLocalDate(curr);
       dailyMap.set(dKey, { total: 0, rework: 0, accepted: 0 });
       curr.setDate(curr.getDate() + 1);
     }
@@ -1282,7 +1299,7 @@ const computeDailyPerformanceStats = (
     const timestamp = getResponseTimestamp(response);
     if (!timestamp) return;
 
-    const dateKey = new Date(timestamp).toISOString().split("T")[0];
+    const dateKey = getResponseLocalDate(timestamp);
     if (!dailyMap.has(dateKey)) {
       dailyMap.set(dateKey, { total: 0, rework: 0, accepted: 0 });
     }
@@ -1473,7 +1490,7 @@ const computeDirectAcceptedDailyStats = (
     last.setHours(0, 0, 0, 0);
 
     while (curr <= last) {
-      const dKey = curr.toISOString().split("T")[0];
+      const dKey = formatLocalDate(curr);
       dailyMap.set(dKey, {
         total: 0,
         direct: 0,
@@ -1490,7 +1507,7 @@ const computeDirectAcceptedDailyStats = (
     const timestamp = getResponseTimestamp(response);
     if (!timestamp) return;
 
-    const dateKey = new Date(timestamp).toISOString().split("T")[0];
+    const dateKey = getResponseLocalDate(timestamp);
     if (!dailyMap.has(dateKey)) {
       dailyMap.set(dateKey, {
         total: 0,
@@ -1596,7 +1613,7 @@ const computeDailyReworkVolumeStats = (
     last.setHours(0, 0, 0, 0);
 
     while (curr <= last) {
-      const dKey = curr.toISOString().split("T")[0];
+      const dKey = formatLocalDate(curr);
       dailyMap.set(dKey, { rework: 0 });
       curr.setDate(curr.getDate() + 1);
     }
@@ -1608,7 +1625,7 @@ const computeDailyReworkVolumeStats = (
     const timestamp = getResponseTimestamp(response);
     if (!timestamp) return;
 
-    const dateKey = new Date(timestamp).toISOString().split("T")[0];
+    const dateKey = getResponseLocalDate(timestamp);
     if (!dailyMap.has(dateKey)) {
       dailyMap.set(dateKey, { rework: 0 });
     }
@@ -4142,6 +4159,7 @@ export default function FormAnalyticsDashboard() {
     try {
       const responsesData = await apiClient.getAllFormResponses(id, {
         analytics: true,
+        includePartial: true,
         forceNetwork: true,
         onPage: ({ responses: pageResponses, pageNumber, totalPages }: {
           responses: any[];
@@ -4179,8 +4197,11 @@ export default function FormAnalyticsDashboard() {
       const data = await apiClient.getFormResponses(id, {
         page: page,
         limit: responsesPageSize,
+        includePartial: true,
         analytics: false,
         forceNetwork: true,
+        startDate: dateFilter.startDate || undefined,
+        endDate: dateFilter.endDate || undefined,
       });
       setTableResponses(data.responses || []);
       setTotalResponsesCount(data.pagination?.totalResponses || 0);
@@ -4242,7 +4263,7 @@ export default function FormAnalyticsDashboard() {
     if (activeTab === "responses" && loadedTabs.has("responses")) {
       fetchResponsesPage(responsesPage);
     }
-  }, [responsesPage, responsesPageSize, activeTab]);
+  }, [responsesPage, responsesPageSize, activeTab, dateFilter.startDate, dateFilter.endDate]);
 
   const handleRetry = async () => {
     setIsRetrying(true);
@@ -4950,7 +4971,7 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
-        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        const responseDate = getResponseLocalDate(timestamp);
 
         if (dateFilter.type === "single" && dateFilter.startDate) {
           return responseDate === dateFilter.startDate;
@@ -4963,6 +4984,10 @@ export default function FormAnalyticsDashboard() {
             responseDate >= dateFilter.startDate &&
             responseDate <= dateFilter.endDate
           );
+        } else if (dateFilter.startDate) {
+          return responseDate >= dateFilter.startDate;
+        } else if (dateFilter.endDate) {
+          return responseDate <= dateFilter.endDate;
         }
         return true;
       });
@@ -5091,9 +5116,8 @@ export default function FormAnalyticsDashboard() {
       (acc: Record<string, number>, response) => {
         const timestamp = getResponseTimestamp(response);
         if (timestamp) {
-          const dateObj = new Date(timestamp);
-          if (!isNaN(dateObj.getTime())) {
-            const date = dateObj.toISOString().split("T")[0];
+          const date = getResponseLocalDate(timestamp);
+          if (date) {
             acc[date] = (acc[date] || 0) + 1;
           }
         }
@@ -5106,14 +5130,16 @@ export default function FormAnalyticsDashboard() {
     let dateRange: string[] = [];
 
     if (dateFilter.type !== "all" && dateFilter.startDate && dateFilter.endDate) {
-      // Use the filtered date range
-      const start = new Date(dateFilter.startDate);
-      const end = new Date(dateFilter.endDate);
+      // Use the filtered date range in local dates
+      const [sY, sM, sD] = dateFilter.startDate.split("-").map(Number);
+      const [eY, eM, eD] = dateFilter.endDate.split("-").map(Number);
+      const start = new Date(sY, sM - 1, sD);
+      const end = new Date(eY, eM - 1, eD);
       const days: string[] = [];
       const current = new Date(start);
 
       while (current <= end) {
-        days.push(current.toISOString().split("T")[0]);
+        days.push(formatLocalDate(current));
         current.setDate(current.getDate() + 1);
       }
       dateRange = days;
@@ -5122,7 +5148,7 @@ export default function FormAnalyticsDashboard() {
       dateRange = Array.from({ length: 30 }, (_, i) => {
         const date = new Date();
         date.setDate(date.getDate() - i);
-        return date.toISOString().split("T")[0];
+        return formatLocalDate(date);
       }).reverse();
     }
 
@@ -5157,7 +5183,7 @@ export default function FormAnalyticsDashboard() {
       result = result.filter((response) => {
         const timestamp = getResponseTimestamp(response);
         if (!timestamp) return false;
-        const responseDate = new Date(timestamp).toISOString().split("T")[0];
+        const responseDate = getResponseLocalDate(timestamp);
         if (dateFilter.startDate && dateFilter.endDate) {
           return (
             responseDate >= dateFilter.startDate &&
@@ -11012,13 +11038,13 @@ export default function FormAnalyticsDashboard() {
                                       if (!ts) return <span className="text-gray-400">-</span>;
                                       const d = new Date(ts);
                                       if (isNaN(d.getTime())) return <span>{String(ts)}</span>;
-                                      const mm = String(d.getMonth() + 1).padStart(2, "0");
-                                      const dd = String(d.getDate()).padStart(2, "0");
-                                      const yyyy = d.getFullYear();
+                                      const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+                                      const dd = String(d.getUTCDate()).padStart(2, "0");
+                                      const yyyy = d.getUTCFullYear();
                                       const timeStr = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
                                       return (
                                         <div className="flex flex-col">
-                                          <span className="font-semibold text-gray-800 dark:text-gray-200">{`${mm}/${dd}/${yyyy}`}</span>
+                                          <span className="font-semibold text-gray-800 dark:text-gray-200">{`${dd}/${mm}/${yyyy}`}</span>
                                           <span className="text-[11px] text-gray-400 font-normal">{timeStr}</span>
                                         </div>
                                       );

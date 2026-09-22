@@ -55,10 +55,10 @@ export default function SubmissionMetadata({
   const formatDateTime = (dateString?: string) => {
     if (!dateString) return "N/A";
     const date = new Date(dateString);
-    return date.toLocaleString("en-US", {
+    return date.toLocaleString("en-GB", {
       year: "numeric",
-      month: "short",
-      day: "numeric",
+      month: "2-digit",
+      day: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",

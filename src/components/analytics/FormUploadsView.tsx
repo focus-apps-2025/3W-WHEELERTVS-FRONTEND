@@ -466,7 +466,7 @@ export default function FormUploadsView() {
       setLoading(true);
       const [formData, responsesData] = await Promise.all([
         apiClient.getForm(id!),
-        apiClient.getFormResponses(id!, { limit: 10000, page: 1 })
+        apiClient.getFormResponses(id!, { limit: 10000, page: 1, includePartial: true })
       ]);
 
       if (!formData.form) {
