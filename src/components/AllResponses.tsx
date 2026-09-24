@@ -474,7 +474,7 @@ export default function AllResponses() {
 
     // If type is not a string (e.g. event object) or undefined, use default type
     if (!type || typeof type !== "string") {
-      type = "both";
+      type = "default";
     }
 
     if (!selectedResponse || !selectedForm) {
@@ -990,17 +990,37 @@ export default function AllResponses() {
 
   // Filter responses based on search and selected forms
   const filteredResponses = useMemo(() => {
+    const searchLower = searchQuery.toLowerCase().trim();
+
     return responses.filter((response) => {
       const matchesSearch =
-        response.formTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (typeof response.dealerName === "string"
-          ? response.dealerName
-              .toLowerCase()
-              .includes(searchQuery.toLowerCase())
-          : false);
+        !searchLower ||
+        response.formTitle.toLowerCase().includes(searchLower) ||
+        (typeof response.dealerName === "string" &&
+          response.dealerName.toLowerCase().includes(searchLower)) ||
+        (typeof response.submittedBy === "string" &&
+          response.submittedBy.toLowerCase().includes(searchLower)) ||
+        (typeof response.submitterContact?.email === "string" &&
+          response.submitterContact.email.toLowerCase().includes(searchLower)) ||
+        (response.createdAt &&
+          formatTimestamp(response.createdAt).toLowerCase().includes(searchLower)) ||
+        (response.timeTaken !== undefined &&
+          String(response.timeTaken).toLowerCase().includes(searchLower)) ||
+        JSON.stringify(response.answers || {})
+          .toLowerCase()
+          .includes(searchLower);
+
+      const rFormId =
+        response.questionId ||
+        response.formId ||
+        (response as any).formIdentifier ||
+        "";
+
       const matchesForm =
         selectedFormIds.length === 0 ||
-        selectedFormIds.includes(response.questionId || response.formId || "");
+        selectedFormIds.includes(rFormId) ||
+        selectedFormIds.some((id) => String(id) === String(rFormId));
+
       return matchesSearch && matchesForm;
     });
   }, [responses, searchQuery, selectedFormIds]);

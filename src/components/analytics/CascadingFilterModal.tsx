@@ -70,30 +70,73 @@ export default function CascadingFilterModal({
     loc.toLowerCase().includes(locationSearchTerm.toLowerCase())
   );
 
-  const checkAnswerMatch = (qId: string, selectedAnswers: string[], answer: any) => {
-    if (!answer) return false;
-    const question = questions.find(q => q.id === qId);
+  const extractAnswerValues = (answer: any): string[] => {
+    if (answer === null || answer === undefined) return [];
 
-    if (question?.type === 'chassis-with-zone') {
-      const zones = Array.isArray(answer.zone) ? answer.zone : [answer.zone];
-      return zones.some((z: string) => 
-        selectedAnswers.some(sel => String(z || '').toLowerCase() === String(sel || '').toLowerCase())
-      );
-    } else if (question?.type === 'chassis-without-zone') {
-      return selectedAnswers.some(sel => String(answer.chassisNumber || '').toLowerCase() === String(sel || '').toLowerCase());
+    if (typeof answer === "string") {
+      const trimmed = answer.trim();
+      return trimmed ? [trimmed] : [];
+    }
+
+    if (typeof answer === "number" || typeof answer === "boolean") {
+      return [String(answer)];
     }
 
     if (Array.isArray(answer)) {
-      return answer.some((item) =>
-        selectedAnswers.some(
-          (sel) =>
-            String(item).toLowerCase() === String(sel).toLowerCase()
-        )
-      );
+      return answer.flatMap(extractAnswerValues);
     }
-    return selectedAnswers.some(
-      (sel) =>
-        String(answer).toLowerCase() === String(sel).toLowerCase()
+
+    if (typeof answer === "object") {
+      const values: string[] = [];
+      if (answer.status && typeof answer.status === "string" && answer.status.trim()) {
+        values.push(answer.status.trim());
+      }
+      if (answer.chassisNumber && typeof answer.chassisNumber === "string" && answer.chassisNumber.trim()) {
+        values.push(answer.chassisNumber.trim());
+      }
+      if (answer.remark && typeof answer.remark === "string" && answer.remark.trim()) {
+        values.push(answer.remark.trim());
+      }
+      if (answer.zone) {
+        const zones = Array.isArray(answer.zone) ? answer.zone : [answer.zone];
+        zones.forEach((z: any) => z && values.push(String(z).trim()));
+      }
+      if (answer.value !== undefined) {
+        values.push(...extractAnswerValues(answer.value));
+      }
+      if (answer.answer !== undefined) {
+        values.push(...extractAnswerValues(answer.answer));
+      }
+      if (answer.text !== undefined) {
+        values.push(...extractAnswerValues(answer.text));
+      }
+      if (answer.defects && Array.isArray(answer.defects)) {
+        answer.defects.forEach((d: any) => {
+          if (typeof d === "string" && d.trim()) values.push(d.trim());
+          else if (d?.name && typeof d.name === "string" && d.name.trim()) values.push(d.name.trim());
+        });
+      }
+
+      if (values.length > 0) return values;
+
+      Object.values(answer).forEach((v) => {
+        if (typeof v === "string" && v.trim()) values.push(v.trim());
+        else if (typeof v === "number" || typeof v === "boolean") values.push(String(v));
+      });
+
+      return values;
+    }
+
+    return [String(answer)];
+  };
+
+  const checkAnswerMatch = (qId: string, selectedAnswers: string[], answer: any) => {
+    if (answer === null || answer === undefined) return false;
+    const extracted = extractAnswerValues(answer);
+    if (extracted.length === 0) return false;
+
+    return extracted.some((val) =>
+      selectedAnswers.some((sel) => val.toLowerCase() === sel.toLowerCase())
     );
   };
 
@@ -126,23 +169,16 @@ export default function CascadingFilterModal({
     }
 
     const answers = new Set<string>();
-    const question = questions.find(q => q.id === questionId);
 
     filteredResponses.forEach((response) => {
       const answer = response.answers?.[questionId];
       if (answer !== null && answer !== undefined && answer !== "") {
-        if (question?.type === 'chassis-with-zone') {
-          const zones = Array.isArray(answer.zone) ? answer.zone : [answer.zone];
-          zones.forEach((z: string) => {
-            if (z) answers.add(String(z).trim());
-          });
-        } else if (question?.type === 'chassis-without-zone') {
-          if (answer.chassisNumber) answers.add(String(answer.chassisNumber).trim());
-        } else if (Array.isArray(answer)) {
-          answer.forEach((a) => answers.add(String(a).trim()));
-        } else {
-          answers.add(String(answer).trim());
-        }
+        const extracted = extractAnswerValues(answer);
+        extracted.forEach((val) => {
+          if (val && val !== "[object Object]") {
+            answers.add(val);
+          }
+        });
       }
     });
 
@@ -180,25 +216,13 @@ export default function CascadingFilterModal({
       });
     }
 
-    const question = questions.find(q => q.id === questionId);
     return filteredResponses.filter((response) => {
       const answer = response.answers?.[questionId];
-      if (!answer) return false;
-
-      if (question?.type === 'chassis-with-zone') {
-        const zones = Array.isArray(answer.zone) ? answer.zone : [answer.zone];
-        return zones.some((z: string) => String(z || '').toLowerCase() === answerValue.toLowerCase());
-      } else if (question?.type === 'chassis-without-zone') {
-        return String(answer.chassisNumber || '').toLowerCase() === answerValue.toLowerCase();
-      }
-
-      if (Array.isArray(answer)) {
-        return answer.some(
-          (item) =>
-            String(item).toLowerCase() === answerValue.toLowerCase()
-        );
-      }
-      return String(answer).toLowerCase() === answerValue.toLowerCase();
+      if (answer === null || answer === undefined) return false;
+      const extracted = extractAnswerValues(answer);
+      return extracted.some(
+        (val) => val.toLowerCase() === answerValue.toLowerCase()
+      );
     }).length;
   };
 

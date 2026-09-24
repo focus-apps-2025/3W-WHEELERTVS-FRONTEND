@@ -1168,7 +1168,8 @@ class ApiClient {
     return this.request<any>(`/analytics/form/${formId}`);
   }
 
-  async getMyReviewStats() {
+  async getMyReviewStats(params?: { period?: string; startDate?: string }) {
+    const query = params ? `?${new URLSearchParams(params as any).toString()}` : "";
     return this.get<{
       totalResponses: number;
       reviewed: number;
@@ -1176,7 +1177,7 @@ class ApiClient {
       rejected: number;
       rework: number;
       performanceScore: number;
-    }>("/analytics/my-review-stats");
+    }>(`/analytics/my-review-stats${query}`);
   }
 
   async getPerformanceTable(params?: {

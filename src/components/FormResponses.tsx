@@ -18,6 +18,7 @@ import {
 import { apiClient } from "../api/client";
 import { formatTimestamp } from "../utils/dateUtils";
 import { useNotification } from "../context/NotificationContext";
+import { useDataScope } from "../context/DataScopeContext";
 import { exportResponsesToExcel } from "../utils/exportUtils";
 import { exportResponseToPDF, exportAllResponsesToPDF, exportAllResponsesToZip } from "../utils/pdfExportUtils";
 import { isImageUrl } from "../utils/answerTemplateUtils";
@@ -113,7 +114,20 @@ export default function FormResponses() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showSuccess, showError } = useNotification();
-  const [responses, setResponses] = useState<Response[]>([]);
+  const { filterByDataScope, dataScope } = useDataScope();
+  const [rawResponses, setRawResponses] = useState<Response[]>([]);
+
+  const responses = useMemo(() => {
+    return filterByDataScope(rawResponses, (r) => r.createdAt || r.submissionMetadata?.submittedAt);
+  }, [rawResponses, filterByDataScope, dataScope]);
+
+  const setResponses = (value: Response[] | ((prev: Response[]) => Response[])) => {
+    if (typeof value === "function") {
+      setRawResponses((prev) => value(prev));
+    } else {
+      setRawResponses(value);
+    }
+  };
   const [form, setForm] = useState<Form | null>(null);
   const [allQuestions, setAllQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);

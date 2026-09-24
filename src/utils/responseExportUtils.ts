@@ -146,8 +146,12 @@ function formatAnswerForExport(
     return { display: trimmed };
   }
 
-  if (typeof value === "number" || typeof value === "boolean") {
+  if (typeof value === "number") {
     return { display: String(value) };
+  }
+
+  if (typeof value === "boolean") {
+    return { display: value ? "Yes" : "No" };
   }
 
   if (Array.isArray(value)) {
@@ -157,26 +161,30 @@ function formatAnswerForExport(
           return "";
         }
         if (typeof item === "string") {
-          return item;
+          return item.trim();
         }
-        if (typeof item === "number" || typeof item === "boolean") {
+        if (typeof item === "number") {
           return String(item);
         }
+        if (typeof item === "boolean") {
+          return item ? "Yes" : "No";
+        }
         if (typeof item === "object") {
+          if (item.name || item.title || item.label) {
+            let s = item.name || item.title || item.label;
+            if (item.status) s += ` (${item.status})`;
+            if (item.remark) s += `: ${item.remark}`;
+            return s;
+          }
           const nestedFile = resolveFileLink(item, question);
           if (nestedFile) {
-            const isImage =
-              nestedFile.link.startsWith("data:image/") ||
-              nestedFile.link.includes(".jpg") ||
-              nestedFile.link.includes(".png");
-            return isImage ? "Image uploaded" : "File uploaded";
+            return "File uploaded";
           }
           return JSON.stringify(item);
         }
         return "";
       })
-      .map((text) => text.trim())
-      .filter((text) => text.length);
+      .filter((text) => text.length > 0);
 
     if (!parts.length) {
       return { display: "No response" };
@@ -186,11 +194,49 @@ function formatAnswerForExport(
   }
 
   if (typeof value === "object") {
-    const keys = Object.keys(value);
+    // 1. Handle chassis / inspection object format: { chassisNumber, status, remark, evidenceUrl, defects }
+    if (value.status || value.chassisNumber) {
+      const parts: string[] = [];
+      if (value.status) parts.push(`Status: ${value.status}`);
+      if (value.chassisNumber) parts.push(`Chassis: ${value.chassisNumber}`);
+      if (value.remark) parts.push(`Remark: ${value.remark}`);
+      if (value.defects && Array.isArray(value.defects) && value.defects.length > 0) {
+        const defectNames = value.defects
+          .map((d: any) => (typeof d === "string" ? d : d.name || JSON.stringify(d)))
+          .join(", ");
+        parts.push(`Defects: ${defectNames}`);
+      }
+      return { display: parts.join(" | ") };
+    }
+
+    // 2. Handle { yes, total } score objects
+    if (typeof value.yes === "number" && typeof value.total === "number") {
+      return { display: `${value.yes}/${value.total}` };
+    }
+
+    // 3. Handle simple wrapped answer objects: { answer: "...", status: "..." }
+    if (value.answer !== undefined) {
+      return formatAnswerForExport(value.answer, question);
+    }
+    if (value.value !== undefined) {
+      return formatAnswerForExport(value.value, question);
+    }
+    if (value.text !== undefined) {
+      return formatAnswerForExport(value.text, question);
+    }
+
+    // 4. Fallback for generic objects
+    const keys = Object.keys(value).filter(
+      (k) => k !== "__v" && value[k] !== undefined && value[k] !== null && value[k] !== ""
+    );
     if (!keys.length) {
       return { display: "No response" };
     }
-    return { display: JSON.stringify(value) };
+
+    const formattedPairs = keys.map(
+      (k) => `${k}: ${typeof value[k] === "object" ? JSON.stringify(value[k]) : value[k]}`
+    );
+    return { display: formattedPairs.join("; ") };
   }
 
   return { display: String(value) };
@@ -208,66 +254,68 @@ function buildNestedForm(form: FormData): FormData {
     console.log(`📋 Processing section: "${section.title}"`);
     console.log(`   - Original questions: ${section.questions.length}`);
 
-    // Create a map of all questions by ID
-    const questionMap = new Map<string, any>();
-    section.questions.forEach((q: any) => {
-      questionMap.set(q.id, { ...q, followUpQuestions: [] });
-    });
+    const allQuestions = section.questions;
 
-    // First pass: Create array of main questions and follow-ups
-    const mainQuestions: any[] = [];
-    const allQuestions = Array.from(questionMap.values());
+    // Track children questions and parent-child mappings
+    const childrenMap = new Map<string, any[]>();
+    const followUpIds = new Set<string>();
 
     allQuestions.forEach((q: any) => {
-      const parentId = q.parentId || q.showWhen?.questionId;
-      if (!parentId) {
-        mainQuestions.push(q);
+      const parentId = q.parentId || q.showWhen?.questionId || q.parentQuestionId;
+      if (parentId) {
+        followUpIds.add(String(q.id || q._id));
+        if (!childrenMap.has(String(parentId))) {
+          childrenMap.set(String(parentId), []);
+        }
+        childrenMap.get(String(parentId))!.push(q);
+      }
+      if (q.isFollowUp) {
+        followUpIds.add(String(q.id || q._id));
       }
     });
 
-    // Second pass: Build nested structure recursively
-    const buildNestedStructure = (questions: any[]) => {
-      const nestedQuestions: any[] = [];
+    // Top-level main questions are those not marked as follow-ups and having no parentId
+    const mainQuestions = allQuestions.filter((q: any) => {
+      const qId = String(q.id || q._id);
+      const parentId = q.parentId || q.showWhen?.questionId || q.parentQuestionId;
+      return !parentId && !q.isFollowUp && !followUpIds.has(qId);
+    });
 
-      questions.forEach((q: any) => {
-        // Find all direct children of this question
-        const children = allQuestions.filter((child: any) => {
-          const childParentId = child.parentId || child.showWhen?.questionId;
-          return childParentId === q.id;
+    // Fallback if filtering removed all questions
+    const rootQuestions = mainQuestions.length > 0 ? mainQuestions : allQuestions;
+
+    const buildNestedStructure = (questions: any[]): any[] => {
+      return questions.map((q: any) => {
+        const qId = String(q.id || q._id);
+        const directChildren = childrenMap.get(qId) || [];
+        const existingFollowUps = q.followUpQuestions || [];
+
+        // Combine existing followUps and mapped children without duplicates
+        const combinedChildrenMap = new Map<string, any>();
+        existingFollowUps.forEach((child: any) => {
+          combinedChildrenMap.set(String(child.id || child._id), child);
+        });
+        directChildren.forEach((child: any) => {
+          combinedChildrenMap.set(String(child.id || child._id), child);
         });
 
-        // Recursively build nested structure for children
-        if (children.length > 0) {
-          q.followUpQuestions = buildNestedStructure(children);
-        }
+        const combinedChildren = Array.from(combinedChildrenMap.values());
 
-        nestedQuestions.push(q);
+        return {
+          ...q,
+          followUpQuestions:
+            combinedChildren.length > 0
+              ? buildNestedStructure(combinedChildren)
+              : [],
+        };
       });
-
-      return nestedQuestions;
     };
 
-    // Build nested structure starting from main questions
-    const nestedMainQuestions = buildNestedStructure(mainQuestions);
+    const nestedMainQuestions = buildNestedStructure(rootQuestions);
 
     console.log(
       `   - Main questions after nesting: ${nestedMainQuestions.length}`
     );
-
-    // Log the structure for debugging
-    const logQuestionStructure = (q: any, prefix: string = "") => {
-      console.log(`${prefix}${q.text} (ID: ${q.id})`);
-      if (q.followUpQuestions && q.followUpQuestions.length > 0) {
-        q.followUpQuestions.forEach((child: any, index: number) => {
-          logQuestionStructure(child, prefix + "  ↳ ");
-        });
-      }
-    };
-
-    nestedMainQuestions.forEach((q, index) => {
-      console.log(`   - Q${index + 1} structure:`);
-      logQuestionStructure(q, "     ");
-    });
 
     return {
       ...section,
@@ -306,7 +354,19 @@ function buildResponsesSheetContent(
     links.push({ rowIndex: r, columnIndex: c, target, display });
   };
 
-  // New: Gather questions with proper hierarchical numbering
+  // Helper to extract raw answer by multiple possible question keys
+  const getRawAnswer = (q: any) => {
+    if (!response || !response.answers) return undefined;
+    const keys = [q.id, q._id, q.questionId, q.name, q.text].filter(Boolean);
+    for (const key of keys) {
+      if (response.answers[key] !== undefined) {
+        return response.answers[key];
+      }
+    }
+    return undefined;
+  };
+
+  // Gather questions with proper hierarchical numbering
   const gatherQuestionPairs = (
     question: any,
     prefix: string,
@@ -322,20 +382,13 @@ function buildResponsesSheetContent(
 
     // Process a question and all its nested follow-ups
     const processQuestion = (q: any, qNumber: string, qDepth: number) => {
-      // Get answer and type for current question
-      const answer = formatAnswerForExport(response.answers?.[q.id], q);
+      const rawAns = getRawAnswer(q);
+      const answer = formatAnswerForExport(rawAns, q);
       const questionType = q?.type || "text";
-
-      console.log(`   ${qNumber}: "${q?.text || "Untitled"}"`);
-      console.log(`     - Depth: ${qDepth}`);
-      console.log(`     - Answer: ${answer.display}`);
-      console.log(
-        `     - Has follow-ups: ${q?.followUpQuestions?.length || 0}`
-      );
 
       // Add current question to pairs
       pairs.push({
-        label: q?.text || "Untitled Question",
+        label: q?.text || q?.title || "Untitled Question",
         ans: answer,
         depth: qDepth,
         questionNumber: qNumber,
@@ -345,7 +398,6 @@ function buildResponsesSheetContent(
       // Process follow-ups recursively
       if (q?.followUpQuestions && q.followUpQuestions.length > 0) {
         q.followUpQuestions.forEach((followUp: any, index: number) => {
-          // Create hierarchical number for follow-up
           const followUpNumber = `${qNumber}.${index + 1}`;
           processQuestion(followUp, followUpNumber, qDepth + 1);
         });
@@ -354,8 +406,6 @@ function buildResponsesSheetContent(
 
     // Start processing with the main question
     processQuestion(question, prefix, depth);
-
-    console.log(`   📊 Total pairs for ${prefix}: ${pairs.length}`);
     return pairs;
   };
 
@@ -377,77 +427,115 @@ function buildResponsesSheetContent(
     const title = `Section ${sectionIndex + 1}: ${
       section?.title || "Untitled Section"
     }`;
-    console.log(`\n📁 ${title}`);
 
     const rowsForSection: PreparedRow[] = [];
     let mainQuestionIndex = 0;
+    const visitedQuestionIds = new Set<string>();
 
-    // Process each main question in section
-    section?.questions?.forEach((question: any) => {
-      // Check if it's a main question (no parentId or showWhen)
-      const isMainQuestion =
-        !question.parentId && !question.showWhen?.questionId;
+    // Helper to process question tree and mark visited IDs
+    const gatherQuestionPairs = (
+      question: any,
+      prefix: string,
+      depth: number = 0
+    ) => {
+      const pairs: Array<{
+        label: string;
+        ans: FormattedAnswer;
+        depth: number;
+        questionNumber: string;
+        type?: string;
+      }> = [];
 
-      if (isMainQuestion) {
-        mainQuestionIndex++;
-        const questionNumber = `Q${mainQuestionIndex}`;
-        const pairs = gatherQuestionPairs(question, questionNumber);
+      const processQuestion = (q: any, qNumber: string, qDepth: number) => {
+        const qId = String(q.id || q._id || "");
+        if (qId) visitedQuestionIds.add(qId);
 
-        // Apply filtering based on type
-        const shouldInclude = (() => {
-          if (!type || type === "default") return true;
+        const rawAns = getRawAnswer(q);
+        const answer = formatAnswerForExport(rawAns, q);
+        const questionType = q?.type || "text";
 
-          const mainAns = pairs[0]?.ans?.display;
-          if (!mainAns) return false;
+        pairs.push({
+          label: q?.text || q?.title || "Untitled Question",
+          ans: answer,
+          depth: qDepth,
+          questionNumber: qNumber,
+          type: questionType,
+        });
 
-          if (type === "yes-only") return mainAns === "Yes";
-          if (type === "no-only") return mainAns === "No";
-          if (type === "na-only") return mainAns === "N/A";
-          if (type === "both") return ["Yes", "No", "N/A"].includes(mainAns);
-
-          return true;
-        })();
-
-        if (shouldInclude) {
-          rowsForSection.push({ pairs });
+        if (q?.followUpQuestions && q.followUpQuestions.length > 0) {
+          q.followUpQuestions.forEach((followUp: any, index: number) => {
+            const followUpNumber = `${qNumber}.${index + 1}`;
+            processQuestion(followUp, followUpNumber, qDepth + 1);
+          });
         }
+      };
+
+      processQuestion(question, prefix, depth);
+      return pairs;
+    };
+
+    section?.questions?.forEach((question: any) => {
+      const qId = String(question.id || question._id || "");
+      if (qId && visitedQuestionIds.has(qId)) {
+        return;
+      }
+
+      mainQuestionIndex++;
+      const questionNumber = `Q${mainQuestionIndex}`;
+      const pairs = gatherQuestionPairs(question, questionNumber);
+
+      // Apply filtering based on type
+      const shouldInclude = (() => {
+        if (!type || type === "default" || type === "both") return true;
+
+        const mainAns = pairs[0]?.ans?.display;
+        if (!mainAns || mainAns === "No response") return false;
+
+        const lowerAns = mainAns.toLowerCase();
+        if (type === "yes-only") return lowerAns === "yes" || lowerAns.includes("status: yes") || lowerAns.startsWith("yes");
+        if (type === "no-only") return lowerAns === "no" || lowerAns.includes("status: no") || lowerAns.startsWith("no");
+        if (type === "na-only") return lowerAns === "n/a" || lowerAns === "na";
+
+        return true;
+      })();
+
+      if (shouldInclude) {
+        rowsForSection.push({ pairs });
       }
     });
 
     preparedSections.push({ title, rows: rowsForSection });
   });
 
-  // Process form-level follow-up questions
+  // Process form-level follow-up questions ONLY if unhandled
   if (form.followUpQuestions?.length) {
-    console.log(
-      `\n📋 Processing form-level follow-up questions: ${form.followUpQuestions.length}`
-    );
-    const fqTitle = "Form Follow-up Questions";
-
-    // Filter to find main questions at form level
-    const mainFormQuestions = form.followUpQuestions.filter(
-      (q: any) => !q.parentId && !q.showWhen?.questionId
+    const unhandledFormFollowUps = form.followUpQuestions.filter(
+      (q: any) => !q.parentId && !q.parentQuestionId && !q.showWhen?.questionId
     );
 
-    const rowsForFQ = mainFormQuestions
-      .map((question: any, index: number) => ({
-        pairs: gatherQuestionPairs(question, `FQ${index + 1}`),
-      }))
-      .filter((row) => {
-        if (!type || type === "default") return true;
+    if (unhandledFormFollowUps.length > 0) {
+      const rowsForFQ = unhandledFormFollowUps
+        .map((question: any, index: number) => ({
+          pairs: gatherQuestionPairs(question, `FQ${index + 1}`),
+        }))
+        .filter((row) => {
+          if (!type || type === "default" || type === "both") return true;
 
-        const mainAns = row.pairs[0]?.ans?.display;
-        if (!mainAns) return false;
+          const mainAns = row.pairs[0]?.ans?.display;
+          if (!mainAns || mainAns === "No response") return false;
 
-        if (type === "yes-only") return mainAns === "Yes";
-        if (type === "no-only") return mainAns === "No";
-        if (type === "na-only") return mainAns === "N/A";
-        if (type === "both") return ["Yes", "No", "N/A"].includes(mainAns);
+          const lowerAns = mainAns.toLowerCase();
+          if (type === "yes-only") return lowerAns === "yes" || lowerAns.includes("status: yes") || lowerAns.startsWith("yes");
+          if (type === "no-only") return lowerAns === "no" || lowerAns.includes("status: no") || lowerAns.startsWith("no");
+          if (type === "na-only") return lowerAns === "n/a" || lowerAns === "na";
 
-        return true;
-      });
+          return true;
+        });
 
-    preparedSections.push({ title: fqTitle, rows: rowsForFQ });
+      if (rowsForFQ.length > 0) {
+        preparedSections.push({ title: "Form Follow-up Questions", rows: rowsForFQ });
+      }
+    }
   }
 
   // Calculate max columns needed

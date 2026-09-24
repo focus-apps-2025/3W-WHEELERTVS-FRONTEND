@@ -2514,11 +2514,13 @@ export default function FormAnalyticsDashboard() {
     }
   };
 
-  const { filterByDataScope, dataScope, getDataScopeLabel } = useDataScope();
+  const { filterByDataScope, dataScope, getCutoffDate, getDataScopeLabel } = useDataScope();
   const [rawResponses, setRawResponses] = useState<Response[]>([]);
 
   const responses = useMemo(() => {
-    return filterByDataScope(rawResponses, (r) => getResponseTimestamp(r) || (r as any)?.createdAt);
+    return filterByDataScope(rawResponses, (r) => 
+      getResponseTimestamp(r) || (r as any)?.createdAt || (r as any)?.submissionMetadata?.submittedAt || (r as any)?.timestamp
+    );
   }, [rawResponses, filterByDataScope, dataScope]);
 
   const setResponses = (value: Response[] | ((prev: Response[]) => Response[])) => {
@@ -4286,6 +4288,22 @@ export default function FormAnalyticsDashboard() {
       setLoadedTabs((prev) => new Set(prev).add("responses"));
     }
   }, [activeTab]);
+
+  // Re-fetch and re-filter data when dataScope setting changes
+  useEffect(() => {
+    setLoadedTabs(new Set());
+    if (id) {
+      if (activeTab === "responses") {
+        fetchResponsesPage(1);
+      } else {
+        fetchFullAnalyticsResponses();
+        if (activeTab === "dashboard") {
+          fetchPerformanceTable();
+          fetchSummary();
+        }
+      }
+    }
+  }, [dataScope]);
 
   // Page / page-size changes on an already-loaded Responses tab re-fetch
   // from the server instead of re-slicing an in-memory array.

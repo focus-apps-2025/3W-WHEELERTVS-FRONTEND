@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Loader2, Users, FileText, ChevronLeft, ChevronRight, Download, Search, BarChart2, Activity, X } from 'lucide-react';
 import { apiClient } from '../../api/client';
 import { useNotification } from '../../context/NotificationContext';
+import { useDataScope } from '../../context/DataScopeContext';
 
 import XLSXStyle from 'xlsx-js-style';
 
@@ -62,12 +63,24 @@ function formatLastActive(dateStr: string | null): { date: string; time: string 
 export default function SuperAdminUserResponseDashboard() {
     const navigate = useNavigate();
     const { showError } = useNotification();
+    const { dataScope, getCutoffDate } = useDataScope();
     const [loading, setLoading] = useState(false);
     const [userPerformances, setUserPerformances] = useState<SuperAdminUserPerformance[]>([]);
-    const [dateRange, setDateRange] = useState<DateRange>({
-        start: new Date(new Date().setMonth(new Date().getMonth() - 1)).toISOString().split('T')[0],
-        end: new Date().toISOString().split('T')[0],
+    const [dateRange, setDateRange] = useState<DateRange>(() => {
+        const cutoff = getCutoffDate(dataScope);
+        return {
+            start: cutoff ? cutoff.toISOString().split('T')[0] : '',
+            end: new Date().toISOString().split('T')[0],
+        };
     });
+
+    useEffect(() => {
+        const cutoff = getCutoffDate(dataScope);
+        setDateRange({
+            start: cutoff ? cutoff.toISOString().split('T')[0] : '',
+            end: new Date().toISOString().split('T')[0],
+        });
+    }, [dataScope, getCutoffDate]);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(10);

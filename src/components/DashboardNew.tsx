@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useDataScope } from "../context/DataScopeContext";
 // add CheckCircle, XCircle, RotateCcw to your lucide-react import
 import {
   FileText,
@@ -268,6 +269,7 @@ const MyReviewBreakdownChart = ({ myReviewStats }: { myReviewStats: any }) => {
 export default function DashboardNew() {
   const navigate = useNavigate();
   const { user, tenant: currentTenant } = useAuth();
+  const { dataScope, getCutoffDate, getDataScopeLabel } = useDataScope();
   const [userPerformanceScore, setUserPerformanceScore] = useState(100);
   const [formsData, setFormsData] = useState<any>(() => {
     return apiClient.getCachedData("/forms?limit=100") || null;
@@ -299,9 +301,8 @@ export default function DashboardNew() {
   const [summaryStatuses, setSummaryStatuses] = useState<string[]>([]);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryStartDate, setSummaryStartDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().split("T")[0];
+    const cutoff = getCutoffDate(dataScope);
+    return cutoff ? cutoff.toISOString().split("T")[0] : "";
   });
   const [summaryEndDate, setSummaryEndDate] = useState(() => {
     return new Date().toISOString().split("T")[0];
@@ -312,6 +313,11 @@ export default function DashboardNew() {
   const [myReviewStatsLoading, setMyReviewStatsLoading] = useState(() => {
     return !apiClient.getCachedData("/analytics/my-review-stats");
   });
+
+  useEffect(() => {
+    const cutoff = getCutoffDate(dataScope);
+    setSummaryStartDate(cutoff ? cutoff.toISOString().split("T")[0] : "");
+  }, [dataScope, getCutoffDate]);
   const [showSummaryTable, setShowSummaryTable] = useState(false);
   const [allUsers, setAllUsers] = useState<any[]>([]);
 
@@ -1033,18 +1039,9 @@ export default function DashboardNew() {
   // Fetch my review stats
   useEffect(() => {
     const fetchMyStats = async () => {
-      const cacheKey = "/analytics/my-review-stats";
-      if (apiClient.isCacheFresh(cacheKey, 30)) {
-        setMyReviewStatsLoading(false);
-        return;
-      }
-
-      const hasCache = apiClient.getCachedData(cacheKey) !== null;
-      if (!hasCache) {
-        setMyReviewStatsLoading(true);
-      }
+      setMyReviewStatsLoading(true);
       try {
-        const response = await apiClient.getMyReviewStats({ forceNetwork: true });
+        const response = await apiClient.getMyReviewStats({ period: dataScope });
         if (response.success) {
           setMyReviewStats(response.data);
         }
@@ -1058,7 +1055,7 @@ export default function DashboardNew() {
     if (user) {
       fetchMyStats();
     }
-  }, [user]);
+  }, [user, dataScope]);
 
 
 
