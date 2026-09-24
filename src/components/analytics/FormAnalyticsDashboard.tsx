@@ -6,6 +6,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { useDataScope } from "../../context/DataScopeContext";
 import CameraCapture from "../forms/CameraCapture";
 import {
   exportDashboardToPDF,
@@ -2513,7 +2514,20 @@ export default function FormAnalyticsDashboard() {
     }
   };
 
-  const [responses, setResponses] = useState<Response[]>([]);
+  const { filterByDataScope, dataScope, getDataScopeLabel } = useDataScope();
+  const [rawResponses, setRawResponses] = useState<Response[]>([]);
+
+  const responses = useMemo(() => {
+    return filterByDataScope(rawResponses, (r) => getResponseTimestamp(r) || (r as any)?.createdAt);
+  }, [rawResponses, filterByDataScope, dataScope]);
+
+  const setResponses = (value: Response[] | ((prev: Response[]) => Response[])) => {
+    if (typeof value === "function") {
+      setRawResponses((prev) => value(prev));
+    } else {
+      setRawResponses(value);
+    }
+  };
   const [form, setForm] = useState<Form | null>(null);
   const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
@@ -7875,7 +7889,9 @@ export default function FormAnalyticsDashboard() {
   };
 
   const handleExportToExcel = async () => {
+    if (isExporting) return;
     try {
+      setIsExporting(true);
       setPdfProgress({
         stage: "preparing",
         percentage: 10,
@@ -7960,11 +7976,15 @@ export default function FormAnalyticsDashboard() {
         "",
         "",
         "",
+        "",
+        "",
       ];
       const statsDataRow: any[] = [
         `Total Accepted: ${inspectionStats.accepted}`,
         `Total Rejected: ${inspectionStats.rejected}`,
         `Total Reworked: ${inspectionStats.reworked}`,
+        ``,
+        ``,
         ``,
       ];
 
@@ -7986,9 +8006,10 @@ export default function FormAnalyticsDashboard() {
       const headerFill = { fgColor: { rgb: "FF4F46E5" } };
       const headerFont = { color: { rgb: "FFFFFFFF" }, bold: true };
 
-      // Style Header Row
+      // Style Header Row (Row 0)
       for (let i = 0; i < headerRow.length; i++) {
         const cellRef = XLSX.utils.encode_cell({ r: 0, c: i });
+        if (!ws[cellRef]) ws[cellRef] = { t: "s", v: "" };
         ws[cellRef].s = {
           fill: headerFill,
           font: headerFont,
@@ -8006,33 +8027,15 @@ export default function FormAnalyticsDashboard() {
         };
       }
 
-      // Style Common Answer Row
-      for (let i = 0; i < headerRow.length; i++) {
-        const cellRef = XLSX.utils.encode_cell({ r: 1, c: i });
-        ws[cellRef].s = {
-          fill: { fgColor: { rgb: "FFF3F4F6" } },
-          font: { italic: true, bold: i === 0 },
-          alignment: {
-            horizontal: i === 0 ? "left" : "center",
-            vertical: "center",
-            wrapText: true,
-          },
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
-        };
-      }
-
       // Style response rows
-      const lastResponseRowIdx = responses.length + 1;
-      for (let rowIdx = 1; rowIdx < lastResponseRowIdx; rowIdx++) {
+      const lastResponseRowIdx = responses.length;
+      for (let rowIdx = 1; rowIdx <= lastResponseRowIdx; rowIdx++) {
         const response = responses[rowIdx - 1];
+        if (!response) continue;
 
-        // Style Timestamp column
+        // Style Timestamp column (c: 0)
         const timeCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 0 });
+        if (!ws[timeCellRef]) ws[timeCellRef] = { t: "s", v: "" };
         ws[timeCellRef].s = {
           fill: { fgColor: { rgb: "FFF9FAFB" } },
           font: { bold: false },
@@ -8045,8 +8048,9 @@ export default function FormAnalyticsDashboard() {
           },
         };
 
-        // Style Submitted By column
+        // Style Submitted By column (c: 1)
         const submittedByCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 1 });
+        if (!ws[submittedByCellRef]) ws[submittedByCellRef] = { t: "s", v: "" };
         ws[submittedByCellRef].s = {
           fill: { fgColor: { rgb: "FFF9FAFB" } },
           font: { bold: false },
@@ -8059,8 +8063,9 @@ export default function FormAnalyticsDashboard() {
           },
         };
 
-        // Style Status column
+        // Style Status column (c: 2)
         const statusCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 2 });
+        if (!ws[statusCellRef]) ws[statusCellRef] = { t: "s", v: "" };
         const currentStatus = responseStatuses[response.id] || "-";
         let statusBgColor = "FFF9FAFB";
 
@@ -8088,8 +8093,9 @@ export default function FormAnalyticsDashboard() {
           },
         };
 
-        // Style Chassis Number column
+        // Style Chassis Number column (c: 3)
         const chassisCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 3 });
+        if (!ws[chassisCellRef]) ws[chassisCellRef] = { t: "s", v: "" };
         ws[chassisCellRef].s = {
           fill: { fgColor: { rgb: "FFF9FAFB" } },
           font: { bold: false },
@@ -8102,9 +8108,40 @@ export default function FormAnalyticsDashboard() {
           },
         };
 
-        // Style Question columns
+        // Style Dispatched column (c: 4)
+        const dispCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 4 });
+        if (!ws[dispCellRef]) ws[dispCellRef] = { t: "s", v: "" };
+        ws[dispCellRef].s = {
+          fill: { fgColor: { rgb: "FFF9FAFB" } },
+          font: { bold: false },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          },
+        };
+
+        // Style Dispatched At column (c: 5)
+        const dispAtCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 5 });
+        if (!ws[dispAtCellRef]) ws[dispAtCellRef] = { t: "s", v: "" };
+        ws[dispAtCellRef].s = {
+          fill: { fgColor: { rgb: "FFF9FAFB" } },
+          font: { bold: false },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin" },
+            left: { style: "thin" },
+            bottom: { style: "thin" },
+            right: { style: "thin" },
+          },
+        };
+
+        // Style Question columns (c: 6 to 6 + columnInfo.length - 1)
         for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 4 });
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 6 });
+          if (!ws[cellRef]) ws[cellRef] = { t: "s", v: "" };
           const info = columnInfo[colIdx];
           const bgColor = info.isFollowUp ? "FFE9D5FF" : "FFFFFFFF";
 
@@ -8122,8 +8159,9 @@ export default function FormAnalyticsDashboard() {
       }
 
       // Style Stats Header Row
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 6; i++) {
         const cellRef = XLSX.utils.encode_cell({ r: statsHeaderIdx, c: i });
+        if (!ws[cellRef]) ws[cellRef] = { t: "s", v: "" };
         ws[cellRef].s = {
           fill: { fgColor: { rgb: "FF4F46E5" } },
           font: { color: { rgb: "FFFFFFFF" }, bold: true },
@@ -8138,8 +8176,9 @@ export default function FormAnalyticsDashboard() {
       }
 
       // Style Stats Data Row
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 6; i++) {
         const cellRef = XLSX.utils.encode_cell({ r: statsDataIdx, c: i });
+        if (!ws[cellRef]) ws[cellRef] = { t: "s", v: "" };
         ws[cellRef].s = {
           fill: { fgColor: { rgb: "FFE0E7FF" } },
           font: { bold: true, color: { rgb: "FF3730A3" } },
@@ -8158,6 +8197,8 @@ export default function FormAnalyticsDashboard() {
         { wch: 25 },
         { wch: 15 },
         { wch: 18 },
+        { wch: 12 },
+        { wch: 22 },
         ...columnInfo.map(() => ({ wch: 35 })),
       ];
 
@@ -8193,6 +8234,8 @@ export default function FormAnalyticsDashboard() {
         percentage: 0,
         message: error?.message || "Failed to export to Excel. Please try again.",
       });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -9661,6 +9704,15 @@ export default function FormAnalyticsDashboard() {
                 </div>
               </div>
 
+              {dataScope !== "overall" && (
+                <div
+                  className="px-2 py-1 bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200 text-xs font-bold rounded-lg border border-amber-300 dark:border-amber-700 flex items-center gap-1"
+                  title={`Data Scope Active: Restricted to ${getDataScopeLabel(dataScope)}`}
+                >
+                  <span>🔒 Scope: {getDataScopeLabel(dataScope)}</span>
+                </div>
+              )}
+
               {/* Refresh Button - Only shows on Dashboard tab */}
               {analyticsView === "dashboard" && (
                 <button
@@ -10100,10 +10152,14 @@ export default function FormAnalyticsDashboard() {
                     </button>
                     <button
                       onClick={() => handleExportToExcel()}
-                      disabled={selectedResponsesSectionIds.length === 0}
+                      disabled={selectedResponsesSectionIds.length === 0 || isExporting}
                       className="px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg text-xs sm:text-sm font-semibold transition-colors flex items-center gap-2"
                     >
-                      <Download className="w-4 h-4" />
+                      {isExporting ? (
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
                       <span className="hidden xs:inline">Export</span>
                     </button>
                     {selectedResponseIds.length > 0 && !isGuest && (

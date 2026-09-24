@@ -11,6 +11,7 @@ import {
   Users,
   FileText,
   CheckCircle,
+  Calendar,
 } from "lucide-react";
 import { useNotification } from "../../context/NotificationContext";
 import { apiClient } from "../../api/client";
@@ -39,6 +40,9 @@ export default function EditTenantModal({
   const [loading, setLoading] = useState(false);
   const [showCustomerPortal, setShowCustomerPortal] = useState(
     tenant.settings?.showCustomerPortal || false,
+  );
+  const [defaultDataScope, setDefaultDataScope] = useState(
+    tenant.settings?.defaultDataScope || "overall",
   );
   const { showSuccess, showError } = useNotification();
 
@@ -86,6 +90,7 @@ export default function EditTenantModal({
         settings: {
           ...(tenant.settings || {}),
           showCustomerPortal,
+          defaultDataScope,
         },
       };
 
@@ -397,6 +402,36 @@ export default function EditTenantModal({
                   />
                 </button>
               </div>
+            </div>
+
+            {/* ── Default Data Display Scope ── */}
+            <div className="bg-blue-50 dark:bg-blue-950/20 rounded-2xl p-4 border border-blue-100 dark:border-blue-900 space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-blue-100 dark:bg-blue-900/40 rounded-xl flex items-center justify-center">
+                  <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-gray-800 dark:text-gray-200">
+                    Tenant Default Data Display Scope
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Default time window for all users under this tenant
+                  </p>
+                </div>
+              </div>
+              <select
+                value={defaultDataScope}
+                onChange={(e) => setDefaultDataScope(e.target.value)}
+                className="w-full px-3 py-2 border border-blue-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-sm font-semibold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="overall">Overall Data (All Time)</option>
+                <option value="last_7_days">Last 7 Days</option>
+                <option value="last_15_days">Last 15 Days</option>
+                <option value="last_1_month">Last 1 Month (30 Days)</option>
+                <option value="last_3_months">Last 3 Months (90 Days)</option>
+                <option value="last_6_months">Last 6 Months (180 Days)</option>
+                <option value="last_1_year">Last 1 Year (365 Days)</option>
+              </select>
             </div>
           </div>
 

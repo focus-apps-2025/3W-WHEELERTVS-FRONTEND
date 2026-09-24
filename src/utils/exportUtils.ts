@@ -1482,6 +1482,7 @@ export function downloadNestedFormImportTemplate() {
         }
       }
     }
+    if (!worksheet[cellAddress]) worksheet[cellAddress] = { t: "s", v: "" };
     worksheet[cellAddress].s = {
       fill: {
         patternType: "solid",
@@ -1967,6 +1968,7 @@ export function downloadFormImportTemplate() {
       color = COLORS.FU_DARK;
     }
 
+    if (!worksheet[cellAddress]) worksheet[cellAddress] = { t: "s", v: "" };
     worksheet[cellAddress].s = {
       fill: {
         patternType: "solid",

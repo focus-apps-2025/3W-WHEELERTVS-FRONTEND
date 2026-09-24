@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { X, Edit2, Save, Mail, User, Briefcase, Phone, Building2, AlertCircle, Lock, MapPin, Navigation } from "lucide-react";
+import { X, Edit2, Save, Mail, User, Briefcase, Phone, Building2, AlertCircle, Lock, MapPin, Navigation, Calendar } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useDataScope, DATA_SCOPE_OPTIONS, DataScopeOption } from "../context/DataScopeContext";
 import { apiClient } from "../api/client";
 import ChangePasswordModal from "./management/sections/general/ChangePasswordModal";
 
@@ -11,6 +12,7 @@ interface ProfileModalProps {
 
 export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const { user, tenant, updateUser } = useAuth();
+  const { dataScope, updateDataScope, getDataScopeLabel } = useDataScope();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -240,6 +242,26 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 />
               </div>
 
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Default Data Display Scope
+                </label>
+                <select
+                  value={dataScope}
+                  onChange={(e) => updateDataScope(e.target.value as DataScopeOption)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  {DATA_SCOPE_OPTIONS.map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                  Override default data scope set by SuperAdmin/Tenant admin
+                </p>
+              </div>
+
               {/* <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Mobile
@@ -369,6 +391,36 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   </div>
                 </div>
               )}
+
+              {/* Data Display Scope Setting */}
+              <div className="flex items-start space-x-3 p-3 bg-indigo-50/70 dark:bg-indigo-900/20 rounded-xl border border-indigo-200 dark:border-indigo-800/40">
+                <Calendar className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-1" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-indigo-900 dark:text-indigo-300">
+                    Data Display Scope
+                  </p>
+                  <p className="text-[11px] text-indigo-600 dark:text-indigo-400 mb-2">
+                    Controls default historical data range displayed across internal pages
+                  </p>
+                  <select
+                    value={dataScope}
+                    onChange={async (e) => {
+                      const newScope = e.target.value as DataScopeOption;
+                      await updateDataScope(newScope);
+                      const label = getDataScopeLabel ? getDataScopeLabel(newScope) : newScope;
+                      setSuccessMessage(`✓ Auto-saved: Data display scope updated to ${label}`);
+                      setTimeout(() => setSuccessMessage(null), 3000);
+                    }}
+                    className="w-full text-xs font-semibold bg-white dark:bg-gray-700 border border-indigo-300 dark:border-indigo-600 text-gray-900 dark:text-white rounded-lg px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:outline-none cursor-pointer"
+                  >
+                    {DATA_SCOPE_OPTIONS.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
               {/* Position - Only show if available */}
               {user?.position && (
