@@ -3442,6 +3442,290 @@ export default function FormAnalyticsDashboard() {
   const [showBiwViewModal, setShowBiwViewModal] = useState(false);
   const [biwViewResponse, setBiwViewResponse] = useState<Response | null>(null);
 
+  // Find the primary chassis question to identify unique items/vehicles
+  const chassisQuestionId = useMemo(() => {
+    if (!form?.sections) {
+      return null;
+    }
+    for (const section of form.sections) {
+      if (section.questions) {
+        for (const q of section.questions) {
+          if (
+            q.type === "chassis" ||
+            q.type === "chassisWithZone" ||
+            q.type === "chassisWithoutZone" ||
+            q.type === "zone-in" ||
+            q.type === "zone-out" ||
+            q.text?.toLowerCase().includes("chassis") ||
+            q.trackResponseRank === true ||
+            q.trackResponseRank === "true" ||
+            q.trackResponseQuestion === true ||
+            q.trackResponseQuestion === "true"
+          ) {
+            return q.id;
+          }
+        }
+      }
+    }
+    return null;
+  }, [form]);
+
+  // Fast, single-response status estimate — used ONLY by the Responses tab
+  // table so the Status column can render as soon as `tableResponses` (the
+  // paginated 20-row fetch) lands, instead of waiting on the full-dataset
+  // `responseStatuses` below (which requires every page of
+  // fetchFullAnalyticsResponses to stream in on large forms).
+  const computeFastRowStatus = (r: Response, trackingQId: string | null) => {
+    let isRework = false;
+    let isAccepted = false;
+    let isRejected = false;
+
+    if (r.answers) {
+      Object.values(r.answers).forEach((ans) => {
+        if (typeof ans === "object" && ans !== null && (ans as any).status) {
+          const s = String((ans as any).status).toLowerCase().trim();
+          if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
+            isRework = true;
+          } else if (
+            s === "accepted" ||
+            s === "rework completed" ||
+            s === "verified" ||
+            s === "yes" ||
+            s === "y"
+          ) {
+            isAccepted = true;
+          } else if (s === "rejected" || s === "no" || s === "n") {
+            isRejected = true;
+          }
+        } else if (typeof ans === "string") {
+          const s = ans.toLowerCase().trim();
+          if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
+            isRework = true;
+          } else if (
+            s === "accepted" ||
+            s === "rework completed" ||
+            s === "verified" ||
+            s === "yes" ||
+            s === "y"
+          ) {
+            isAccepted = true;
+          } else if (s === "rejected" || s === "no" || s === "n") {
+            isRejected = true;
+          }
+        }
+      });
+    }
+
+    const rank = trackingQId ? r.responseRanks?.[trackingQId] : null;
+
+    if (isRejected) return "Rejected";
+    if (isRework) {
+      if (trackingQId && rank && rank > 1) return `Rework ${rank - 1}`;
+      if (trackingQId) return "Rework 1";
+      return "Rework";
+    }
+    if (isAccepted) {
+      if (!trackingQId || rank === 1) return "Direct Ok";
+      if (rank && rank > 1) return "Rework Accepted";
+      return "Accepted";
+    }
+    return "-";
+  };
+
+  const baseFilteredResponses = useMemo(() => {
+    let result = responses;
+
+    // 0. Role-based Filter (LIFTED: Inspectors can now view and review other tenant/user responses)
+
+    // 1. Location Filter
+    if (locationFilter.length > 0) {
+      result = result.filter((response) => {
+        const meta = response.submissionMetadata?.location;
+        if (!meta) return false;
+        const city = meta.city || "";
+        const country = meta.country || "";
+        const locationStr =
+          city && country ? `${city}, ${country}` : country || "Unknown";
+        return locationFilter.includes(locationStr);
+      });
+    }
+
+    // 2. Cascading Question Filters
+    const cascadingFiltersArray = Object.entries(cascadingFilters).filter(
+      ([_, answers]) => answers.length > 0,
+    );
+
+    if (cascadingFiltersArray.length > 0) {
+      result = result.filter((response) => {
+        return cascadingFiltersArray.every(([questionId, selectedAnswers]) => {
+          const answer = response.answers?.[questionId];
+          if (answer === null || answer === undefined) return false;
+
+          // Use extractAnswerValues to handle all answer types consistently
+          const answerValues = extractAnswerValues(answer);
+          return answerValues.some(v => selectedAnswers.includes(v));
+        });
+      });
+    }
+
+    return result;
+  }, [
+    responses,
+    user,
+    locationFilter,
+    cascadingFilters,
+  ]);
+
+  // Calculate sequential status (Direct Ok, Rework 1, Rework 2, etc.)
+  const responseStatuses = useMemo(() => {
+    if (!baseFilteredResponses.length) {
+      return {};
+    }
+
+    // Group responses by unique item (e.g., chassis number)
+    const itemGroups: Record<string, Response[]> = {};
+
+    // Sort responses by timestamp ascending to determine sequential order
+    const sortedResponses = [...baseFilteredResponses].sort((a, b) => {
+      const tA = new Date(getResponseTimestamp(a) || 0).getTime();
+      const tB = new Date(getResponseTimestamp(b) || 0).getTime();
+      return tA - tB;
+    });
+
+    sortedResponses.forEach((r) => {
+      let itemId = "unknown";
+      if (chassisQuestionId) {
+        const answer = r.answers[chassisQuestionId];
+        if (answer) {
+          if (typeof answer === "object") {
+            itemId = answer.chassisNumber || JSON.stringify(answer);
+          } else {
+            itemId = String(answer);
+          }
+        } else {
+          // If tracking question is present but not answered, treat as unique to avoid mixing un-tracked items
+          itemId = `untracked-${r.id}`;
+        }
+      } else {
+        // NO Tracking ID means no grouping for reworks - treat each as unique
+        itemId = `response-${r.id}`;
+      }
+
+      if (!itemGroups[itemId]) {
+        itemGroups[itemId] = [];
+      }
+      itemGroups[itemId].push(r);
+    });
+
+    const statuses: Record<string, string> = {};
+
+    Object.entries(itemGroups).forEach(([groupId, group]) => {
+      let reworkCount = 0;
+      let hasBeenReworked = false;
+
+      group.forEach((r, index) => {
+        let isRework = false;
+        let isAccepted = false;
+        let isRejected = false;
+
+        // Check individual answers for inspection status
+        if (r.answers) {
+          Object.values(r.answers).forEach((ans) => {
+            if (
+              typeof ans === "object" &&
+              ans !== null &&
+              (ans as any).status
+            ) {
+              const s = String((ans as any).status)
+                .toLowerCase()
+                .trim();
+              if (
+                s === "rework" ||
+                s === "reworked" ||
+                s.includes("re-rework")
+              ) {
+                isRework = true;
+              } else if (
+                s === "accepted" ||
+                s === "rework completed" ||
+                s === "verified" ||
+                s === "yes" ||
+                s === "y"
+              ) {
+                isAccepted = true;
+              } else if (s === "rejected" || s === "no" || s === "n") {
+                isRejected = true;
+              }
+            } else if (typeof ans === "string") {
+              const s = ans.toLowerCase().trim();
+              if (
+                s === "rework" ||
+                s === "reworked" ||
+                s.includes("re-rework")
+              ) {
+                isRework = true;
+              } else if (
+                s === "accepted" ||
+                s === "rework completed" ||
+                s === "verified" ||
+                s === "yes" ||
+                s === "y"
+              ) {
+                isAccepted = true;
+              } else if (s === "rejected" || s === "no" || s === "n") {
+                isRejected = true;
+              }
+            }
+          });
+        }
+
+        const rank = chassisQuestionId
+          ? r.responseRanks?.[chassisQuestionId]
+          : null;
+
+        if (isRejected) {
+          statuses[r.id] = "Rejected";
+        } else if (isRework) {
+          if (chassisQuestionId && groupId !== `untracked-${r.id}`) {
+            reworkCount++;
+            hasBeenReworked = true;
+            statuses[r.id] = `Rework ${reworkCount}`;
+          } else {
+            statuses[r.id] = "Rework";
+          }
+        } else if (isAccepted) {
+          // If rank is 1, it's definitely the first time this item is seen
+          // If no rank but index 0, assume it's the first time in the current view
+          if (rank === 1 || (index === 0 && !hasBeenReworked)) {
+            statuses[r.id] = "Direct Ok";
+          } else if ((rank && rank > 1) || hasBeenReworked) {
+            statuses[r.id] = "Rework Accepted";
+          } else {
+            statuses[r.id] = "Accepted";
+          }
+        } else {
+          statuses[r.id] = "-";
+        }
+      });
+    });
+
+    return statuses;
+  }, [baseFilteredResponses, chassisQuestionId]);
+
+  // Status for the Responses tab table only: instant estimate from each
+  // row's own persisted rank (computeFastRowStatus, defined above), upgraded
+  // to the fully-accurate group-computed value from `responseStatuses` the
+  // moment that's ready. Depends only on `tableResponses` (the fast
+  // paginated 20-row fetch), so it's available immediately instead of
+  // waiting on the full analytics response set.
+  const tableDisplayStatuses = useMemo(() => {
+    const map: Record<string, string> = {};
+    tableResponses.forEach((r) => {
+      map[r.id] = responseStatuses[r.id] || computeFastRowStatus(r, chassisQuestionId);
+    });
+    return map;
+  }, [tableResponses, responseStatuses, chassisQuestionId]);
+
 
   // Server-side pagination for the "Responses" table tab: fetches only the
   // current page directly from the backend instead of slicing an
@@ -4440,330 +4724,7 @@ export default function FormAnalyticsDashboard() {
     return strValue ? [strValue] : [""];
   };
 
-  const baseFilteredResponses = useMemo(() => {
-    let result = responses;
 
-    // 0. Role-based Filter (LIFTED: Inspectors can now view and review other tenant/user responses)
-
-    // 2. Location Filter
-    if (locationFilter.length > 0) {
-      result = result.filter((response) => {
-        const meta = response.submissionMetadata?.location;
-        if (!meta) return false;
-        const city = meta.city || "";
-        const country = meta.country || "";
-        const locationStr =
-          city && country ? `${city}, ${country}` : country || "Unknown";
-        return locationFilter.includes(locationStr);
-      });
-    }
-
-    // 3. Cascading Question Filters
-    const cascadingFiltersArray = Object.entries(cascadingFilters).filter(
-      ([_, answers]) => answers.length > 0,
-    );
-
-
-
-
-    if (cascadingFiltersArray.length > 0) {
-      result = result.filter((response) => {
-        return cascadingFiltersArray.every(([questionId, selectedAnswers]) => {
-          const answer = response.answers?.[questionId];
-          if (answer === null || answer === undefined) return false;
-
-          // Use extractAnswerValues to handle all answer types consistently
-          const answerValues = extractAnswerValues(answer);
-          return answerValues.some(v => selectedAnswers.includes(v));
-        });
-      });
-    }
-
-    // 4. Column Filters
-    const activeColumnFilters = Object.entries(columnFilters).filter(
-      ([_, values]) => values && values.length > 0,
-    );
-
-    if (activeColumnFilters.length > 0) {
-      result = result.filter((response) => {
-        return activeColumnFilters.every(([columnId, allowedValues]) => {
-          if (!allowedValues) return true;
-
-          // Special handling for Attempt Rank / Status Color column
-          if (columnId === "attemptRank" || columnId === "attemptRankFilter") {
-            const label = getAttemptRankLabelFromStatus(response.status);
-            return allowedValues.includes(label);
-          }
-
-          const answer = response.answers?.[columnId];
-          if (answer === null || answer === undefined) {
-            return allowedValues.includes("No Response");
-          }
-          // Use extractAnswerValues to get meaningful values from any answer type
-          const answerValues = extractAnswerValues(answer);
-          return answerValues.some(v => allowedValues.includes(v));
-        });
-      });
-    }
-
-    return result;
-  }, [responses, user, locationFilter, cascadingFilters, columnFilters]);
-
-  // Find the primary chassis question to identify unique items/vehicles
-  const chassisQuestionId = useMemo(() => {
-    if (!form?.sections) {
-      return null;
-    }
-    for (const section of form.sections) {
-      if (section.questions) {
-        for (const q of section.questions) {
-          if (
-            q.type === "chassis" ||
-            q.type === "chassisWithZone" ||
-            q.type === "chassisWithoutZone" ||
-            q.type === "zone-in" ||
-            q.type === "zone-out" ||
-            q.text?.toLowerCase().includes("chassis") ||
-            q.trackResponseRank === true ||
-            q.trackResponseRank === "true" ||
-            q.trackResponseQuestion === true ||
-            q.trackResponseQuestion === "true"
-          ) {
-            return q.id;
-          }
-        }
-      }
-    }
-    return null;
-  }, [form]);
-
-  // Fast, single-response status estimate — used ONLY by the Responses tab
-  // table so the Status column can render as soon as `tableResponses` (the
-  // paginated 20-row fetch) lands, instead of waiting on the full-dataset
-  // `responseStatuses` below (which requires every page of
-  // fetchFullAnalyticsResponses to stream in on large forms).
-  //
-  // It leans on `responseRanks`, which the backend already computes and
-  // persists on the response document at submission time (a count of prior
-  // submissions for the same tracked item, e.g. chassis number) — see
-  // responseController.js. Because that count is already stored per-row,
-  // this needs no sibling responses at all, just the row itself.
-  //
-  // Trade-off: in the rare case an item was rejected/skipped outright
-  // without ever being flagged "rework" partway through its history, the
-  // "Rework N" number here can be off by one from the fully-accurate
-  // group-computed value below. That's why `tableDisplayStatuses` (below)
-  // prefers the accurate `responseStatuses` value the instant it's
-  // available, and only falls back to this estimate until then — so the
-  // table starts correct-ish immediately and self-corrects a moment later,
-  // the same "settles once loading finishes" behavior already documented
-  // for the full-set streaming case above.
-  const computeFastRowStatus = (r: Response, trackingQId: string | null) => {
-    let isRework = false;
-    let isAccepted = false;
-    let isRejected = false;
-
-    if (r.answers) {
-      Object.values(r.answers).forEach((ans) => {
-        if (typeof ans === "object" && ans !== null && (ans as any).status) {
-          const s = String((ans as any).status).toLowerCase().trim();
-          if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
-            isRework = true;
-          } else if (
-            s === "accepted" ||
-            s === "rework completed" ||
-            s === "verified" ||
-            s === "yes" ||
-            s === "y"
-          ) {
-            isAccepted = true;
-          } else if (s === "rejected" || s === "no" || s === "n") {
-            isRejected = true;
-          }
-        } else if (typeof ans === "string") {
-          const s = ans.toLowerCase().trim();
-          if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
-            isRework = true;
-          } else if (
-            s === "accepted" ||
-            s === "rework completed" ||
-            s === "verified" ||
-            s === "yes" ||
-            s === "y"
-          ) {
-            isAccepted = true;
-          } else if (s === "rejected" || s === "no" || s === "n") {
-            isRejected = true;
-          }
-        }
-      });
-    }
-
-    const rank = trackingQId ? r.responseRanks?.[trackingQId] : null;
-
-    if (isRejected) return "Rejected";
-    if (isRework) {
-      if (trackingQId && rank && rank > 1) return `Rework ${rank - 1}`;
-      if (trackingQId) return "Rework 1";
-      return "Rework";
-    }
-    if (isAccepted) {
-      if (!trackingQId || rank === 1) return "Direct Ok";
-      if (rank && rank > 1) return "Rework Accepted";
-      return "Accepted";
-    }
-    return "-";
-  };
-
-  // Calculate sequential status (Direct Ok, Rework 1, Rework 2, etc.)
-  const responseStatuses = useMemo(() => {
-    if (!baseFilteredResponses.length) {
-      return {};
-    }
-
-    // Group responses by unique item (e.g., chassis number)
-    const itemGroups: Record<string, Response[]> = {};
-
-    // Sort responses by timestamp ascending to determine sequential order
-    const sortedResponses = [...baseFilteredResponses].sort((a, b) => {
-      const tA = new Date(getResponseTimestamp(a) || 0).getTime();
-      const tB = new Date(getResponseTimestamp(b) || 0).getTime();
-      return tA - tB;
-    });
-
-    sortedResponses.forEach((r) => {
-      let itemId = "unknown";
-      if (chassisQuestionId) {
-        const answer = r.answers[chassisQuestionId];
-        if (answer) {
-          if (typeof answer === "object") {
-            itemId = answer.chassisNumber || JSON.stringify(answer);
-          } else {
-            itemId = String(answer);
-          }
-        } else {
-          // If tracking question is present but not answered, treat as unique to avoid mixing un-tracked items
-          itemId = `untracked-${r.id}`;
-        }
-      } else {
-        // NO Tracking ID means no grouping for reworks - treat each as unique
-        itemId = `response-${r.id}`;
-      }
-
-      if (!itemGroups[itemId]) {
-        itemGroups[itemId] = [];
-      }
-      itemGroups[itemId].push(r);
-    });
-
-    const statuses: Record<string, string> = {};
-
-    Object.entries(itemGroups).forEach(([groupId, group]) => {
-      let reworkCount = 0;
-      let hasBeenReworked = false;
-
-      group.forEach((r, index) => {
-        let isRework = false;
-        let isAccepted = false;
-        let isRejected = false;
-
-        // Check individual answers for inspection status
-        if (r.answers) {
-          Object.values(r.answers).forEach((ans) => {
-            if (
-              typeof ans === "object" &&
-              ans !== null &&
-              (ans as any).status
-            ) {
-              const s = String((ans as any).status)
-                .toLowerCase()
-                .trim();
-              if (
-                s === "rework" ||
-                s === "reworked" ||
-                s.includes("re-rework")
-              ) {
-                isRework = true;
-              } else if (
-                s === "accepted" ||
-                s === "rework completed" ||
-                s === "verified" ||
-                s === "yes" ||
-                s === "y"
-              ) {
-                isAccepted = true;
-              } else if (s === "rejected" || s === "no" || s === "n") {
-                isRejected = true;
-              }
-            } else if (typeof ans === "string") {
-              const s = ans.toLowerCase().trim();
-              if (
-                s === "rework" ||
-                s === "reworked" ||
-                s.includes("re-rework")
-              ) {
-                isRework = true;
-              } else if (
-                s === "accepted" ||
-                s === "rework completed" ||
-                s === "verified" ||
-                s === "yes" ||
-                s === "y"
-              ) {
-                isAccepted = true;
-              } else if (s === "rejected" || s === "no" || s === "n") {
-                isRejected = true;
-              }
-            }
-          });
-        }
-
-        const rank = chassisQuestionId
-          ? r.responseRanks?.[chassisQuestionId]
-          : null;
-
-        if (isRejected) {
-          statuses[r.id] = "Rejected";
-        } else if (isRework) {
-          if (chassisQuestionId && groupId !== `untracked-${r.id}`) {
-            reworkCount++;
-            hasBeenReworked = true;
-            statuses[r.id] = `Rework ${reworkCount}`;
-          } else {
-            statuses[r.id] = "Rework";
-          }
-        } else if (isAccepted) {
-          // If rank is 1, it's definitely the first time this item is seen
-          // If no rank but index 0, assume it's the first time in the current view
-          if (rank === 1 || (index === 0 && !hasBeenReworked)) {
-            statuses[r.id] = "Direct Ok";
-          } else if ((rank && rank > 1) || hasBeenReworked) {
-            statuses[r.id] = "Rework Accepted";
-          } else {
-            statuses[r.id] = "Accepted";
-          }
-        } else {
-          statuses[r.id] = "-";
-        }
-      });
-    });
-
-    return statuses;
-  }, [baseFilteredResponses, chassisQuestionId]);
-
-  // Status for the Responses tab table only: instant estimate from each
-  // row's own persisted rank (computeFastRowStatus, defined above), upgraded
-  // to the fully-accurate group-computed value from `responseStatuses` the
-  // moment that's ready. Depends only on `tableResponses` (the fast
-  // paginated 20-row fetch), so it's available immediately instead of
-  // waiting on the full analytics response set.
-  const tableDisplayStatuses = useMemo(() => {
-    const map: Record<string, string> = {};
-    tableResponses.forEach((r) => {
-      map[r.id] = responseStatuses[r.id] || computeFastRowStatus(r, chassisQuestionId);
-    });
-    return map;
-  }, [tableResponses, responseStatuses, chassisQuestionId]);
 
   const fetchChatHistory = async (responseId: string) => {
     try {
@@ -5329,6 +5290,118 @@ export default function FormAnalyticsDashboard() {
 
     return Array.from(opts).sort((a, b) => String(a ?? "").localeCompare(String(b ?? ""), undefined, { numeric: true }));
   }, [responses, tableResponses, tableDisplayStatuses, responseStatuses]);
+
+  // Derived filtered & chassis-sorted responses specifically for the Responses table
+  const displayTableResponses = useMemo(() => {
+    let dataset = tableResponses.length > 0 ? [...tableResponses] : [...baseFilteredResponses];
+
+    // 1. Apply column filters if active
+    const activeColumnFilters = Object.entries(columnFilters).filter(
+      ([_, values]) => values && values.length > 0
+    );
+
+    if (activeColumnFilters.length > 0) {
+      dataset = dataset.filter((response) => {
+        return activeColumnFilters.every(([columnId, allowedValues]) => {
+          if (!allowedValues) return true;
+
+          if (columnId === "attemptRank" || columnId === "attemptRankFilter") {
+            const rowStatus =
+              tableDisplayStatuses[response.id] ||
+              responseStatuses[response.id] ||
+              response.status ||
+              "Pending Review";
+            const label = getAttemptRankLabelFromStatus(rowStatus);
+            return allowedValues.includes(label);
+          }
+
+          const answer = response.answers?.[columnId];
+          if (answer === null || answer === undefined) {
+            return allowedValues.includes("No Response");
+          }
+          const answerValues = extractAnswerValues(answer);
+          return answerValues.some((v) => allowedValues.includes(v));
+        });
+      });
+    }
+
+    // 2. Sort by Chassis Number in natural numeric order (e.g. 90001, 90002, S8-NRT-01...)
+    // AND within the same chassis number, sort by Attempt Number ascending (Attempt 1, Attempt 2, Attempt 3...)
+    const getChassisNum = (r: Response): string => {
+      const chassisVal =
+        (chassisQuestionId ? r.answers?.[chassisQuestionId] : null) ||
+        r.answers?.["chassis_number"] ||
+        r.answers?.["chassisNumber"] ||
+        r.chassisNumber ||
+        "";
+      if (typeof chassisVal === "string") return chassisVal;
+      if (typeof chassisVal === "object" && chassisVal?.chassisNumber) {
+        return String(chassisVal.chassisNumber);
+      }
+      return "";
+    };
+
+    const getAttemptNum = (r: Response): number => {
+      if (chassisQuestionId && r.responseRanks?.[chassisQuestionId]) {
+        return r.responseRanks[chassisQuestionId];
+      }
+      if (r.responseRanks && Object.keys(r.responseRanks).length > 0) {
+        const ranks = Object.values(r.responseRanks).filter((v) => typeof v === "number");
+        if (ranks.length > 0) return ranks[0];
+      }
+      const rowStatus =
+        tableDisplayStatuses[r.id] ||
+        responseStatuses[r.id] ||
+        r.status ||
+        "";
+      if (rowStatus) {
+        const match = rowStatus.match(/\d+/);
+        if (match) {
+          return parseInt(match[0], 10);
+        }
+      }
+      return 0;
+    };
+
+    dataset.sort((a, b) => {
+      const cA = getChassisNum(a);
+      const cB = getChassisNum(b);
+
+      let chassisCompare = 0;
+      if (cA && cB) {
+        chassisCompare = cA.localeCompare(cB, undefined, { numeric: true, sensitivity: "base" });
+      } else if (cA) {
+        chassisCompare = -1;
+      } else if (cB) {
+        chassisCompare = 1;
+      }
+
+      if (chassisCompare !== 0) {
+        return chassisCompare;
+      }
+
+      // Same chassis number: sort by Attempt Number ascending (Attempt 1, 2, 3...)
+      const attA = getAttemptNum(a);
+      const attB = getAttemptNum(b);
+      if (attA !== 0 && attB !== 0 && attA !== attB) {
+        return attA - attB;
+      }
+
+      // Fallback: sort chronologically by timestamp ascending (oldest attempt first)
+      const tA = new Date(getResponseTimestamp(a) || 0).getTime();
+      const tB = new Date(getResponseTimestamp(b) || 0).getTime();
+      return tA - tB;
+    });
+
+    return dataset;
+  }, [
+    tableResponses,
+    baseFilteredResponses,
+    columnFilters,
+    tableDisplayStatuses,
+    responseStatuses,
+    chassisQuestionId,
+  ]);
 
   const getUniqueColumnValues = (
     questionId: string,
@@ -7906,6 +7979,122 @@ export default function FormAnalyticsDashboard() {
     }
   };
 
+  // Helper to format any answer object/array/value into clean text for Excel export
+  const formatAnswerForExcel = (answer: any, q?: any): string => {
+    if (answer === undefined || answer === null || answer === "") {
+      return "-";
+    }
+
+    if (typeof answer === "boolean") {
+      return answer ? "Yes" : "No";
+    }
+    if (typeof answer === "number") {
+      return String(answer);
+    }
+    if (typeof answer === "string") {
+      const trimmed = answer.trim();
+      if (!trimmed) return "-";
+      return trimmed;
+    }
+
+    if (Array.isArray(answer)) {
+      if (answer.length === 0) return "-";
+      const items = answer
+        .map((item) => formatAnswerForExcel(item, q))
+        .filter((s) => s && s !== "-");
+      return items.length > 0 ? items.join(", ") : "-";
+    }
+
+    if (typeof answer === "object") {
+      // Check file / image object
+      if (answer.url || answer.data || answer.file || answer.base64) {
+        const fileUrl = answer.url || answer.data || answer.file || answer.base64;
+        const fileName = answer.fileName || answer.filename || answer.name;
+        if (typeof fileUrl === "string" && (fileUrl.startsWith("http") || fileUrl.startsWith("/"))) {
+          return fileName ? `${fileName} (${fileUrl})` : fileUrl;
+        }
+        return fileName || "Uploaded File";
+      }
+
+      // Structured Chassis / Status / Defect inspection object
+      const parts: string[] = [];
+
+      if (answer.chassisNumber && String(answer.chassisNumber).trim()) {
+        parts.push(`Chassis: ${answer.chassisNumber}`);
+      }
+      if (answer.status && String(answer.status).trim()) {
+        parts.push(`Status: ${answer.status}`);
+      }
+      if (answer.remark || answer.remarks) {
+        const r = String(answer.remark || answer.remarks).trim();
+        if (r && r.toLowerCase() !== "no response") {
+          parts.push(`Remark: ${r}`);
+        }
+      }
+      const zoneRaw = answer.zone || answer.zones;
+      if (zoneRaw) {
+        const zoneVal = Array.isArray(zoneRaw) ? zoneRaw.join(", ") : String(zoneRaw);
+        if (zoneVal.trim()) {
+          parts.push(`Zone: ${zoneVal}`);
+        }
+      }
+
+      // Zones Data (categories & defects)
+      if (answer.zonesData && typeof answer.zonesData === "object") {
+        Object.entries(answer.zonesData).forEach(([zoneName, zoneVal]: [string, any]) => {
+          if (zoneVal?.categories && Array.isArray(zoneVal.categories)) {
+            zoneVal.categories.forEach((cat: any) => {
+              const catName = typeof cat === "string" ? cat : cat?.name || cat?.category;
+              if (catName) parts.push(`[${zoneName}] Category: ${catName}`);
+              if (cat?.defects && Array.isArray(cat.defects)) {
+                cat.defects.forEach((defect: any) => {
+                  const defectName = typeof defect === "string" ? defect : defect?.name || defect?.defect;
+                  const details = typeof defect === "object" ? defect?.details || {} : {};
+                  const defectRemark = details?.remark || details?.remarks;
+                  let defectStr = `Defect: ${defectName}`;
+                  if (defectRemark && defectRemark !== "-") defectStr += ` (Remark: ${defectRemark})`;
+                  parts.push(defectStr);
+                });
+              }
+            });
+          }
+        });
+      }
+
+      // Categories array
+      if (answer.categories && Array.isArray(answer.categories)) {
+        answer.categories.forEach((cat: any) => {
+          const catName = cat?.name || cat?.category;
+          if (catName) parts.push(`Category: ${catName}`);
+          if (cat?.defects && Array.isArray(cat.defects)) {
+            cat.defects.forEach((defect: any) => {
+              const defectName = typeof defect === "string" ? defect : defect?.name || defect?.defect;
+              const details = typeof defect === "object" ? defect?.details || {} : {};
+              const defectRemark = details?.remark || details?.remarks;
+              let defectStr = `Defect: ${defectName}`;
+              if (defectRemark && defectRemark !== "-") defectStr += ` (Remark: ${defectRemark})`;
+              parts.push(defectStr);
+            });
+          }
+        });
+      }
+
+      if (parts.length > 0) {
+        return parts.join(" | ");
+      }
+
+      // Generic Object key-value pairs (e.g. Matrix / Grid)
+      const entries = Object.entries(answer)
+        .filter(([k, v]) => v !== undefined && v !== null && v !== "" && k !== "_id")
+        .map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`);
+      if (entries.length > 0) {
+        return entries.join(" | ");
+      }
+    }
+
+    return String(answer);
+  };
+
   const handleExportToExcel = async () => {
     if (isExporting) return;
     try {
@@ -7917,15 +8106,35 @@ export default function FormAnalyticsDashboard() {
       });
       await new Promise((r) => setTimeout(r, 40));
 
-      const headerRow: any[] = ["Timestamp", "Submitted By", "Status", "Chassis Number", "Dispatched", "Dispatched At"];
+      const activeSectionIds =
+        selectedResponsesSectionIds.length > 0
+          ? selectedResponsesSectionIds
+          : form?.sections?.map((s: Section) => s.id) || [];
+
+      const headerRow: any[] = [
+        "Submitted By",
+        "Status",
+        "Chassis Number",
+        "Review",
+        "BIW Review",
+        "Timestamp",
+        "Time Taken",
+        "Dispatched",
+        "Dispatched By",
+        "Dispatched At",
+      ];
+
       const columnInfo: Array<{
         questionId: string;
         isFollowUp: boolean;
         correctAnswer?: any;
+        trackResponseRank?: boolean;
       }> = [];
 
+      const questionMap = new Map<string, any>();
+
       form?.sections?.forEach((section: Section) => {
-        if (selectedResponsesSectionIds.includes(section.id)) {
+        if (activeSectionIds.includes(section.id)) {
           section.questions?.forEach((q: any) => {
             const isFollowUp = q.parentId || q.showWhen?.questionId;
             headerRow.push(q.text || "Question");
@@ -7933,46 +8142,153 @@ export default function FormAnalyticsDashboard() {
               questionId: q.id,
               isFollowUp: !!isFollowUp,
               correctAnswer: q.correctAnswer,
+              trackResponseRank: q.trackResponseRank,
             });
+            questionMap.set(q.id, q);
           });
         }
       });
 
+      const exportResponses =
+        displayTableResponses.length > 0
+          ? displayTableResponses
+          : filteredResponses.length > 0
+          ? filteredResponses
+          : responses.length > 0
+          ? responses
+          : tableResponses;
+
+      if (exportResponses.length === 0) {
+        showToast("No responses available to export.", "error");
+        setIsExporting(false);
+        setPdfProgress(null);
+        return;
+      }
+
       setPdfProgress({
         stage: "generating",
         percentage: 35,
-        message: `Processing ${responses.length} response rows & parameters...`,
+        message: `Processing ${exportResponses.length} response rows & parameters...`,
       });
       await new Promise((r) => setTimeout(r, 40));
 
       const wsData: any[][] = [headerRow];
 
-      responses.forEach((response: Response) => {
+      exportResponses.forEach((response: Response) => {
+        const chassisVal =
+          (chassisQuestionId ? response.answers?.[chassisQuestionId] : null) ||
+          response.answers?.["chassis_number"] ||
+          response.answers?.["chassisNumber"] ||
+          response.chassisNumber;
+
+        const currentStatus =
+          tableDisplayStatuses[response.id] ||
+          responseStatuses[response.id] ||
+          response.status ||
+          "Pending Review";
+
+        // Review Column
+        const localReview = reviewedBy[response.id];
+        const legacyServerReview = (response as any).review;
+        let reviewStr = "No review yet";
+        let revObj: any = null;
+        if (localReview) {
+          revObj = {
+            status: localReview.option || localReview.status,
+            reviewer: localReview.reviewer || localReview.name,
+            flaggedQuestions: localReview.flaggedQuestions || [],
+          };
+        } else if (legacyServerReview) {
+          revObj = {
+            status: legacyServerReview.status,
+            reviewer: legacyServerReview.reviewer || legacyServerReview.name,
+            flaggedQuestions: legacyServerReview.flaggedQuestions || [],
+          };
+        }
+        if (revObj) {
+          const st = revObj.status || "-";
+          const revName = revObj.reviewer || "Reviewer";
+          const flags =
+            revObj.flaggedQuestions && revObj.flaggedQuestions.length > 0
+              ? ` (Flagged: ${revObj.flaggedQuestions.join(", ")})`
+              : "";
+          reviewStr = `${st} by ${revName}${flags}`;
+        }
+
+        // BIW Review Column
+        let biwStr = "No BIW review";
+        if (response.biwReview?.status) {
+          const st = response.biwReview.status;
+          const revName =
+            response.biwReview.reviewedByName ||
+            response.biwReview.reviewer ||
+            "Reviewer";
+          const rem = response.biwReview.remark
+            ? ` (Remark: ${response.biwReview.remark})`
+            : "";
+          const flags =
+            response.biwReview.flaggedQuestions &&
+            response.biwReview.flaggedQuestions.length > 0
+              ? ` (Flagged: ${response.biwReview.flaggedQuestions.join(", ")})`
+              : "";
+          biwStr = `${st} by ${revName}${rem}${flags}`;
+        }
+
+        // Timestamp Column
+        const ts = getResponseTimestamp(response);
+        let timestampStr = "-";
+        if (ts) {
+          const d = new Date(ts);
+          if (!isNaN(d.getTime())) {
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            const yyyy = d.getFullYear();
+            const timeStr = d.toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            });
+            timestampStr = `${dd}/${mm}/${yyyy}, ${timeStr}`;
+          } else {
+            timestampStr = String(ts);
+          }
+        }
+
+        // Time Taken Column
+        const timeSpent = response.timeSpent ?? response.totalTimeSpent;
+        let timeTakenStr = "-";
+        if (timeSpent !== undefined && timeSpent !== null && timeSpent > 0) {
+          timeTakenStr =
+            timeSpent > 60
+              ? `${Math.floor(timeSpent / 60)}m ${timeSpent % 60}s`
+              : `${timeSpent}s`;
+        }
+
         const rowData: any[] = [
-          getResponseTimestamp(response)
-            ? new Date(getResponseTimestamp(response)!).toLocaleDateString("en-US")
-            : "-",
           response.submittedBy || response.createdBy || "Anonymous",
-          responseStatuses[response.id] || "-",
-          getChassisDisplayValue(response.answers?.chassis_number),
+          currentStatus,
+          getChassisDisplayValue(chassisVal),
+          reviewStr,
+          biwStr,
+          timestampStr,
+          timeTakenStr,
           response.isDispatched ? "Yes" : "No",
+          response.dispatchedByName || "-",
           response.dispatchedAt
             ? new Date(response.dispatchedAt).toLocaleString("en-US")
             : "-",
         ];
 
-        columnInfo.forEach(({ questionId }) => {
+        columnInfo.forEach(({ questionId, trackResponseRank }) => {
           const answer = response.answers?.[questionId];
-          let answerStr = "-";
-          if (answer !== undefined && answer !== null) {
-            if (typeof answer === "object") {
-              if (answer.status) {
-                answerStr = answer.status;
-              } else {
-                answerStr = JSON.stringify(answer);
-              }
-            } else {
-              answerStr = String(answer);
+          let answerStr = formatAnswerForExcel(
+            answer,
+            questionMap.get(questionId),
+          );
+          if (trackResponseRank && response.responseRanks?.[questionId]) {
+            const rank = response.responseRanks[questionId];
+            if (rank) {
+              answerStr = answerStr !== "-" ? `${answerStr} (#${rank})` : `#${rank}`;
             }
           }
           rowData.push(answerStr);
@@ -7996,14 +8312,22 @@ export default function FormAnalyticsDashboard() {
         "",
         "",
         "",
+        "",
+        "",
+        "",
+        "",
       ];
       const statsDataRow: any[] = [
         `Total Accepted: ${inspectionStats.accepted}`,
         `Total Rejected: ${inspectionStats.rejected}`,
         `Total Reworked: ${inspectionStats.reworked}`,
-        ``,
-        ``,
-        ``,
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
       ];
 
       wsData.push([]); // Empty spacing row
@@ -8045,120 +8369,70 @@ export default function FormAnalyticsDashboard() {
         };
       }
 
+      // Fixed metadata column count
+      const fixedColCount = 10;
+
       // Style response rows
-      const lastResponseRowIdx = responses.length;
+      const lastResponseRowIdx = exportResponses.length;
       for (let rowIdx = 1; rowIdx <= lastResponseRowIdx; rowIdx++) {
-        const response = responses[rowIdx - 1];
+        const response = exportResponses[rowIdx - 1];
         if (!response) continue;
 
-        // Style Timestamp column (c: 0)
-        const timeCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 0 });
-        if (!ws[timeCellRef]) ws[timeCellRef] = { t: "s", v: "" };
-        ws[timeCellRef].s = {
-          fill: { fgColor: { rgb: "FFF9FAFB" } },
-          font: { bold: false },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
-        };
+        const currentStatus =
+          tableDisplayStatuses[response.id] ||
+          responseStatuses[response.id] ||
+          response.status ||
+          "Pending Review";
 
-        // Style Submitted By column (c: 1)
-        const submittedByCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 1 });
-        if (!ws[submittedByCellRef]) ws[submittedByCellRef] = { t: "s", v: "" };
-        ws[submittedByCellRef].s = {
-          fill: { fgColor: { rgb: "FFF9FAFB" } },
-          font: { bold: false },
-          alignment: { horizontal: "left", vertical: "center" },
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
-        };
+        // Style fixed columns (0 to 9)
+        for (let colIdx = 0; colIdx < fixedColCount; colIdx++) {
+          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx });
+          if (!ws[cellRef]) ws[cellRef] = { t: "s", v: "" };
 
-        // Style Status column (c: 2)
-        const statusCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 2 });
-        if (!ws[statusCellRef]) ws[statusCellRef] = { t: "s", v: "" };
-        const currentStatus = responseStatuses[response.id] || "-";
-        let statusBgColor = "FFF9FAFB";
+          let bgColor = "FFF9FAFB";
+          let fontBold = false;
+          let fontColor = "FF111827";
+          let alignment: any = { horizontal: "left", vertical: "center" };
 
-        if (
-          currentStatus === "Direct Ok" ||
-          currentStatus === "Rework Accepted" ||
-          currentStatus === "Accepted"
-        ) {
-          statusBgColor = "FFDCFCE7";
-        } else if (currentStatus.includes("Rework")) {
-          statusBgColor = "FFFEF3C7";
-        } else if (currentStatus === "Rejected") {
-          statusBgColor = "FFFEE2E2";
+          if (colIdx === 1) {
+            // Status column
+            fontBold = true;
+            alignment = { horizontal: "center", vertical: "center" };
+            if (
+              currentStatus === "Direct Ok" ||
+              currentStatus === "Rework Accepted" ||
+              currentStatus === "Accepted"
+            ) {
+              bgColor = "FFDCFCE7";
+            } else if (currentStatus.includes("Rework")) {
+              bgColor = "FFFEF3C7";
+            } else if (currentStatus === "Rejected") {
+              bgColor = "FFFEE2E2";
+            }
+          } else if (colIdx === 5 || colIdx === 6 || colIdx === 7 || colIdx === 9) {
+            // Centered columns (Timestamp, Time Taken, Dispatched, Dispatched At)
+            alignment = { horizontal: "center", vertical: "center" };
+          }
+
+          ws[cellRef].s = {
+            fill: { fgColor: { rgb: bgColor } },
+            font: { bold: fontBold, color: { rgb: fontColor } },
+            alignment,
+            border: {
+              top: { style: "thin" },
+              left: { style: "thin" },
+              bottom: { style: "thin" },
+              right: { style: "thin" },
+            },
+          };
         }
 
-        ws[statusCellRef].s = {
-          fill: { fgColor: { rgb: statusBgColor } },
-          font: { bold: true },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
-        };
-
-        // Style Chassis Number column (c: 3)
-        const chassisCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 3 });
-        if (!ws[chassisCellRef]) ws[chassisCellRef] = { t: "s", v: "" };
-        ws[chassisCellRef].s = {
-          fill: { fgColor: { rgb: "FFF9FAFB" } },
-          font: { bold: false },
-          alignment: { horizontal: "left", vertical: "center" },
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
-        };
-
-        // Style Dispatched column (c: 4)
-        const dispCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 4 });
-        if (!ws[dispCellRef]) ws[dispCellRef] = { t: "s", v: "" };
-        ws[dispCellRef].s = {
-          fill: { fgColor: { rgb: "FFF9FAFB" } },
-          font: { bold: false },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
-        };
-
-        // Style Dispatched At column (c: 5)
-        const dispAtCellRef = XLSX.utils.encode_cell({ r: rowIdx, c: 5 });
-        if (!ws[dispAtCellRef]) ws[dispAtCellRef] = { t: "s", v: "" };
-        ws[dispAtCellRef].s = {
-          fill: { fgColor: { rgb: "FFF9FAFB" } },
-          font: { bold: false },
-          alignment: { horizontal: "center", vertical: "center" },
-          border: {
-            top: { style: "thin" },
-            left: { style: "thin" },
-            bottom: { style: "thin" },
-            right: { style: "thin" },
-          },
-        };
-
-        // Style Question columns (c: 6 to 6 + columnInfo.length - 1)
+        // Style Question columns
         for (let colIdx = 0; colIdx < columnInfo.length; colIdx++) {
-          const cellRef = XLSX.utils.encode_cell({ r: rowIdx, c: colIdx + 6 });
+          const cellRef = XLSX.utils.encode_cell({
+            r: rowIdx,
+            c: colIdx + fixedColCount,
+          });
           if (!ws[cellRef]) ws[cellRef] = { t: "s", v: "" };
           const info = columnInfo[colIdx];
           const bgColor = info.isFollowUp ? "FFE9D5FF" : "FFFFFFFF";
@@ -8177,7 +8451,7 @@ export default function FormAnalyticsDashboard() {
       }
 
       // Style Stats Header Row
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < fixedColCount; i++) {
         const cellRef = XLSX.utils.encode_cell({ r: statsHeaderIdx, c: i });
         if (!ws[cellRef]) ws[cellRef] = { t: "s", v: "" };
         ws[cellRef].s = {
@@ -8194,7 +8468,7 @@ export default function FormAnalyticsDashboard() {
       }
 
       // Style Stats Data Row
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < fixedColCount; i++) {
         const cellRef = XLSX.utils.encode_cell({ r: statsDataIdx, c: i });
         if (!ws[cellRef]) ws[cellRef] = { t: "s", v: "" };
         ws[cellRef].s = {
@@ -8211,12 +8485,16 @@ export default function FormAnalyticsDashboard() {
       }
 
       ws["!cols"] = [
-        { wch: 22 },
-        { wch: 25 },
-        { wch: 15 },
-        { wch: 18 },
-        { wch: 12 },
-        { wch: 22 },
+        { wch: 25 }, // Submitted By
+        { wch: 18 }, // Status
+        { wch: 22 }, // Chassis Number
+        { wch: 30 }, // Review
+        { wch: 30 }, // BIW Review
+        { wch: 22 }, // Timestamp
+        { wch: 15 }, // Time Taken
+        { wch: 12 }, // Dispatched
+        { wch: 20 }, // Dispatched By
+        { wch: 22 }, // Dispatched At
         ...columnInfo.map(() => ({ wch: 35 })),
       ];
 
@@ -10416,12 +10694,12 @@ export default function FormAnalyticsDashboard() {
                                 checked={
                                   selectedResponseIds.length > 0 &&
                                   selectedResponseIds.length ===
-                                  tableResponses.length
+                                  displayTableResponses.length
                                 }
                                 onChange={(e) => {
                                   if (e.target.checked) {
                                     setSelectedResponseIds(
-                                      tableResponses.map((r) => r.id),
+                                      displayTableResponses.map((r) => r.id),
                                     );
                                   } else {
                                     setSelectedResponseIds([]);
@@ -10494,14 +10772,14 @@ export default function FormAnalyticsDashboard() {
                                   <label className="flex items-center gap-1.5 cursor-pointer font-normal text-[10px] text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 normal-case">
                                     <input
                                       type="checkbox"
-                                      checked={tableResponses.length > 0 && selectedBiwIds.length === tableResponses.length}
-                                      disabled={tableResponses.length === 0 || isBulkBiwUpdating}
+                                      checked={displayTableResponses.length > 0 && selectedBiwIds.length === displayTableResponses.length}
+                                      disabled={displayTableResponses.length === 0 || isBulkBiwUpdating}
                                       onChange={(e) => {
                                         e.stopPropagation();
                                         console.log('[BIW] Header select all clicked:', e.target.checked);
 
                                         if (e.target.checked) {
-                                          const allIds = tableResponses.map(r => r.id);
+                                          const allIds = displayTableResponses.map(r => r.id);
                                           console.log('[BIW] Selecting all:', allIds.length, 'items');
                                           setSelectedBiwIds(allIds);
                                         } else {
@@ -10635,8 +10913,8 @@ export default function FormAnalyticsDashboard() {
                         </thead>
 
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                          {tableResponses.length > 0 ? (
-                            tableResponses.map(
+                          {displayTableResponses.length > 0 ? (
+                            displayTableResponses.map(
                               (response: Response, idx: number) => (
                                 <tr
                                   key={response.id}
