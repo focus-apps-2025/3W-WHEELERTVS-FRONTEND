@@ -3480,7 +3480,56 @@ export default function FormAnalyticsDashboard() {
     let isAccepted = false;
     let isRejected = false;
 
-    if (r.answers) {
+    // 1. Check explicit BIW review status on response if present
+    if (r.biwReview?.status) {
+      const s = String(r.biwReview.status).toLowerCase().trim();
+      if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
+        isRework = true;
+      } else if (
+        s === "accepted" ||
+        s === "rework completed" ||
+        s === "verified" ||
+        s === "yes" ||
+        s === "y"
+      ) {
+        isAccepted = true;
+      } else if (s === "rejected" || s === "no" || s === "n") {
+        isRejected = true;
+      }
+    } else if (r.review?.status) {
+      const s = String(r.review.status).toLowerCase().trim();
+      if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
+        isRework = true;
+      } else if (
+        s === "accepted" ||
+        s === "rework completed" ||
+        s === "verified" ||
+        s === "yes" ||
+        s === "y"
+      ) {
+        isAccepted = true;
+      } else if (s === "rejected" || s === "no" || s === "n") {
+        isRejected = true;
+      }
+    } else if (r.status && typeof r.status === "string" && r.status !== "-") {
+      const s = String(r.status).toLowerCase().trim();
+      if (s === "rework" || s === "reworked" || s.includes("rework") || s.includes("re-rework")) {
+        isRework = true;
+      } else if (
+        s === "accepted" ||
+        s === "direct ok" ||
+        s === "rework accepted" ||
+        s === "rework completed" ||
+        s === "verified"
+      ) {
+        isAccepted = true;
+      } else if (s === "rejected") {
+        isRejected = true;
+      }
+    }
+
+    // 2. Check individual answers if status hasn't been set by explicit review/status
+    if (!isRework && !isAccepted && !isRejected && r.answers) {
       Object.values(r.answers).forEach((ans) => {
         if (typeof ans === "object" && ans !== null && (ans as any).status) {
           const s = String((ans as any).status).toLowerCase().trim();
@@ -3524,12 +3573,14 @@ export default function FormAnalyticsDashboard() {
       if (trackingQId) return "Rework 1";
       return "Rework";
     }
-    if (isAccepted) {
-      if (!trackingQId || rank === 1) return "Direct Ok";
-      if (rank && rank > 1) return "Rework Accepted";
-      return "Accepted";
+
+    if (r.status && typeof r.status === "string" && r.status.trim() !== "" && r.status !== "-") {
+      return r.status;
     }
-    return "-";
+
+    if (!trackingQId || rank === 1 || !rank) return "Direct Ok";
+    if (rank && rank > 1) return "Rework Accepted";
+    return "Accepted";
   };
 
   const baseFilteredResponses = useMemo(() => {
@@ -3628,8 +3679,56 @@ export default function FormAnalyticsDashboard() {
         let isAccepted = false;
         let isRejected = false;
 
-        // Check individual answers for inspection status
-        if (r.answers) {
+        // Check explicit BIW review status on response if present
+        if (r.biwReview?.status) {
+          const s = String(r.biwReview.status).toLowerCase().trim();
+          if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
+            isRework = true;
+          } else if (
+            s === "accepted" ||
+            s === "rework completed" ||
+            s === "verified" ||
+            s === "yes" ||
+            s === "y"
+          ) {
+            isAccepted = true;
+          } else if (s === "rejected" || s === "no" || s === "n") {
+            isRejected = true;
+          }
+        } else if (r.review?.status) {
+          const s = String(r.review.status).toLowerCase().trim();
+          if (s === "rework" || s === "reworked" || s.includes("re-rework")) {
+            isRework = true;
+          } else if (
+            s === "accepted" ||
+            s === "rework completed" ||
+            s === "verified" ||
+            s === "yes" ||
+            s === "y"
+          ) {
+            isAccepted = true;
+          } else if (s === "rejected" || s === "no" || s === "n") {
+            isRejected = true;
+          }
+        } else if (r.status && typeof r.status === "string" && r.status !== "-") {
+          const s = String(r.status).toLowerCase().trim();
+          if (s === "rework" || s === "reworked" || s.includes("rework") || s.includes("re-rework")) {
+            isRework = true;
+          } else if (
+            s === "accepted" ||
+            s === "direct ok" ||
+            s === "rework accepted" ||
+            s === "rework completed" ||
+            s === "verified"
+          ) {
+            isAccepted = true;
+          } else if (s === "rejected") {
+            isRejected = true;
+          }
+        }
+
+        // Check individual answers for inspection status if not explicitly set
+        if (!isRework && !isAccepted && !isRejected && r.answers) {
           Object.values(r.answers).forEach((ans) => {
             if (
               typeof ans === "object" &&
@@ -3693,9 +3792,9 @@ export default function FormAnalyticsDashboard() {
           } else {
             statuses[r.id] = "Rework";
           }
-        } else if (isAccepted) {
-          // If rank is 1, it's definitely the first time this item is seen
-          // If no rank but index 0, assume it's the first time in the current view
+        } else if (r.status && typeof r.status === "string" && r.status.trim() !== "" && r.status !== "-") {
+          statuses[r.id] = r.status;
+        } else {
           if (rank === 1 || (index === 0 && !hasBeenReworked)) {
             statuses[r.id] = "Direct Ok";
           } else if ((rank && rank > 1) || hasBeenReworked) {
@@ -3703,8 +3802,6 @@ export default function FormAnalyticsDashboard() {
           } else {
             statuses[r.id] = "Accepted";
           }
-        } else {
-          statuses[r.id] = "-";
         }
       });
     });
@@ -8595,6 +8692,19 @@ export default function FormAnalyticsDashboard() {
         ),
       );
 
+      setTableResponses((prev) =>
+        prev.map((r) =>
+          r.id === editingResponseId
+            ? {
+              ...r,
+              answers: editFormData,
+              status: editFormStatus,
+              notes: editFormNotes,
+            }
+            : r,
+        ),
+      );
+
       setEditingResponseId(null);
       setEditFormData({});
       setEditFormStatus("Accepted");
@@ -9848,11 +9958,13 @@ export default function FormAnalyticsDashboard() {
   const dispatchableResponses = filteredResponses.filter(response => {
     if (!isOwnTenantResponse(response)) return false; // exclude cross-tenant
 
-    const status = responseStatuses[response.id] || "";
+    const status = responseStatuses[response.id] || computeFastRowStatus(response, chassisQuestionId) || response.status || "";
     return status === "Direct Ok" ||
       status === "Rework Accepted" ||
       status === "Rework Completed" ||
-      status === "Accepted";
+      status === "Accepted" ||
+      status === "Verified" ||
+      response.biwReview?.status === "Accepted";
   });
   const pendingDispatchResponses = dispatchableResponses.filter(response => !response.isDispatched);
 
@@ -11079,13 +11191,15 @@ export default function FormAnalyticsDashboard() {
                                   </td>
                                   <td className="px-3 py-3 text-center border border-gray-200 dark:border-gray-700 whitespace-nowrap">
                                     {(() => {
-                                      const status = tableDisplayStatuses[response.id] || "";
+                                      const status = tableDisplayStatuses[response.id] || computeFastRowStatus(response, chassisQuestionId) || response.status || "";
 
                                       // 1️⃣ Check if response is eligible for dispatch based on status
                                       const canShowDispatch = status === "Direct Ok" ||
                                         status === "Rework Accepted" ||
                                         status === "Rework Completed" ||
-                                        status === "Accepted";
+                                        status === "Accepted" ||
+                                        status === "Verified" ||
+                                        response.biwReview?.status === "Accepted";
 
                                       // 2️⃣ Use the tenant check function
                                       const isSameTenant = isOwnTenantResponse(response);
