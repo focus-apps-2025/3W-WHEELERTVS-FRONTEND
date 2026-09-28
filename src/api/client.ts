@@ -15,25 +15,26 @@ const API_BASE_URL = (() => {
   // api/client.ts
 
   const getBaseUrl = (): string => {
-    if (import.meta.env.VITE_API_BASE_URL) {
-      return import.meta.env.VITE_API_BASE_URL;
-    }
-
     const hostname = window.location.hostname;
 
     // Development/Local
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return "http://127.0.0.1:5000/api";
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || isLocal) {
+      return import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5000/api";
     }
 
-    // AWS Deployment
+    // AWS Deployment (Dedicated domain)
     if (hostname === '3wheelertvs.focusengineeringapp.com') {
       return "https://3wheelertvsbackend.focusengineeringapp.com/api";
     }
 
     // Hostinger VPS Deployment
     if (hostname === '3wtvs.focusengineeringapp.com' || hostname.includes('3wtvs')) {
-      return "https://3wbackend.focusengineeringapp.com/api"; // Adjust this URL
+      return "https://3wbackend.focusengineeringapp.com/api";
+    }
+
+    // Environment variable override
+    if (import.meta.env.VITE_API_BASE_URL) {
+      return import.meta.env.VITE_API_BASE_URL;
     }
 
     // Staging/Render
