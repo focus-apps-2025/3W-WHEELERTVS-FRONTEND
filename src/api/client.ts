@@ -15,6 +15,10 @@ const API_BASE_URL = (() => {
   // api/client.ts
 
   const getBaseUrl = (): string => {
+    if (import.meta.env.VITE_API_BASE_URL) {
+      return import.meta.env.VITE_API_BASE_URL;
+    }
+
     const hostname = window.location.hostname;
 
     // Development/Local
