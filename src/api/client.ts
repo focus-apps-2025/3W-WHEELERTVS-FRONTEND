@@ -1378,14 +1378,28 @@ class ApiClient {
       ? `/responses/${tenantSlug}/forms/${formId}/rank`
       : `/responses/rank`;
 
-    // Handle array answers (checkboxes) by converting to string if needed
-    // The backend expects a single value for matching
-    const answerParam = Array.isArray(answer) ? JSON.stringify(answer) : answer;
+    let answerStr = "";
+    if (answer !== null && answer !== undefined) {
+      if (typeof answer === "object") {
+        answerStr =
+          (answer as any).chassisNumber ||
+          (answer as any).value ||
+          (answer as any).text ||
+          (answer as any).chassis ||
+          "";
+      } else {
+        answerStr = String(answer).trim();
+      }
+    }
+
+    if (!answerStr || answerStr === "[object Object]" || answerStr === "undefined") {
+      return { rank: 1 };
+    }
 
     const queryParams = new URLSearchParams({
       formId,
       questionId,
-      answer: String(answerParam),
+      answer: answerStr,
     });
 
     return this.request<{ rank: number }>(
