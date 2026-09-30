@@ -57,8 +57,10 @@ export default function Sidebar() {
   if (isGuest) return null;
 
   const handleLogout = () => {
-    logout();
-    navigate("/login");
+    if (window.confirm("Are you sure you want to log out?")) {
+      logout();
+      navigate("/login");
+    }
   };
 
   const publicMenuItems: MenuItem[] = [

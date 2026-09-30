@@ -176,8 +176,10 @@ export default function Header() {
   }, [activeDropdown]);
 
   const handleLogout = () => {
-    logout();
-    navigate("/login");
+    if (window.confirm("Are you sure you want to log out?")) {
+      logout();
+      navigate("/login");
+    }
   };
 
   const publicMenuItems: MenuItem[] = [

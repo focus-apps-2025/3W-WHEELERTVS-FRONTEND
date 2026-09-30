@@ -774,8 +774,13 @@ export default function PreviewForm({
 
       showSuccess("Form submitted successfully!");
       setSubmitted(true);
-    } catch (err) {
-      showNotifyError("Failed to submit form");
+    } catch (err: any) {
+      const errorMsg =
+        err?.response?.data?.message ||
+        err?.data?.message ||
+        err?.message ||
+        "Failed to submit form";
+      showNotifyError(errorMsg);
       console.error(err);
     } finally {
       setSubmitting(false);

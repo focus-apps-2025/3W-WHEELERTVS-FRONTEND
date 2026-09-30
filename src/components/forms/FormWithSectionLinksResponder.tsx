@@ -191,8 +191,12 @@ export const FormWithSectionLinksResponder: React.FC<
         setResponses({});
         setCurrentSectionIndex(0);
       }, 2000);
-    } catch (err) {
-      const errorMessage = "Failed to submit form";
+    } catch (err: any) {
+      const errorMessage =
+        err?.response?.data?.message ||
+        err?.data?.message ||
+        err?.message ||
+        "Failed to submit form";
       setError(errorMessage);
       if (onError) onError(errorMessage);
     } finally {

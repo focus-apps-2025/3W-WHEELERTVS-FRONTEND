@@ -1,3 +1,5 @@
+import { compressImage } from "../utils/imageCompressor";
+
 // Automatically detect environment and set API base URL
 const API_BASE_URL = (() => {
   const hostname = window.location.hostname;
@@ -938,6 +940,11 @@ class ApiClient {
 
     if (this.token) {
       headers.Authorization = `Bearer ${this.token}`;
+    } else {
+      const guestToken = localStorage.getItem("guest_auth_token");
+      if (guestToken) {
+        headers.Authorization = `Bearer ${guestToken}`;
+      }
     }
 
     const controller = new AbortController();
@@ -1067,15 +1074,24 @@ class ApiClient {
 
   async submitResponse(
     formId: string,
-    responseData: any & {
-      startedAt?: Date | string;
-      completedAt?: Date | string;
-      sessionId?: string;
-      isSectionSubmit?: boolean;
-      sectionIndex?: number;
-    },
+    param2: any,
+    param3?: any,
   ) {
-    return this.request<{ response: any }>(`/responses/${formId}`, {
+    let tenantSlug: string | undefined;
+    let responseData: any;
+
+    if (typeof param2 === "string" && param3 !== undefined) {
+      tenantSlug = param2;
+      responseData = param3;
+    } else {
+      responseData = param2;
+    }
+
+    const endpoint = tenantSlug && tenantSlug !== "default"
+      ? `/responses/${tenantSlug}/forms/${formId}/responses`
+      : `/responses/${formId}`;
+
+    return this.request<{ response: any }>(endpoint, {
       method: "POST",
       body: JSON.stringify(responseData),
     });
@@ -1565,7 +1581,7 @@ class ApiClient {
 
   // Files
   async uploadFile(
-    file: File,
+    rawFile: File,
     category: string = "general",
     associatedId?: string,
     onProgress?: (progress: {
@@ -1576,6 +1592,14 @@ class ApiClient {
       speed?: number;
     }) => void,
   ) {
+    // Automatically compress images before upload to eliminate lag & timeouts
+    let file = rawFile;
+    try {
+      file = await compressImage(rawFile);
+    } catch (compressErr) {
+      console.warn("Failed to compress image, proceeding with original:", compressErr);
+    }
+
     // Validate file size (10MB limit)
     const maxSize = 10 * 1024 * 1024; // 10MB
     if (file.size > maxSize) {
@@ -1599,7 +1623,6 @@ class ApiClient {
       // Use the baseUrl from ApiClient
       const presignedEndpoint = "/upload/presigned-url";
 
-      // ✅ FIX: Define uploadApiUrl here where it's accessible
       const uploadApiUrl = `${this.baseUrl}${presignedEndpoint}`;
       console.log("Upload API URL:", uploadApiUrl);
 
@@ -1610,6 +1633,11 @@ class ApiClient {
 
       if (this.token) {
         headers["Authorization"] = `Bearer ${this.token}`;
+      } else {
+        const guestToken = localStorage.getItem("guest_auth_token");
+        if (guestToken) {
+          headers["Authorization"] = `Bearer ${guestToken}`;
+        }
       }
 
       const presignedResponse = await fetch(uploadApiUrl, {

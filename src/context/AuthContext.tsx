@@ -165,8 +165,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } catch (err) {
-          apiClient.clearToken();
-          updateTenantState(null);
+          if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+            console.warn("Session expired or invalid, clearing token:", err.message);
+            apiClient.clearToken();
+            updateTenantState(null);
+          } else {
+            console.warn("getProfile failed due to temporary network or server error:", err);
+          }
         }
       }
       setLoading(false);
