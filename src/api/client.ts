@@ -1402,10 +1402,13 @@ class ApiClient {
       answer: answerStr,
     });
 
-    return this.request<{ rank: number }>(
+    const res = await this.request<any>(
       `${endpoint}?${queryParams.toString()}`,
       { forceNetwork: true }
     );
+
+    const rankVal = res?.data?.rank ?? res?.rank ?? 1;
+    return { rank: Number(rankVal) || 1 };
   }
 
   async getGlobalFormStats(formId: string) {

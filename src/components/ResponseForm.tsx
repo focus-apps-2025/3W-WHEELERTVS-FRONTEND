@@ -344,33 +344,45 @@ export default function ResponseForm({ onSubmit }: ResponseFormProps) {
       setLastSuggestionSource(`${questionId}:${searchValue}`);
 
       if (result && result.suggestedAnswers) {
-        const suggestions = result.suggestedAnswers;
-        const suggestionsArray = Array.isArray(suggestions)
-          ? suggestions
-          : [suggestions];
-        const firstRecord = Array.isArray(suggestions)
-          ? suggestions[0]?.answers
-          : suggestions;
+        const rawSuggestions = Array.isArray(result.suggestedAnswers)
+          ? result.suggestedAnswers
+          : [result.suggestedAnswers];
 
-        const nonEmptyAnswersCount = Object.values(firstRecord || {}).filter(
-          (v) => v !== null && v !== undefined && String(v).trim() !== "",
-        ).length;
+        const normalize = (v: any) => String(v || "").trim().toLowerCase();
+        const searchValNormalized = normalize(searchValue);
 
-        setSuggestedAnswers(suggestions);
-        if (nonEmptyAnswersCount > 0) {
-          setSelectedRank(1);
-
-          // If trackResponseRank is enabled for this question, auto-apply the first record to the whole form
-          const question = allFormQuestions.find(
-            (q) => (q.id || (q as any)._id) === questionId,
-          );
-          if (
-            question &&
-            (question.trackResponseRank === true ||
-              String(question.trackResponseRank) === "true")
-          ) {
-            applySuggestions(firstRecord, undefined, 1);
+        const suggestions = rawSuggestions.filter((s: any) => {
+          const val = s.answers?.[questionId];
+          if (typeof val === "object" && val?.chassisNumber) {
+            return normalize(val.chassisNumber) === searchValNormalized;
           }
+          return normalize(val) === searchValNormalized;
+        });
+
+        if (suggestions.length > 0) {
+          const firstRecord = suggestions[0]?.answers;
+          const nonEmptyAnswersCount = Object.values(firstRecord || {}).filter(
+            (v) => v !== null && v !== undefined && String(v).trim() !== "",
+          ).length;
+
+          setSuggestedAnswers(suggestions);
+          if (nonEmptyAnswersCount > 0) {
+            setSelectedRank(1);
+
+            // If trackResponseRank is enabled for this question, auto-apply the first record to the whole form
+            const question = allFormQuestions.find(
+              (q) => (q.id || (q as any)._id) === questionId,
+            );
+            if (
+              question &&
+              (question.trackResponseRank === true ||
+                String(question.trackResponseRank) === "true")
+            ) {
+              applySuggestions(firstRecord, undefined, 1);
+            }
+          }
+        } else {
+          setSuggestedAnswers({ _no_match: true });
         }
       } else {
         setSuggestedAnswers({ _no_match: true });

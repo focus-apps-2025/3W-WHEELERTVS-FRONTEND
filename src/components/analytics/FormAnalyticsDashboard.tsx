@@ -5288,7 +5288,7 @@ export default function FormAnalyticsDashboard() {
       itemGroups[itemId].push(r);
       const attemptNumber = itemGroups[itemId].length;
       const persistedRank = (chassisQuestionId && r.responseRanks?.[chassisQuestionId]) || (r.responseRanks && typeof r.responseRanks === 'object' ? Object.values(r.responseRanks).find((v: any) => typeof v === 'number' && v > 0) : null);
-      const finalRank = (typeof persistedRank === 'number' && persistedRank > 0) ? persistedRank : attemptNumber;
+      const finalRank = (typeof persistedRank === 'number' && persistedRank > 0 && persistedRank <= 200) ? persistedRank : attemptNumber;
       if (r.id) ranks[r.id] = finalRank;
       if ((r as any)._id) ranks[(r as any)._id] = finalRank;
     });

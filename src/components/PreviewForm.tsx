@@ -1501,6 +1501,23 @@ export default function PreviewForm({
     }
 
     if (!Array.isArray(suggestedAnswers) || suggestedAnswers.length === 0) {
+      if (lastSuggestionSource) {
+        return (
+          <div className="p-6 text-center space-y-3 animate-in fade-in duration-300">
+            <div className={`p-4 rounded-2xl border ${darkMode ? "bg-blue-500/10 border-blue-500/20 text-blue-400" : "bg-blue-50 border-blue-100 text-blue-700"}`}>
+              <div className="flex items-center justify-center gap-2 mb-2 font-black text-xs uppercase tracking-wider">
+                <Sparkles className="h-4 w-4" /> Attempt #1 (New Chassis)
+              </div>
+              <p className="text-[11px] font-semibold leading-relaxed">
+                No previous inspection records exist for this Chassis Number.
+              </p>
+              <div className="mt-3 inline-block px-3 py-1 rounded-full bg-blue-500/20 text-[10px] font-bold">
+                Next Submission: Attempt #1
+              </div>
+            </div>
+          </div>
+        );
+      }
       return (
         <div className="py-12 px-5 flex flex-col items-center justify-center text-center gap-4 opacity-30">
           <Zap className="h-10 w-10" />
@@ -1520,15 +1537,18 @@ export default function PreviewForm({
       <div className="flex flex-col h-full overflow-hidden">
         <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
           <div className={`p-5 rounded-2xl ${darkMode ? "bg-emerald-500/10 border-emerald-500/20" : "bg-emerald-50 border-emerald-100"} border shadow-sm shadow-emerald-500/5 animate-in zoom-in-95 duration-500`}>
-            <div className="flex items-center gap-3 mb-3 text-emerald-500">
+            <div className="flex items-center gap-3 mb-2 text-emerald-500">
               <Sparkles className="h-5 w-5" />
               <span className="text-[10px] font-black uppercase tracking-widest">
-                Previous Entries
+                Attempt History for Chassis
               </span>
             </div>
-            <p className={`text-[10px] font-bold leading-relaxed ${darkMode ? "text-emerald-400/80" : "text-emerald-600/80"}`}>
-              Found {suggestedAnswers.length} historical records for this chassis.
+            <p className={`text-[11px] font-bold leading-relaxed ${darkMode ? "text-emerald-400/90" : "text-emerald-700"}`}>
+              Found {suggestedAnswers.length} previous attempt{suggestedAnswers.length > 1 ? "s" : ""} for this chassis.
             </p>
+            <div className="mt-2 text-[10px] font-black text-emerald-500 uppercase tracking-wider">
+              Next Submission: Attempt #{suggestedAnswers.length + 1}
+            </div>
           </div>
 
           <div className="space-y-4">

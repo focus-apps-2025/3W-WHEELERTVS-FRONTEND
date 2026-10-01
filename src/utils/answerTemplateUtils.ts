@@ -28,8 +28,54 @@ export function convertGoogleDriveLink(url: string): string {
     const fileId = fileIdMatch[1];
     return `https://drive.google.com/uc?export=view&id=${fileId}`;
   }
+  return url;
+}
 
-  return trimmed;
+export function formatToDDMMYYYY(val: any, includeTime: boolean = false): string {
+  if (!val) return "";
+  try {
+    let dateObj: Date | null = null;
+    if (val instanceof Date) {
+      dateObj = val;
+    } else if (typeof val === "number") {
+      dateObj = new Date(val);
+    } else if (typeof val === "string") {
+      const trimmed = val.trim();
+      if (!trimmed) return "";
+      dateObj = new Date(trimmed);
+      if (isNaN(dateObj.getTime())) {
+        const parts = trimmed.split(/[/.-]/);
+        if (parts.length >= 3) {
+          const day = parseInt(parts[0], 10);
+          const month = parseInt(parts[1], 10) - 1;
+          const year = parseInt(parts[2], 10);
+          if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+            dateObj = new Date(year, month, day);
+          }
+        }
+      }
+    }
+
+    if (!dateObj || isNaN(dateObj.getTime())) {
+      return String(val || "");
+    }
+
+    const day = String(dateObj.getDate()).padStart(2, "0");
+    const month = String(dateObj.getMonth() + 1).padStart(2, "0");
+    const year = dateObj.getFullYear();
+    const dateStr = `${day}/${month}/${year}`;
+
+    if (includeTime) {
+      const hours = String(dateObj.getHours()).padStart(2, "0");
+      const minutes = String(dateObj.getMinutes()).padStart(2, "0");
+      const seconds = String(dateObj.getSeconds()).padStart(2, "0");
+      return `${dateStr}, ${hours}:${minutes}:${seconds}`;
+    }
+
+    return dateStr;
+  } catch (_) {
+    return String(val || "");
+  }
 }
 
 export function isImageUrl(url: string): boolean {
