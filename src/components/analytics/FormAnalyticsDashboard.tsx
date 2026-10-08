@@ -6518,8 +6518,20 @@ export default function FormAnalyticsDashboard() {
       if (!input) {
         return null;
       }
-      const candidate =
+      let candidate =
         Array.isArray(input) && input.length === 1 ? input[0] : input;
+
+      if (typeof candidate === "string") {
+        const trimmed = candidate.trim();
+        if (trimmed.startsWith("{")) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === "object") {
+              candidate = parsed;
+            }
+          } catch {}
+        }
+      }
       if (typeof candidate === "string") {
         if (candidate.startsWith("data:")) {
           return {
@@ -6598,6 +6610,25 @@ export default function FormAnalyticsDashboard() {
         );
       }
       return <span className="text-gray-400 dark:text-gray-500 text-xs font-medium">None</span>;
+    }
+
+    // Always check for resolved file data (camera JSON objects or file URLs) first
+    const fileData = resolveFileData(value);
+    if (fileData?.url || fileData?.data) {
+      const finalUrl = fileData.url || fileData.data;
+      if (finalUrl && isImageUrl(finalUrl)) {
+        return <ImageLink text={finalUrl} />;
+      }
+      if (fileData.data) {
+        return (
+          <FilePreview data={fileData.data} fileName={fileData.fileName} />
+        );
+      }
+      if (fileData.url) {
+        return (
+          <FilePreview url={fileData.url} fileName={fileData.fileName} />
+        );
+      }
     }
 
     if (typeof value === "string") {
