@@ -39,83 +39,14 @@ export default function QuestionEditor({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-start justify-between">
-        <div className="flex-1 space-y-4">
-          <input
-            type="text"
-            value={question.text}
-            onChange={(e) => onUpdate({ text: e.target.value })}
-            placeholder="Enter question text"
-            className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-          />
-
-          <div className="flex space-x-4">
-            <QuestionTypeSelector
-              value={question.type}
-              onChange={handleTypeChange}
-            />
-
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={question.required}
-                onChange={(e) => onUpdate({ required: e.target.checked })}
-                className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                Required
-              </span>
-            </label>
-
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={question.trackResponseQuestion || false}
-                disabled={question.trackResponseRank || false}
-                onChange={(e) => onUpdate({ trackResponseQuestion: e.target.checked })}
-                className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 disabled:opacity-50"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                Track Question
-              </span>
-            </label>
-
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={question.trackResponseRank || false}
-                disabled={question.trackResponseQuestion || false}
-                onChange={(e) => onUpdate({ trackResponseRank: e.target.checked })}
-                className="rounded text-blue-600 focus:ring-blue-500 dark:bg-gray-700 disabled:opacity-50"
-              />
-              <span className="text-sm text-gray-700 dark:text-gray-300">
-                Track Rank
-              </span>
-            </label>
-          </div>
-          
-          {question.trackResponseRank && (
-            <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl space-y-0">
-              <div className="flex flex-col space-y-2">
-                <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
-                  Track Rank Question Label
-                </label>
-                <input
-                  type="text"
-                  value={question.trackResponseRankLabel || ""}
-                  onChange={(e) => onUpdate({ trackResponseRankLabel: e.target.value })}
-                  placeholder="Enter label for rank tracking"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
-                />
-              </div>
+    
               <div className="flex flex-col space-y-2">
                 <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide">
                   Track Rank Question Type
                 </label>
                 <QuestionTypeSelector
-                  value={(question.trackResponseRankType as QuestionType) || "text"}
-                  onChange={(type) => onUpdate({ trackResponseRankType: type })}
+                  value="text"
+                  
                 />
               </div>
             </div>

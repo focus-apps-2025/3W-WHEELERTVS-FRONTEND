@@ -73,9 +73,6 @@ interface Question {
   description?: string;
   imageUrl?: string;
   suggestion?: string;
-  trackResponseRank?: boolean;
-  trackResponseRankLabel?: string;
-  trackResponseRankType?: string;
   subParam1?: string;
   subParam2?: string;
   followUpQuestions?: FollowUpQuestion[];
@@ -130,9 +127,6 @@ interface FollowUpQuestion {
   description?: string;
   imageUrl?: string;
   suggestion?: string;
-  trackResponseRank?: boolean;
-  trackResponseRankLabel?: string;
-  trackResponseRankType?: string;
 
   subParam1?: string;
   subParam2?: string;
@@ -453,7 +447,6 @@ export default function FormCreator() {
                 imageUrl: question.imageUrl || undefined,
                 subParam1: question.subParam1 || undefined,
                 subParam2: question.subParam2 || undefined,
-                trackResponseRank: question.trackResponseRank || false,
                 followUpQuestions: question.followUpQuestions || [],
                 showWhen: question.showWhen || undefined,
                 parentId: question.parentId || undefined,
@@ -4446,22 +4439,12 @@ export default function FormCreator() {
       <input
         type="checkbox"
         checked={question.trackResponseQuestion || false}
-        disabled={question.trackResponseRank || false}
         onChange={(e) => updateQuestion(section.id, question.id, { trackResponseQuestion: e.target.checked })}
         className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all disabled:opacity-50"
       />
       <span className="text-xs font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">Track Question</span>
     </label>
-    <label className="flex items-center space-x-1.5 cursor-pointer px-3 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg hover:border-blue-400 transition-all shadow-sm ml-1" title="Track Rank">
-      <input
-        type="checkbox"
-        checked={question.trackResponseRank || false}
-        disabled={question.trackResponseQuestion || false}
-        onChange={(e) => updateQuestion(section.id, question.id, { trackResponseRank: e.target.checked })}
-        className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded transition-all disabled:opacity-50"
-      />
-      <span className="text-xs font-bold text-blue-700 dark:text-blue-300 whitespace-nowrap">Track Rank</span>
-    </label>
+    
     <button onClick={() => moveQuestionUp(section.id, question.id)} disabled={questionIndex === 0} className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed" title="Move up">
       <ChevronUp className="w-5 h-5" />
     </button>
@@ -4499,7 +4482,6 @@ export default function FormCreator() {
             <input
               type="checkbox"
               checked={question.trackResponseQuestion || false}
-              disabled={question.trackResponseRank || false}
               onChange={(e) => {
                 updateQuestion(section.id, question.id, { trackResponseQuestion: e.target.checked });
                 setOpenQuestionMenu(null);
@@ -4509,20 +4491,7 @@ export default function FormCreator() {
             <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">Track Question</span>
           </label>
 
-          {/* Track Rank */}
-          <label className="flex items-center gap-3 px-4 py-3 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700">
-            <input
-              type="checkbox"
-              checked={question.trackResponseRank || false}
-              disabled={question.trackResponseQuestion || false}
-              onChange={(e) => {
-                updateQuestion(section.id, question.id, { trackResponseRank: e.target.checked });
-                setOpenQuestionMenu(null);
-              }}
-              className="w-4 h-4 text-blue-600 rounded disabled:opacity-50"
-            />
-            <span className="text-sm text-blue-700 dark:text-blue-300 font-medium">Track Rank</span>
-          </label>
+          
 
           {/* Move Up */}
           <button
@@ -4657,52 +4626,7 @@ export default function FormCreator() {
     <p className="text-xs text-gray-500 dark:text-gray-500">Images, STP, or PVZ files.</p>
   </div>
 </div>
-                                 {question.trackResponseRank && (
-                                  <div className="mt-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl space-y-4">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                                      <h4 className="text-sm font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">Track Rank Configuration</h4>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                      <div>
-                                        <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
-                                          Track Rank Question Label
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={question.trackResponseRankLabel || ""}
-                                          onChange={(e) =>
-                                            updateQuestion(section.id, question.id, {
-                                              trackResponseRankLabel: e.target.value,
-                                            })
-                                          }
-                                          className="w-full px-3 py-2.5 border-2 border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm bg-white dark:bg-gray-900"
-                                          placeholder="Enter label for rank tracking"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
-                                          Track Rank Question Type
-                                        </label>
-                                        <select
-                                          value={question.trackResponseRankType || "text"}
-                                          onChange={(e) =>
-                                            updateQuestion(section.id, question.id, {
-                                              trackResponseRankType: e.target.value,
-                                            })
-                                          }
-                                          className="w-full px-3 py-2.5 border-2 border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm bg-white dark:bg-gray-900"
-                                        >
-                                          {questionTypes.map((type) => (
-                                            <option key={type.value} value={type.value}>
-                                              {type.label}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
+                                 
 
                                 {question.trackResponseQuestion && (
                                   <div className="mt-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-4">

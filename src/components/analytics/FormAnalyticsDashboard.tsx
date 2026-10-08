@@ -241,7 +241,6 @@ interface FollowUpQuestion {
   description?: string;
   followUpQuestions?: FollowUpQuestion[];
   correctAnswer?: any;
-  trackResponseRank?: boolean;
   trackResponseQuestion?: boolean;
 }
 interface ChassisNumberEntry {
@@ -2665,8 +2664,8 @@ export default function FormAnalyticsDashboard() {
       if (section.questions) {
         for (const q of section.questions) {
           if (
-            (q.trackResponseRank === true ||
-              q.trackResponseRank === "true" ||
+            (false === true ||
+              false === "true" ||
               q.trackResponseQuestion === true ||
               q.trackResponseQuestion === "true") &&
             q.type !== "zone-in" &&
@@ -4931,7 +4930,7 @@ export default function FormAnalyticsDashboard() {
             if (q.type === "zone-in" || q.type === "zone-out") continue;
             const t = (q.text || "").toLowerCase();
             const isTrackOrId =
-              q.trackResponseRank === true || q.trackResponseRank === "true" ||
+              false === true || false === "true" ||
               q.type === "chassis" || q.type === "chassisWithZone" || q.type === "chassisWithoutZone" ||
               t.includes("chassis") || t.includes("id number") || t.includes("id_number") || t.includes("id no") || t.includes("vin") || t.includes("serial");
 
@@ -13386,7 +13385,7 @@ export default function FormAnalyticsDashboard() {
                                             ) : (
                                               <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
                                                 {renderAnswerDisplay(answer, q)}
-                                                {q.trackResponseRank &&
+                                                {false &&
                                                   response.responseRanks?.[
                                                   q.id
                                                   ] && (
@@ -13694,7 +13693,7 @@ export default function FormAnalyticsDashboard() {
                             ) : (
                               <span className="text-gray-400">No response</span>
                             )}
-                            {question.trackResponseRank &&
+                            {false &&
                               selectedResponse.responseRanks?.[question.id] && (
                                 <span
                                   className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}
@@ -13735,7 +13734,7 @@ export default function FormAnalyticsDashboard() {
                                   No response
                                 </span>
                               )}
-                              {question.trackResponseRank &&
+                              {false &&
                                 selectedResponse.responseRanks?.[
                                 question.id
                                 ] && (

@@ -2536,24 +2536,8 @@ export default function ResponseDetailsPage() {
                                     </div>
                                     <div className="mt-1 flex flex-col gap-1">
                                       {answer !== undefined && answer !== null && answer !== ''
-                                        ? (
-                                          <>
-                                            {renderHighlightedAnswer(answer, question)}
-                                            {question.trackResponseRank && response.responseRanks?.[question.id] && (
-                                              <div className="flex flex-col gap-1 mt-2">
-                                                {question.trackResponseRankLabel && (
-                                                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-tight leading-none">
-                                                    {question.trackResponseRankLabel}
-                                                  </span>
-                                                )}
-                                                <span className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit ${getRankStyle(answer, document.documentElement.classList.contains("dark"))}`}>
-                                                  #{response.responseRanks[question.id]}
-                                                </span>
-                                              </div>
-                                            )}
-                                          </>
-                                        )
-                                        : <span className="text-gray-400 italic text-xs">No answer</span>
+                                        ? renderHighlightedAnswer(answer, question)
+                                        : <span className="text-xs text-gray-400 italic">No answer provided</span>
                                       }
                                     </div>
                                   </div>

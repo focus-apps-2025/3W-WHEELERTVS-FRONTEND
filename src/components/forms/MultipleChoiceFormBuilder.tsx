@@ -30,9 +30,6 @@ interface FollowUpQuestion {
   text: string;
   type: string;
   required: boolean;
-  trackResponseRank?: boolean;
-  trackResponseRankLabel?: string;
-  trackResponseRankType?: string;
 
   options?: string[];
   parentId: string;
@@ -55,9 +52,6 @@ interface FormQuestion {
     | "yesNoNA"
     | "productNPSTGWBuckets";
   required: boolean;
-  trackResponseRank?: boolean;
-  trackResponseRankLabel?: string;
-  trackResponseRankType?: string;
   trackResponseQuestion?: boolean;
   trackResponseQuestionLabel?: string;
   trackResponseQuestionType?: string;
@@ -637,9 +631,7 @@ export const MultipleChoiceFormBuilder: React.FC<
       id: `q${Date.now()}`,
       text: "",
       type: "text",
-      required: false,
-      trackResponseRank: true,
-    };
+      required: false,    };
 
     setFormData((prev) => ({
       ...prev,
@@ -807,9 +799,7 @@ export const MultipleChoiceFormBuilder: React.FC<
       id: `followup-${Date.now()}`,
       text: `Follow-up for "${option}"`,
       type: "shortText",
-      required: false,
-      trackResponseRank: true,
-      parentId: question.id,
+      required: false,      parentId: question.id,
       showWhen: {
         questionId: question.id,
         value: option,
@@ -1428,7 +1418,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                   checked={
                                     question.trackResponseQuestion || false
                                   }
-                                  disabled={question.trackResponseRank || false}
+                                  
                                   onChange={(e) =>
                                     handleQuestionChange(
                                       sectionIndex,
@@ -1443,30 +1433,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                   Track Question
                                 </span>
                               </label>
-                              <label
-                                className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md"
-                                title="Track Rank"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={question.trackResponseRank || false}
-                                  disabled={
-                                    question.trackResponseQuestion || false
-                                  }
-                                  onChange={(e) =>
-                                    handleQuestionChange(
-                                      sectionIndex,
-                                      questionIndex,
-                                      "trackResponseRank",
-                                      e.target.checked,
-                                    )
-                                  }
-                                  className="h-3.5 w-3.5 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500 disabled:opacity-50"
-                                />
-                                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                                  Track Rank
-                                </span>
-                              </label>
+                              
                               {section.questions.length > 1 && (
                                 <button
                                   type="button"
@@ -1614,417 +1581,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                               </select>
                             </div>
                           </div>
-                          {question.trackResponseRank && (
-                            <div className="mt-4 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-xl space-y-4 mb-4">
-                              <div className="flex items-center gap-2 mb-1">
-                                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                <h4 className="text-xs font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">
-                                  Track Rank Configuration
-                                </h4>
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
-                                    Track Rank Question Label
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={
-                                      question.trackResponseRankLabel || ""
-                                    }
-                                    onChange={(e) =>
-                                      handleQuestionChange(
-                                        sectionIndex,
-                                        questionIndex,
-                                        "trackResponseRankLabel",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className="w-full px-3 py-2 border border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-900"
-                                    placeholder="Enter label for rank tracking"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
-                                    Track Rank Question Type
-                                  </label>
-                                  <select
-                                    value={
-                                      question.trackResponseRankType || "text"
-                                    }
-                                    onChange={(e) =>
-                                      handleQuestionChange(
-                                        sectionIndex,
-                                        questionIndex,
-                                        "trackResponseRankType",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className="w-full px-3 py-2 border border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-900"
-                                  >
-                                    {TRACK_RANK_QUESTION_TYPES.map((type) => (
-                                      <option
-                                        key={type.value}
-                                        value={type.value}
-                                      >
-                                        {type.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {question.trackResponseQuestion && (
-                            <div className="mt-4 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800 rounded-xl space-y-4 mb-4">
-                              <div className="flex items-center gap-2 mb-1">
-                                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                                <h4 className="text-xs font-bold text-indigo-900 dark:text-indigo-100 uppercase tracking-wider">
-                                  Track Question Configuration
-                                </h4>
-                              </div>
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                  <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2 uppercase tracking-wide">
-                                    Track Question Label
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={
-                                      question.trackResponseQuestionLabel || ""
-                                    }
-                                    onChange={(e) =>
-                                      handleQuestionChange(
-                                        sectionIndex,
-                                        questionIndex,
-                                        "trackResponseQuestionLabel",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-800 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm bg-white dark:bg-gray-900"
-                                    placeholder="Enter label for tracking question"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-xs font-semibold text-indigo-700 dark:text-indigo-300 mb-2 uppercase tracking-wide">
-                                    Track Question Type
-                                  </label>
-                                  <select
-                                    value={
-                                      question.trackResponseQuestionType ||
-                                      "text"
-                                    }
-                                    onChange={(e) =>
-                                      handleQuestionChange(
-                                        sectionIndex,
-                                        questionIndex,
-                                        "trackResponseQuestionType",
-                                        e.target.value,
-                                      )
-                                    }
-                                    className="w-full px-3 py-2 border border-indigo-200 dark:border-indigo-800 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm bg-white dark:bg-gray-900"
-                                  >
-                                    {TRACK_RANK_QUESTION_TYPES.map((type) => (
-                                      <option
-                                        key={type.value}
-                                        value={type.value}
-                                      >
-                                        {type.label}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          {question.type === "productNPSTGWBuckets" && (
-                            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900 border border-blue-200 dark:border-blue-700 rounded-lg">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-blue-900 dark:text-blue-100">
-                                  Hierarchy Levels (Cascading)
-                                </h4>
-                                <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
-                                  Up to 6 levels
-                                </span>
-                              </div>
-                              <div className="space-y-2">
-                                {(() => {
-                                  const level1Options = getLevel1Options();
-                                  let selectedValues =
-                                    question.selectedHierarchyValues || {};
-
-                                  if (
-                                    !selectedValues.level1 &&
-                                    level1Options.length > 0
-                                  ) {
-                                    const defaultLevel1 = level1Options[0];
-                                    const level2Options =
-                                      getLevel2Options(defaultLevel1);
-                                    selectedValues = {
-                                      level1: defaultLevel1,
-                                      level2:
-                                        level2Options.length > 0
-                                          ? level2Options[0]
-                                          : undefined,
-                                    };
-                                  }
-
-                                  const defaultLabels = [
-                                    "Complaint Groups",
-                                    "Sub-complaints",
-                                    "Probing Questions",
-                                    "Initial Answers",
-                                    "Secondary Details",
-                                    "Final Options",
-                                  ];
-
-                                  const handleLevelChange = (
-                                    levelNum: number,
-                                    value: string,
-                                  ) => {
-                                    const newValues = { ...selectedValues };
-                                    newValues[
-                                      `level${levelNum}` as keyof typeof selectedValues
-                                    ] = value;
-
-                                    for (let i = levelNum + 1; i <= 6; i++) {
-                                      newValues[
-                                        `level${i}` as keyof typeof selectedValues
-                                      ] = undefined;
-                                    }
-
-                                    handleQuestionChange(
-                                      sectionIndex,
-                                      questionIndex,
-                                      "selectedHierarchyValues",
-                                      newValues,
-                                    );
-                                  };
-
-                                  return (
-                                    <>
-                                      <div>
-                                        <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">
-                                          L1: {defaultLabels[0]}
-                                        </label>
-                                        <select
-                                          value={selectedValues.level1 || ""}
-                                          onChange={(e) =>
-                                            handleLevelChange(1, e.target.value)
-                                          }
-                                          className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
-                                        >
-                                          <option value="">
-                                            Select Level 1
-                                          </option>
-                                          {getLevel1Options().map(
-                                            (opt: string) => (
-                                              <option key={opt} value={opt}>
-                                                {opt}
-                                              </option>
-                                            ),
-                                          )}
-                                        </select>
-                                      </div>
-
-                                      {/* Level 2 */}
-                                      {selectedValues.level1 &&
-                                        getLevel2Options(selectedValues.level1)
-                                          .length > 0 && (
-                                          <div>
-                                            <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">
-                                              L2: {defaultLabels[1]}
-                                            </label>
-                                            <select
-                                              value={
-                                                selectedValues.level2 || ""
-                                              }
-                                              onChange={(e) =>
-                                                handleLevelChange(
-                                                  2,
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
-                                            >
-                                              <option value="">
-                                                Select Level 2
-                                              </option>
-                                              {getLevel2Options(
-                                                selectedValues.level1,
-                                              ).map((opt: string) => (
-                                                <option key={opt} value={opt}>
-                                                  {opt}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          </div>
-                                        )}
-
-                                      {/* Level 3 */}
-                                      {selectedValues.level2 &&
-                                        getLevel3Options(
-                                          selectedValues.level1 || "",
-                                          selectedValues.level2,
-                                        ).length > 0 && (
-                                          <div>
-                                            <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">
-                                              L3: {defaultLabels[2]}
-                                            </label>
-                                            <select
-                                              value={
-                                                selectedValues.level3 || ""
-                                              }
-                                              onChange={(e) =>
-                                                handleLevelChange(
-                                                  3,
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
-                                            >
-                                              <option value="">
-                                                Select Level 3
-                                              </option>
-                                              {getLevel3Options(
-                                                selectedValues.level1 || "",
-                                                selectedValues.level2,
-                                              ).map((opt: string) => (
-                                                <option key={opt} value={opt}>
-                                                  {opt}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          </div>
-                                        )}
-
-                                      {/* Level 4 */}
-                                      {selectedValues.level3 &&
-                                        getLevel4Options(
-                                          selectedValues.level1 || "",
-                                          selectedValues.level2 || "",
-                                          selectedValues.level3,
-                                        ).length > 0 && (
-                                          <div>
-                                            <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">
-                                              L4: {defaultLabels[3]}
-                                            </label>
-                                            <select
-                                              value={
-                                                selectedValues.level4 || ""
-                                              }
-                                              onChange={(e) =>
-                                                handleLevelChange(
-                                                  4,
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
-                                            >
-                                              <option value="">
-                                                Select Level 4
-                                              </option>
-                                              {getLevel4Options(
-                                                selectedValues.level1 || "",
-                                                selectedValues.level2 || "",
-                                                selectedValues.level3,
-                                              ).map((opt: string) => (
-                                                <option key={opt} value={opt}>
-                                                  {opt}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          </div>
-                                        )}
-
-                                      {/* Level 5 */}
-                                      {selectedValues.level4 &&
-                                        getLevel5Options(
-                                          selectedValues.level1 || "",
-                                          selectedValues.level2 || "",
-                                          selectedValues.level3 || "",
-                                          selectedValues.level4,
-                                        ).length > 0 && (
-                                          <div>
-                                            <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">
-                                              L5: {defaultLabels[4]}
-                                            </label>
-                                            <select
-                                              value={
-                                                selectedValues.level5 || ""
-                                              }
-                                              onChange={(e) =>
-                                                handleLevelChange(
-                                                  5,
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
-                                            >
-                                              <option value="">
-                                                Select Level 5
-                                              </option>
-                                              {getLevel5Options(
-                                                selectedValues.level1 || "",
-                                                selectedValues.level2 || "",
-                                                selectedValues.level3 || "",
-                                                selectedValues.level4,
-                                              ).map((opt: string) => (
-                                                <option key={opt} value={opt}>
-                                                  {opt}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          </div>
-                                        )}
-
-                                      {/* Level 6 */}
-                                      {selectedValues.level5 &&
-                                        getLevel6Options(
-                                          selectedValues.level1 || "",
-                                          selectedValues.level2 || "",
-                                          selectedValues.level3 || "",
-                                          selectedValues.level4 || "",
-                                          selectedValues.level5,
-                                        ).length > 0 && (
-                                          <div>
-                                            <label className="block text-xs font-bold text-blue-900 dark:text-blue-200 mb-1">
-                                              L6: {defaultLabels[5]}
-                                            </label>
-                                            <select
-                                              value={
-                                                selectedValues.level6 || ""
-                                              }
-                                              onChange={(e) =>
-                                                handleLevelChange(
-                                                  6,
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="w-full px-2 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded bg-white dark:bg-blue-800 text-blue-900 dark:text-blue-100 focus:ring-2 focus:ring-blue-500"
-                                            >
-                                              <option value="">
-                                                Select Level 6
-                                              </option>
-                                              {getLevel6Options(
-                                                selectedValues.level1 || "",
-                                                selectedValues.level2 || "",
-                                                selectedValues.level3 || "",
-                                                selectedValues.level4 || "",
-                                                selectedValues.level5,
-                                              ).map((opt: string) => (
-                                                <option key={opt} value={opt}>
-                                                  {opt}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          </div>
-                                        )}
-                                    </>
-                                  );
-                                })()}
+                          ()}
                               </div>
                               <p className="text-xs text-blue-700 dark:text-blue-300 mt-2 italic">
                                 Select Level 1 first, then each subsequent level
@@ -2360,7 +1917,6 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                     <input
                                                       type="checkbox"
                                                       checked={
-                                                        followUp.trackResponseRank ||
                                                         false
                                                       }
                                                       onChange={(e) =>
@@ -2368,8 +1924,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                           sectionIndex,
                                                           questionIndex,
                                                           followUpIndex,
-                                                          "trackResponseRank",
-                                                          e.target.checked,
+                                                                                                                    e.target.checked,
                                                         )
                                                       }
                                                       className="h-3 w-3 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
@@ -2378,31 +1933,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                       Track Question
                                                     </span>
                                                   </label>
-                                                  <label
-                                                    className="flex items-center space-x-1 cursor-pointer px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-md"
-                                                    title="Track Rank"
-                                                  >
-                                                    <input
-                                                      type="checkbox"
-                                                      checked={
-                                                        followUp.trackResponseRank ||
-                                                        false
-                                                      }
-                                                      onChange={(e) =>
-                                                        updateFollowUp(
-                                                          sectionIndex,
-                                                          questionIndex,
-                                                          followUpIndex,
-                                                          "trackResponseRank",
-                                                          e.target.checked,
-                                                        )
-                                                      }
-                                                      className="h-3 w-3 text-blue-600 border-gray-300 dark:border-gray-600 rounded focus:ring-blue-500"
-                                                    />
-                                                    <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                                                      Track Rank
-                                                    </span>
-                                                  </label>
+                                                  
                                                   <button
                                                     type="button"
                                                     onClick={() =>
@@ -2494,240 +2025,7 @@ export const MultipleChoiceFormBuilder: React.FC<
                                                 </label>
                                               </div>
 
-                                              {followUp.trackResponseRank && (
-                                                <div className="mt-2 p-2 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-100 dark:border-blue-800 rounded-lg space-y-2 mb-2">
-                                                  <div className="flex items-center gap-1.5 mb-0.5">
-                                                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
-                                                    <h4 className="text-[10px] font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">
-                                                      Track Rank Config
-                                                    </h4>
-                                                  </div>
-                                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                    <div>
-                                                      <label className="block text-[10px] font-semibold text-blue-700 dark:text-blue-300 mb-1 uppercase tracking-wide">
-                                                        Rank Question Label
-                                                      </label>
-                                                      <input
-                                                        type="text"
-                                                        value={
-                                                          followUp.trackResponseRankLabel ||
-                                                          ""
-                                                        }
-                                                        onChange={(e) =>
-                                                          updateFollowUp(
-                                                            sectionIndex,
-                                                            questionIndex,
-                                                            followUpIndex,
-                                                            "trackResponseRankLabel",
-                                                            e.target.value,
-                                                          )
-                                                        }
-                                                        className="w-full px-2 py-1 border border-blue-200 dark:border-blue-800 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent text-[11px] bg-white dark:bg-gray-900"
-                                                        placeholder="Label for rank tracking"
-                                                      />
-                                                    </div>
-                                                    <div>
-                                                      <label className="block text-[10px] font-semibold text-blue-700 dark:text-blue-300 mb-1 uppercase tracking-wide">
-                                                        Rank Question Type
-                                                      </label>
-                                                      <select
-                                                        value={
-                                                          followUp.trackResponseRankType ||
-                                                          "text"
-                                                        }
-                                                        onChange={(e) =>
-                                                          updateFollowUp(
-                                                            sectionIndex,
-                                                            questionIndex,
-                                                            followUpIndex,
-                                                            "trackResponseRankType",
-                                                            e.target.value,
-                                                          )
-                                                        }
-                                                        className="w-full px-2 py-1 border border-blue-200 dark:border-blue-800 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-transparent text-[11px] bg-white dark:bg-gray-900"
-                                                      >
-                                                        {TRACK_RANK_QUESTION_TYPES.map(
-                                                          (type) => (
-                                                            <option
-                                                              key={type.value}
-                                                              value={type.value}
-                                                            >
-                                                              {type.label}
-                                                            </option>
-                                                          ),
-                                                        )}
-                                                      </select>
-                                                    </div>
-                                                  </div>
-                                                </div>
-                                              )}
-                                            </div>
-                                          ),
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-                              </div>
-                            )}
-                        </div>
-                      ))}
-
-                      {/* Add Question Button */}
-                      <button
-                        type="button"
-                        onClick={() => addQuestion(sectionIndex)}
-                        className="mt-4 flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Add Question to Section {sectionIndex + 1}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {/* Add Section Button */}
-              <div className="flex justify-center">
-                <button
-                  type="button"
-                  onClick={addSection}
-                  className="flex items-center px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-lg"
-                >
-                  <Plus className="h-5 w-5 mr-2" />
-                  Add New Section
-                </button>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex justify-end space-x-4">
-                <button
-                  type="button"
-                  onClick={handlePreview}
-                  className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2"
-                >
-                  <Eye className="h-4 w-4" />
-                  <span>Preview Form</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={loading}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 disabled:opacity-50"
-                >
-                  <Save className="h-4 w-4" />
-                  <span>{loading ? "Saving..." : "Save Form"}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Section Selection Modal */}
-            {sectionModal?.isOpen && (
-              <div
-                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-                onClick={(e) => {
-                  // Close modal if clicking on backdrop
-                  if (e.target === e.currentTarget) {
-                    setSectionModal(null);
-                  }
-                }}
-              >
-                <div className="bg-white dark:bg-gray-900 rounded-lg shadow-2xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col">
-                  {/* Modal Header */}
-                  <div className="bg-gradient-to-r from-green-600 to-green-500 px-6 py-4 text-white">
-                    <h3 className="text-xl font-semibold">
-                      Select Section to Jump To
-                    </h3>
-                    <p className="text-sm text-green-50 mt-1">
-                      When "{sectionModal.option}" is selected, go to:
-                    </p>
-                    <p className="text-xs text-green-100 mt-2">
-                      📋 {formData.sections.length} section
-                      {formData.sections.length !== 1 ? "s" : ""} available
-                    </p>
-                  </div>
-
-                  {/* Modal Body */}
-                  <div className="flex-1 overflow-y-auto p-6">
-                    <div className="space-y-3">
-                      {/* Continue to Next Section Option */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateGoToSection(
-                            sectionModal.sectionIndex,
-                            sectionModal.questionIndex,
-                            sectionModal.option,
-                            "",
-                          );
-                          setSectionModal(null);
-                        }}
-                        className="w-full text-left p-4 border-2 border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all group"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="font-semibold text-gray-900 dark:text-gray-100 group-hover:text-blue-700">
-                              ➡️ Continue to Next Section
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                              Follow the default sequential flow
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* All Available Sections */}
-                      {formData.sections.map((section, index) => {
-                        const isCurrentSection =
-                          index === sectionModal.sectionIndex;
-                        return (
-                          <button
-                            key={section.id}
-                            type="button"
-                            onClick={() => {
-                              updateGoToSection(
-                                sectionModal.sectionIndex,
-                                sectionModal.questionIndex,
-                                sectionModal.option,
-                                section.id,
-                              );
-                              setSectionModal(null);
-                            }}
-                            disabled={isCurrentSection}
-                            className={`w-full text-left p-4 border-2 rounded-lg transition-all ${
-                              isCurrentSection
-                                ? "border-gray-200 bg-gray-50 cursor-not-allowed opacity-60"
-                                : "border-green-300 hover:border-green-500 hover:bg-green-50 group"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1">
-                                <div
-                                  className={`font-semibold ${
-                                    isCurrentSection
-                                      ? "text-gray-500"
-                                      : "text-gray-900 group-hover:text-green-700"
-                                  }`}
-                                >
-                                  📋 Section {index + 1}
-                                  {section.title && `: ${section.title}`}
-                                </div>
-                                <div className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                                  {section.questions.length} question
-                                  {section.questions.length !== 1 ? "s" : ""}
-                                  {section.description &&
-                                    ` • ${section.description}`}
-                                </div>
-                                {isCurrentSection && (
-                                  <div className="text-xs text-orange-600 mt-1">
-                                    ⚠️ Cannot jump to current section
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </button>
-                        );
-                      })}
+                                              }
 
                       {/* Submit Form Option */}
                       <button

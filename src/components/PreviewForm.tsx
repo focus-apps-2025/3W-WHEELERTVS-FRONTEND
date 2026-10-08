@@ -817,16 +817,12 @@ export default function PreviewForm({
       return qId === normalizedQId || qId.toLowerCase() === normalizedQId.toLowerCase() || normalizeKey(qId) === normalizedTarget;
     });
 
-    // Only fetch suggestions if trackResponseQuestion OR trackResponseRank is enabled
+    // Only fetch suggestions if trackResponseQuestion is enabled
     const isTrackQuestionEnabled = question && (
       question.trackResponseQuestion === true ||
       String(question.trackResponseQuestion) === "true"
     );
-    const isTrackRankEnabled = question && (
-      question.trackResponseRank === true ||
-      String(question.trackResponseRank) === "true"
-    );
-    const isAnyTrackingEnabled = isTrackQuestionEnabled || isTrackRankEnabled;
+    const isAnyTrackingEnabled = isTrackQuestionEnabled;
 
     if (fetchingSuggestionsForId !== questionId) {
       setPreviousUniqueAnswers([]);
@@ -856,8 +852,7 @@ export default function PreviewForm({
       typeof value === "number" ||
       ((question?.type === "chassis-with-zone" || question?.type === "chassis-without-zone") && value?.chassisNumber?.trim().length >= 1);
 
-    // Only fetch suggestions if any tracking is enabled (trackResponseQuestion OR trackResponseRank)
-    if (isMeaningful && formId && !isAlreadySuggested && isAnyTrackingEnabled) {
+        if (isMeaningful && formId && !isAlreadySuggested && isAnyTrackingEnabled) {
       const timeoutId = (window as any)._suggestionTimeout;
       if (timeoutId) clearTimeout(timeoutId);
       (window as any)._suggestionTimeout = setTimeout(() => {

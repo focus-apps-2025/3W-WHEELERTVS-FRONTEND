@@ -369,17 +369,7 @@ export default function ResponseForm({ onSubmit }: ResponseFormProps) {
           if (nonEmptyAnswersCount > 0) {
             setSelectedRank(1);
 
-            // If trackResponseRank is enabled for this question, auto-apply the first record to the whole form
-            const question = allFormQuestions.find(
-              (q) => (q.id || (q as any)._id) === questionId,
-            );
-            if (
-              question &&
-              (question.trackResponseRank === true ||
-                String(question.trackResponseRank) === "true")
-            ) {
-              applySuggestions(firstRecord, undefined, 1);
-            }
+            
           }
         } else {
           setSuggestedAnswers({ _no_match: true });

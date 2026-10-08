@@ -11,9 +11,6 @@ interface FollowUpQuestion {
   text: string;
   type: string;
   required: boolean;
-  trackResponseRank?: boolean;
-  trackResponseRankLabel?: string;
-  trackResponseRankType?: string;
 
   options?: string[];
   allowedFileTypes?: string[];
@@ -230,7 +227,6 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                   <input
                     type="checkbox"
                     checked={followUpQ.trackResponseQuestion || false}
-                    disabled={followUpQ.trackResponseRank || false}
                     onChange={(e) =>
                       onUpdate(
                         sectionId,
@@ -242,23 +238,6 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                     className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
                   />
                   <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Question</span>
-                </label>
-                <label className="flex items-center space-x-1 cursor-pointer px-2 py-1 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg transition-colors" title="Track Rank">
-                  <input
-                    type="checkbox"
-                    checked={followUpQ.trackResponseRank || false}
-                    disabled={followUpQ.trackResponseQuestion || false}
-                    onChange={(e) =>
-                      onUpdate(
-                        sectionId,
-                        followUpQ.id,
-                        { trackResponseRank: e.target.checked },
-                        path
-                      )
-                    }
-                    className="w-4 h-4 text-blue-600 focus:ring-2 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded disabled:opacity-50"
-                  />
-                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">Track Rank</span>
                 </label>
                 <button
                   onClick={() => onDelete(sectionId, followUpQ.id, path)}
@@ -451,59 +430,7 @@ export const NestedFollowUpRenderer: React.FC<NestedFollowUpRendererProps> = ({
                 ))}
               </select>
             </div>
-                        {/* Track Rank Configuration */}
-            {followUpQ.trackResponseRank && (
-              <div className="lg:col-span-2 mt-2 p-4 bg-blue-50/50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-xl space-y-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  <h4 className="text-sm font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">Track Rank Configuration</h4>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
-                      Track Rank Question Label
-                    </label>
-                    <input
-                      type="text"
-                      value={followUpQ.trackResponseRankLabel || ""}
-                      onChange={(e) =>
-                        onUpdate(
-                          sectionId,
-                          followUpQ.id,
-                          { trackResponseRankLabel: e.target.value },
-                          path
-                        )
-                      }
-                      className="w-full px-3 py-2.5 border-2 border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm bg-white dark:bg-gray-900"
-                      placeholder="Enter label for rank tracking"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-blue-700 dark:text-blue-300 mb-2 uppercase tracking-wide">
-                      Track Rank Question Type
-                    </label>
-                    <select
-                      value={followUpQ.trackResponseRankType || "text"}
-                      onChange={(e) =>
-                        onUpdate(
-                          sectionId,
-                          followUpQ.id,
-                          { trackResponseRankType: e.target.value },
-                          path
-                        )
-                      }
-                      className="w-full px-3 py-2.5 border-2 border-blue-200 dark:border-blue-800 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm bg-white dark:bg-gray-900"
-                    >
-                      {questionTypes.map((type) => (
-                        <option key={type.value} value={type.value}>
-                          {type.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            )}
+
 
             {followUpQ.trackResponseQuestion && (
               <div className="lg:col-span-2 mt-2 p-4 bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-800 rounded-xl space-y-4">

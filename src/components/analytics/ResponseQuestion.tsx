@@ -1299,25 +1299,7 @@ export default function ResponseQuestion({
                                   </div>
                                 )}
 
-                              {q.trackResponseRank && (
-                                <div className="mt-3 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800">
-                                  <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-2">Tracking Sample (Ranked)</p>
-                                  <div className="space-y-2">
-                                    {filteredResponses
-                                      .filter(r => r.answers[q.id] && r.responseRanks?.[q.id])
-                                      .slice(0, 3)
-                                      .map((r, idx) => {
-                                        const ans = r.answers[q.id];
-                                        const displayAns = typeof ans === 'object' ? (ans.chassisNumber || JSON.stringify(ans)) : String(ans);
-                                        return (
-                                          <div key={idx} className="flex items-center gap-2">
-                                            <span className="text-[10px] font-bold bg-white dark:bg-gray-800 px-1.5 py-0.5 rounded border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 shadow-sm">
-                                              #{r.responseRanks![q.id]}
-                                            </span>
-                                            <span className="text-xs text-gray-700 dark:text-gray-300 truncate font-medium">{displayAns}</span>
-                                          </div>
-                                        );
-                                      })}
+                              }
                                     {filteredResponses.filter(r => r.answers[q.id] && r.responseRanks?.[q.id]).length > 3 && (
                                       <p className="text-[10px] text-gray-400 italic font-medium mt-1">+ {filteredResponses.filter(r => r.answers[q.id] && r.responseRanks?.[q.id]).length - 3} more tracked responses</p>
                                     )}

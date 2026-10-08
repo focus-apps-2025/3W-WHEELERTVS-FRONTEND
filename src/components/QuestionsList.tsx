@@ -362,7 +362,6 @@ export default function QuestionsList({
               <input
                 type="checkbox"
                 checked={q.trackResponseQuestion || false}
-                disabled={q.trackResponseRank || false}
                 onChange={(e) =>
                   updateQuestion(q.id, {
                     trackResponseQuestion: e.target.checked,
@@ -371,20 +370,6 @@ export default function QuestionsList({
                 className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded border-gray-300 disabled:opacity-50"
               />
               <span className="text-xs font-bold text-blue-600 whitespace-nowrap">Track Question</span>
-            </label>
-            <label className="flex items-center space-x-1 cursor-pointer p-2 hover:bg-blue-50 rounded-lg transition-colors border border-blue-100" title="Track Rank">
-              <input
-                type="checkbox"
-                checked={q.trackResponseRank || false}
-                disabled={q.trackResponseQuestion || false}
-                onChange={(e) =>
-                  updateQuestion(q.id, {
-                    trackResponseRank: e.target.checked,
-                  })
-                }
-                className="w-4 h-4 text-blue-600 focus:ring-blue-500 rounded border-gray-300 disabled:opacity-50"
-              />
-              <span className="text-xs font-bold text-blue-600 whitespace-nowrap">Track Rank</span>
             </label>
             {needsOptions(q.type) && (
               <button
@@ -531,52 +516,7 @@ export default function QuestionsList({
               <span className="text-sm text-primary-600">Required</span>
             </label>
           </div>
-                    {q.trackResponseRank && (
-            <div className="mt-4 p-4 bg-blue-50/50 border border-blue-200 rounded-xl space-y-4">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                <h4 className="text-xs font-bold text-blue-900 uppercase tracking-wider">Track Rank Configuration</h4>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wide">
-                    Track Rank Question Label
-                  </label>
-                  <input
-                    type="text"
-                    value={q.trackResponseRankLabel || ""}
-                    onChange={(e) =>
-                      updateQuestion(q.id, {
-                        trackResponseRankLabel: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
-                    placeholder="Enter label for rank tracking"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-blue-700 mb-2 uppercase tracking-wide">
-                    Track Rank Question Type
-                  </label>
-                  <select
-                    value={q.trackResponseRankType || "text"}
-                    onChange={(e) =>
-                      updateQuestion(q.id, {
-                        trackResponseRankType: e.target.value as QuestionType,
-                      })
-                    }
-                    className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
-                  >
-                    {questionTypes.map((type) => (
-                      <option key={`${q.id}-rank-${type.value}`} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
+          
 
           {q.trackResponseQuestion && (
             <div className="mt-4 p-4 bg-indigo-50/50 border border-indigo-200 rounded-xl space-y-4">

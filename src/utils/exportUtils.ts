@@ -132,8 +132,7 @@ function collectQuestions(section: Section) {
             .map((rule: any) => `${rule.optionLabel}:${rule.targetSectionId}`)
             .join("|")
         : "",
-      "Ranking Logic": question.trackResponseRank ? "TRUE" : "FALSE",
-      "Track Question": question.trackResponseQuestion ? "TRUE" : "FALSE",
+            "Track Question": question.trackResponseQuestion ? "TRUE" : "FALSE",
     });
     if (question.followUpQuestions && question.followUpQuestions.length > 0) {
       question.followUpQuestions.forEach((child) => visit(child));
@@ -2494,8 +2493,7 @@ function parseNewTemplateFormat(
         },
         subParam1: childSubParam1,
         subParam2: childSubParam2,
-        trackResponseRank: childRankingLogic,
-        trackResponseQuestion: childTrackQuestion,
+                trackResponseQuestion: childTrackQuestion,
         allowedFileTypes: undefined,
       };
 
@@ -2829,8 +2827,7 @@ function parseNewTemplateFormat(
       sectionId: section.id,
       correctAnswer: correctAnswer || undefined,
       correctAnswers: correctAnswers,
-      trackResponseRank: rankingLogic,
-      trackResponseQuestion: trackQuestion,
+            trackResponseQuestion: trackQuestion,
       ...(branchingRules.length > 0 && { branchingRules }),
     };
 
@@ -2900,8 +2897,7 @@ function parseNewTemplateFormat(
           },
           subParam1: fuSubParam1 || undefined,
           subParam2: fuSubParam2 || undefined,
-          trackResponseRank: fuRankingLogic,
-          trackResponseQuestion: fuTrackQuestion,
+                    trackResponseQuestion: fuTrackQuestion,
           allowedFileTypes: undefined,
         };
 

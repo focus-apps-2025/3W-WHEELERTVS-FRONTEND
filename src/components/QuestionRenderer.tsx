@@ -213,9 +213,7 @@ export default function QuestionRenderer({
   const imageUrl = getGoogleDriveDirectLink(question.imageUrl || "");
   const isImage = isImageUrl(imageUrl);
 
-  const isRankTrackingEnabled =
-    question.trackResponseRank === true ||
-    String(question.trackResponseRank) === "true";
+  const isRankTrackingEnabled = false;
 
   const isQuestionTrackingEnabled =
     question.trackResponseQuestion === true ||
@@ -284,8 +282,7 @@ export default function QuestionRenderer({
   useEffect(() => {
     const fetchPreviousAnswers = async () => {
       // Only fetch suggestions for trackResponseQuestion (question-wise tracking)
-      // trackResponseRank should NOT show suggestions, only display rank
-      if (isQuestionTrackingEnabled && formId) {
+            if (isQuestionTrackingEnabled && formId) {
         try {
           setLoadingSuggestions(true);
           const response = await apiClient.getQuestionPreviousAnswers(
@@ -1222,13 +1219,11 @@ export default function QuestionRenderer({
           )}
           {typeof rank === "number" && rank > 0 && (
             <div className="flex flex-col gap-1 ml-2">
-              {(question.trackResponseRankLabel ||
-                question.trackResponseQuestionLabel) && (
+              {(question.trackResponseQuestionLabel) && (
                 <span
                   className={`text-[9px] font-bold uppercase tracking-wider ${isApplied ? (darkMode ? "text-emerald-400" : "text-emerald-600") : darkMode ? "text-blue-400" : "text-blue-600"}`}
                 >
-                  {question.trackResponseRankLabel ||
-                    question.trackResponseQuestionLabel}
+                  {question.trackResponseQuestionLabel}
                 </span>
               )}
               <div className="flex items-center gap-1.5">
@@ -1243,8 +1238,7 @@ export default function QuestionRenderer({
 
           {/* Inline suggestions: show when global rank exists OR when this question has local rank */}
           {((typeof rank === "number" && rank > 0) || (typeof currentRank === "number" && currentRank > 0)) && !isQuestionTrackingEnabled && (
-            /* Show for ALL questions when there's a global rank, regardless of individual question's trackResponseRank setting */
-            ((typeof currentRank === "number" && currentRank > 0) || (question.trackResponseRank === true || String(question.trackResponseRank) === "true")) && (
+                        ((typeof currentRank === "number" && currentRank > 0) ) && (
               <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex flex-wrap gap-1.5">
                   {(() => {
