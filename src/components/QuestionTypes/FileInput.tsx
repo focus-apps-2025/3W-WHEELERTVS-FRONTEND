@@ -201,7 +201,8 @@ export default function FileInput({
     );
   }, []);
 
-  const startCamera = useCallback(async () => {
+  const startCamera = useCallback(async (withLoc?: boolean) => {
+    const shouldFetchLocation = withLoc !== undefined ? withLoc : includeLocation;
     try {
       setError(null);
 
@@ -231,7 +232,7 @@ export default function FileInput({
         }
       }, 100);
 
-      if (includeLocation) {
+      if (shouldFetchLocation) {
         await getLocation();
       }
     } catch (err) {
@@ -561,61 +562,93 @@ export default function FileInput({
             ← Back
           </button>
 
-          {/* Location Mode Selector Choice */}
-          <div className="flex items-center justify-between p-3 rounded-lg border bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700 mb-3">
-            <div className="flex items-center gap-2">
-              <MapPin className={`w-4 h-4 ${includeLocation ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`} />
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                Photo Mode:
-              </span>
-            </div>
-            <div className="flex items-center bg-gray-200 dark:bg-gray-700 p-0.5 rounded-lg">
-              <button
-                type="button"
-                onClick={() => {
-                  setIncludeLocation(false);
-                  setLocation(null);
-                  setLocationError(null);
-                }}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                  !includeLocation
-                    ? "bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 shadow-sm font-bold"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900"
-                }`}
-              >
-                Without Location
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIncludeLocation(true);
-                  if (!location && !locationLoading) {
-                    getLocation();
-                  }
-                }}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
-                  includeLocation
-                    ? "bg-blue-600 text-white shadow-sm font-bold"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900"
-                }`}
-              >
-                With Location
-              </button>
-            </div>
-          </div>
-
           {!cameraStream ? (
-            <button
-              type="button"
-              onClick={startCamera}
-              disabled={uploading || readOnly}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium"
-            >
-              <Camera className="w-4 h-4" />
-              Start Camera
-            </button>
+            <div className="p-4 rounded-xl border border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-950/20 space-y-4">
+              <div className="text-center space-y-1">
+                <h4 className="text-sm font-bold text-gray-900 dark:text-white">
+                  Choose Camera Mode
+                </h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  Select how you want to capture the photo before starting camera access:
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIncludeLocation(false);
+                    setLocation(null);
+                    setLocationError(null);
+                    startCamera(false);
+                  }}
+                  disabled={uploading || readOnly}
+                  className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-green-500 bg-white dark:bg-gray-800 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/40 transition-all font-semibold text-center shadow-sm disabled:opacity-50"
+                >
+                  <Camera className="w-6 h-6 mb-2 text-green-600 dark:text-green-400" />
+                  <span className="text-sm font-bold">Without Location</span>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Photo only (Faster)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIncludeLocation(true);
+                    startCamera(true);
+                  }}
+                  disabled={uploading || readOnly}
+                  className="flex flex-col items-center justify-center p-4 rounded-xl border-2 border-blue-500 bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/40 transition-all font-semibold text-center shadow-sm disabled:opacity-50"
+                >
+                  <MapPin className="w-6 h-6 mb-2 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-bold">With Location</span>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">Attach GPS Coordinates</span>
+                </button>
+              </div>
+            </div>
           ) : (
             <>
+              {/* Location Mode Toggle inside Active Camera */}
+              <div className="flex items-center justify-between p-3 rounded-lg border bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700 mb-3">
+                <div className="flex items-center gap-2">
+                  <MapPin className={`w-4 h-4 ${includeLocation ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`} />
+                  <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                    Photo Mode:
+                  </span>
+                </div>
+                <div className="flex items-center bg-gray-200 dark:bg-gray-700 p-0.5 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIncludeLocation(false);
+                      setLocation(null);
+                      setLocationError(null);
+                    }}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                      !includeLocation
+                        ? "bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 shadow-sm font-bold"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900"
+                    }`}
+                  >
+                    Without Location
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIncludeLocation(true);
+                      if (!location && !locationLoading) {
+                        getLocation();
+                      }
+                    }}
+                    className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                      includeLocation
+                        ? "bg-blue-600 text-white shadow-sm font-bold"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900"
+                    }`}
+                  >
+                    With Location
+                </div>
+              </div>
+
               <div className="space-y-4">
                 <div className="relative bg-black rounded-lg overflow-hidden">
                   <video
