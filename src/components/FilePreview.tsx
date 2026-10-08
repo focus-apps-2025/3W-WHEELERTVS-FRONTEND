@@ -11,11 +11,11 @@ interface FilePreviewProps {
 const parseFileValue = (fileValue: string) => {
   try {
     const parsed = JSON.parse(fileValue);
-    if (parsed.url && parsed.location) {
+    if (parsed && parsed.url) {
       return {
         type: "camera",
         url: parsed.url,
-        location: parsed.location,
+        location: parsed.location || null,
         timestamp: parsed.timestamp,
       };
     }

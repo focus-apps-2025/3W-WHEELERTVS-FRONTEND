@@ -103,11 +103,11 @@ const isImageUrl = (fileUrl: string) => {
 const parseFileValue = (fileValue: string) => {
   try {
     const parsed = JSON.parse(fileValue);
-    if (parsed.url && parsed.location) {
+    if (parsed && parsed.url) {
       return {
         type: "camera",
         url: parsed.url,
-        location: parsed.location,
+        location: parsed.location || null,
         timestamp: parsed.timestamp,
       };
     }
@@ -140,6 +140,7 @@ export default function FileInput({
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [videoReady, setVideoReady] = useState(false);
   const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [includeLocation, setIncludeLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [showCapturePreview, setShowCapturePreview] = useState(false);
@@ -230,7 +231,9 @@ export default function FileInput({
         }
       }, 100);
 
-      await getLocation();
+      if (includeLocation) {
+        await getLocation();
+      }
     } catch (err) {
       console.error("Camera error:", err);
       let errorMsg = "Failed to access camera";
@@ -243,7 +246,7 @@ export default function FileInput({
       }
       setError(errorMsg);
     }
-  }, [getLocation]);
+  }, [getLocation, includeLocation]);
 
   const stopCamera = useCallback(() => {
     if (cameraStream) {
@@ -302,8 +305,8 @@ export default function FileInput({
   }, []);
 
   const uploadCapturedImage = useCallback(async () => {
-    if (!capturedImageBlob || !location) {
-      setError("Image or location not ready");
+    if (!capturedImageBlob) {
+      setError("Captured image not ready");
       return;
     }
 
@@ -330,15 +333,18 @@ export default function FileInput({
         throw new Error("File upload did not return a valid URL");
       }
 
-      const metadata = {
+      const metadata: Record<string, any> = {
         url: uploadedUrl,
-        location: {
+        timestamp: new Date().toISOString(),
+      };
+
+      if (includeLocation && location) {
+        metadata.location = {
           latitude: location.lat,
           longitude: location.lng,
           accuracy: location.accuracy,
-        },
-        timestamp: new Date().toISOString(),
-      };
+        };
+      }
 
       onChange(JSON.stringify(metadata));
       stopCamera();
@@ -353,7 +359,7 @@ export default function FileInput({
       setUploading(false);
       setUploadProgress(null);
     }
-  }, [capturedImageBlob, location, question.id, onChange, stopCamera]);
+  }, [capturedImageBlob, includeLocation, location, question.id, onChange, stopCamera]);
 
   useEffect(() => {
     return () => {
@@ -555,6 +561,49 @@ export default function FileInput({
             ← Back
           </button>
 
+          {/* Location Mode Selector Choice */}
+          <div className="flex items-center justify-between p-3 rounded-lg border bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700 mb-3">
+            <div className="flex items-center gap-2">
+              <MapPin className={`w-4 h-4 ${includeLocation ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'}`} />
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                Photo Mode:
+              </span>
+            </div>
+            <div className="flex items-center bg-gray-200 dark:bg-gray-700 p-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => {
+                  setIncludeLocation(false);
+                  setLocation(null);
+                  setLocationError(null);
+                }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                  !includeLocation
+                    ? "bg-white dark:bg-gray-800 text-green-600 dark:text-green-400 shadow-sm font-bold"
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900"
+                }`}
+              >
+                Without Location
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIncludeLocation(true);
+                  if (!location && !locationLoading) {
+                    getLocation();
+                  }
+                }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-all ${
+                  includeLocation
+                    ? "bg-blue-600 text-white shadow-sm font-bold"
+                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900"
+                }`}
+              >
+                With Location
+              </button>
+            </div>
+          </div>
+
           {!cameraStream ? (
             <button
               type="button"
@@ -604,47 +653,54 @@ export default function FileInput({
                   )}
                 </div>
 
-                {location ? (
-                  <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                    <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
-                        Location Captured
-                      </p>
-                      <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                        <strong>Latitude:</strong> {location.lat.toFixed(6)}
-                      </p>
-                      <p className="text-xs text-blue-700 dark:text-blue-300">
-                        <strong>Longitude:</strong> {location.lng.toFixed(6)}
-                      </p>
-                      <p className="text-xs text-blue-700 dark:text-blue-300">
-                        <strong>Accuracy:</strong> ±{location.accuracy.toFixed(1)}m
+                {includeLocation ? (
+                  location ? (
+                    <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                      <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-blue-900 dark:text-blue-200">
+                          Location Captured
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                          <strong>Latitude:</strong> {location.lat.toFixed(6)}
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                          <strong>Longitude:</strong> {location.lng.toFixed(6)}
+                        </p>
+                        <p className="text-xs text-blue-700 dark:text-blue-300">
+                          <strong>Accuracy:</strong> ±{location.accuracy.toFixed(1)}m
+                        </p>
+                      </div>
+                    </div>
+                  ) : locationLoading ? (
+                    <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                      <Loader2 className="w-5 h-5 text-yellow-600 dark:text-yellow-400 animate-spin flex-shrink-0" />
+                      <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                        Getting your location...
                       </p>
                     </div>
-                  </div>
-                ) : locationLoading ? (
-                  <div className="flex items-center gap-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-                    <Loader2 className="w-5 h-5 text-yellow-600 dark:text-yellow-400 animate-spin flex-shrink-0" />
-                    <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                      Getting your location...
-                    </p>
-                  </div>
-                ) : locationError ? (
-                  <div className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-                    <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
-                        {locationError}
-                      </p>
-                      <button
-                        onClick={() => getLocation()}
-                        className="text-xs text-yellow-700 dark:text-yellow-300 hover:underline mt-1 font-medium"
-                      >
-                        Retry Location
-                      </button>
+                  ) : locationError ? (
+                    <div className="flex items-start gap-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+                      <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-yellow-900 dark:text-yellow-200">
+                          {locationError}
+                        </p>
+                        <button
+                          onClick={() => getLocation()}
+                          className="text-xs text-yellow-700 dark:text-yellow-300 hover:underline mt-1 font-medium"
+                        >
+                          Retry Location
+                        </button>
+                      </div>
                     </div>
+                  ) : null
+                ) : (
+                  <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800/40 border border-gray-200 dark:border-gray-700 rounded-lg text-xs text-gray-500 dark:text-gray-400">
+                    <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    <span>Capturing photo without location tracking.</span>
                   </div>
-                ) : null}
+                )}
 
                 <div className="flex gap-2">
                   <button
@@ -664,7 +720,7 @@ export default function FileInput({
                   <button
                     type="button"
                     onClick={capturePhoto}
-                    disabled={uploading || !location || !videoReady}
+                    disabled={uploading || !videoReady}
                     className="flex-1 px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center justify-center gap-2"
                   >
                     {showCapturePreview ? (

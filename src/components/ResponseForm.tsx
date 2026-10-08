@@ -120,7 +120,7 @@ const isValidFileInput = (value: any): boolean => {
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
-      if (parsed && parsed.url && parsed.location) {
+      if (parsed && parsed.url) {
         return !!parsed.url;
       }
     } catch {}
