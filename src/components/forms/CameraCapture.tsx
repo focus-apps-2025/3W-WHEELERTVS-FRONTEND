@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Camera, X, RefreshCw, Check, Loader2, Repeat, Edit3 } from 'lucide-react';
+import { Camera, X, RefreshCw, Check, Loader2, Repeat, Edit3, MapPin } from 'lucide-react';
 
 interface CameraCaptureProps {
   onCapture: (file: File, remark?: string) => Promise<void>;
@@ -14,13 +14,46 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, disab
   const [error, setError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isCameraReady, setIsCameraReady] = useState(false);
+  const [isCameraStarted, setIsCameraStarted] = useState(false);
+  const [includeLocation, setIncludeLocation] = useState(false);
+  const [location, setLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [remark, setRemark] = useState('');
   const [showRemarkInput, setShowRemarkInput] = useState(false);
 
+  const getLocation = async () => {
+    if (!navigator.geolocation) {
+      setLocationError("Geolocation not supported by browser");
+      return;
+    }
+    setLocationLoading(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLocation({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: Math.min(pos.coords.accuracy, 1000),
+        });
+        setLocationLoading(false);
+      },
+      (err) => {
+        setLocationError("Unable to get location");
+        setLocationLoading(false);
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
   useEffect(() => {
     let stream: MediaStream | null = null;
     let isMounted = true;
+
+    if (!isCameraStarted || capturedImage) {
+      return;
+    }
 
     const startCamera = async () => {
       try {
@@ -121,7 +154,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, disab
       }
     };
 
-    if (!capturedImage) {
+    if (isCameraStarted && !capturedImage) {
       startCamera();
     }
 
@@ -136,7 +169,7 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, disab
         videoRef.current.srcObject = null;
       }
     };
-  }, [facingMode, capturedImage]);
+  }, [facingMode, capturedImage, isCameraStarted]);
 
   const switchCamera = () => {
     setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
@@ -234,7 +267,51 @@ const CameraCapture: React.FC<CameraCaptureProps> = ({ onCapture, onClose, disab
 
         {/* Camera/Preview Area */}
         <div className="relative bg-black" style={{ minHeight: '400px', maxHeight: '60vh' }}>
-          {!capturedImage ? (
+          {!isCameraStarted && !capturedImage ? (
+            <div className="p-8 flex flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 min-h-[400px] text-center space-y-6">
+              <div className="space-y-2 max-w-md">
+                <h4 className="text-base font-bold text-gray-900 dark:text-white">
+                  Select Camera Mode
+                </h4>
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                  Please select how you would like to take this evidence photo before starting camera access:
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-md">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIncludeLocation(false);
+                    setLocation(null);
+                    setLocationError(null);
+                    setIsCameraStarted(true);
+                  }}
+                  disabled={disabled}
+                  className="flex flex-col items-center justify-center p-5 rounded-xl border-2 border-green-500 bg-white dark:bg-gray-800 text-green-700 dark:text-green-300 hover:bg-green-50 dark:hover:bg-green-900/40 transition-all font-semibold text-center shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Camera className="w-8 h-8 mb-2 text-green-600 dark:text-green-400" />
+                  <span className="text-sm font-bold">Without Location</span>
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Photo only (Instant Start)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIncludeLocation(true);
+                    setIsCameraStarted(true);
+                    getLocation();
+                  }}
+                  disabled={disabled}
+                  className="flex flex-col items-center justify-center p-5 rounded-xl border-2 border-blue-500 bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/40 transition-all font-semibold text-center shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <MapPin className="w-8 h-8 mb-2 text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-bold">With Location</span>
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">Attach GPS Coordinates</span>
+                </button>
+              </div>
+            </div>
+          ) : !capturedImage ? (
             <>
               {!isCameraReady && !error && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
