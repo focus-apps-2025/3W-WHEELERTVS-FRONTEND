@@ -1669,8 +1669,21 @@ export default function AllResponses() {
       if (!input) {
         return null;
       }
-      const candidate =
+      let candidate =
         Array.isArray(input) && input.length === 1 ? input[0] : input;
+
+      if (typeof candidate === "string") {
+        const trimmed = candidate.trim();
+        if (trimmed.startsWith("{")) {
+          try {
+            const parsed = JSON.parse(trimmed);
+            if (parsed && typeof parsed === "object") {
+              candidate = parsed;
+            }
+          } catch {}
+        }
+      }
+
       if (typeof candidate === "string") {
         if (candidate.startsWith("data:")) {
           return {
@@ -1695,13 +1708,13 @@ export default function AllResponses() {
         }
         return null;
       }
-      if (typeof candidate === "object") {
+      if (typeof candidate === "object" && candidate !== null) {
         const dataValue =
+          candidate.url ||
           candidate.data ||
           candidate.value ||
           candidate.file ||
           candidate.base64 ||
-          candidate.url ||
           candidate.path;
         const nameValue =
           candidate.fileName ||
@@ -1719,27 +1732,19 @@ export default function AllResponses() {
             fileName: nameValue || extractFileName(dataValue),
           };
         }
-        if (typeof candidate.url === "string") {
-          const absolute = ensureAbsoluteFileSource(candidate.url);
-          return {
-            url: absolute,
-            fileName: nameValue || extractFileName(candidate.url),
-          };
-        }
       }
       return null;
     };
 
-    if (question?.type === "file" || question?.type === "radio-image") {
-      const fileData = resolveFileData(value);
-      if (fileData?.data) {
-        return (
-          <FilePreview data={fileData.data} fileName={fileData.fileName} />
-        );
-      }
-      if (fileData?.url) {
-        return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
-      }
+    // Always check for resolved file data first (handles camera JSON objects and file strings)
+    const fileData = resolveFileData(value);
+    if (fileData?.data) {
+      return (
+        <FilePreview data={fileData.data} fileName={fileData.fileName} />
+      );
+    }
+    if (fileData?.url) {
+      return <FilePreview url={fileData.url} fileName={fileData.fileName} />;
     }
 
     if (value === null || value === undefined) {
@@ -1747,48 +1752,31 @@ export default function AllResponses() {
     }
 
     if (typeof value === "string") {
-      if (value.startsWith("data:")) {
+      const trimmed = value.trim();
+      if (trimmed.startsWith("data:")) {
         return (
           <FilePreview
-            data={value}
+            data={trimmed}
             fileName={question?.fileName || question?.name}
           />
         );
       }
-      if (question?.type === "file" || question?.type === "radio-image") {
-        if (
-          value.startsWith("http") ||
-          value.startsWith("//") ||
-          value.startsWith("/") ||
-          value.startsWith("uploads/")
-        ) {
-          const absolute = ensureAbsoluteFileSource(value);
-          return (
-            <FilePreview
-              url={absolute}
-              fileName={
-                question?.fileName || question?.name || extractFileName(value)
-              }
-            />
-          );
-        }
+      if (isImageUrl(trimmed)) {
+        const absolute = ensureAbsoluteFileSource(trimmed);
+        return <FilePreview url={absolute} fileName={question?.fileName || question?.name || extractFileName(trimmed)} />;
       }
-      if (value.startsWith("http://") || value.startsWith("https://")) {
-        if (isImageUrl(value)) {
-          return <ImageLink text={value} />;
-        }
+      if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
         return (
           <a
-            href={value}
+            href={trimmed}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-600 hover:text-blue-800"
+            className="text-blue-600 hover:text-blue-800 underline break-all"
           >
-            {value}
+            {trimmed}
           </a>
         );
       }
-      const trimmed = value.trim();
       return trimmed ? (
         renderHighlightedAnswer(trimmed)
       ) : (

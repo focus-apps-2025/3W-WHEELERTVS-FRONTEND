@@ -83,7 +83,21 @@ export function isImageUrl(url: string): boolean {
     return false;
   }
 
-  const trimmed = url.trim().toLowerCase();
+  let trimmed = url.trim();
+
+  // If it's a JSON string, extract the url property and re-evaluate
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === "object" && parsed.url) {
+        return isImageUrl(String(parsed.url));
+      }
+    } catch {}
+    return false;
+  }
+
+  const lower = trimmed.toLowerCase();
+  const cleanUrl = lower.split("?")[0].split("#")[0];
 
   const imageExtensions = [
     ".jpg",
@@ -94,20 +108,25 @@ export function isImageUrl(url: string): boolean {
     ".bmp",
     ".svg",
   ];
-  if (imageExtensions.some((ext) => trimmed.endsWith(ext))) {
+  if (imageExtensions.some((ext) => cleanUrl.endsWith(ext))) {
     return true;
   }
 
-  if (trimmed.includes("drive.google.com")) {
+  if (lower.includes("drive.google.com")) {
     return true;
   }
 
   if (
-    trimmed.includes("imgur.com") ||
-    trimmed.includes("cloudinary.com") ||
-    trimmed.includes("s3.amazonaws.com") ||
-    trimmed.includes("cdn.") ||
-    trimmed.includes("cloudfront.net")
+    (lower.includes("imgur.com") ||
+      lower.includes("cloudinary.com") ||
+      lower.includes("s3.amazonaws.com") ||
+      lower.includes("cdn.") ||
+      lower.includes("cloudfront.net")) &&
+    (imageExtensions.some((ext) => cleanUrl.endsWith(ext)) ||
+      lower.includes("image") ||
+      lower.includes("camera") ||
+      lower.includes("photo") ||
+      lower.includes("uploads/"))
   ) {
     return true;
   }

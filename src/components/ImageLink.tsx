@@ -13,39 +13,49 @@ export default function ImageLink({ text, showImage = true }: ImageLinkProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string>('');
   const [isConverting, setIsConverting] = useState(false);
-  const trimmedText = String(text).trim();
+  
+  const rawText = String(text || '').trim();
+  let targetUrl = rawText;
+  if (rawText.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(rawText);
+      if (parsed && parsed.url) {
+        targetUrl = String(parsed.url).trim();
+      }
+    } catch {}
+  }
 
   useEffect(() => {
     const convertImage = async () => {
-      if (trimmedText.includes('drive.google.com')) {
+      if (targetUrl.includes('drive.google.com')) {
         setIsConverting(true);
         try {
-          const result = await apiClient.convertImageUrl(trimmedText);
+          const result = await apiClient.convertImageUrl(targetUrl);
           setImageUrl(result.cloudinaryUrl);
         } catch (error) {
           console.warn('Image conversion failed, using original:', error);
-          setImageUrl(trimmedText);
+          setImageUrl(targetUrl);
         } finally {
           setIsConverting(false);
         }
       } else {
-        setImageUrl(trimmedText);
+        setImageUrl(targetUrl);
       }
     };
 
-    if (trimmedText) {
+    if (targetUrl) {
       convertImage();
     }
-  }, [trimmedText]);
+  }, [targetUrl]);
 
-  if (!trimmedText) {
+  if (!targetUrl) {
     return null;
   }
 
-  const isImage = isImageUrl(trimmedText);
+  const isImage = isImageUrl(targetUrl);
 
   if (!isImage) {
-    return <span>{trimmedText}</span>;
+    return <span>{rawText}</span>;
   }
 
   if (!showImage) {
