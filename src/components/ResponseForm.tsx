@@ -318,70 +318,10 @@ export default function ResponseForm({ onSubmit }: ResponseFormProps) {
     questionId: string,
     searchValue: string,
   ) => {
-    if (!searchValue || searchValue.trim().length < 3) {
-      setSuggestedAnswers(null);
-      setLastSuggestionSource(null);
-      return;
-    }
-
-    if (
-      fetchingSuggestionsForId === questionId &&
-      lastSuggestionSource?.split(":")[1] === searchValue
-    ) {
-      return;
-    }
-
-    try {
-      setFetchingSuggestionsForId(questionId);
-
-      const result = await apiClient.getSuggestedAnswers(
-        id!,
-        questionId,
-        searchValue,
-        tenantSlug!,
-      );
-
-      setLastSuggestionSource(`${questionId}:${searchValue}`);
-
-      if (result && result.suggestedAnswers) {
-        const rawSuggestions = Array.isArray(result.suggestedAnswers)
-          ? result.suggestedAnswers
-          : [result.suggestedAnswers];
-
-        const normalize = (v: any) => String(v || "").trim().toLowerCase();
-        const searchValNormalized = normalize(searchValue);
-
-        const suggestions = rawSuggestions.filter((s: any) => {
-          const val = s.answers?.[questionId];
-          if (typeof val === "object" && val?.chassisNumber) {
-            return normalize(val.chassisNumber) === searchValNormalized;
-          }
-          return normalize(val) === searchValNormalized;
-        });
-
-        if (suggestions.length > 0) {
-          const firstRecord = suggestions[0]?.answers;
-          const nonEmptyAnswersCount = Object.values(firstRecord || {}).filter(
-            (v) => v !== null && v !== undefined && String(v).trim() !== "",
-          ).length;
-
-          setSuggestedAnswers(suggestions);
-          if (nonEmptyAnswersCount > 0) {
-            setSelectedRank(1);
-
-            
-          }
-        } else {
-          setSuggestedAnswers({ _no_match: true });
-        }
-      } else {
-        setSuggestedAnswers({ _no_match: true });
-      }
-    } catch (err) {
-      console.warn("[Suggestions] Failed to fetch suggestions:", err);
-    } finally {
-      setFetchingSuggestionsForId(null);
-    }
+    // Disabled previous suggestions as requested
+    setSuggestedAnswers(null);
+    setLastSuggestionSource(null);
+    return;
   };
 
   const getAvailableSections = () => {

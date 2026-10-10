@@ -865,6 +865,9 @@ export default function PreviewForm({
   };
 
   const fetchSuggestions = async (questionId: string, value: any) => {
+    setSuggestedAnswers(null);
+    setLastSuggestionSource(null);
+    return;
     if (!formId) return;
 
     const searchValue = (typeof value === 'object' && value?.chassisNumber) ? value.chassisNumber : value;
