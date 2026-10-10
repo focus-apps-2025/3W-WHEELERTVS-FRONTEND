@@ -960,20 +960,7 @@ export default function ResponseForm({ onSubmit }: ResponseFormProps) {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                {false && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSuggestedAnswers(null);
-                      setLastSuggestionSource(null);
-                      setSelectedRank(null);
-                    }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-600 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-amber-100 transition-all border border-amber-100"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                    Clear Suggestions
-                  </button>
-                )}
+                
                 <span className="text-[10px] font-bold text-neutral-400">
                   {currentSection?.title}
                 </span>

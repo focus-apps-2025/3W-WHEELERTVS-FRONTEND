@@ -2049,23 +2049,7 @@ export default function PreviewForm({
             )}
 
             <div className="flex items-center gap-4">
-              {suggestedAnswers && !suggestedAnswers._no_match && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSuggestedAnswers(null);
-                    setLastSuggestionSource(null);
-                    setSelectedRank(null);
-                  }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all border ${darkMode
-                      ? "bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20"
-                      : "bg-amber-50 text-amber-600 border-amber-100 hover:bg-amber-100"
-                    }`}
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Clear Suggestions
-                </button>
-              )}
+              
 
               <button
                 onClick={handleLoadSampleData}
