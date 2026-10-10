@@ -834,6 +834,19 @@ const recognizedYesNoValues = [
   "rework completed",
 ];
 
+
+const renderRankingBadge = (rank: number | undefined | null, answer: any, darkMode: boolean = false) => {
+  if (!rank || rank <= 0) return null;
+  return (
+    <span
+      className={`text-[10px] font-bold min-w-[24px] h-5 px-2 rounded-full flex items-center justify-center border shadow-2xs w-fit mt-1 gap-0.5 ${getRankStyle(answer, darkMode)}`}
+      title={`Ranking #${rank}`}
+    >
+      <span className="opacity-70 font-semibold text-[9px] uppercase tracking-wider">Ranking</span> #{rank}
+    </span>
+  );
+};
+
 const getRankStyle = (answer: any, darkMode: boolean = false) => {
   if (answer === null || answer === undefined) return "";
   // Ensure we stringify object/array answers for consistent hashing
@@ -13416,12 +13429,11 @@ export default function FormAnalyticsDashboard() {
                                             ) : (
                                               <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
                                                 {renderAnswerDisplay(answer, q)}
-                                                {false &&
-                                                  response.responseRanks?.[
-                                                  q.id
-                                                  ] && (
-                                                    <span
-                                                      className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(answer, darkMode)}`}
+                                                {renderRankingBadge(
+    response.responseRanks?.[q.id] || dynamicResponseRanks?.[response.id || (response as any)._id]?.[q.id],
+    answer,
+    darkMode
+  )}`}
                                                     >
                                                       #
                                                       {
@@ -13724,10 +13736,11 @@ export default function FormAnalyticsDashboard() {
                             ) : (
                               <span className="text-gray-400">No response</span>
                             )}
-                            {false &&
-                              selectedResponse.responseRanks?.[question.id] && (
-                                <span
-                                  className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}
+                            {renderRankingBadge(
+    selectedResponse.responseRanks?.[question.id] || dynamicResponseRanks?.[selectedResponse.id || (selectedResponse as any)._id]?.[question.id],
+    answer,
+    darkMode
+  )}`}
                                 >
                                   #{selectedResponse.responseRanks[question.id]}
                                 </span>
@@ -13765,12 +13778,11 @@ export default function FormAnalyticsDashboard() {
                                   No response
                                 </span>
                               )}
-                              {false &&
-                                selectedResponse.responseRanks?.[
-                                question.id
-                                ] && (
-                                  <span
-                                    className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}
+                              {renderRankingBadge(
+    selectedResponse.responseRanks?.[question.id] || dynamicResponseRanks?.[selectedResponse.id || (selectedResponse as any)._id]?.[question.id],
+    answer,
+    darkMode
+  )}`}
                                   >
                                     #
                                     {

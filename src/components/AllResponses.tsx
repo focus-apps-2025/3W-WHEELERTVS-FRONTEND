@@ -1447,7 +1447,20 @@ export default function AllResponses() {
     return stats.filter((stat): stat is SectionStat => Boolean(stat));
   }
 
-  const getRankStyle = (answer: any, darkMode: boolean = false) => {
+  
+const renderRankingBadge = (rank: number | undefined | null, answer: any, darkMode: boolean = false) => {
+  if (!rank || rank <= 0) return null;
+  return (
+    <span
+      className={`text-[10px] font-bold min-w-[24px] h-5 px-2 rounded-full flex items-center justify-center border shadow-2xs w-fit mt-1 gap-0.5 ${getRankStyle(answer, darkMode)}`}
+      title={`Ranking #${rank}`}
+    >
+      <span className="opacity-70 font-semibold text-[9px] uppercase tracking-wider">Ranking</span> #{rank}
+    </span>
+  );
+};
+
+const getRankStyle = (answer: any, darkMode: boolean = false) => {
     if (answer === null || answer === undefined) return "";
     // Ensure we stringify object/array answers for consistent hashing
     const str =
@@ -2973,13 +2986,11 @@ export default function AllResponses() {
                   )}
                   <div className="mt-3 text-slate-700 dark:text-slate-300 ml-4 sm:ml-7 text-base flex flex-col gap-1">
                     {renderAnswerDisplay(answer, question)}
-                    {selectedResponse.responseRanks?.[question.id] && (
-                      <div
-                        className={`mt-1 text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer, darkMode)}`}
-                      >
-                        #{selectedResponse.responseRanks[question.id]}
-                      </div>
-                    )}
+                    {renderRankingBadge(
+    selectedResponse.responseRanks?.[question.id] || dynamicResponseRanks?.[selectedResponse.id || (selectedResponse as any)._id]?.[question.id],
+    answer,
+    darkMode
+  )}
                   </div>
                   {question.followUpQuestions?.map((followUp: any) => {
                     const followAnswer = selectedResponse.answers[followUp.id];
@@ -3030,15 +3041,11 @@ export default function AllResponses() {
                           {hasAnswer ? (
                             <>
                               {renderAnswerDisplay(followAnswer, followUp)}
-                              {selectedResponse.responseRanks?.[
-                                followUp.id
-                              ] && (
-                                <div
-                                  className={`mt-1 text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(followAnswer, darkMode)}`}
-                                >
-                                  #{selectedResponse.responseRanks[followUp.id]}
-                                </div>
-                              )}
+                              {renderRankingBadge(
+    selectedResponse.responseRanks?.[followUp.id] || dynamicResponseRanks?.[selectedResponse.id || (selectedResponse as any)._id]?.[followUp.id],
+    followAnswer,
+    darkMode
+  )}
                             </>
                           ) : (
                             <span className="italic font-light">
