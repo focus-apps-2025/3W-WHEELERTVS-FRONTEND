@@ -2242,7 +2242,7 @@ export default function PreviewForm({
             </div>
 
             {/* Assistant Sidebar */}
-            {activeTrackQuestion && suggestedAnswers && !suggestedAnswers._no_match && (
+            {false && (
               <div className="hidden lg:block w-[380px] sticky top-24 animate-in fade-in slide-in-from-right-4 duration-500 z-20">
                 <div className={`rounded-2xl border ${darkMode ? "border-slate-800 bg-slate-900/40" : "border-slate-200 bg-white shadow-xl shadow-slate-200/50"} overflow-hidden backdrop-blur-sm`}>
                   <div className={`border-b ${darkMode ? "border-slate-800 bg-slate-900/60" : "border-slate-50 bg-slate-50/80"} px-6 py-4`}>
@@ -2346,7 +2346,7 @@ export default function PreviewForm({
         </div>
       </div>
       {/* Mobile Assistant Toggle */}
-      {activeTrackQuestion && suggestedAnswers && !suggestedAnswers._no_match && (
+      {false && (
         <button
           onClick={() => setShowMobileAssistant(true)}
           className="lg:hidden fixed bottom-24 right-6 z-50 p-4 rounded-full bg-blue-600 text-white shadow-2xl shadow-blue-500/40 animate-bounce transition-transform active:scale-95"

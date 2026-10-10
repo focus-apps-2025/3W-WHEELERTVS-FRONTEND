@@ -960,7 +960,7 @@ export default function ResponseForm({ onSubmit }: ResponseFormProps) {
                 </div>
               </div>
               <div className="flex items-center gap-4">
-                {suggestedAnswers && !suggestedAnswers._no_match && (
+                {false && (
                   <button
                     type="button"
                     onClick={() => {
