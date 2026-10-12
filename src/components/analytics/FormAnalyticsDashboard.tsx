@@ -835,17 +835,7 @@ const recognizedYesNoValues = [
 ];
 
 
-const renderRankingBadge = (rank: number | undefined | null, answer: any, darkMode: boolean = false) => {
-  if (!rank || rank <= 0) return null;
-  return (
-    <span
-      className={`text-[10px] font-bold min-w-[24px] h-5 px-2 rounded-full flex items-center justify-center border shadow-2xs w-fit mt-1 gap-0.5 ${getRankStyle(answer, darkMode)}`}
-      title={`Ranking #${rank}`}
-    >
-      <span className="opacity-70 font-semibold text-[9px] uppercase tracking-wider">Ranking</span> #{rank}
-    </span>
-  );
-};
+
 
 const getRankStyle = (answer: any, darkMode: boolean = false) => {
   if (answer === null || answer === undefined) return "";
@@ -903,6 +893,20 @@ const getRankStyle = (answer: any, darkMode: boolean = false) => {
   const color = colors[Math.abs(hash) % colors.length];
   return darkMode ? color.d : color.l;
 };
+
+const renderRankingBadge = (rank: number | undefined | null, answer: any, darkMode: boolean = false) => {
+  if (!rank || rank <= 0) return null;
+  return (
+    <span
+      className={`text-[10px] font-bold min-w-[24px] h-5 px-2 rounded-full inline-flex items-center justify-center border shadow-2xs w-fit mt-1 gap-1 ${getRankStyle(answer, darkMode)}`}
+      title={`Ranking #${rank}`}
+    >
+      <span className="opacity-70 font-semibold text-[9px] uppercase tracking-wider">Ranking</span>
+      <span>#${rank}</span>
+    </span>
+  );
+};
+
 const getBiwPerformanceLabel = (score: number) => {
   if (score < 60) {
     return {
@@ -5176,7 +5180,7 @@ export default function FormAnalyticsDashboard() {
           });
         }
 
-        const rank = (chassisQuestionId && r.responseRanks?.[chassisQuestionId]) || (index + 1);
+        const rank = index + 1;
         const biwStatus = r.biwReview?.status;
         const rawStatus = (r.status || "").trim();
 
@@ -5299,8 +5303,8 @@ export default function FormAnalyticsDashboard() {
 
       itemGroups[itemId].push(r);
       const attemptNumber = itemGroups[itemId].length;
-      const persistedRank = (chassisQuestionId && r.responseRanks?.[chassisQuestionId]) || (r.responseRanks && typeof r.responseRanks === 'object' ? Object.values(r.responseRanks).find((v: any) => typeof v === 'number' && v > 0) : null);
-      const finalRank = (typeof persistedRank === 'number' && persistedRank > 0 && persistedRank <= 200) ? persistedRank : attemptNumber;
+      // Chronological inspection attempt strictly per chassis/item (1 for 1st inspection, 2 for 2nd, etc. 1 for untracked)
+      const finalRank = itemId.startsWith("untracked-") ? 1 : attemptNumber;
       if (r.id) ranks[r.id] = finalRank;
       if ((r as any)._id) ranks[(r as any)._id] = finalRank;
     });
@@ -13262,9 +13266,6 @@ export default function FormAnalyticsDashboard() {
                                       const respId = response.id || (response as any)._id;
                                       const rank =
                                         chassisAttemptRanks[respId] ||
-                                        (response.responseRanks && typeof response.responseRanks === 'object'
-                                          ? (chassisQuestionId && response.responseRanks[chassisQuestionId]) || Object.values(response.responseRanks).find((v: any) => typeof v === 'number' && v > 0)
-                                          : null) ||
                                         1;
                                       const rowStatus =
                                         tableDisplayStatuses[respId] ||
@@ -13430,19 +13431,14 @@ export default function FormAnalyticsDashboard() {
                                               <div className="flex flex-col gap-1 max-w-[250px] overflow-auto max-h-[250px]">
                                                 {renderAnswerDisplay(answer, q)}
                                                 {renderRankingBadge(
-    response.responseRanks?.[q.id] || dynamicResponseRanks?.[response.id || (response as any)._id]?.[q.id],
-    answer,
-    darkMode
-  )}`}
-                                                    >
-                                                      #
-                                                      {
-                                                        response.responseRanks[
-                                                        q.id
-                                                        ]
-                                                      }
-                                                    </span>
-                                                  )}
+                                                  response.responseRanks?.[q.id] ||
+                                                    (q.id === chassisQuestionId ||
+                                                     (q.text && /identification|chassis|id\s*number/i.test(q.text))
+                                                      ? chassisAttemptRanks[response.id || (response as any)._id]
+                                                      : null),
+                                                  answer,
+                                                  darkMode
+                                                )}
                                               </div>
                                             )}
                                           </td>
@@ -13732,19 +13728,21 @@ export default function FormAnalyticsDashboard() {
                           </p>
                           <div className="text-gray-900 dark:text-gray-100 flex flex-col gap-1">
                             {hasAnswerValue(answer) ? (
-                              renderAnswerDisplay(answer, question)
+                              <>
+                                {renderAnswerDisplay(answer, question)}
+                                {renderRankingBadge(
+                                  selectedResponse.responseRanks?.[question.id] ||
+                                    (question.id === chassisQuestionId ||
+                                     (question.text && /identification|chassis|id\s*number/i.test(question.text))
+                                      ? chassisAttemptRanks[selectedResponse.id || (selectedResponse as any)._id]
+                                      : null),
+                                  answer,
+                                  darkMode
+                                )}
+                              </>
                             ) : (
                               <span className="text-gray-400">No response</span>
                             )}
-                            {renderRankingBadge(
-    selectedResponse.responseRanks?.[question.id] || dynamicResponseRanks?.[selectedResponse.id || (selectedResponse as any)._id]?.[question.id],
-    answer,
-    darkMode
-  )}`}
-                                >
-                                  #{selectedResponse.responseRanks[question.id]}
-                                </span>
-                              )}
                           </div>
                         </div>
                       );
@@ -13772,26 +13770,23 @@ export default function FormAnalyticsDashboard() {
                             </p>
                             <div className="text-gray-900 dark:text-gray-100 flex flex-col gap-1">
                               {hasAnswerValue(answer) ? (
-                                renderAnswerDisplay(answer, question)
+                                <>
+                                  {renderAnswerDisplay(answer, question)}
+                                  {renderRankingBadge(
+                                    selectedResponse.responseRanks?.[question.id] ||
+                                      (question.id === chassisQuestionId ||
+                                       (question.text && /identification|chassis|id\s*number/i.test(question.text))
+                                        ? chassisAttemptRanks[selectedResponse.id || (selectedResponse as any)._id]
+                                        : null),
+                                    answer,
+                                    darkMode
+                                  )}
+                                </>
                               ) : (
                                 <span className="text-gray-400">
                                   No response
                                 </span>
                               )}
-                              {renderRankingBadge(
-    selectedResponse.responseRanks?.[question.id] || dynamicResponseRanks?.[selectedResponse.id || (selectedResponse as any)._id]?.[question.id],
-    answer,
-    darkMode
-  )}`}
-                                  >
-                                    #
-                                    {
-                                      selectedResponse.responseRanks[
-                                      question.id
-                                      ]
-                                    }
-                                  </span>
-                                )}
                             </div>
                           </div>
                         );

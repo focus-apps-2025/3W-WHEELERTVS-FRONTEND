@@ -646,6 +646,7 @@ export default function FileInput({
                     }`}
                   >
                     With Location
+                  </button>
                 </div>
               </div>
 

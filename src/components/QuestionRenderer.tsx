@@ -213,7 +213,18 @@ export default function QuestionRenderer({
   const imageUrl = getGoogleDriveDirectLink(question.imageUrl || "");
   const isImage = isImageUrl(imageUrl);
 
-  const isRankTrackingEnabled = false;
+  const isRankTrackingEnabled =
+    question.trackResponseRank === true ||
+    String(question.trackResponseRank) === "true" ||
+    question.trackResponseQuestion === true ||
+    String(question.trackResponseQuestion) === "true" ||
+    question.type === "chassis" ||
+    question.type === "chassisWithZone" ||
+    question.type === "chassisWithoutZone" ||
+    Boolean(
+      question.text &&
+      /identification|chassis|id\s*number|id_number|id\s*no|vin|serial/i.test(question.text)
+    );
 
   const isQuestionTrackingEnabled =
     question.trackResponseQuestion === true ||
@@ -228,7 +239,7 @@ export default function QuestionRenderer({
   // Determine which value to use for fetching rank
   const effectiveTrackingValue = useMemo(() => {
     const val =
-      isQuestionTrackingEnabled && trackingValue ? trackingValue : value;
+      trackingValue || value;
     if (typeof val === "object" && val !== null) {
       return (val as any).chassisNumber || (val as any).value || (val as any).text || (val as any).chassis || "";
     }
@@ -1211,159 +1222,26 @@ export default function QuestionRenderer({
           <div className="flex items-center gap-2">
             {questionText}
             {question.required && <span className="text-red-500">*</span>}
+            {loadingRank && (
+              <span className="ml-2 inline-flex items-center">
+                <span className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full"></span>
+              </span>
+            )}
+            {typeof rank === "number" && rank > 0 && (
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold border shadow-xs ml-2 ${
+                  rank === 1
+                    ? (darkMode ? "bg-blue-900/40 text-blue-300 border-blue-700" : "bg-blue-100 text-blue-800 border-blue-300")
+                    : (darkMode ? "bg-amber-900/40 text-amber-300 border-amber-700" : "bg-amber-100 text-amber-800 border-amber-300")
+                }`}
+                title={`Identification / Chassis Attempt #${rank}`}
+              >
+                #{rank}
+              </span>
+            )}
           </div>
-          {loadingRank && (
-            <span className="ml-2 inline-flex items-center">
-              <span className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full"></span>
-            </span>
-          )}
-          {typeof rank === "number" && rank > 0 && (
-            <div className="flex flex-col gap-1 ml-2">
-              {(question.trackResponseQuestionLabel) && (
-                <span
-                  className={`text-[9px] font-bold uppercase tracking-wider ${isApplied ? (darkMode ? "text-emerald-400" : "text-emerald-600") : darkMode ? "text-blue-400" : "text-blue-600"}`}
-                >
-                  {question.trackResponseQuestionLabel}
-                </span>
-              )}
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={`inline-flex items-center px-1.5 min-w-[22px] h-5 rounded-full border text-[10px] justify-center font-bold ${isApplied ? (darkMode ? "bg-emerald-900/30 text-emerald-300 border-emerald-800" : "bg-emerald-50 text-emerald-700 border-emerald-200") : getRankStyle(effectiveTrackingValue, darkMode)}`}
-                >
-                  #{rank}
-                </span>
-              </div>
-            </div>
-          )}
 
-          {/* Inline suggestions: show when global rank exists OR when this question has local rank */}
-          {((typeof rank === "number" && rank > 0) || (typeof currentRank === "number" && currentRank > 0)) && !isQuestionTrackingEnabled && (
-                        ((typeof currentRank === "number" && currentRank > 0) ) && (
-              <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex flex-wrap gap-1.5">
-                  {(() => {
-                    const normalize = (s: string) =>
-                      String(s || "")
-                        .toLowerCase()
-                        .replace(/_tracking$/, "")
-                        .replace(/^_/, "")
-                        .trim();
-
-                    const formatVal = (val: any) => {
-                      if (val === null || val === undefined) return "";
-                      if (typeof val === "object") {
-                        if (Array.isArray(val)) return val.join(", ");
-                        
-                        // Handle common object structures by joining non-empty properties
-                        const parts: string[] = [];
-                        if (val.status) {
-                          parts.push(String(val.status));
-                        }
-                        if (val.chassisNumber) parts.push(String(val.chassisNumber));
-                        if (val.zone && String(val.zone).length > 0) parts.push(`Zone: ${Array.isArray(val.zone) ? val.zone.join(', ') : val.zone}`);
-                        
-                        // Handle hierarchical zonesData if present
-                        if (val.zonesData) {
-                          Object.entries(val.zonesData).forEach(([zoneName, zoneData]: [string, any]) => {
-                            if (zoneData.categories && Array.isArray(zoneData.categories)) {
-                              zoneData.categories.forEach((cat: any) => {
-                                if (cat.defects && Array.isArray(cat.defects) && cat.defects.length > 0) {
-                                  parts.push(`${zoneName} - ${cat.name}: ${cat.defects.join(', ')}`);
-                                }
-                              });
-                            }
-                          });
-                        }
-
-                        if (val.defectCategory) {
-                          const cats = Array.isArray(val.defectCategory) ? val.defectCategory : [val.defectCategory];
-                          if (cats.length > 0) parts.push(`Cat: ${cats.join(', ')}`);
-                        }
-                        if (val.defects && Array.isArray(val.defects) && val.defects.length > 0) {
-                          parts.push(`Defects: ${val.defects.join(', ')}`);
-                        }
-                        
-                        if (parts.length > 0) return parts.join(" | ");
-                        
-                        try {
-                          // Filter out empty strings from values when stringifying
-                          const cleanedObj = Object.fromEntries(
-                            Object.entries(val).filter(([_, v]) => v !== "" && v !== null && v !== undefined)
-                          );
-                          if (Object.keys(cleanedObj).length === 0) return "";
-                          return JSON.stringify(cleanedObj);
-                        } catch {
-                          return "Object";
-                        }
-                      }
-                      
-                      return String(val);
-                    };
-
-                    const targetKey = normalize(question.id || (question as any)._id);
-                    const groupedRecords = new Map<string, { ranks: number[], rawValue: any }>();
-
-                    // Collect and group records by formatted value to avoid repetition
-                    if (Array.isArray(suggestedAnswers)) {
-                      suggestedAnswers.forEach((s: any) => {
-                        const answers = s.answers || {};
-                        const matchKey = Object.keys(answers).find(k => normalize(k) === targetKey);
-                        const matchVal = matchKey ? answers[matchKey] : null;
-
-                        if (matchVal !== null && matchVal !== undefined && String(matchVal).trim() !== "") {
-                          const displayVal = formatVal(matchVal);
-                          if (displayVal && displayVal.trim() !== "") {
-                            const existing = groupedRecords.get(displayVal);
-                            if (existing) {
-                              existing.ranks.push(s.rank || 0);
-                            } else {
-                              groupedRecords.set(displayVal, { ranks: [s.rank || 0], rawValue: matchVal });
-                            }
-                          }
-                        }
-                      });
-                    }
-
-                    if (groupedRecords.size === 0) return null;
-
-                    const getRankColor = (rank: number) => {
-                      switch (rank) {
-                        case 1: return "bg-emerald-500 text-white";
-                        case 2: return "bg-blue-500 text-white";
-                        case 3: return "bg-amber-500 text-white";
-                        default: return "bg-slate-500 text-white";
-                      }
-                    };
-
-                    return (
-                      <div className="flex flex-col gap-2 w-full mt-2">
-                        {Array.from(groupedRecords.entries()).map(([displayVal, data], idx) => {
-                          return (
-                            <div key={`grouped-rec-${idx}`} className="flex flex-col gap-1.5 p-2 rounded-lg border border-blue-100/50 dark:border-blue-800/20 bg-blue-50/50 dark:bg-blue-900/10">
-                              <div className="flex flex-wrap gap-1 items-center">
-                                {data.ranks.sort((a,b) => a-b).map(r => (
-                                  <span key={`rank-tag-${r}`} className={`flex items-center justify-center px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter ${getRankColor(r)}`}>
-                                    #{r}
-                                  </span>
-                                ))}
-                                <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 ml-1">
-                                  Historical Record
-                                </span>
-                              </div>
-                              <div className={`text-[10px] font-bold leading-relaxed ${darkMode ? "text-slate-300" : "text-slate-700"}`}>
-                                {displayVal}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            )
-          )}
-        </label>
+          </label>
       ) : null}
       {question.description ? (
         <p

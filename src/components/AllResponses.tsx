@@ -2986,11 +2986,7 @@ const getRankStyle = (answer: any, darkMode: boolean = false) => {
                   )}
                   <div className="mt-3 text-slate-700 dark:text-slate-300 ml-4 sm:ml-7 text-base flex flex-col gap-1">
                     {renderAnswerDisplay(answer, question)}
-                    {renderRankingBadge(
-    selectedResponse.responseRanks?.[question.id] || dynamicResponseRanks?.[selectedResponse.id || (selectedResponse as any)._id]?.[question.id],
-    answer,
-    darkMode
-  )}
+                    {renderRankingBadge(selectedResponse.responseRanks?.[question.id], answer, darkMode)}
                   </div>
                   {question.followUpQuestions?.map((followUp: any) => {
                     const followAnswer = selectedResponse.answers[followUp.id];
@@ -3041,11 +3037,7 @@ const getRankStyle = (answer: any, darkMode: boolean = false) => {
                           {hasAnswer ? (
                             <>
                               {renderAnswerDisplay(followAnswer, followUp)}
-                              {renderRankingBadge(
-    selectedResponse.responseRanks?.[followUp.id] || dynamicResponseRanks?.[selectedResponse.id || (selectedResponse as any)._id]?.[followUp.id],
-    followAnswer,
-    darkMode
-  )}
+                              {renderRankingBadge(selectedResponse.responseRanks?.[followUp.id], followAnswer, darkMode)}
                             </>
                           ) : (
                             <span className="italic font-light">

@@ -1374,10 +1374,6 @@ class ApiClient {
     answer: any,
     tenantSlug?: string,
   ) {
-    const endpoint = tenantSlug
-      ? `/responses/${tenantSlug}/forms/${formId}/rank`
-      : `/responses/rank`;
-
     let answerStr = "";
     if (answer !== null && answer !== undefined) {
       if (typeof answer === "object") {
@@ -1402,10 +1398,23 @@ class ApiClient {
       answer: answerStr,
     });
 
-    const res = await this.request<any>(
-      `${endpoint}?${queryParams.toString()}`,
-      { forceNetwork: true }
-    );
+    const slug = tenantSlug || "default";
+    let res: any;
+    try {
+      res = await this.request<any>(
+        `/responses/${slug}/forms/${formId}/rank?${queryParams.toString()}`,
+        { forceNetwork: true }
+      );
+    } catch (err) {
+      try {
+        res = await this.request<any>(
+          `/responses/rank?${queryParams.toString()}`,
+          { forceNetwork: true }
+        );
+      } catch (e) {
+        // fallback failed
+      }
+    }
 
     const rankVal = res?.data?.rank ?? res?.rank ?? 1;
     return { rank: Number(rankVal) || 1 };
