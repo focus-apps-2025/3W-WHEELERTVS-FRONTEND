@@ -817,12 +817,28 @@ export default function PreviewForm({
       return qId === normalizedQId || qId.toLowerCase() === normalizedQId.toLowerCase() || normalizeKey(qId) === normalizedTarget;
     });
 
-    // Only fetch suggestions if trackResponseQuestion is enabled
-    const isTrackQuestionEnabled = question && (
-      question.trackResponseQuestion === true ||
-      String(question.trackResponseQuestion) === "true"
+    // Fetch suggestions if question has tracking enabled or is a chassis/identification field
+    const isAnyTrackingEnabled = Boolean(
+      question && (
+        question.trackResponseQuestion === true ||
+        String(question.trackResponseQuestion) === "true" ||
+        question.trackResponseRank === true ||
+        String(question.trackResponseRank) === "true" ||
+        question.type === "chassis" ||
+        question.type === "chassis-with-zone" ||
+        question.type === "chassis-without-zone" ||
+        question.type === "chassisWithZone" ||
+        question.type === "chassisWithoutZone" ||
+        Boolean(
+          question.text &&
+          /identification|chassis|id\s*number|id_number|id\s*no|vin|serial/i.test(question.text)
+        ) ||
+        Boolean(
+          normalizedQId &&
+          /identification|chassis|id_number|vin|serial/i.test(normalizedQId)
+        )
+      )
     );
-    const isAnyTrackingEnabled = isTrackQuestionEnabled;
 
     if (fetchingSuggestionsForId !== questionId) {
       setPreviousUniqueAnswers([]);
@@ -865,33 +881,17 @@ export default function PreviewForm({
   };
 
   const fetchSuggestions = async (questionId: string, value: any) => {
-    setSuggestedAnswers(null);
-    setLastSuggestionSource(null);
-    return;
     if (!formId) return;
 
     const searchValue = (typeof value === 'object' && value?.chassisNumber) ? value.chassisNumber : value;
+    if (!searchValue || String(searchValue).trim() === "") {
+      setSuggestedAnswers(null);
+      setLastSuggestionSource(null);
+      return;
+    }
 
-    const getExistingSuggestion = (qId: string) => {
-      if (!suggestedAnswers) return null;
-      const normalize = (s: string) => String(s || "").toLowerCase().replace(/_tracking$/, "").replace(/^_/, "").trim();
-      const target = normalize(qId);
-      if (Array.isArray(suggestedAnswers)) {
-        if (suggestedAnswers.length === 0) return null;
-        const firstRecord = suggestedAnswers[0].answers;
-        const matchKey = Object.keys(firstRecord).find(k => normalize(k) === target);
-        return matchKey ? firstRecord[matchKey] : null;
-      }
-      if (suggestedAnswers[qId] !== undefined) return suggestedAnswers[qId];
-      const matchKey = Object.keys(suggestedAnswers).find(k => normalize(k) === target);
-      return matchKey ? suggestedAnswers[matchKey] : null;
-    };
-
-    const currentMatchingSuggestion = getExistingSuggestion(questionId);
     const searchSource = `${questionId}:${searchValue}`;
-    if (lastSuggestionSource === searchSource ||
-      (currentMatchingSuggestion !== null &&
-        String(currentMatchingSuggestion).trim().toLowerCase() === String(searchValue).trim().toLowerCase())) {
+    if (lastSuggestionSource === searchSource) {
       return;
     }
 
@@ -913,34 +913,20 @@ export default function PreviewForm({
       if (result && result.suggestedAnswers) {
         const rawSuggestions = Array.isArray(result.suggestedAnswers) ? result.suggestedAnswers : [];
 
-        // Exact match filter: only show if the triggering question's value matches exactly
-        const normalize = (v: any) => String(v || "").trim().toLowerCase();
-        const searchValNormalized = normalize(searchValue);
-
-        const suggestions = rawSuggestions.filter(s => {
-          const val = s.answers?.[questionId];
-          if (typeof val === 'object' && val?.chassisNumber) {
-            return normalize(val.chassisNumber) === searchValNormalized;
-          }
-          return normalize(val) === searchValNormalized;
-        });
-
-        const totalAnswersCount = suggestions.length;
-        const hasSubstantialData = totalAnswersCount > 0;
-
-        setSuggestedAnswers(suggestions);
-        if (hasSubstantialData && suggestions[0]) {
-          setSelectedRank(1);
-          setGlobalRankAnswers(suggestions[0].answers || null);
-          setGlobalRank(suggestions[0].rank || 1);
-          showSuccess(`${totalAnswersCount} previous records found!`);
+        if (rawSuggestions.length > 0) {
+          setSuggestedAnswers(rawSuggestions);
+          const latest = rawSuggestions[rawSuggestions.length - 1];
+          setSelectedRank(latest?.rank || rawSuggestions.length);
+          setGlobalRankAnswers(latest?.answers || null);
+          setGlobalRank(latest?.rank || rawSuggestions.length);
+          showSuccess(`${rawSuggestions.length} previous inspection record${rawSuggestions.length > 1 ? "s" : ""} found for "${searchValue}"!`);
         } else {
-          setSuggestedAnswers({ _no_match: true });
+          setSuggestedAnswers(null);
           setGlobalRankAnswers(null);
           setGlobalRank(null);
         }
       } else {
-        setSuggestedAnswers({ _no_match: true });
+        setSuggestedAnswers(null);
         setGlobalRankAnswers(null);
         setGlobalRank(null);
       }
@@ -2201,6 +2187,46 @@ export default function PreviewForm({
                               )}
                             </div>
                           )}
+                          {suggestedAnswers && Array.isArray(suggestedAnswers) && suggestedAnswers.length > 0 && (
+                            <div className={`p-4 rounded-2xl border mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
+                              darkMode ? "bg-blue-950/40 border-blue-800 text-blue-200" : "bg-blue-50 border-blue-200 text-blue-900"
+                            }`}>
+                              <div className="flex items-center gap-3">
+                                <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-md flex items-center justify-center">
+                                  <Sparkles className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-black uppercase tracking-wider">
+                                      Historical Data Available
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-600 text-white">
+                                      {suggestedAnswers.length} Previous Attempt{suggestedAnswers.length > 1 ? "s" : ""}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                                    Previous inspection records exist in the database for this chassis. Click to reuse the data.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const latest = suggestedAnswers[suggestedAnswers.length - 1];
+                                    if (latest?.answers) {
+                                      applySuggestions(latest.answers, undefined, latest.rank);
+                                      showSuccess(`Applied Attempt #${latest.rank || suggestedAnswers.length} data to form!`);
+                                    }
+                                  }}
+                                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                  Reuse Attempt #{suggestedAnswers[suggestedAnswers.length - 1]?.rank || suggestedAnswers.length} Data
+                                </button>
+                              </div>
+                            </div>
+                          )}
                           <SectionContent
                             section={section}
                             formTitle={form.title}
@@ -2226,7 +2252,7 @@ export default function PreviewForm({
             </div>
 
             {/* Assistant Sidebar */}
-            {false && (
+            {Boolean(suggestedAnswers && Array.isArray(suggestedAnswers) && suggestedAnswers.length > 0) && (
               <div className="hidden lg:block w-[380px] sticky top-24 animate-in fade-in slide-in-from-right-4 duration-500 z-20">
                 <div className={`rounded-2xl border ${darkMode ? "border-slate-800 bg-slate-900/40" : "border-slate-200 bg-white shadow-xl shadow-slate-200/50"} overflow-hidden backdrop-blur-sm`}>
                   <div className={`border-b ${darkMode ? "border-slate-800 bg-slate-900/60" : "border-slate-50 bg-slate-50/80"} px-6 py-4`}>
@@ -2330,7 +2356,7 @@ export default function PreviewForm({
         </div>
       </div>
       {/* Mobile Assistant Toggle */}
-      {false && (
+      {Boolean(suggestedAnswers && Array.isArray(suggestedAnswers) && suggestedAnswers.length > 0) && (
         <button
           onClick={() => setShowMobileAssistant(true)}
           className="lg:hidden fixed bottom-24 right-6 z-50 p-4 rounded-full bg-blue-600 text-white shadow-2xl shadow-blue-500/40 animate-bounce transition-transform active:scale-95"

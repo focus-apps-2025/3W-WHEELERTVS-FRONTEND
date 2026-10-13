@@ -408,16 +408,7 @@ export default function QuestionRenderer({
     })();
 
   const renderSuggestions = () => {
-    if (readOnly || !shouldShowMatchInfo) return null;
-
-    // Inline suggestions (Rank History and Common Answers) should show
-    // if we have matches from the "Track Rank" fetch (form-wide fetch)
-    // OR if we have matches from "Track Question" question-wise fetch.
-    // HOWEVER, if trackResponseQuestion is enabled, we show them in the Assistant sidebar instead (on Desktop).
-    // On Mobile, we still show them inline because sidebar is not visible.
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-    if (isQuestionTrackingEnabled && !isMobile) return null;
-
+    if (readOnly) return null;
     if (!hasRanked && !hasPrevious) return null;
 
     const formatSuggestionValue = (val: any) => {
@@ -459,7 +450,41 @@ export default function QuestionRenderer({
     };
 
     return (
-      <div className="mt-2 space-y-2 animate-in fade-in slide-in-from-top-1 duration-300">
+      <div className="mt-2 space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-300">
+        {hasRanked && Array.isArray(suggestedMatches) && suggestedMatches.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 mr-1 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-blue-500" /> Historical:
+            </span>
+            {suggestedMatches.map((m, idx) => {
+              const displayVal = formatSuggestionValue(m.value);
+              if (!displayVal) return null;
+              const isCurrentVal = typeof m.value === 'object'
+                ? JSON.stringify(m.value) === JSON.stringify(value)
+                : String(value) === String(m.value);
+              return (
+                <button
+                  key={`hist-${idx}`}
+                  type="button"
+                  onClick={() => onChange && onChange(m.value)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all hover:scale-105 active:scale-95 ${
+                    isCurrentVal
+                      ? (darkMode ? "bg-emerald-950/60 border-emerald-600 text-emerald-300 ring-2 ring-emerald-500/20" : "bg-emerald-50 border-emerald-300 text-emerald-800 ring-2 ring-emerald-500/20")
+                      : (darkMode ? "bg-slate-800/80 border-slate-700 text-slate-300 hover:border-blue-500 hover:text-blue-300" : "bg-white border-slate-200 text-slate-700 hover:border-blue-400 hover:text-blue-700 shadow-xs")
+                  }`}
+                  title={`Click to reuse Attempt #${m.rank} value`}
+                >
+                  <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase ${
+                    m.rank === 1 ? "bg-emerald-500 text-white" : m.rank === 2 ? "bg-blue-500 text-white" : "bg-amber-500 text-white"
+                  }`}>
+                    #{m.rank}
+                  </span>
+                  <span className="truncate max-w-[200px]">{displayVal}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
