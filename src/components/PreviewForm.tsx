@@ -869,7 +869,9 @@ export default function PreviewForm({
       typeof value === "number" ||
       ((question?.type === "chassis-with-zone" || question?.type === "chassis-without-zone") && value?.chassisNumber?.trim().length >= 1);
 
-        if (isMeaningful && formId && !isAlreadySuggested && isAnyTrackingEnabled) {
+    // Suggestions & historical records logic commented out
+    /*
+    if (isMeaningful && formId && !isAlreadySuggested && isAnyTrackingEnabled) {
       const timeoutId = (window as any)._suggestionTimeout;
       if (timeoutId) clearTimeout(timeoutId);
       (window as any)._suggestionTimeout = setTimeout(() => {
@@ -879,9 +881,13 @@ export default function PreviewForm({
         }
       }, 800);
     }
+    */
   };
 
   const fetchSuggestions = async (questionId: string, value: any) => {
+    // Suggestions & historical records logic commented out
+    return;
+    /*
     if (!formId) return;
 
     const searchValue = (typeof value === 'object' && value?.chassisNumber) ? value.chassisNumber : value;
@@ -956,6 +962,7 @@ export default function PreviewForm({
       const fetchSource = `${questionId}:${searchValue}`;
       setFetchingSuggestionsForId((prev) => prev === fetchSource ? null : prev);
     }
+    */
   };
 
   const applySuggestions = (specificAnswers?: Record<string, any>, targetQuestionId?: string, rank?: number) => {
@@ -1481,6 +1488,9 @@ export default function PreviewForm({
   };
 
   const renderAssistantContent = () => {
+    // Attempt history assistant commented out
+    return null;
+    /*
     if (!suggestedAnswers || suggestedAnswers._no_match) return null;
 
     if (fetchingSuggestionsForId) {
@@ -1688,6 +1698,7 @@ export default function PreviewForm({
         </div>
       </div>
     );
+    */
   };
 
   const isLastSection = (() => {
@@ -2207,7 +2218,8 @@ export default function PreviewForm({
                               )}
                             </div>
                           )}
-                          {suggestedAnswers && Array.isArray(suggestedAnswers) && suggestedAnswers.length > 0 && (
+                          {/* Historical Data Available banner commented out
+                          suggestedAnswers && Array.isArray(suggestedAnswers) && suggestedAnswers.length > 0 && (
                             <div className={`p-4 rounded-2xl border mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 ${
                               darkMode ? "bg-blue-950/40 border-blue-800 text-blue-200" : "bg-blue-50 border-blue-200 text-blue-900"
                             }`}>
@@ -2246,7 +2258,8 @@ export default function PreviewForm({
                                 </button>
                               </div>
                             </div>
-                          )}
+                          )
+                          */}
                           <SectionContent
                             section={section}
                             formTitle={form.title}
@@ -2271,8 +2284,8 @@ export default function PreviewForm({
               </form>
             </div>
 
-            {/* Assistant Sidebar */}
-            {Boolean(suggestedAnswers && Array.isArray(suggestedAnswers) && suggestedAnswers.length > 0) && (
+            {/* Assistant Sidebar commented out
+            Boolean(suggestedAnswers && Array.isArray(suggestedAnswers) && suggestedAnswers.length > 0) && (
               <div className="hidden lg:block w-[380px] sticky top-24 animate-in fade-in slide-in-from-right-4 duration-500 z-20">
                 <div className={`rounded-2xl border ${darkMode ? "border-slate-800 bg-slate-900/40" : "border-slate-200 bg-white shadow-xl shadow-slate-200/50"} overflow-hidden backdrop-blur-sm`}>
                   <div className={`border-b ${darkMode ? "border-slate-800 bg-slate-900/60" : "border-slate-50 bg-slate-50/80"} px-6 py-4`}>
@@ -2289,7 +2302,8 @@ export default function PreviewForm({
                   {renderAssistantContent()}
                 </div>
               </div>
-            )}
+            )
+            */}
           </div>
         </div>
       </div>
@@ -2375,8 +2389,9 @@ export default function PreviewForm({
           </div>
         </div>
       </div>
-      {/* Mobile Assistant Toggle */}
-      {Boolean(suggestedAnswers && Array.isArray(suggestedAnswers) && suggestedAnswers.length > 0) && (
+
+      {/* Mobile Assistant Toggle commented out
+      Boolean(suggestedAnswers && Array.isArray(suggestedAnswers) && suggestedAnswers.length > 0) && (
         <button
           onClick={() => setShowMobileAssistant(true)}
           className="lg:hidden fixed bottom-24 right-6 z-50 p-4 rounded-full bg-blue-600 text-white shadow-2xl shadow-blue-500/40 animate-bounce transition-transform active:scale-95"
@@ -2388,17 +2403,17 @@ export default function PreviewForm({
             </span>
           )}
         </button>
-      )}
+      )
+      */}
 
-      {/* Mobile Assistant Modal */}
-      {showMobileAssistant && (
+      {/* Mobile Assistant Modal commented out
+      showMobileAssistant && (
         <div className="lg:hidden fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div
             className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-300"
             onClick={() => setShowMobileAssistant(false)}
           />
           <div className={`relative w-full sm:max-w-lg max-h-[90vh] overflow-hidden rounded-t-3xl sm:rounded-3xl border-t sm:border border-slate-200 dark:border-slate-800 ${darkMode ? "bg-slate-900 shadow-2xl shadow-black" : "bg-white shadow-2xl"} animate-in slide-in-from-bottom-full duration-500 flex flex-col`}>
-            {/* Modal Header */}
             <div className={`p-4 border-b flex items-center justify-between sticky top-0 z-10 ${darkMode ? "bg-slate-900/95 border-slate-800" : "bg-white/95 border-slate-100"} backdrop-blur-md`}>
               <div className="flex items-center gap-3">
                 <div className={`p-2 rounded-lg ${darkMode ? "bg-blue-500/20" : "bg-blue-50"}`}>
@@ -2417,13 +2432,13 @@ export default function PreviewForm({
               </button>
             </div>
 
-            {/* Modal Content */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
               {renderAssistantContent()}
             </div>
           </div>
         </div>
-      )}
+      )
+      */}
     </div>
   );
 }

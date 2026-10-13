@@ -416,6 +416,9 @@ export default function QuestionRenderer({
     })();
 
   const renderSuggestions = () => {
+    // Historical suggestion badges commented out
+    return null;
+    /*
     if (readOnly) return null;
     if (!hasRanked && !hasPrevious) return null;
 
@@ -482,13 +485,6 @@ export default function QuestionRenderer({
                   }`}
                   title="Click to reuse Historical value"
                 >
-                  {/* Track ranking badge commented out
-                  <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase ${
-                    m.rank === 1 ? "bg-emerald-500 text-white" : m.rank === 2 ? "bg-blue-500 text-white" : "bg-amber-500 text-white"
-                  }`}>
-                    #{m.rank}
-                  </span>
-                  */}
                   <span className="truncate max-w-[200px]">{displayVal}</span>
                 </button>
               );
@@ -497,6 +493,7 @@ export default function QuestionRenderer({
         )}
       </div>
     );
+    */
   };
 
   const renderLoadingIndicator = () => {

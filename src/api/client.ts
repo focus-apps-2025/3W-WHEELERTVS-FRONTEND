@@ -1464,6 +1464,9 @@ class ApiClient {
     answer: any,
     tenantSlug?: string,
   ) {
+    // Suggested answers & historical attempts commented out
+    return { suggestedAnswers: null };
+    /*
     const endpoint = tenantSlug
       ? `/responses/${tenantSlug}/forms/${formId}/suggestions`
       : `/responses/suggestions`;
@@ -1478,6 +1481,7 @@ class ApiClient {
       `${endpoint}?${queryParams.toString()}`,
       { forceNetwork: true }
     );
+    */
   }
 
   async getQuestionPreviousAnswers(
