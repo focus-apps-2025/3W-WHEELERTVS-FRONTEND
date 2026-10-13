@@ -263,7 +263,7 @@ export default function QuestionRenderer({
             effectiveTrackingValue,
             tenantSlug,
           );
-          if (response && typeof response.rank === "number") {
+          if (response && typeof response.rank === "number" && response.rank > 1) {
             setRank(response.rank);
           } else {
             setRank(null);
@@ -1227,7 +1227,7 @@ export default function QuestionRenderer({
                 <span className="animate-spin h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full"></span>
               </span>
             )}
-            {typeof rank === "number" && rank > 0 && (
+            {typeof rank === "number" && rank > 1 && (
               <span
                 className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold border shadow-xs ml-2 ${
                   rank === 1

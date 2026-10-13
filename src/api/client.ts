@@ -1389,7 +1389,7 @@ class ApiClient {
     }
 
     if (!answerStr || answerStr === "[object Object]" || answerStr === "undefined") {
-      return { rank: 1 };
+      return { rank: null, count: 0, exists: false };
     }
 
     const queryParams = new URLSearchParams({
@@ -1416,8 +1416,16 @@ class ApiClient {
       }
     }
 
-    const rankVal = res?.data?.rank ?? res?.rank ?? 1;
-    return { rank: Number(rankVal) || 1 };
+    const rankVal = res?.data?.rank ?? res?.rank;
+    const countVal = res?.data?.count ?? 0;
+    const exists = res?.data?.exists ?? (countVal > 0);
+    const numRank = typeof rankVal === "number" && !isNaN(rankVal) ? rankVal : (rankVal ? Number(rankVal) : null);
+
+    return {
+      rank: numRank && numRank > 1 ? numRank : null,
+      count: countVal,
+      exists: Boolean(exists),
+    };
   }
 
   async getGlobalFormStats(formId: string) {
