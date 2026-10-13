@@ -822,8 +822,9 @@ export default function PreviewForm({
       question && (
         question.trackResponseQuestion === true ||
         String(question.trackResponseQuestion) === "true" ||
-        question.trackResponseRank === true ||
-        String(question.trackResponseRank) === "true" ||
+        // Track ranking logic commented out
+        // question.trackResponseRank === true ||
+        // String(question.trackResponseRank) === "true" ||
         question.type === "chassis" ||
         question.type === "chassis-with-zone" ||
         question.type === "chassis-without-zone" ||
@@ -913,13 +914,32 @@ export default function PreviewForm({
       if (result && result.suggestedAnswers) {
         const rawSuggestions = Array.isArray(result.suggestedAnswers) ? result.suggestedAnswers : [];
 
-        if (rawSuggestions.length > 0) {
-          setSuggestedAnswers(rawSuggestions);
-          const latest = rawSuggestions[rawSuggestions.length - 1];
-          setSelectedRank(latest?.rank || rawSuggestions.length);
+        const normalizeStr = (v: any) => {
+          if (typeof v === 'object' && v !== null) {
+            return String(v.chassisNumber || v.value || "").trim().toLowerCase();
+          }
+          return String(v || "").trim().toLowerCase();
+        };
+        const searchNormalized = normalizeStr(searchValue);
+
+        const filteredSuggestions = rawSuggestions.filter(s => {
+          const ans = s.answers || {};
+          const qVal = ans[questionId] ?? ans[`_${questionId}`] ?? ans[`${questionId}_tracking`];
+          if (qVal !== undefined && normalizeStr(qVal) === searchNormalized) return true;
+          if (s.chassisNumber && normalizeStr(s.chassisNumber) === searchNormalized) return true;
+          for (const k of ['chassis_number', 'chassisNumber', 'Identification Number', 'identification_number', 'id_number', 'idNumber', 'ID number', 'chassis_no', 'VIN']) {
+            if (ans[k] !== undefined && normalizeStr(ans[k]) === searchNormalized) return true;
+          }
+          return false;
+        });
+
+        if (filteredSuggestions.length > 0) {
+          setSuggestedAnswers(filteredSuggestions);
+          const latest = filteredSuggestions[filteredSuggestions.length - 1];
+          setSelectedRank(latest?.rank || filteredSuggestions.length);
           setGlobalRankAnswers(latest?.answers || null);
-          setGlobalRank(latest?.rank || rawSuggestions.length);
-          showSuccess(`${rawSuggestions.length} previous inspection record${rawSuggestions.length > 1 ? "s" : ""} found for "${searchValue}"!`);
+          setGlobalRank(latest?.rank || filteredSuggestions.length);
+          showSuccess(`${filteredSuggestions.length} previous inspection record${filteredSuggestions.length > 1 ? "s" : ""} found for "${searchValue}"!`);
         } else {
           setSuggestedAnswers(null);
           setGlobalRankAnswers(null);

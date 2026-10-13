@@ -3477,11 +3477,13 @@ export default function ResponseDetailsPage() {
                                                     <div className="font-medium text-gray-800 dark:text-gray-200">
                                                       {renderValue(item.answer)}
                                                     </div>
+                                                    {/* Track ranking logic commented out
                                                     {response?.responseRanks?.[item.question?.id] && (
                                                       <div className={`text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm w-fit mt-1 ${getRankStyle(item.answer, document.documentElement.classList.contains("dark"))}`}>
                                                         #{response.responseRanks[item.question.id]}
                                                       </div>
                                                     )}
+                                                    */}
                                                   </div>
                                                 );
                                               })}

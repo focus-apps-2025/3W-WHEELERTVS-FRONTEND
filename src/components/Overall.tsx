@@ -519,7 +519,7 @@ export default function Overall() {
         if (ans && hasAnswerValueLocal(ans)) {
           return {
             name: getSimpleString(ans),
-            rank: response.responseRanks?.[dqid] || null,
+            rank: null, // Track ranking logic commented out: response.responseRanks?.[dqid] || null,
           };
         }
       }
@@ -531,7 +531,7 @@ export default function Overall() {
             if (ans && hasAnswerValueLocal(ans)) {
               return {
                 name: getSimpleString(ans),
-                rank: response.responseRanks?.[q.id] || null,
+                rank: null, // Track ranking logic commented out: response.responseRanks?.[q.id] || null,
               };
             }
           }
@@ -2168,7 +2168,7 @@ export default function Overall() {
           if (ans && hasAnswerValue(ans)) {
             return {
               name: renderAnswerDisplay(ans),
-              rank: response.responseRanks?.[dqid] || null,
+              rank: null, // Track ranking logic commented out: response.responseRanks?.[dqid] || null,
             };
           }
         }
@@ -2180,7 +2180,7 @@ export default function Overall() {
               if (ans && hasAnswerValue(ans)) {
                 return {
                   name: renderAnswerDisplay(ans),
-                  rank: response.responseRanks?.[q.id] || null,
+                  rank: null, // Track ranking logic commented out: response.responseRanks?.[q.id] || null,
                 };
               }
             }
@@ -5265,6 +5265,7 @@ export default function Overall() {
                                                   title={response.dealerName}
                                                 >
                                                   {response.dealerName}
+                                                  {/* Track ranking logic commented out
                                                   {response.dealerRank && (
                                                     <span
                                                       className={`ml-2 text-[10px] font-bold min-w-[24px] h-5 px-1.5 rounded-full inline-flex items-center justify-center border shadow-sm ${getRankStyle(response.dealerName)}`}
@@ -5272,6 +5273,7 @@ export default function Overall() {
                                                       #{response.dealerRank}
                                                     </span>
                                                   )}
+                                                  */}
                                                 </span>
                                               </div>
                                             )}

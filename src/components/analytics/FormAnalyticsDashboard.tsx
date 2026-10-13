@@ -894,7 +894,10 @@ const getRankStyle = (answer: any, darkMode: boolean = false) => {
   return darkMode ? color.d : color.l;
 };
 
-const renderRankingBadge = (rank: number | undefined | null, answer: any, darkMode: boolean = false) => {
+const renderRankingBadge = (_rank: number | undefined | null, _answer: any, _darkMode: boolean = false) => {
+  // Track ranking logic commented out
+  return null;
+  /*
   if (!rank || rank <= 0) return null;
   return (
     <span
@@ -905,6 +908,7 @@ const renderRankingBadge = (rank: number | undefined | null, answer: any, darkMo
       <span>#${rank}</span>
     </span>
   );
+  */
 };
 
 const getBiwPerformanceLabel = (score: number) => {

@@ -1367,13 +1367,16 @@ class ApiClient {
     }
   }
 
-  // Rank tracking
+  // Rank tracking - Track ranking logic commented out
   async getResponseRank(
     formId: string,
     questionId: string,
     answer: any,
     tenantSlug?: string,
   ) {
+    // Track ranking logic commented out
+    return { rank: null, count: 0, exists: false };
+    /*
     let answerStr = "";
     if (answer !== null && answer !== undefined) {
       if (typeof answer === "object") {
@@ -1426,6 +1429,7 @@ class ApiClient {
       count: countVal,
       exists: Boolean(exists),
     };
+    */
   }
 
   async getGlobalFormStats(formId: string) {

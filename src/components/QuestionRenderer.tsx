@@ -213,6 +213,8 @@ export default function QuestionRenderer({
   const imageUrl = getGoogleDriveDirectLink(question.imageUrl || "");
   const isImage = isImageUrl(imageUrl);
 
+  // Track ranking logic commented out
+  /*
   const isRankTrackingEnabled =
     question.trackResponseRank === true ||
     String(question.trackResponseRank) === "true" ||
@@ -225,6 +227,8 @@ export default function QuestionRenderer({
       question.text &&
       /identification|chassis|id\s*number|id_number|id\s*no|vin|serial/i.test(question.text)
     );
+  */
+  const isRankTrackingEnabled = false;
 
   const isQuestionTrackingEnabled =
     question.trackResponseQuestion === true ||
@@ -247,6 +251,8 @@ export default function QuestionRenderer({
   }, [isQuestionTrackingEnabled, trackingValue, value]);
 
   useEffect(() => {
+    // Track ranking logic commented out
+    /*
     const fetchRank = async () => {
       if (
         (isRankTrackingEnabled || isQuestionTrackingEnabled) &&
@@ -280,6 +286,8 @@ export default function QuestionRenderer({
     };
 
     fetchRank();
+    */
+    setRank(null);
   }, [
     isRankTrackingEnabled,
     isQuestionTrackingEnabled,
@@ -472,13 +480,15 @@ export default function QuestionRenderer({
                       ? (darkMode ? "bg-emerald-950/60 border-emerald-600 text-emerald-300 ring-2 ring-emerald-500/20" : "bg-emerald-50 border-emerald-300 text-emerald-800 ring-2 ring-emerald-500/20")
                       : (darkMode ? "bg-slate-800/80 border-slate-700 text-slate-300 hover:border-blue-500 hover:text-blue-300" : "bg-white border-slate-200 text-slate-700 hover:border-blue-400 hover:text-blue-700 shadow-xs")
                   }`}
-                  title={`Click to reuse Attempt #${m.rank} value`}
+                  title="Click to reuse Historical value"
                 >
+                  {/* Track ranking badge commented out
                   <span className={`px-1.5 py-0.2 rounded text-[8px] font-black uppercase ${
                     m.rank === 1 ? "bg-emerald-500 text-white" : m.rank === 2 ? "bg-blue-500 text-white" : "bg-amber-500 text-white"
                   }`}>
                     #{m.rank}
                   </span>
+                  */}
                   <span className="truncate max-w-[200px]">{displayVal}</span>
                 </button>
               );

@@ -1448,7 +1448,10 @@ export default function AllResponses() {
   }
 
   
-const renderRankingBadge = (rank: number | undefined | null, answer: any, darkMode: boolean = false) => {
+const renderRankingBadge = (_rank: number | undefined | null, _answer: any, _darkMode: boolean = false) => {
+  // Track ranking logic commented out
+  return null;
+  /*
   if (!rank || rank <= 0) return null;
   return (
     <span
@@ -1458,6 +1461,7 @@ const renderRankingBadge = (rank: number | undefined | null, answer: any, darkMo
       <span className="opacity-70 font-semibold text-[9px] uppercase tracking-wider">Ranking</span> #{rank}
     </span>
   );
+  */
 };
 
 const getRankStyle = (answer: any, darkMode: boolean = false) => {

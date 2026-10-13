@@ -872,11 +872,13 @@ export default function FormResponses() {
                             }`}
                           >
                             <div>{renderValue(value)}</div>
+                            {/* Track ranking logic commented out
                             {selectedResponse.responseRanks?.[key] && (
                               <div className="text-[11px] font-bold text-blue-600 dark:text-blue-400 mt-1">
                                 #{selectedResponse.responseRanks[key]}
                               </div>
                             )}
+                            */}
                           </div>
                         );
                       })()}
@@ -967,11 +969,13 @@ export default function FormResponses() {
                                   </div>
                                   <div className="text-sm text-purple-700 bg-white dark:bg-gray-900 p-2 rounded border border-purple-100 flex flex-col gap-1">
                                     <div>{renderValue(value)}</div>
+                                    {/* Track ranking logic commented out
                                     {childResponse.responseRanks?.[key] && (
                                       <div className="text-[10px] font-bold text-blue-600 dark:text-blue-400">
                                         #{childResponse.responseRanks[key]}
                                       </div>
                                     )}
+                                    */}
                                   </div>
                                 </div>
                               )
@@ -1067,12 +1071,14 @@ export default function FormResponses() {
                             >
                               <div className="flex flex-col">
                                 <span>{getAnswerDisplay(responseItem, column.id)}</span>
+                                {/* Track ranking logic commented out
                                 {responseItem.responseRanks && responseItem.responseRanks[column.id] !== undefined && (
                                   <span className="text-[10px] font-bold text-blue-700 bg-blue-50 dark:bg-blue-900/40 dark:text-blue-200 px-2 py-0.5 rounded-full w-fit mt-1.5 border border-blue-200 dark:border-blue-700 flex items-center shadow-sm">
                                     <span className="mr-1">Rank:</span>
                                     <span>{responseItem.responseRanks[column.id]}</span>
                                   </span>
                                 )}
+                                */}
                               </div>
                             </td>
                           ))}

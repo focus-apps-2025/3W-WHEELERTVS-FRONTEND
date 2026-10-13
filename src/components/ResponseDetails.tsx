@@ -379,11 +379,13 @@ export default function ResponseDetails({
                   <div className="text-gray-700 dark:text-gray-300">
                     {renderAnswer(q, answer)}
                   </div>
+                  {/* Track ranking logic commented out
                   {response.responseRanks?.[q.id] && (
                     <div className={`mt-2 text-[10px] font-bold min-w-[24px] h-6 px-1.5 rounded-full flex items-center justify-center border shadow-sm ${getRankStyle(answer)}`}>
                       #{response.responseRanks[q.id]}
                     </div>
                   )}
+                  */}
                 </div>
               );
             })}
